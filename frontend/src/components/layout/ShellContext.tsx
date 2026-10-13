@@ -31,6 +31,13 @@ export interface ShellContextValue {
   isTablet: boolean
   /** Viewport is at least `lg` (1024px). */
   isDesktop: boolean
+  /**
+   * The details panel sits BESIDE the article, as a column. When false it is an
+   * overlay drawer opened from the header toggle. A reading page asks for the
+   * column only at `xl` (1280px) — below that 320px of rail costs the text too
+   * much — while an edit page keeps it from `lg`, because its Save lives there.
+   */
+  detailsInline: boolean
 
   /** True while a page has registered a details panel via `useReadingShell`. */
   detailsRegistered: boolean
@@ -43,16 +50,34 @@ export interface ShellContextValue {
   setDetailsSheetOpen: (open: boolean) => void
 
   contentMode: ShellContentMode
+
+  /**
+   * Focus mode: the navigation and the details panel are both hidden, leaving
+   * the text. It is an overlay on the two stored preferences, never a change to
+   * them, so leaving it restores each exactly as it was — and it is not stored,
+   * so it never survives a page load.
+   */
+  focusMode: boolean
+  setFocusMode: (on: boolean) => void
+
+  /**
+   * The name of the thing the current page is about (a resource's title), shown
+   * as the breadcrumb's last crumb. `null` when the page did not name one.
+   */
+  breadcrumbLeaf: string | null
 }
 
 /** What a reading page tells the shell about itself. */
 export interface ShellRegistration {
   /** Whether the page renders a details panel (drives the header toggle). */
   details: boolean
+  /** The details column needs `xl`, not `lg`, to sit beside the article. */
+  wideRail?: boolean
 }
 
 interface ShellInternalValue extends ShellContextValue {
   register: (registration: ShellRegistration) => () => void
+  setBreadcrumbLeaf: (leaf: string | null) => void
 }
 
 const noop = (): void => undefined
@@ -66,6 +91,7 @@ const DEFAULT_SHELL: ShellInternalValue = {
   toggleNav: noop,
   isTablet: true,
   isDesktop: true,
+  detailsInline: true,
   detailsRegistered: false,
   detailsOpen: true,
   setDetailsOpen: noop,
@@ -73,7 +99,11 @@ const DEFAULT_SHELL: ShellInternalValue = {
   detailsSheetOpen: false,
   setDetailsSheetOpen: noop,
   contentMode: 'contained',
+  focusMode: false,
+  setFocusMode: noop,
+  breadcrumbLeaf: null,
   register: () => noop,
+  setBreadcrumbLeaf: noop,
 }
 
 const ShellContext = createContext<ShellInternalValue>(DEFAULT_SHELL)
@@ -81,6 +111,7 @@ const ShellContext = createContext<ShellInternalValue>(DEFAULT_SHELL)
 export function ShellProvider({ children }: Readonly<{ children: ReactNode }>) {
   const isTablet = useMediaQuery(BREAKPOINT_QUERIES.md)
   const isDesktop = useMediaQuery(BREAKPOINT_QUERIES.lg)
+  const isWide = useMediaQuery(BREAKPOINT_QUERIES.xl)
 
   // Both collapse states are stored as "collapsed" booleans so the absence of
   // a key (first visit) yields the design default: everything open.
@@ -93,20 +124,25 @@ export function ShellProvider({ children }: Readonly<{ children: ReactNode }>) {
     false
   )
   const [detailsSheetOpen, setDetailsSheetOpen] = useState(false)
+  const [breadcrumbLeaf, setBreadcrumbLeaf] = useState<string | null>(null)
 
   // A page registers once on mount and unregisters on unmount, so counters
   // (not booleans) survive the brief overlap when one reading page replaces
   // another during navigation.
   const [readingPages, setReadingPages] = useState(0)
   const [detailsPanels, setDetailsPanels] = useState(0)
+  const [wideRails, setWideRails] = useState(0)
+  const [focusMode, setFocusMode] = useState(false)
 
   const register = useCallback((registration: ShellRegistration) => {
-    const { details } = registration
+    const { details, wideRail = false } = registration
     setReadingPages(n => n + 1)
     if (details) setDetailsPanels(n => n + 1)
+    if (wideRail) setWideRails(n => n + 1)
     return () => {
       setReadingPages(n => n - 1)
       if (details) setDetailsPanels(n => n - 1)
+      if (wideRail) setWideRails(n => n - 1)
     }
   }, [])
 
@@ -114,11 +150,19 @@ export function ShellProvider({ children }: Readonly<{ children: ReactNode }>) {
   const contentMode: ShellContentMode =
     readingPages > 0 ? 'reading' : 'contained'
 
-  // The sheet only exists below `lg`; drop it when a page without details
-  // takes over or the viewport grows into the column layout.
+  const detailsInline = wideRails > 0 ? isWide : isDesktop
+
+  // The sheet only exists while the details are not a column; drop it when a
+  // page without details takes over or the viewport grows into the column
+  // layout.
   useEffect(() => {
-    if (!detailsRegistered || isDesktop) setDetailsSheetOpen(false)
-  }, [detailsRegistered, isDesktop])
+    if (!detailsRegistered || detailsInline) setDetailsSheetOpen(false)
+  }, [detailsRegistered, detailsInline])
+
+  // Focus mode belongs to the reading page that turned it on.
+  useEffect(() => {
+    if (readingPages === 0) setFocusMode(false)
+  }, [readingPages])
 
   const value = useMemo<ShellInternalValue>(
     () => ({
@@ -128,6 +172,7 @@ export function ShellProvider({ children }: Readonly<{ children: ReactNode }>) {
       },
       isTablet,
       isDesktop,
+      detailsInline,
       detailsRegistered,
       detailsOpen: !detailsCollapsed,
       setDetailsOpen: open => {
@@ -139,7 +184,11 @@ export function ShellProvider({ children }: Readonly<{ children: ReactNode }>) {
       detailsSheetOpen,
       setDetailsSheetOpen,
       contentMode,
+      focusMode,
+      setFocusMode,
+      breadcrumbLeaf,
       register,
+      setBreadcrumbLeaf,
     }),
     [
       navCollapsed,
@@ -148,9 +197,12 @@ export function ShellProvider({ children }: Readonly<{ children: ReactNode }>) {
       setDetailsCollapsed,
       isTablet,
       isDesktop,
+      detailsInline,
       detailsRegistered,
       detailsSheetOpen,
       contentMode,
+      focusMode,
+      breadcrumbLeaf,
       register,
     ]
   )
@@ -170,6 +222,25 @@ export function useShell(): ShellContextValue {
  */
 export function useReadingShell(registration: ShellRegistration): void {
   const { register } = useContext(ShellContext)
-  const { details } = registration
-  useEffect(() => register({ details }), [register, details])
+  const { details, wideRail = false } = registration
+  useEffect(
+    () => register({ details, wideRail }),
+    [register, details, wideRail]
+  )
+}
+
+/**
+ * Names the thing the current page is about, for the breadcrumb's last crumb
+ * ("VibeXP / Artifacts / <title>"). Cleared when the page unmounts or stops
+ * naming one. A blank or missing label names nothing.
+ */
+export function useBreadcrumbLeaf(label: string | null | undefined): void {
+  const { setBreadcrumbLeaf } = useContext(ShellContext)
+  const leaf = label?.trim() ? label.trim() : null
+  useEffect(() => {
+    setBreadcrumbLeaf(leaf)
+    return () => {
+      setBreadcrumbLeaf(null)
+    }
+  }, [setBreadcrumbLeaf, leaf])
 }

@@ -10,6 +10,7 @@ import {
   useCopyAction,
 } from '@/components/patterns/reading-page'
 import {
+  resourceKindLabel,
   ResourceMetadataSection,
   resourceRegistry,
   ResourceTaxonomySection,
@@ -57,6 +58,7 @@ export function BlueprintView() {
     id: 'back',
     label: 'Back',
     icon: ArrowLeft,
+    placement: 'toolbar',
     onClick: () => {
       void navigate('/blueprints')
     },
@@ -216,18 +218,21 @@ export function BlueprintView() {
 
   const base = blueprintBase(blueprint)
 
+  // Edit and Copy are what a reader reaches for; the rest live in the
+  // toolbar's More menu. No Back: the breadcrumb and the browser have it.
   const actions: ReadingAction[] = [
-    backAction,
-    copyAction,
     {
       id: 'edit',
       label: 'Edit',
       icon: Pencil,
+      emphasis: 'primary',
+      placement: 'toolbar',
       testId: 'edit-blueprint-button',
       onClick: () => {
         void navigate(`${base}/edit`)
       },
     },
+    copyAction,
   ]
   actions.push(...resourceLock.actions)
   // A locked blueprint cannot be deleted; Delete returns after unlock.
@@ -252,7 +257,8 @@ export function BlueprintView() {
           value: statusOptions.labelOf(blueprint.status),
           tone: statusOptions.toneOf(blueprint.status),
         }}
-        address={{ value: blueprint.slug }}
+        kindLabel={resourceKindLabel(resourceRegistry.blueprint, blueprint)}
+        versionHistory={versionHistory}
         updatedAt={blueprint.updated_at}
         summary={blueprint.description}
         actions={actions}
@@ -269,6 +275,7 @@ export function BlueprintView() {
               resource={blueprint}
               versionHistory={versionHistory}
               statusLabel={statusOptions.labelOf}
+              hideStatus
               lock={blueprint.lock}
               project={blueprint.project}
               projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}

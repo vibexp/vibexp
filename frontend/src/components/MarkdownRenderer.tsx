@@ -13,6 +13,7 @@ import {
   substituteFilledPlaceholders,
 } from './markdownPlaceholders'
 import {
+  addHeadingIds,
   markTaskListItems,
   stripLeadingTitleHeading,
 } from './markdownTransforms'
@@ -30,10 +31,12 @@ const escHtml = (s: string): string =>
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
 
-const COPY_ICON =
-  '<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"></path><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2h-1v1a1 1 0 01-1 1H7a1 1 0 01-1-1V3H6z"></path></svg>'
-const COPIED_ICON =
-  '<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>'
+// The same outline glyphs every other copy control uses (lucide's `Copy` and
+// `Check`), as strings because code blocks are injected HTML, not React.
+const ICON_ATTRS =
+  'class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
+const COPY_ICON = `<svg ${ICON_ATTRS}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>`
+const COPIED_ICON = `<svg ${ICON_ATTRS}><path d="M20 6 9 17l-5-5"></path></svg>`
 
 /**
  * Builds the copy-to-clipboard button markup for a code block. The code text
@@ -73,7 +76,7 @@ function buildCodeBlockHtml({
     ? `<span class="code-block-language">${escHtml(language)}</span>`
     : '<span></span>'
   const codeClass = className ? ` class="${className}"` : ''
-  return `<div class="code-block"><div class="code-block-bar">${label}${copyButton}</div><pre><code${codeClass}>${highlightedCode}</code></pre></div>`
+  return `<div class="code-block"><div class="code-block-bar">${label}${copyButton}</div><pre class="scrollbar-hover"><code${codeClass}>${highlightedCode}</code></pre></div>`
 }
 
 /**
@@ -310,7 +313,7 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
 
       <div
         ref={elementRef}
-        className="mermaid-container"
+        className="mermaid-container scrollbar-hover"
         role="region"
         aria-label="Diagram"
       />
@@ -448,6 +451,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
         // Task-list items lose their bullet and get a themed, read-only box.
         html = markTaskListItems(html)
+        // Anchors for the reading page's outline and for linking to a section.
+        html = addHeadingIds(html)
 
         // Apply syntax highlighting, and give every fenced block its bar: the
         // language label and the copy button. A fence with no language has no
@@ -531,7 +536,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           .replace(
             /<table(\s[^>]*)?>/g,
             (_match: string, attrs?: string) =>
-              `<div class="markdown-table-wrapper" tabindex="0" role="region" aria-label="Table"><table${attrs ?? ''}>`
+              `<div class="markdown-table-wrapper scrollbar-hover" tabindex="0" role="region" aria-label="Table"><table${attrs ?? ''}>`
           )
           .replaceAll('</table>', '</table></div>')
 

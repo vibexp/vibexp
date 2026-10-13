@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mock } from 'vitest'
 
+import { openMoreActions } from '@/components/patterns/reading-page/testing'
 import type { Feed, FeedItem } from '@/services/feedService'
 import type { TeamMember } from '@/services/teamService'
 
@@ -396,8 +397,10 @@ describe('FeedItemView page', () => {
       setTeamPermissions(['resource.delete.own'])
       renderFeedItemView()
       await screen.findAllByText('Sprint Retro Summary')
+      // Delete is an item of the toolbar's More menu: open it before looking.
+      await openMoreActions()
       expect(
-        screen.queryByRole('button', { name: 'Delete' })
+        screen.queryByRole('menuitem', { name: 'Delete' })
       ).not.toBeInTheDocument()
     })
 
@@ -405,7 +408,11 @@ describe('FeedItemView page', () => {
       setTeamPermissions(['feed.delete.any'])
       renderFeedItemView()
       await screen.findAllByText('Sprint Retro Summary')
-      expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+      // Delete is an item of the toolbar's More menu: open it before looking.
+      await openMoreActions()
+      expect(
+        screen.getByRole('menuitem', { name: 'Delete' })
+      ).toBeInTheDocument()
     })
 
     it('shows delete on your own item with resource.delete.own', async () => {
@@ -415,7 +422,11 @@ describe('FeedItemView page', () => {
       )
       renderFeedItemView()
       await screen.findAllByText('Sprint Retro Summary')
-      expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+      // Delete is an item of the toolbar's More menu: open it before looking.
+      await openMoreActions()
+      expect(
+        screen.getByRole('menuitem', { name: 'Delete' })
+      ).toBeInTheDocument()
     })
 
     it('hides delete on your own item when only feed.delete.any is granted', async () => {
@@ -427,8 +438,10 @@ describe('FeedItemView page', () => {
       )
       renderFeedItemView()
       await screen.findAllByText('Sprint Retro Summary')
+      // Delete is an item of the toolbar's More menu: open it before looking.
+      await openMoreActions()
       expect(
-        screen.queryByRole('button', { name: 'Delete' })
+        screen.queryByRole('menuitem', { name: 'Delete' })
       ).not.toBeInTheDocument()
     })
   })
@@ -439,8 +452,10 @@ describe('FeedItemView page', () => {
     ;(feedService.deleteFeedItem as Mock).mockResolvedValue(undefined)
     renderFeedItemView()
     await screen.findAllByText('Sprint Retro Summary')
+    // Delete is an item of the toolbar's More menu: open it before looking.
+    await openMoreActions()
 
-    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Delete' }))
     const dialog = await screen.findByRole('alertdialog')
     expect(within(dialog).getByText('Delete feed item?')).toBeInTheDocument()
 

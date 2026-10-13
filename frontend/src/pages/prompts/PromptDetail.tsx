@@ -266,6 +266,7 @@ export function PromptDetail() {
     id: 'back',
     label: 'Back',
     icon: ArrowLeft,
+    placement: 'toolbar',
     onClick: () => {
       void navigate('/prompts')
     },
@@ -295,19 +296,22 @@ export function PromptDetail() {
     )
   }
 
+  // Edit and Copy are what a reader reaches for; the rest live in the
+  // toolbar's More menu. No Back: the breadcrumb and the browser have it.
   const actions: ReadingAction[] = [
-    backAction,
-    copyAction,
     {
       id: 'edit',
       label: 'Edit',
       icon: Pencil,
+      emphasis: 'primary',
+      placement: 'toolbar',
       testId: 'edit-prompt-button',
       onClick: () => {
         // Editor still lives in v1 until Slice 5b
         void navigate(`/prompts/${prompt.slug}/edit`)
       },
     },
+    copyAction,
   ]
   actions.push(...resourceLock.actions)
   // A locked prompt cannot be deleted; Delete returns after unlock.
@@ -332,7 +336,7 @@ export function PromptDetail() {
           value: statusOptions.labelOf(prompt.status),
           tone: statusOptions.toneOf(prompt.status),
         }}
-        address={{ label: 'Slug', value: prompt.slug }}
+        versionHistory={versionHistory}
         updatedAt={prompt.updated_at}
         summary={prompt.description}
         headerExtra={prompt.is_shared && <SharedBadge />}

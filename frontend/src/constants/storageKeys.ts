@@ -80,6 +80,13 @@ export const STORAGE_KEYS = {
    * details live in a sheet that always starts closed).
    */
   DETAILS_COLLAPSED: 'vx_details_collapsed',
+  /**
+   * `true` when the reader left a reading page's "Usage" disclosure (the
+   * access-activity chart) open. Closed by default: page views are mostly the
+   * reader's own, and must not push comments and relations down the rail.
+   * Stored as a BOOLEAN, like `DETAILS_COLLAPSED`.
+   */
+  USAGE_OPEN: 'vx_usage_open',
 
   // Search (#1078)
   /**
@@ -145,6 +152,7 @@ export const LOCAL_STORAGE_KEYS: ReadonlySet<StorageKey> = new Set([
   STORAGE_KEYS.CURRENT_PROJECT_ID,
   STORAGE_KEYS.NAV_COLLAPSED,
   STORAGE_KEYS.DETAILS_COLLAPSED,
+  STORAGE_KEYS.USAGE_OPEN,
 ])
 
 export const SESSION_STORAGE_KEYS: ReadonlySet<StorageKey> = new Set([

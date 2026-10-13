@@ -10,6 +10,7 @@ import {
   PanelRow,
   PanelTitle,
   usePanelInset,
+  usePanelPresentation,
 } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
 
@@ -229,6 +230,7 @@ export function MetadataPanel({
   versionHistory,
   className,
 }: Readonly<MetadataPanelProps>) {
+  const flat = usePanelPresentation() === 'flat'
   const createdMs = createdAt ? new Date(createdAt).getTime() : 0
   const updatedMs = updatedAt ? new Date(updatedAt).getTime() : 0
   // The version row already surfaces the edit time ("edited 12m ago"), so a
@@ -246,7 +248,16 @@ export function MetadataPanel({
           <PanelTitle>{title}</PanelTitle>
         </div>
       </PanelHeader>
-      <ul className="divide-y divide-border border-t border-border">
+      <ul
+        className={cn(
+          // In a details column the rows are a short list under one label; a
+          // rule between every row is noise there. A standalone card keeps
+          // its hairlines.
+          flat
+            ? '[&>li]:py-1.5'
+            : 'divide-y divide-border border-t border-border'
+        )}
+      >
         {children}
         {createdAt && (
           <TimeRow label="Created" value={createdAt} icon={Calendar} />

@@ -5,6 +5,7 @@ import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { cn } from '@/lib/utils'
 
+import { useHostedBodyView } from './readingChrome'
 import type { BodyFormat, BodyViewMode } from './types'
 import { useBodyViewMode } from './useBodyViewMode'
 
@@ -64,7 +65,8 @@ export type ResourceBodyProps = ResourceBodyBaseProps & ResourceBodyModeProps
  * The one body treatment every resource detail page uses (#901).
  *
  * A bare article — no card chrome (epic #899 decision A) — with a Rendered /
- * Raw switch above it, so every resource offers the source text a user is
+ * Raw switch (drawn in the reading page's toolbar when there is one, above the
+ * body otherwise), so every resource offers the source text a user is
  * about to paste into a tool. It always opens on Rendered; Raw lasts for the
  * current page view only and is stored nowhere (see `useBodyViewMode`).
  *
@@ -88,23 +90,29 @@ export function ResourceBody({
   const [ownMode, setOwnMode] = useBodyViewMode()
   const activeMode = mode ?? ownMode
 
-  const handleChange = (value: string) => {
-    const next = value as BodyViewMode
+  const setActiveMode = (next: BodyViewMode) => {
     if (onModeChange) onModeChange(next)
     else setOwnMode(next)
   }
+  // On a reading page the switch is drawn in the page toolbar, beside Edit
+  // and Copy; anywhere else the body draws it itself.
+  const switchIsHosted = useHostedBodyView(activeMode, setActiveMode)
 
   return (
     <div className={cn('space-y-4', className)} data-testid="resource-body">
-      <div className="reading-prose-width flex justify-end">
-        <SegmentedControl
-          size="sm"
-          aria-label="Body view"
-          options={VIEW_OPTIONS}
-          value={activeMode}
-          onChange={handleChange}
-        />
-      </div>
+      {!switchIsHosted && (
+        <div className="reading-prose-width flex justify-end">
+          <SegmentedControl
+            size="sm"
+            aria-label="Body view"
+            options={VIEW_OPTIONS}
+            value={activeMode}
+            onChange={value => {
+              setActiveMode(value as BodyViewMode)
+            }}
+          />
+        </div>
+      )}
 
       {/*
         Only the active view is mounted, and it carries `role="tabpanel"` to

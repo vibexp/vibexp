@@ -28,13 +28,16 @@ import {
  * - `md–lg`: the navigation is a fixed icon rail, so there is no nav button.
  * - `lg+`: a nav button folds the sidebar between expanded and rail.
  * - A details toggle appears only while a reading page has registered a
- *   details panel: it folds the details column at `lg+` and opens the details
- *   sheet below that.
+ *   details panel: it folds the details column where there is one (`xl+` on a
+ *   reading page, `lg+` on an edit page) and opens the details drawer below
+ *   that.
  */
 export function Header() {
   const {
     isTablet,
     isDesktop,
+    detailsInline,
+    focusMode,
     navExpanded,
     toggleNav,
     detailsRegistered,
@@ -51,11 +54,13 @@ export function Header() {
     setDrawerOpen(false)
   }, [pathname])
 
-  const showDetailsToggle = detailsRegistered
-  const detailsPressed = isDesktop ? detailsOpen : undefined
-  const DetailsIcon = isDesktop ? PanelRight : Info
+  // In focus mode both side panels are hidden, and so are their toggles: the
+  // reading toolbar's focus control (or Escape) is the way back.
+  const showDetailsToggle = detailsRegistered && !focusMode
+  const detailsPressed = detailsInline ? detailsOpen : undefined
+  const DetailsIcon = detailsInline ? PanelRight : Info
   let detailsLabel: string
-  if (!isDesktop) {
+  if (!detailsInline) {
     detailsLabel = 'Open details'
   } else if (detailsOpen) {
     detailsLabel = 'Collapse details'
@@ -79,7 +84,7 @@ export function Header() {
         </Sheet>
       )}
 
-      {isDesktop && (
+      {isDesktop && !focusMode && (
         <Button
           variant="ghost"
           size="icon"
@@ -113,7 +118,7 @@ export function Header() {
             aria-pressed={detailsPressed}
             data-testid="details-toggle"
             onClick={() => {
-              if (isDesktop) toggleDetails()
+              if (detailsInline) toggleDetails()
               else setDetailsSheetOpen(true)
             }}
           >

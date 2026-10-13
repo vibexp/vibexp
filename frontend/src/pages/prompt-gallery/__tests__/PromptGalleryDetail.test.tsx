@@ -304,7 +304,7 @@ describe('PromptGalleryDetail page', () => {
         'Please review the following code'
       )
 
-      await user.click(within(body).getByRole('tab', { name: 'Raw' }))
+      await user.click(screen.getByRole('tab', { name: 'Raw' }))
 
       expect(screen.getByTestId('resource-body-raw')).toHaveTextContent(
         'Please review the following code'

@@ -42,6 +42,7 @@ export {
 } from './registry'
 export {
   type ProjectRef,
+  resourceKindLabel,
   ResourceMetadataSection,
   type ResourceMetadataSectionProps,
 } from './ResourceMetadataSection'

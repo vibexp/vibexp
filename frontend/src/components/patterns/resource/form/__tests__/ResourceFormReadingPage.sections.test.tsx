@@ -221,6 +221,17 @@ function renderView(kind: ResourceRef['kind'], descriptor: ResourceDescriptor) {
   )
 }
 
+/** Whether every item of `subset` appears in `all`, in the same order. */
+function inOrder<T>(all: readonly T[], subset: readonly T[]): boolean {
+  let from = 0
+  for (const item of subset) {
+    const at = all.indexOf(item, from)
+    if (at === -1) return false
+    from = at + 1
+  }
+  return true
+}
+
 /** The column's sections and headings, in document order. */
 function columnShape() {
   const column = screen.getByTestId('details-column')
@@ -248,16 +259,19 @@ describe('ResourceFormReadingPage — the reading page’s column, editable', ()
   beforeEach(() => {
     storage.clear()
     vi.clearAllMocks()
-    viewport = mockViewportWidth(1280)
+    // Wide enough for the READING page's column too, which needs more room
+    // than the edit page's before it sits beside the text.
+    viewport = mockViewportWidth(1440)
   })
 
   afterEach(() => {
     viewport.restore()
   })
 
-  // The acceptance criterion itself: View → Edit keeps the same sections,
-  // headings and order. The edit column stops after Attachments (activity,
-  // comments and relations are not edited), so it must be a PREFIX of the view.
+  // The acceptance criterion itself: View → Edit keeps the same sections and
+  // headings, in the same order. The edit column has only the sections that
+  // are edited (relations, comments and usage are not), so it must be a
+  // SUBSEQUENCE of the view: the same ids and headings, never reordered.
   it.each(KINDS)(
     'gives the %s edit column the view column’s sections and headings, in order',
     (kind, descriptor) => {
@@ -269,12 +283,8 @@ describe('ResourceFormReadingPage — the reading page’s column, editable', ()
       const editing = columnShape()
 
       expect(editing.sections.length).toBeGreaterThan(0)
-      expect(editing.sections).toEqual(
-        reading.sections.slice(0, editing.sections.length)
-      )
-      expect(editing.headings).toEqual(
-        reading.headings.slice(0, editing.headings.length)
-      )
+      expect(inOrder(reading.sections, editing.sections)).toBe(true)
+      expect(inOrder(reading.headings, editing.headings)).toBe(true)
       expect(editing.headings).toEqual(
         descriptor.capabilities.attachments
           ? ['Metadata', 'Labels & metadata', 'Attachments']
@@ -452,9 +462,7 @@ describe('ResourceFormReadingPage — the reading page’s column, editable', ()
 
         renderEdit(kind, descriptor, { extensions })
         const editing = columnShape()
-        expect(editing.headings).toEqual(
-          reading.headings.slice(0, editing.headings.length)
-        )
+        expect(inOrder(reading.headings, editing.headings)).toBe(true)
       }
     )
 

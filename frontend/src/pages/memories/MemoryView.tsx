@@ -52,6 +52,7 @@ export function MemoryView() {
     id: 'back',
     label: 'Back',
     icon: ArrowLeft,
+    placement: 'toolbar',
     onClick: () => {
       void navigate('/memories')
     },
@@ -162,18 +163,21 @@ export function MemoryView() {
     )
   }
 
+  // Edit and Copy are what a reader reaches for; the rest live in the
+  // toolbar's More menu. No Back: the breadcrumb and the browser have it.
   const actions: ReadingAction[] = [
-    backAction,
-    copyAction,
     {
       id: 'edit',
       label: 'Edit',
       icon: Pencil,
+      emphasis: 'primary',
+      placement: 'toolbar',
       testId: 'edit-memory-button',
       onClick: () => {
         void navigate(`/memories/${memory.id}/edit`)
       },
     },
+    copyAction,
   ]
   if (canDeleteResource(memory.user_id)) {
     actions.push({
@@ -198,6 +202,7 @@ export function MemoryView() {
           tone: statusOptions.toneOf(memory.status),
         }}
         updatedAt={memory.updated_at}
+        versionHistory={versionHistory}
         actions={actions}
         resource={
           currentTeam
@@ -216,6 +221,7 @@ export function MemoryView() {
               resource={memory}
               versionHistory={versionHistory}
               statusLabel={statusOptions.labelOf}
+              hideStatus
               project={memory.project}
               projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
             />

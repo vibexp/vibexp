@@ -1,4 +1,5 @@
 import {
+  addHeadingIds,
   markTaskListItems,
   stripLeadingTitleHeading,
 } from './markdownTransforms'
@@ -111,5 +112,43 @@ describe('markTaskListItems', () => {
     expect(html.match(/task-list-item/g)).toHaveLength(2)
     expect(html.match(/data-checked="true"/g)).toHaveLength(1)
     expect(html).toContain('<li>c</li>')
+  })
+})
+
+describe('addHeadingIds', () => {
+  it('gives each heading an id derived from its text', () => {
+    expect(
+      addHeadingIds('<h2>Options considered</h2><p>x</p><h3>Rollout plan</h3>')
+    ).toBe(
+      '<h2 id="options-considered">Options considered</h2><p>x</p><h3 id="rollout-plan">Rollout plan</h3>'
+    )
+  })
+
+  it('de-duplicates repeated headings within the document', () => {
+    const html = addHeadingIds(
+      '<h2>Example</h2><h2>Example</h2><h3>Example</h3>'
+    )
+
+    expect(html).toContain('<h2 id="example">')
+    expect(html).toContain('<h2 id="example-2">')
+    expect(html).toContain('<h3 id="example-3">')
+  })
+
+  it('slugs the text, not the markup or the entities inside a heading', () => {
+    expect(
+      addHeadingIds('<h2>Use <code>a &lt; b</code> &amp; <em>more</em></h2>')
+    ).toContain('<h2 id="use-a-b-more">')
+  })
+
+  it('leaves a heading that already has attributes alone', () => {
+    const html = '<h2 id="mine">Kept</h2>'
+
+    expect(addHeadingIds(html)).toBe(html)
+  })
+
+  it('numbers each document on its own', () => {
+    expect(addHeadingIds('<h2>Intro</h2>')).toBe(
+      addHeadingIds('<h2>Intro</h2>')
+    )
   })
 })

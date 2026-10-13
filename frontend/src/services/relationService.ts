@@ -12,17 +12,11 @@ export type RelationListResponse = components['schemas']['RelationListResponse']
 
 /** The four resource kinds a relation can connect. */
 export type RelationResourceType =
-  | 'artifact'
-  | 'memory'
-  | 'prompt'
-  | 'blueprint'
+  'artifact' | 'memory' | 'prompt' | 'blueprint'
 
 /** The four stored relation types. */
 export type RelationType =
-  | 'governed-by'
-  | 'supersedes'
-  | 'built-from'
-  | 'explained-by'
+  'governed-by' | 'supersedes' | 'built-from' | 'explained-by'
 
 /**
  * Thin wrapper over the generated client for typed resource relations

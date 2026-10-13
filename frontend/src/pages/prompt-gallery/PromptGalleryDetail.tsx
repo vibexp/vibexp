@@ -107,6 +107,7 @@ export function PromptGalleryDetail() {
 
   const backAction: ReadingAction = {
     id: 'back',
+    placement: 'toolbar',
     label: 'Back',
     icon: ArrowLeft,
     onClick: handleBack,
@@ -142,6 +143,7 @@ export function PromptGalleryDetail() {
     copyAction,
     {
       id: 'use',
+      placement: 'toolbar',
       label: 'Use this prompt',
       icon: Wand2,
       emphasis: 'primary',

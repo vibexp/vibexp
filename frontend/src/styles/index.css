@@ -724,3 +724,9 @@ body {
   font: inherit;
   white-space: pre-wrap;
 }
+
+/* An anchor (an outline entry, a URL hash) must not land under the app header
+   and the reading page's sticky title bar. */
+.v2-root .reading-body :is(h1, h2, h3, h4, h5, h6) {
+  scroll-margin-top: 7.5rem;
+}

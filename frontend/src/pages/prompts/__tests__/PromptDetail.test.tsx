@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mock } from 'vitest'
 
+import { openMoreActions } from '@/components/patterns/reading-page/testing'
 import type { Prompt } from '@/services/promptService'
 import { storage } from '@/utils/storage'
 
@@ -264,7 +265,7 @@ describe('PromptDetail page', () => {
   })
 
   describe('happy render', () => {
-    it('shows a custom status by its display name, in the header and the Metadata row (#1263)', async () => {
+    it('shows a custom status by its display name, once, in the header (#1263)', async () => {
       statusCatalog.statuses = [
         { slug: 'in-review', name: 'In review', is_system: false },
       ]
@@ -275,8 +276,8 @@ describe('PromptDetail page', () => {
 
       const header = await screen.findByTestId('resource-header-meta')
       expect(within(header).getByText('In review')).toHaveClass('bg-muted')
-      // The header badge and the descriptor-generated Status row.
-      expect(screen.getAllByText('In review')).toHaveLength(2)
+      // Once: the rail's details no longer repeat what the header shows.
+      expect(screen.getAllByText('In review')).toHaveLength(1)
       expect(screen.queryByText('in-review')).not.toBeInTheDocument()
     })
 
@@ -288,7 +289,7 @@ describe('PromptDetail page', () => {
 
       const header = await screen.findByTestId('resource-header-meta')
       expect(within(header).getByText('in-review')).toHaveClass('bg-muted')
-      expect(screen.getAllByText('in-review')).toHaveLength(2)
+      expect(screen.getAllByText('in-review')).toHaveLength(1)
     })
 
     it('renders the fetched prompt title, status, slug and body', async () => {
@@ -301,10 +302,10 @@ describe('PromptDetail page', () => {
         'team-1',
         'code-review-template'
       )
-      // Status and slug each render twice since #903: once in the reading
-      // header, once as a descriptor-generated Metadata row — and both read
-      // the descriptor's `valueLabels`, not the raw enum (#902).
-      expect(screen.getAllByText('Published')).toHaveLength(2)
+      // The status is shown once, in the reading header, and the slug once, in
+      // the rail's details — both through the descriptor's `valueLabels`, not
+      // the raw enum (#902).
+      expect(screen.getAllByText('Published')).toHaveLength(1)
       expect(screen.queryByText('published')).not.toBeInTheDocument()
       expect(
         screen.getAllByText('code-review-template').length
@@ -395,6 +396,7 @@ describe('PromptDetail page', () => {
       renderPromptDetail()
 
       await screen.findByText('Code Review Template')
+      await openMoreActions()
       expect(screen.getByTestId('delete-prompt-button')).toBeInTheDocument()
     })
 
@@ -407,6 +409,8 @@ describe('PromptDetail page', () => {
       renderPromptDetail()
 
       await screen.findByText('Code Review Template')
+      // Opened first: Delete missing from a closed menu would prove nothing.
+      await openMoreActions()
       expect(
         screen.queryByTestId('delete-prompt-button')
       ).not.toBeInTheDocument()
@@ -423,6 +427,7 @@ describe('PromptDetail page', () => {
       renderPromptDetail()
 
       await screen.findByText('Code Review Template')
+      await openMoreActions()
       expect(screen.getByTestId('delete-prompt-button')).toBeInTheDocument()
     })
   })
@@ -499,7 +504,9 @@ describe('PromptDetail page', () => {
       renderPromptDetail()
 
       const user = userEvent.setup()
-      await user.click(await screen.findByTestId('delete-prompt-button'))
+      await screen.findByText('Code Review Template')
+      await openMoreActions()
+      await user.click(screen.getByTestId('delete-prompt-button'))
 
       const dialog = await screen.findByRole('alertdialog')
       expect(within(dialog).getByText('Delete prompt?')).toBeInTheDocument()
@@ -559,7 +566,7 @@ describe('PromptDetail page', () => {
       const body = screen.getByTestId('resource-body')
       expect(within(body).getByTestId('markdown-renderer')).toBeInTheDocument()
 
-      await user.click(within(body).getByRole('tab', { name: 'Raw' }))
+      await user.click(screen.getByRole('tab', { name: 'Raw' }))
 
       // `rawContent` is the prompt's own body — never the placeholder-rendered
       // output — and only that one view is mounted.
@@ -661,6 +668,7 @@ describe('PromptDetail page', () => {
       renderPromptDetail()
 
       await screen.findByTestId('resource-body')
+      await openMoreActions()
       expect(screen.getByTestId('lock-prompt-button')).toBeInTheDocument()
       expect(screen.getByTestId('delete-prompt-button')).toBeInTheDocument()
       expect(
@@ -696,9 +704,9 @@ describe('PromptDetail page', () => {
 
       renderPromptDetail()
 
-      expect(
-        await screen.findByTestId('unlock-prompt-button')
-      ).toBeInTheDocument()
+      await screen.findByTestId('locked-by')
+      await openMoreActions()
+      expect(screen.getByTestId('unlock-prompt-button')).toBeInTheDocument()
       expect(
         screen.queryByTestId('delete-prompt-button')
       ).not.toBeInTheDocument()
@@ -710,9 +718,9 @@ describe('PromptDetail page', () => {
 
       renderPromptDetail()
 
-      expect(
-        await screen.findByTestId('unlock-prompt-button')
-      ).toBeInTheDocument()
+      await screen.findByTestId('locked-by')
+      await openMoreActions()
+      expect(screen.getByTestId('unlock-prompt-button')).toBeInTheDocument()
       // Not even resource.delete.any deletes a locked prompt.
       expect(
         screen.queryByTestId('delete-prompt-button')
@@ -731,7 +739,9 @@ describe('PromptDetail page', () => {
 
       renderPromptDetail()
 
-      await user.click(await screen.findByTestId('lock-prompt-button'))
+      await screen.findByTestId('resource-body')
+      await openMoreActions()
+      await user.click(screen.getByTestId('lock-prompt-button'))
       // The dialog does not submit without a comment.
       expect(screen.getByTestId('confirm-lock-button')).toBeDisabled()
       await user.type(
@@ -748,6 +758,7 @@ describe('PromptDetail page', () => {
         'code-review-template',
         'Used by the nightly release agent'
       )
+      await openMoreActions()
       expect(
         screen.queryByTestId('delete-prompt-button')
       ).not.toBeInTheDocument()
@@ -756,9 +767,11 @@ describe('PromptDetail page', () => {
 
       await user.click(screen.getByTestId('unlock-prompt-button'))
 
-      expect(
-        await screen.findByTestId('delete-prompt-button')
-      ).toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.queryByTestId('locked-by')).not.toBeInTheDocument()
+      })
+      await openMoreActions()
+      expect(screen.getByTestId('delete-prompt-button')).toBeInTheDocument()
       expect(promptService.unlockPrompt).toHaveBeenCalledWith(
         'team-1',
         'code-review-template'

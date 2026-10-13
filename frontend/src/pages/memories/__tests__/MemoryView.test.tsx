@@ -137,7 +137,7 @@ describe('MemoryView', () => {
   })
 
   describe('when TeamContext finishes loading with a team', () => {
-    it('shows a custom status by its display name, in the header and the Metadata row (#1263)', async () => {
+    it('shows a custom status by its display name, once, in the header (#1263)', async () => {
       statusCatalog.statuses = [
         { slug: 'in-review', name: 'In review', is_system: false },
       ]
@@ -156,8 +156,8 @@ describe('MemoryView', () => {
 
       const header = await screen.findByTestId('resource-header-meta')
       expect(within(header).getByText('In review')).toHaveClass('bg-muted')
-      // The header badge and the descriptor-generated Status row.
-      expect(screen.getAllByText('In review')).toHaveLength(2)
+      // Once: the rail's details no longer repeat what the header shows.
+      expect(screen.getAllByText('In review')).toHaveLength(1)
       expect(screen.queryByText('in-review')).not.toBeInTheDocument()
     })
 
@@ -177,7 +177,7 @@ describe('MemoryView', () => {
 
       const header = await screen.findByTestId('resource-header-meta')
       expect(within(header).getByText('in-review')).toHaveClass('bg-muted')
-      expect(screen.getAllByText('in-review')).toHaveLength(2)
+      expect(screen.getAllByText('in-review')).toHaveLength(1)
     })
 
     it('loads and renders the memory text via MarkdownRenderer', async () => {
@@ -502,7 +502,7 @@ describe('MemoryView', () => {
         'This is memory text content'
       )
 
-      await user.click(within(body).getByRole('tab', { name: 'Raw' }))
+      await user.click(screen.getByRole('tab', { name: 'Raw' }))
 
       expect(screen.getByTestId('resource-body-raw')).toHaveTextContent(
         'This is memory text content'

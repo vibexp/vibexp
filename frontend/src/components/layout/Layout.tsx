@@ -35,11 +35,12 @@ export function Layout({ children }: Readonly<{ children: ReactNode }>) {
 }
 
 function ShellFrame({ children }: Readonly<{ children: ReactNode }>) {
-  const { contentMode } = useShell()
+  const { contentMode, focusMode } = useShell()
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar />
+      {/* Focus mode hides the navigation outright; it comes back as it was. */}
+      {!focusMode && <Sidebar />}
       <div className="flex min-w-0 flex-1 flex-col">
         <Header />
         {contentMode === 'reading' ? (

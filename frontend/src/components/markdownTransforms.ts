@@ -1,9 +1,11 @@
 /**
  * Small, pure transforms the markdown renderer applies around `marked`: one on
- * the SOURCE before parsing, one on the HTML after. Kept apart from the
+ * the SOURCE before parsing, the others on the HTML after. Kept apart from the
  * component so they can be tested without the parser (which the unit suite
  * stubs).
  */
+
+import { createSlugger } from '@/components/patterns/reading-page/outline'
 
 const normalize = (text: string): string =>
   text.trim().replace(/\s+/g, ' ').toLowerCase()
@@ -76,6 +78,31 @@ export function markTaskListItems(html: string): string {
       const checked = /\bchecked\b/.test(attributes)
       const box = `<span class="task-checkbox" role="img" data-checked="${String(checked)}" aria-label="${checked ? 'Completed' : 'Not completed'}"></span>`
       return `<li class="task-list-item">${paragraph ?? ''}${box}`
+    }
+  )
+}
+
+const decodeEntities = (text: string): string =>
+  text
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+
+/**
+ * Gives every heading a stable `id` derived from its text, so a section can be
+ * linked to (`#rollout`) and the reading page's outline has something to jump
+ * to. Ids are unique within the document: a repeated heading gets `-2`, `-3`.
+ * A heading that already carries an id (raw HTML in the body) keeps it.
+ */
+export function addHeadingIds(html: string): string {
+  const slug = createSlugger()
+  return html.replace(
+    /<h([1-6])>([\s\S]*?)<\/h\1>/g,
+    (_match: string, level: string, inner: string) => {
+      const text = decodeEntities(inner.replace(/<[^>]*>/g, ''))
+      return `<h${level} id="${slug(text)}">${inner}</h${level}>`
     }
   )
 }
