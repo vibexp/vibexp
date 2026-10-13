@@ -1,4 +1,6 @@
-import { render, screen } from '@testing-library/react'
+import { render as rtlRender, screen } from '@testing-library/react'
+import type { ReactElement, ReactNode } from 'react'
+import { MemoryRouter } from 'react-router'
 
 import { Layout } from '../Layout'
 import { useReadingShell } from '../ShellContext'
@@ -17,6 +19,14 @@ function ReadingPageStub() {
   useReadingShell({ details: true })
   return <div>reading</div>
 }
+
+// The shell reads the route (for the tab title), so it always renders inside a
+// router — as it does in the app.
+const render = (ui: ReactElement) =>
+  rtlRender(<MemoryRouter initialEntries={['/artifacts']}>{ui}</MemoryRouter>)
+
+const renderLayout = (children: ReactNode) =>
+  render(<Layout>{children}</Layout>)
 
 describe('Layout', () => {
   it('frames ordinary pages in the centered container', () => {
@@ -79,5 +89,40 @@ describe('Layout', () => {
     for (const cls of Array.from(row.classList)) {
       expect(cls).not.toMatch(/^(overflow|transform|filter|blur)(-|$)/)
     }
+  })
+
+  describe('skip link', () => {
+    it('is the first focusable element and targets the main region', () => {
+      const { container } = renderLayout(<p>page</p>)
+
+      const first = container.querySelector(
+        'a[href], button, input, [tabindex]:not([tabindex="-1"])'
+      )
+      expect(first).toHaveTextContent('Skip to content')
+      expect(first).toHaveAttribute('href', '#main-content')
+      const main = screen.getByRole('main')
+      expect(main).toHaveAttribute('id', 'main-content')
+      // Focusable, so following the link moves focus there; not a tab stop.
+      expect(main).toHaveAttribute('tabindex', '-1')
+    })
+
+    it('is off screen until it has focus', () => {
+      renderLayout(<p>page</p>)
+
+      const link = screen.getByRole('link', { name: 'Skip to content' })
+      expect(link).toHaveClass('sr-only', 'focus:not-sr-only')
+    })
+
+    it('targets the main region of a reading page too', () => {
+      renderLayout(<ReadingPageStub />)
+
+      expect(screen.getByRole('main')).toHaveAttribute('id', 'main-content')
+    })
+  })
+
+  it('titles the tab from the route', () => {
+    renderLayout(<p>page</p>)
+
+    expect(document.title).toBe('Artifacts · VibeXP')
   })
 })

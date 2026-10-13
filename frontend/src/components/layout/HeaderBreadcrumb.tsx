@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router'
 import { NAV_ITEMS } from '@/components/layout/nav-items'
 import { useShell } from '@/components/layout/ShellContext'
 
-interface Crumb {
+export interface Crumb {
   href: string
   label: string
 }
@@ -13,7 +13,7 @@ interface Crumb {
  * href across nav items and their children (so `/prompts/123` → "My Prompts",
  * `/` → "Dashboard"). Returns null when nothing matches.
  */
-function currentPageCrumb(pathname: string): Crumb | null {
+export function currentPageCrumb(pathname: string): Crumb | null {
   const entries: Crumb[] = []
   for (const item of NAV_ITEMS) {
     entries.push({ href: item.href, label: item.label })
