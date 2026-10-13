@@ -1,5 +1,5 @@
 import { ChevronRight, Code2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import { Button } from '@/components/ui/button'
@@ -34,6 +34,11 @@ export function DevLogin({ returnTo }: Readonly<DevLoginProps>) {
   // alert sits above the fold of this collapsed section and went unseen.
   const [error, setError] = useState('')
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const emailRef = useRef<HTMLInputElement>(null)
+  // Set by a toggle the person made, so the section mounting does not take
+  // focus on its own.
+  const moveFocus = useRef(false)
   const [searchParams] = useSearchParams()
   const [shouldShow, setShouldShow] = useState(false)
 
@@ -51,6 +56,15 @@ export function DevLogin({ returnTo }: Readonly<DevLoginProps>) {
       setShouldShow(true)
     }
   }, [searchParams])
+
+  // Opening leads straight to the first field; closing hands focus back to the
+  // toggle, since the field that held it is gone.
+  useEffect(() => {
+    if (!moveFocus.current) return
+    moveFocus.current = false
+    if (open) emailRef.current?.focus()
+    else triggerRef.current?.focus()
+  }, [open])
 
   if (!shouldShow) {
     return null
@@ -80,9 +94,16 @@ export function DevLogin({ returnTo }: Readonly<DevLoginProps>) {
   }
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
+    <Collapsible
+      open={open}
+      onOpenChange={next => {
+        moveFocus.current = true
+        setOpen(next)
+      }}
+    >
       <CollapsibleTrigger asChild>
         <button
+          ref={triggerRef}
           type="button"
           className="border-border text-muted-foreground hover:bg-muted hover:text-foreground flex w-full items-center justify-between rounded-md border border-dashed px-3 py-2 text-xs transition-colors"
         >
@@ -110,6 +131,7 @@ export function DevLogin({ returnTo }: Readonly<DevLoginProps>) {
               Email
             </Label>
             <Input
+              ref={emailRef}
               id="dev-email"
               type="email"
               value={email}

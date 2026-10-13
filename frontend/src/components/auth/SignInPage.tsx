@@ -228,7 +228,7 @@ function PitchPanel() {
   return (
     <div
       data-testid="sign-in-pitch"
-      className="bg-muted relative hidden flex-col justify-between overflow-hidden border-r p-10 lg:flex lg:p-14"
+      className="bg-muted relative hidden flex-col overflow-hidden border-r p-10 lg:flex lg:p-14"
     >
       {/* Subtle dot grid backdrop */}
       <div
@@ -245,11 +245,19 @@ function PitchPanel() {
         }}
       />
 
-      <div className="relative z-10 max-w-md">
-        {/* The pitch below is VibeXP's own, so on a branded instance the
-            company leads from the card and the product is credited here. */}
+      {/* The pitch below is VibeXP's own, so on a branded instance the
+          company leads from the card and the product is credited here. */}
+      <div className="relative z-10">
         {hasCompanyBranding ? <PoweredBy /> : <Brand />}
-        <h2 className="mt-6 text-3xl leading-tight font-bold tracking-tight">
+      </div>
+
+      {/* The pitch sits in the middle of the room between the lockup and the
+          footer; its padding keeps it clear of both on a short window. */}
+      <div
+        data-testid="sign-in-pitch-body"
+        className="relative z-10 flex max-w-md flex-1 flex-col justify-center py-8"
+      >
+        <h2 className="text-3xl leading-tight font-bold tracking-tight">
           One shared brain for all your AI.
         </h2>
         <p className="text-muted-foreground mt-3 max-w-sm text-sm leading-relaxed">
