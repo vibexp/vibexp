@@ -147,7 +147,7 @@ function ReplyRow({ reply, member }: Readonly<ReplyRowProps>) {
             {actor.displayName}
           </span>
           {actor.isAi && actor.aiAssistantName && (
-            <span className="rounded border px-1.5 py-px text-xs text-muted-foreground">
+            <span className="rounded-sm border px-1.5 py-px text-xs text-muted-foreground">
               {actor.aiAssistantName}
             </span>
           )}
@@ -210,9 +210,9 @@ function ReplyComposer({
         />
         <div className="mt-1.5 flex items-center justify-between gap-2 border-t pt-1.5">
           <span className="text-xs text-muted-foreground">
-            <kbd className="rounded border px-1 font-mono text-xs">⌘</kbd>
+            <kbd className="rounded-sm border px-1 font-mono text-xs">⌘</kbd>
             <span className="mx-1">+</span>
-            <kbd className="rounded border px-1 font-mono text-xs">⏎</kbd>
+            <kbd className="rounded-sm border px-1 font-mono text-xs">⏎</kbd>
             <span className="ml-1">to send</span>
           </span>
           <div className="flex items-center gap-1">

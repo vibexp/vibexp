@@ -41,7 +41,7 @@ function buildColumns(onDelete: (type: Type) => void): ColumnDef<Type>[] {
       accessorKey: 'slug',
       header: 'Slug',
       cell: ({ row }) => (
-        <code className="bg-muted rounded px-2 py-0.5 font-mono text-xs">
+        <code className="bg-muted rounded-sm px-2 py-0.5 font-mono text-xs">
           {row.original.slug}
         </code>
       ),
@@ -337,15 +337,7 @@ export function Customization({ team }: Readonly<{ team: Team }>) {
       )
     }
     return (
-      <Card>
-        <CardContent className="p-4">
-          <DataTable
-            columns={columns}
-            data={types}
-            rowTestId={() => 'type-item'}
-          />
-        </CardContent>
-      </Card>
+      <DataTable columns={columns} data={types} rowTestId={() => 'type-item'} />
     )
   }
 

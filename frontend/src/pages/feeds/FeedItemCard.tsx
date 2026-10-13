@@ -72,7 +72,7 @@ function useBodyOverflow(
 
 function ScopeBadge({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <span className="inline-flex items-center gap-1 rounded border bg-secondary px-1.5 py-0.5 text-xs font-medium text-secondary-foreground">
+    <span className="inline-flex items-center gap-1 rounded-sm border bg-secondary px-1.5 py-0.5 text-xs font-medium text-secondary-foreground">
       {children}
     </span>
   )
@@ -125,7 +125,7 @@ function FootButton({
       {Icon && <Icon className="size-3.5" />}
       <span>{label}</span>
       {count !== undefined && count > 0 && (
-        <span className="ml-0.5 inline-flex items-center rounded px-1 text-xs tabular-nums">
+        <span className="ml-0.5 inline-flex items-center rounded-sm px-1 text-xs tabular-nums">
           {count}
         </span>
       )}
@@ -193,7 +193,7 @@ function FeedItemCardImpl({
   }, [])
 
   return (
-    <article className="group rounded-xl border bg-card px-4 py-4 shadow-sm transition-shadow hover:shadow-md">
+    <article className="group rounded-lg border bg-card px-4 py-4">
       {/* Header: avatar + meta + top actions */}
       <div className="flex items-start gap-2.5">
         <FeedActorAvatar actor={actor} size="md" />

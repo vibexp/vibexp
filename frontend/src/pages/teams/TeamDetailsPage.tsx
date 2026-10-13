@@ -216,7 +216,7 @@ export function TeamDetailsPage({
         </Alert>
       ) : (
         team.description && (
-          <Card className="bg-transparent shadow-none">
+          <Card className="bg-transparent">
             <CardContent className="text-muted-foreground flex items-center gap-3 p-4 text-sm">
               <Info className="size-4 shrink-0" />
               <p className="leading-relaxed">{team.description}</p>
@@ -230,7 +230,7 @@ export function TeamDetailsPage({
           fill would read as a raised surface it never intends (and in dark
           mode `--card` is visibly lighter than `--background`). */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <Card className="bg-transparent shadow-none">
+        <Card className="bg-transparent">
           <CardContent className="p-4">
             <p className="text-muted-foreground text-sm">Total members</p>
             {/* Accepted memberships only, which is what the server's
@@ -242,7 +242,7 @@ export function TeamDetailsPage({
             <p className="mt-2 text-2xl font-bold">{acceptedMemberCount}</p>
           </CardContent>
         </Card>
-        <Card className="bg-transparent shadow-none">
+        <Card className="bg-transparent">
           <CardContent className="p-4">
             <p className="text-muted-foreground text-sm">Created</p>
             <p className="mt-2 text-base font-semibold">

@@ -302,19 +302,17 @@ export function Search() {
         </ListPage.Filters>
 
         {!hasQuery ? (
-          <div className="p-4">
-            <EmptyState
-              icon={SearchIcon}
-              title="Type to search"
-              description="Enter a query above to find prompts, artifacts, blueprints, and memories."
-            />
-          </div>
+          <EmptyState
+            icon={SearchIcon}
+            title="Type to search"
+            description="Enter a query above to find prompts, artifacts, blueprints, and memories."
+          />
         ) : (
           <>
             {state.status === 'ready' &&
               state.results.length > 0 &&
               aiSummary.key && (
-                <div className="px-4 pt-4">
+                <div>
                   <AiSummary
                     availability={state.aiSummary}
                     canConfigure={can('team.update')}
@@ -330,6 +328,8 @@ export function Search() {
                 </div>
               )}
             <ListPage.Body
+              // Result cards are their own containers.
+              framed={false}
               status={state.status}
               errorTitle="Failed to search"
               errorMessage={state.error}
@@ -341,7 +341,7 @@ export function Search() {
                 />
               }
             >
-              <div className="space-y-3 p-4">
+              <div className="space-y-3">
                 {state.results.map(item => (
                   <SearchResultCard
                     key={item.chunk_id}

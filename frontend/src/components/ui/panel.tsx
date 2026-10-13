@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
  * How a supporting panel (metadata, attachments, comments, relations, a chart
  * widget, …) paints itself.
  *
- * - `card` — the default everywhere: its own bordered, rounded, shadowed box
+ * - `card` — the default everywhere: its own bordered, rounded box (no shadow: it does not float)
  *   with a 20px gutter. What a dashboard or an admin page wants.
  * - `flat` — no chrome at all: no border, shadow, radius or background, and no
  *   horizontal inset, because the surface around it already provides both. What
@@ -60,7 +60,7 @@ const Panel = React.forwardRef<
       ref={ref}
       className={cn(
         !flat &&
-          'bg-card text-card-foreground overflow-hidden rounded-lg border shadow-sm',
+          'bg-card text-card-foreground overflow-hidden rounded-lg border',
         className
       )}
       {...props}

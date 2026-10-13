@@ -267,15 +267,11 @@ export function Teams() {
                 }
               />
             ) : (
-              <Card>
-                <CardContent className="p-4">
-                  <DataTable
-                    columns={columns}
-                    data={teams}
-                    rowTestId={() => 'team-row'}
-                  />
-                </CardContent>
-              </Card>
+              <DataTable
+                columns={columns}
+                data={teams}
+                rowTestId={() => 'team-row'}
+              />
             )}
           </section>
         </>

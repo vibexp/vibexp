@@ -54,7 +54,7 @@ export function SegmentedControl({
               onChange(option.value)
             }}
             className={cn(
-              'rounded font-medium whitespace-nowrap transition-colors',
+              'rounded-sm font-medium whitespace-nowrap transition-colors',
               size === 'sm' ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm',
               active
                 ? 'bg-background text-foreground shadow-sm'

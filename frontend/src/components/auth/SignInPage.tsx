@@ -398,7 +398,7 @@ export function SignInPage() {
           />
 
           <div className="relative z-10 w-full max-w-sm">
-            <div className="bg-card border-border rounded-2xl border p-8 shadow-sm">
+            <div className="bg-card border-border rounded-lg border p-8">
               {/* A company's lockup leads the card at every size. VibeXP's own
                 is here only on small screens: the pitch panel carries it on
                 large ones. */}

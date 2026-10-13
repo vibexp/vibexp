@@ -165,7 +165,7 @@ export function AgentPreview({
                       <Separator />
                       <div>
                         <p className="mb-1 text-xs font-medium">Example</p>
-                        <p className="text-muted-foreground bg-background rounded border p-2 text-xs italic">
+                        <p className="text-muted-foreground bg-background rounded-md border p-2 text-xs italic">
                           &quot;{skill.examples?.[0]}&quot;
                         </p>
                       </div>

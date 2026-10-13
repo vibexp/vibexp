@@ -309,8 +309,7 @@ describe('ReadingPage', () => {
       render(<Panel data-testid="loose-panel" />)
       expect(screen.getByTestId('loose-panel')).toHaveClass(
         'rounded-lg',
-        'border',
-        'shadow-sm'
+        'border'
       )
     })
   })

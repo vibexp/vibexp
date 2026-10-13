@@ -3,7 +3,6 @@ import type { ReactNode } from 'react'
 import { PageHeader } from '@/components/PageHeader'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
@@ -69,11 +68,13 @@ interface ListPageContainerProps {
 }
 
 /**
- * The Card that wraps Filters / Body / Footer. Borders between zones are
- * applied by `<ListPage.Filters>` and `<ListPage.Footer>` themselves.
+ * The stack that holds Filters / Body / Footer. It draws nothing itself: the
+ * filter row is an unboxed toolbar above the list, the footer is plain text
+ * below it, and the list's own frame (see {@link Body}) is the only border —
+ * one separation device per level, no box inside a box.
  */
 function Container({ children, className }: Readonly<ListPageContainerProps>) {
-  return <Card className={cn('overflow-hidden', className)}>{children}</Card>
+  return <div className={cn('space-y-3', className)}>{children}</div>
 }
 
 interface ListPageFiltersProps {
@@ -81,7 +82,7 @@ interface ListPageFiltersProps {
 }
 
 function Filters({ children }: Readonly<ListPageFiltersProps>) {
-  return <div className="border-b px-4 py-3">{children}</div>
+  return <div>{children}</div>
 }
 
 interface ListPageBodyProps {
@@ -90,6 +91,12 @@ interface ListPageBodyProps {
   errorMessage?: string | null
   loadingRows?: number
   empty?: ReactNode
+  /**
+   * Draws the list's frame (one border, rounded) around the ready content.
+   * Pass `false` when the content brings its own containers — result cards, a
+   * grid of tiles — so they are not boxed twice.
+   */
+  framed?: boolean
   children: ReactNode
 }
 
@@ -97,8 +104,8 @@ interface ListPageBodyProps {
  * Renders the appropriate state for the body region:
  * - `loading` → skeleton rows
  * - `error` → destructive alert
- * - `empty` → caller-provided empty-state element
- * - `ready` → caller-provided table/list
+ * - `empty` → caller-provided empty-state element, unboxed
+ * - `ready` → caller-provided table/list, inside the list's one frame
  */
 function Body({
   status,
@@ -106,11 +113,12 @@ function Body({
   errorMessage,
   loadingRows = 6,
   empty,
+  framed = true,
   children,
 }: Readonly<ListPageBodyProps>) {
   if (status === 'loading') {
     return (
-      <div className="space-y-3 p-4">
+      <div className="space-y-3">
         {Array.from({ length: loadingRows }, (_, i) => `row-${String(i)}`).map(
           slot => (
             <Skeleton
@@ -125,18 +133,24 @@ function Body({
   }
   if (status === 'error') {
     return (
-      <div className="p-4">
-        <Alert variant="destructive">
-          <AlertTitle>{errorTitle}</AlertTitle>
-          {errorMessage && <AlertDescription>{errorMessage}</AlertDescription>}
-        </Alert>
-      </div>
+      <Alert variant="destructive">
+        <AlertTitle>{errorTitle}</AlertTitle>
+        {errorMessage && <AlertDescription>{errorMessage}</AlertDescription>}
+      </Alert>
     )
   }
   if (status === 'empty') {
-    return <div className="p-4">{empty}</div>
+    return <>{empty}</>
   }
-  return <>{children}</>
+  if (!framed) return <>{children}</>
+  return (
+    <div
+      data-testid="list-page-frame"
+      className="overflow-hidden rounded-lg border"
+    >
+      {children}
+    </div>
+  )
 }
 
 interface ListPageFooterProps {
@@ -166,7 +180,7 @@ function Footer({
   const showPagination = pagination !== undefined && pagination.totalPages > 1
 
   return (
-    <div className="text-muted-foreground flex items-center justify-between gap-3 border-t px-4 py-3 text-xs">
+    <div className="text-muted-foreground flex items-center justify-between gap-3 text-xs">
       <div className="flex flex-col gap-0.5">
         {showCount ? (
           <span>

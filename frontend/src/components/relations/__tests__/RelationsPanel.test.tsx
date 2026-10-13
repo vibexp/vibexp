@@ -226,8 +226,7 @@ describe('flat presentation', () => {
     renderPanel()
     expect(screen.getByTestId('relations-panel')).toHaveClass(
       'rounded-lg',
-      'border',
-      'shadow-sm'
+      'border'
     )
   })
 })

@@ -290,7 +290,7 @@ export function AgentEditor() {
                 <p className="text-muted-foreground text-xs">
                   We&apos;ll fetch the agent card from:
                 </p>
-                <code className="bg-muted block rounded p-2 text-xs break-all">
+                <code className="bg-muted block rounded-sm p-2 text-xs break-all">
                   {formData.baseUrl || 'https://domain.com'}
                   /.well-known/agent-card.json
                 </code>

@@ -236,6 +236,8 @@ function CategoryList({ category }: Readonly<CategoryListProps>) {
         </ListPage.Filters>
 
         <ListPage.Body
+          // Prompt cards are their own containers.
+          framed={false}
           status={listStatus}
           errorTitle="Failed to load prompts"
           errorMessage={state.error}
@@ -265,7 +267,7 @@ function CategoryList({ category }: Readonly<CategoryListProps>) {
         >
           {/* Cards, not a `ListTable`: the gallery has no columns worth
               sorting and the cards are its marketing surface. */}
-          <div className="space-y-3 p-4">
+          <div className="space-y-3">
             {state.items.map(prompt => (
               <Card
                 key={prompt.id}

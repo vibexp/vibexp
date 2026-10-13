@@ -250,7 +250,7 @@ export function ProjectDetails() {
               <p className="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-wide">
                 Slug
               </p>
-              <code className="bg-muted rounded px-2 py-1 font-mono text-sm">
+              <code className="bg-muted rounded-sm px-2 py-1 font-mono text-sm">
                 {project.slug}
               </code>
             </div>

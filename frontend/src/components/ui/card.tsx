@@ -8,10 +8,9 @@ const Card = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn(
-      'rounded-lg border bg-card text-card-foreground shadow-sm',
-      className
-    )}
+    // No shadow: a card is static, and its 1px border is its only edge.
+    // Shadows are for things that float (menus, popovers, dialogs, toasts).
+    className={cn('rounded-lg border bg-card text-card-foreground', className)}
     {...props}
   />
 ))
