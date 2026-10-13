@@ -421,12 +421,24 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 // recordLogout records the auth_logout activity for the session being ended
 // (#1428). The logout route is public, so the user is taken from the cookie
-// itself: any cookie this server encrypted names the account that is signing
-// out, whether or not it would still authenticate. A request with no cookie, or
-// one that does not decrypt, signs nobody out and records nothing.
+// itself, and only a cookie that would still authenticate counts: the account
+// may sign in, the cookie's epoch is the user's current one, and a session with
+// no refresh token has not expired. Anything else signs nobody out and records
+// nothing. That keeps a revoked or expired copy of a cookie from writing
+// activity rows in its user's name, however often it is replayed.
+//
+// An expired session that has a refresh token is recorded: whether it would
+// still authenticate depends on a provider round trip that logout does not make.
 func (s *Server) recordLogout(r *http.Request) {
 	sess, err := s.sessionManager.Read(r)
 	if err != nil || sess.UserID == "" {
+		return
+	}
+	if sess.IsSliding() && sess.IsExpired() {
+		return
+	}
+	user, err := s.rejectIfSuspended(r.Context(), sess.UserID)
+	if err != nil || sess.Epoch != user.SessionEpoch {
 		return
 	}
 	metadata := map[string]interface{}{}
@@ -438,6 +450,40 @@ func (s *Server) recordLogout(r *http.Request) {
 	}
 	NewActivityRecorder(s.container.ActivityService()).
 		RecordAuthActivity(r.Context(), sess.UserID, activities.ActivityTypeAuthLogout, nil, metadata, r)
+}
+
+// revokeOtherSessions ends every cookie session of userID except the one this
+// request was authenticated by (#1428). It bumps the user's session epoch,
+// which the authentication chokepoint checks on every cookie request, and then
+// re-issues the caller's cookie under the new epoch when the caller is that
+// same user signed in by cookie. Otherwise (an administrator acting on someone
+// else, an API key) every cookie session of the user ends. API keys and
+// MCP/OAuth tokens are not affected.
+//
+// The cookie is re-issued from the session the middleware authenticated, not
+// from the request's cookie. The two differ when the middleware refreshed the
+// provider tokens on this very request: the request cookie then holds a spent
+// refresh token, and writing it back would sign the caller out on their next
+// refresh. It also means a request authenticated by an API key never revives
+// a cookie it happens to carry.
+//
+// The epoch is bumped before the cookie is written. If the write then fails the
+// caller is signed out along with everyone else, which is the safe direction:
+// the other order could leave a revoked session alive.
+func (s *Server) revokeOtherSessions(w http.ResponseWriter, r *http.Request, userID string) error {
+	epoch, err := s.container.AuthService().RevokeUserSessions(r.Context(), userID)
+	if err != nil {
+		return err
+	}
+	sess := authenticatedSession(r.Context())
+	if sess == nil || sess.UserID != userID || s.sessionManager == nil {
+		return nil
+	}
+	sess.Epoch = epoch
+	if err := s.sessionManager.Write(w, sess); err != nil {
+		return fmt.Errorf("failed to re-issue the session after revoking the others: %w", err)
+	}
+	return nil
 }
 
 func (s *Server) handleGetMe(w http.ResponseWriter, r *http.Request) {

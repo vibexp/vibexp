@@ -1,10 +1,8 @@
 package session
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -409,88 +407,4 @@ func TestWrite_CookieMaxAgeFollowsTheSessionKind(t *testing.T) {
 	assert.Equal(t, 30*24*60*60, maxAgeOf(&Session{UserID: "u", ExpiresAt: time.Now().Add(SlidingLifetime)}))
 	assert.Equal(t, 24*60*60,
 		maxAgeOf(&Session{UserID: "u", RefreshToken: "rt", ExpiresAt: time.Now().Add(time.Hour)}))
-}
-
-func TestReissueUnderEpoch(t *testing.T) {
-	mgr := newTestManager(t)
-	signedIn := time.Now().Add(-3 * time.Hour).UTC().Truncate(time.Second)
-	expires := time.Now().Add(20 * 24 * time.Hour).UTC().Truncate(time.Second)
-	// requestWith returns a request carrying sess as its cookie.
-	requestWith := func(sess *Session) *http.Request {
-		rec := httptest.NewRecorder()
-		require.NoError(t, mgr.Write(rec, sess))
-		req := httptest.NewRequest(http.MethodPost, "/", nil)
-		for _, c := range rec.Result().Cookies() {
-			req.AddCookie(c)
-		}
-		return req
-	}
-	mine := &Session{
-		UserID: "u-1", AccessToken: "tok", ExpiresAt: expires,
-		AuthMethod: AuthMethodPassword, AuthenticatedAt: signedIn, Epoch: 4,
-	}
-
-	t.Run("the caller's own session is re-issued under the new epoch and otherwise unchanged", func(t *testing.T) {
-		rec := httptest.NewRecorder()
-		reissued, err := mgr.ReissueUnderEpoch(rec, requestWith(mine), "u-1", 5)
-
-		require.NoError(t, err)
-		require.True(t, reissued)
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		for _, c := range rec.Result().Cookies() {
-			req.AddCookie(c)
-		}
-		got, err := mgr.Read(req)
-		require.NoError(t, err)
-		assert.Equal(t, int64(5), got.Epoch)
-		assert.True(t, signedIn.Equal(got.AuthenticatedAt), "surviving a revocation is not a new sign-in")
-		assert.True(t, expires.Equal(got.ExpiresAt), "and it does not extend the session")
-		assert.Equal(t, AuthMethodPassword, got.AuthMethod)
-	})
-
-	t.Run("a session of another user is left alone", func(t *testing.T) {
-		rec := httptest.NewRecorder()
-		reissued, err := mgr.ReissueUnderEpoch(rec, requestWith(mine), "someone-else", 5)
-
-		require.NoError(t, err)
-		assert.False(t, reissued)
-		assert.Empty(t, rec.Result().Cookies(), "an admin's cookie must not be rewritten under another user's epoch")
-	})
-
-	t.Run("a request with no cookie is left alone", func(t *testing.T) {
-		rec := httptest.NewRecorder()
-		reissued, err := mgr.ReissueUnderEpoch(rec, httptest.NewRequest(http.MethodPost, "/", nil), "u-1", 5)
-
-		require.NoError(t, err)
-		assert.False(t, reissued)
-		assert.Empty(t, rec.Result().Cookies())
-	})
-
-	t.Run("a cookie that does not decrypt is left alone", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/", nil)
-		req.AddCookie(&http.Cookie{Name: CookieName, Value: "forged.value"})
-		rec := httptest.NewRecorder()
-		reissued, err := mgr.ReissueUnderEpoch(rec, req, "u-1", 5)
-
-		require.NoError(t, err)
-		assert.False(t, reissued)
-		assert.Empty(t, rec.Result().Cookies())
-	})
-
-	t.Run("a cookie too large to write is reported", func(t *testing.T) {
-		// Read has no size limit, so a session that could not be written again
-		// has to be built by hand.
-		huge, err := json.Marshal(&Session{UserID: "u-1", AccessToken: strings.Repeat("a", maxCookieValueBytes)})
-		require.NoError(t, err)
-		value, err := mgr.encrypt(huge, nil)
-		require.NoError(t, err)
-		req := httptest.NewRequest(http.MethodPost, "/", nil)
-		req.AddCookie(&http.Cookie{Name: CookieName, Value: value})
-
-		rec := httptest.NewRecorder()
-		reissued, err := mgr.ReissueUnderEpoch(rec, req, "u-1", 5)
-
-		require.ErrorIs(t, err, ErrCookieTooLarge)
-		assert.False(t, reissued)
-	})
 }

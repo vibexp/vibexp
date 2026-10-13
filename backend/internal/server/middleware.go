@@ -64,6 +64,20 @@ func isTransientRefreshError(err error) bool {
 // session cookie.
 const authTypeCookie = "cookie"
 
+// authenticatedSessionKey is the context key of the cookie session a request
+// was authenticated by. It is private to this package: the session holds the
+// provider tokens, which no handler outside the session plumbing should read.
+type authenticatedSessionKey struct{}
+
+// authenticatedSession returns the cookie session the request was authenticated
+// by, or nil when it was authenticated some other way (an API key, a bearer
+// token) or not at all. It is the session as the middleware left it, after any
+// token refresh or sliding extension, which the request's cookie is not.
+func authenticatedSession(ctx context.Context) *sesslib.Session {
+	sess, _ := ctx.Value(authenticatedSessionKey{}).(*sesslib.Session)
+	return sess
+}
+
 // authenticatedContext returns ctx carrying the authenticated user's context
 // keys (UserID, AuthType) and a logger enriched with the auth metadata plus
 // any extra fields. Every auth path sets up its success context through this
@@ -81,6 +95,7 @@ func authenticatedContext(
 	if sess != nil {
 		ctx = context.WithValue(ctx, contextkeys.AuthMethod, sess.AuthMethod)
 		ctx = context.WithValue(ctx, contextkeys.AuthenticatedAt, sess.AuthenticatedAt)
+		ctx = context.WithValue(ctx, authenticatedSessionKey{}, sess)
 	}
 
 	fields := make([]any, 0, 4+len(extra))
@@ -297,8 +312,27 @@ func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
+	// Set user context from session. A suspended account is rejected HERE rather
+	// than at sign-in, which is what makes an already-issued cookie stop working.
+	//
+	// This runs BEFORE the expiry check and the refresh below, on purpose: a
+	// revoked cookie must not get to spend the refresh token. The cookie a user
+	// keeps after "sign out my other sessions" carries the same refresh token as
+	// the copies that were revoked, and most providers accept a refresh token
+	// once, so a revoked copy that refreshed first would sign the survivor out.
+	// Nothing the check reads (the user id and the epoch) is changed by a refresh.
+	ctx, err := s.authenticateUser(r.Context(), sess.UserID, authTypeCookie, nil, sess)
+	if err != nil {
+		s.logSuspendedRejection(r.Context(), "authenticateWithSession", authTypeCookie, sess.UserID, err)
+		s.writeSuspensionAuthError(w, r, err)
+		return
+	}
+
 	// If the access token is expired, attempt a refresh — serialized per
 	// user to avoid racing on the provider's single-use refresh tokens (H1).
+	// The refresh updates sess in place: the context built above holds the same
+	// session, so a handler that re-issues the cookie writes the refreshed
+	// tokens and not the spent ones.
 	if sess.IsExpired() {
 		if sess.RefreshToken == "" {
 			logger.With(
@@ -317,25 +351,15 @@ func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request,
 		// already refreshed it, in which case our copy of the refresh token
 		// is stale and a refresh attempt would 401.
 		if reread, rerr := s.sessionManager.Read(r); rerr == nil && !reread.IsExpired() {
-			sess = reread
+			*sess = *reread
 			mu.Unlock()
 		} else {
-			refreshed, ok := s.refreshSession(w, r, sess, logger)
+			_, ok := s.refreshSession(w, r, sess, logger)
 			mu.Unlock()
 			if !ok {
 				return
 			}
-			sess = refreshed
 		}
-	}
-
-	// Set user context from session. A suspended account is rejected HERE rather
-	// than at sign-in, which is what makes an already-issued cookie stop working.
-	ctx, err := s.authenticateUser(r.Context(), sess.UserID, authTypeCookie, nil, sess)
-	if err != nil {
-		s.logSuspendedRejection(r.Context(), "authenticateWithSession", authTypeCookie, sess.UserID, err)
-		s.writeSuspensionAuthError(w, r, err)
-		return
 	}
 
 	s.slideSession(w, sess, contextkeys.GetLoggerFromContext(ctx))
@@ -348,7 +372,8 @@ func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request,
 // token) and re-issues its cookie, at most once a day per session (#1428). It
 // runs only after authenticateUser accepted the session, so a revoked or
 // suspended session is never extended, and the re-issued cookie carries the
-// epoch that was just checked.
+// epoch that was just checked. sess is the session held by the request
+// context, so the extension is visible to a handler that re-issues the cookie.
 //
 // A failed write is logged and the request continues: the session in hand is
 // still valid, and the next request tries again.

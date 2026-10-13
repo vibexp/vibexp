@@ -16,6 +16,7 @@ import (
 	sesslib "github.com/vibexp/vibexp/internal/auth/session"
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	"github.com/vibexp/vibexp/internal/services/activities"
 )
@@ -390,36 +391,161 @@ func TestHandleDevLogin_MintsSlidingSessionUnderTheUsersEpoch(t *testing.T) {
 	assert.True(t, called)
 }
 
-// TestRevokeThenReissue_OnlyTheCallerStaysSignedIn drives the two halves a
-// "sign out my other sessions" handler composes, AuthService.RevokeUserSessions
-// and session.Manager.ReissueUnderEpoch, against the real chokepoint: the
-// caller's re-issued cookie keeps working, and every cookie minted before the
-// bump, the caller's own old one included, stops.
-func TestRevokeThenReissue_OnlyTheCallerStaysSignedIn(t *testing.T) {
-	f := newEpochFixture(t, 0)
-	mine := f.cookieFor(t, slidingSession(0, time.Hour))
-	other := f.cookieFor(t, slidingSession(0, 2*time.Hour))
+// lastSessionCookieIn returns the last vx_session cookie a response set, the one
+// a browser keeps when a response sets it more than once.
+func lastSessionCookieIn(rec *httptest.ResponseRecorder) *http.Cookie {
+	var last *http.Cookie
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == sesslib.CookieName {
+			last = c
+		}
+	}
+	return last
+}
 
-	// The bump, as the repository performs it.
-	newEpoch := f.epoch.Add(1)
-
+// revokeVia runs revokeOtherSessions(target) as a handler behind the
+// required-auth cookie middleware, the way a "sign out my other sessions"
+// endpoint will, and returns the response and the helper's error.
+func (f *epochFixture) revokeVia(t *testing.T, cookie *http.Cookie, target string) (*httptest.ResponseRecorder, error) {
+	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/anything", nil)
-	req.AddCookie(mine)
+	req.AddCookie(cookie)
 	rec := httptest.NewRecorder()
-	reissued, err := f.srv.sessionManager.ReissueUnderEpoch(rec, req, epochUserID, newEpoch)
-	require.NoError(t, err)
-	require.True(t, reissued)
 
-	_, _, called := f.requireAuth(t, sessionCookieIn(rec))
-	assert.True(t, called, "the caller's re-issued session must keep working")
+	var revokeErr error
+	called := false
+	f.srv.authenticateWithSession(rec, req, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		revokeErr = f.srv.revokeOtherSessions(w, r, target)
+	}))
+	require.True(t, called, "the caller must be authenticated for the handler to run")
+	return rec, revokeErr
+}
 
-	otherRec, _, called := f.requireAuth(t, other)
-	assert.False(t, called, "another session of the same user must end")
-	assert.Equal(t, http.StatusUnauthorized, otherRec.Code)
+func TestRevokeOtherSessions(t *testing.T) {
+	const otherUserID = "some-other-user"
+	// expectBump mirrors the repository: the service returns the new epoch and
+	// the fixture user's row reports it from then on.
+	expectBump := func(f *epochFixture) {
+		f.container.authService.On("RevokeUserSessions", mock.Anything, epochUserID).
+			Return(func(context.Context, string) (int64, error) { return f.epoch.Add(1), nil }).Once()
+	}
 
-	staleRec, _, called := f.requireAuth(t, mine)
-	assert.False(t, called, "the caller's cookie from before the bump must end too")
-	assert.Equal(t, http.StatusUnauthorized, staleRec.Code)
+	t.Run("the caller stays signed in and every other session ends", func(t *testing.T) {
+		f := newEpochFixture(t, 0)
+		expectBump(f)
+		mine := f.cookieFor(t, slidingSession(0, time.Hour))
+		other := f.cookieFor(t, slidingSession(0, 2*time.Hour))
+
+		rec, err := f.revokeVia(t, mine, epochUserID)
+		require.NoError(t, err)
+
+		reissued := f.readSession(t, rec)
+		assert.Equal(t, int64(1), reissued.Epoch)
+		assert.WithinDuration(t, time.Now().Add(-time.Hour), reissued.AuthenticatedAt, time.Minute,
+			"re-issuing under the new epoch is not a new sign-in")
+
+		_, _, called := f.requireAuth(t, sessionCookieIn(rec))
+		assert.True(t, called, "the caller's re-issued session must keep working")
+
+		otherRec, _, called := f.requireAuth(t, other)
+		assert.False(t, called, "another session of the same user must end")
+		assert.Equal(t, http.StatusUnauthorized, otherRec.Code)
+
+		staleRec, _, called := f.requireAuth(t, mine)
+		assert.False(t, called, "the caller's cookie from before the bump must end too")
+		assert.Equal(t, http.StatusUnauthorized, staleRec.Code)
+	})
+
+	t.Run("a session refreshed on this request is re-issued with the new tokens", func(t *testing.T) {
+		// The request cookie holds the refresh token the middleware has just
+		// spent. Re-issuing from it would hand the browser a dead token and sign
+		// the caller out at the next refresh.
+		f := newEpochFixture(t, 0)
+		expectBump(f)
+		newExpiry := time.Now().Add(time.Hour)
+		f.container.authService.On("RefreshTokens", mock.Anything, "google", "spent-refresh-token").
+			Return(&idp.Tokens{AccessToken: "new-at", RefreshToken: "new-refresh-token", ExpiresAt: newExpiry}, nil).Once()
+		expired := f.cookieFor(t, &sesslib.Session{
+			UserID: epochUserID, AccessToken: "old-at", RefreshToken: "spent-refresh-token", Provider: "google",
+			ExpiresAt: time.Now().Add(-time.Minute), AuthMethod: sesslib.AuthMethodOAuth,
+		})
+
+		rec, err := f.revokeVia(t, expired, epochUserID)
+		require.NoError(t, err)
+
+		kept := lastSessionCookieIn(rec)
+		require.NotNil(t, kept)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.AddCookie(kept)
+		sess, err := f.srv.sessionManager.Read(req)
+		require.NoError(t, err)
+		assert.Equal(t, "new-refresh-token", sess.RefreshToken)
+		assert.Equal(t, "new-at", sess.AccessToken)
+		assert.WithinDuration(t, newExpiry, sess.ExpiresAt, time.Second)
+		assert.Equal(t, int64(1), sess.Epoch)
+	})
+
+	t.Run("a request authenticated by an API key does not revive the cookie it carries", func(t *testing.T) {
+		f := newEpochFixture(t, 0)
+		expectBump(f)
+		ctx, err := f.srv.authenticateUser(context.Background(), epochUserID, "api_key", nil, nil)
+		require.NoError(t, err)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/anything", nil).WithContext(ctx)
+		req.AddCookie(f.cookieFor(t, slidingSession(0, time.Hour)))
+
+		rec := httptest.NewRecorder()
+		require.NoError(t, f.srv.revokeOtherSessions(rec, req, epochUserID))
+
+		assert.Nil(t, sessionCookieIn(rec), "every cookie session ends, the one on this request included")
+		assert.Equal(t, int64(1), f.epoch.Load())
+	})
+
+	t.Run("a caller acting on another user keeps their own cookie untouched", func(t *testing.T) {
+		f := newEpochFixture(t, 0)
+		f.container.authService.On("RevokeUserSessions", mock.Anything, otherUserID).Return(int64(8), nil).Once()
+
+		rec, err := f.revokeVia(t, f.cookieFor(t, slidingSession(0, time.Hour)), otherUserID)
+
+		require.NoError(t, err)
+		assert.Nil(t, sessionCookieIn(rec), "the caller's cookie must not be rewritten under another user's epoch")
+		assert.Equal(t, int64(0), f.epoch.Load())
+	})
+
+	t.Run("a failed bump writes no cookie and is reported", func(t *testing.T) {
+		f := newEpochFixture(t, 0)
+		f.container.authService.On("RevokeUserSessions", mock.Anything, epochUserID).
+			Return(int64(0), repositories.ErrUserNotFound).Once()
+
+		rec, err := f.revokeVia(t, f.cookieFor(t, slidingSession(0, time.Hour)), epochUserID)
+
+		require.ErrorIs(t, err, repositories.ErrUserNotFound)
+		assert.Nil(t, sessionCookieIn(rec))
+	})
+}
+
+// TestRevokedSession_NeverReachesTheProviderRefresh pins the order inside
+// authenticateWithSession: the epoch is checked before an expired session is
+// refreshed. The cookie a user keeps after revoking their other sessions shares
+// its refresh token with the revoked copies, so a revoked copy that could still
+// refresh would spend that token and sign the surviving session out.
+func TestRevokedSession_NeverReachesTheProviderRefresh(t *testing.T) {
+	// The fixture's AuthService mock has no RefreshTokens expectation, so a
+	// call to it fails the test.
+	f := newEpochFixture(t, 1)
+	revoked := f.cookieFor(t, &sesslib.Session{
+		UserID: epochUserID, AccessToken: "at", RefreshToken: "shared-refresh-token", Provider: "google",
+		ExpiresAt: time.Now().Add(-time.Minute), AuthMethod: sesslib.AuthMethodOAuth, Epoch: 0,
+	})
+
+	rec, _, called := f.requireAuth(t, revoked)
+
+	assert.False(t, called)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	f.container.authService.AssertNotCalled(t, "RefreshTokens", mock.Anything, mock.Anything, mock.Anything)
+	cleared := sessionCookieIn(rec)
+	require.NotNil(t, cleared)
+	assert.Negative(t, cleared.MaxAge)
 }
 
 func TestHandleLogout_RecordsLogoutActivity(t *testing.T) {
@@ -445,19 +571,49 @@ func TestHandleLogout_RecordsLogoutActivity(t *testing.T) {
 		f.container.activityService.AssertExpectations(t)
 	})
 
-	t.Run("an expired or revoked cookie still records who signed out", func(t *testing.T) {
-		f := newEpochFixture(t, 9)
-		f.container.activityService.On("RecordAuthActivity", mock.Anything, epochUserID,
-			activities.ActivityTypeAuthLogout, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-			Return(nil).Once()
+	// A cookie that would no longer authenticate signs nobody out. Recording it
+	// would let a revoked or expired copy write activity rows in its user's
+	// name, as often as it is replayed.
+	stale := map[string]struct {
+		userEpoch int64
+		sess      *sesslib.Session
+	}{
+		"a revoked cookie records nothing":          {1, slidingSession(0, time.Hour)},
+		"an expired sliding cookie records nothing": {0, slidingSession(0, sesslib.SlidingLifetime+time.Hour)},
+	}
+	for name, tc := range stale {
+		t.Run(name, func(t *testing.T) {
+			f := newEpochFixture(t, tc.userEpoch)
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
+			req.AddCookie(f.cookieFor(t, tc.sess))
+			rec := httptest.NewRecorder()
+			f.srv.ServeHTTP(rec, req)
+
+			assert.Equal(t, http.StatusOK, rec.Code)
+			cleared := sessionCookieIn(rec)
+			require.NotNil(t, cleared, "the cookie is cleared either way")
+			assert.Negative(t, cleared.MaxAge)
+			f.container.activityService.AssertNotCalled(t, "RecordAuthActivity")
+		})
+	}
+
+	t.Run("a cookie of a suspended account records nothing", func(t *testing.T) {
+		c := newMockAuthContainer(t)
+		users := repomocks.NewMockUserRepository(t)
+		users.On("GetByID", mock.Anything, epochUserID).
+			Return(&models.User{ID: epochUserID, Status: models.UserStatusSuspended}, nil)
+		c.userRepository = users
+		srv := createTestAuthServer(c)
+		minted := httptest.NewRecorder()
+		require.NoError(t, srv.sessionManager.Write(minted, slidingSession(0, time.Hour)))
 
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
-		req.AddCookie(f.cookieFor(t, slidingSession(0, sesslib.SlidingLifetime+time.Hour)))
+		req.AddCookie(sessionCookieIn(minted))
 		rec := httptest.NewRecorder()
-		f.srv.ServeHTTP(rec, req)
+		srv.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusOK, rec.Code)
-		f.container.activityService.AssertExpectations(t)
+		c.activityService.AssertNotCalled(t, "RecordAuthActivity")
 	})
 
 	t.Run("no cookie records nothing", func(t *testing.T) {

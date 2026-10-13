@@ -265,33 +265,6 @@ func (m *Manager) Write(w http.ResponseWriter, s *Session) error {
 	return nil
 }
 
-// ReissueUnderEpoch re-issues the request's session cookie under epoch when
-// that session belongs to userID, and reports whether it did (#1428).
-//
-// It is the second half of "sign out my other sessions": the caller bumps the
-// user's session epoch, which ends every existing cookie session of that user
-// including the caller's own, and then calls this with the new epoch so the
-// caller's browser alone holds a cookie that still matches. Nothing else about
-// the session changes: its expiry and its sign-in time stay as they were, so
-// surviving a revocation is not a new sign-in.
-//
-// A request with no session cookie, an unreadable one, or one of a different
-// user (an administrator revoking someone else's sessions) is left alone and
-// reports false with no error: there is no cookie of userID to keep alive.
-func (m *Manager) ReissueUnderEpoch(
-	w http.ResponseWriter, r *http.Request, userID string, epoch int64,
-) (bool, error) {
-	sess, err := m.Read(r)
-	if err != nil || sess.UserID != userID {
-		return false, nil
-	}
-	sess.Epoch = epoch
-	if err := m.Write(w, sess); err != nil {
-		return false, fmt.Errorf("session: re-issue under a new epoch: %w", err)
-	}
-	return true, nil
-}
-
 // Clear sets the session cookie to expire immediately, effectively logging
 // the user out of the cookie-based session.
 func (m *Manager) Clear(w http.ResponseWriter) {
