@@ -282,7 +282,7 @@ export function ArtifactView() {
           </div>
         }
       >
-        <ResourceBody content={artifact.content ?? ''} />
+        <ResourceBody content={artifact.content ?? ''} title={artifact.title} />
       </ResourceReadingPage>
 
       {resourceLock.dialog}

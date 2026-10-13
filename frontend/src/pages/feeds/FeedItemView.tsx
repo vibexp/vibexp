@@ -344,7 +344,7 @@ export function FeedItemView() {
         }
         extraSections={extraSections}
       >
-        <ResourceBody content={item.content} />
+        <ResourceBody content={item.content} title={item.title} />
       </ResourceReadingPage>
 
       <ConfirmDialog

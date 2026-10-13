@@ -185,10 +185,8 @@ export function ReadingPage({
   return (
     <>
       <div
-        // `@container` makes the column a size container: the bleed a wide
-        // block may take beside the article is computed from the column's
-        // inline size (see `--reading-bleed`), so it is exactly the room the
-        // folded rail or a wide window frees, and zero when there is none.
+        // `@container` makes the column a size container, for descendants that
+        // size themselves from the room the folded rail or a wide window frees.
         className={cn('@container min-w-0 flex-1', className)}
         data-testid="reading-page"
         data-presentation={presentation}

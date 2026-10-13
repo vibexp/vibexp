@@ -227,7 +227,7 @@ export function MemoryView() {
           </div>
         }
       >
-        <ResourceBody content={memory.text} />
+        <ResourceBody content={memory.text} title={title} />
       </ResourceReadingPage>
 
       <ConfirmDialog

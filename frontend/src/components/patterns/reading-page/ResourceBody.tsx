@@ -24,6 +24,12 @@ const VIEW_OPTIONS = [
 interface ResourceBodyBaseProps {
   /** What the rendered view shows (for prompts: the placeholder-rendered body). */
   content: string
+  /**
+   * The title the page header already shows. A leading `# Heading` in the body
+   * that only repeats it is left out of the RENDERED view, so it is not read
+   * twice in a row; the raw view and the content itself are untouched.
+   */
+  title?: string
   /** What the raw view shows. Defaults to `content` — the source, never the render. */
   rawContent?: string
   /** Only `markdown` is implemented; the prop pins the assumption for future formats. */
@@ -69,6 +75,7 @@ export type ResourceBodyProps = ResourceBodyBaseProps & ResourceBodyModeProps
  */
 export function ResourceBody({
   content,
+  title,
   rawContent,
   renderedExtra,
   placeholders,
@@ -89,7 +96,7 @@ export function ResourceBody({
 
   return (
     <div className={cn('space-y-4', className)} data-testid="resource-body">
-      <div className="flex justify-end">
+      <div className="reading-prose-width flex justify-end">
         <SegmentedControl
           size="sm"
           aria-label="Body view"
@@ -114,6 +121,7 @@ export function ResourceBody({
             ) : (
               <MarkdownRenderer
                 content={content}
+                hideLeadingTitle={title}
                 placeholders={placeholders}
                 syntaxTheme="auto"
                 className="reading-body"

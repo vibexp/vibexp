@@ -994,4 +994,136 @@ describe('MarkdownRenderer', () => {
       expect(container.querySelector('table')).not.toBeInTheDocument()
     })
   })
+
+  describe('code blocks', () => {
+    beforeEach(() => {
+      vi.mocked(marked).mockImplementation((src: string) =>
+        Promise.resolve(src)
+      )
+    })
+
+    afterEach(() => {
+      vi.mocked(marked).mockResolvedValue('<p>mocked content</p>')
+    })
+
+    it('gives a fenced block a bar with its language and a copy button', async () => {
+      const { container } = render(
+        <MarkdownRenderer content='<pre><code class="language-sql">SELECT 1</code></pre>' />
+      )
+
+      await waitFor(() => {
+        expect(container.querySelector('.code-block')).toBeInTheDocument()
+      })
+      expect(container.querySelector('.code-block-language')).toHaveTextContent(
+        'sql'
+      )
+      expect(
+        container.querySelector('.code-block .copy-button')
+      ).toHaveAttribute('aria-label', 'Copy code')
+      expect(container.querySelector('.code-block pre code')).toHaveClass(
+        'language-sql'
+      )
+    })
+
+    it('gives a fence with no language the bar too, without a label', async () => {
+      const { container } = render(
+        <MarkdownRenderer content="<pre><code>plain text</code></pre>" />
+      )
+
+      await waitFor(() => {
+        expect(container.querySelector('.code-block')).toBeInTheDocument()
+      })
+      expect(
+        container.querySelector('.code-block-language')
+      ).not.toBeInTheDocument()
+      expect(container.querySelector('.copy-button')).toBeInTheDocument()
+    })
+
+    it('copies the code as text, not its HTML-escaped form', async () => {
+      const { container } = render(
+        <MarkdownRenderer content='<pre><code class="language-text">if a &lt; b &amp;&amp; c</code></pre>' />
+      )
+
+      await waitFor(() => {
+        expect(container.querySelector('.copy-button')).toBeInTheDocument()
+      })
+      const button = container.querySelector<HTMLButtonElement>('.copy-button')
+      fireEvent.click(button!)
+
+      await waitFor(() => {
+        expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+          'if a < b && c'
+        )
+      })
+    })
+
+    it('leaves the bar without a button when copying is disabled', async () => {
+      const { container } = render(
+        <MarkdownRenderer
+          content='<pre><code class="language-go">x</code></pre>'
+          enableCodeCopy={false}
+        />
+      )
+
+      await waitFor(() => {
+        expect(container.querySelector('.code-block')).toBeInTheDocument()
+      })
+      expect(container.querySelector('.copy-button')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('rendering around the parser', () => {
+    it('leaves a leading heading that repeats the page title out of what is parsed', async () => {
+      const markedMock = vi.mocked(marked)
+      markedMock.mockClear()
+
+      render(
+        <MarkdownRenderer
+          content={'# Release checklist\n\nDrain the node.'}
+          hideLeadingTitle="release checklist"
+        />
+      )
+
+      await waitFor(() => {
+        expect(markedMock).toHaveBeenCalled()
+      })
+      const source = markedMock.mock.calls[0]?.[0]
+      expect(source).not.toContain('# Release checklist')
+      expect(source).toContain('Drain the node.')
+    })
+
+    it('parses the heading when no title is given, or it differs', async () => {
+      const markedMock = vi.mocked(marked)
+      markedMock.mockClear()
+
+      render(
+        <MarkdownRenderer
+          content={'# Release checklist\n\nDrain the node.'}
+          hideLeadingTitle="Something else"
+        />
+      )
+
+      await waitFor(() => {
+        expect(markedMock).toHaveBeenCalled()
+      })
+      expect(markedMock.mock.calls[0]?.[0]).toContain('# Release checklist')
+    })
+
+    it('turns task-list items into themed, read-only boxes', async () => {
+      vi.mocked(marked).mockResolvedValueOnce(
+        '<ul><li><input checked="" disabled="" type="checkbox"> Done</li><li><input disabled="" type="checkbox"> Todo</li></ul>'
+      )
+
+      const { container } = render(<MarkdownRenderer content="tasks" />)
+
+      await waitFor(() => {
+        expect(container.querySelectorAll('li.task-list-item')).toHaveLength(2)
+      })
+      expect(container.querySelector('input')).not.toBeInTheDocument()
+      const boxes = container.querySelectorAll('.task-checkbox')
+      expect(boxes[0]).toHaveAttribute('data-checked', 'true')
+      expect(boxes[0]).toHaveAttribute('aria-label', 'Completed')
+      expect(boxes[1]).toHaveAttribute('data-checked', 'false')
+    })
+  })
 })

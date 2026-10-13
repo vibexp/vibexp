@@ -95,6 +95,12 @@ export interface ResourceBodyEditorExtensions {
 interface ResourceBodyEditorBaseProps {
   value: string
   onChange: (next: string) => void
+  /**
+   * The resource's title as the form currently holds it. As on the reading
+   * page, a leading `# Heading` that only repeats it is left out of the
+   * Rendered pane, so the preview matches what the saved resource will show.
+   */
+  title?: string
   /** Only `markdown` is implemented; the prop pins the assumption, as on the reading side. */
   format?: BodyFormat
   extensions?: ResourceBodyEditorExtensions
@@ -166,6 +172,7 @@ export const ResourceBodyEditor = forwardRef<
   {
     value,
     onChange,
+    title,
     extensions,
     placeholder,
     error,
@@ -212,7 +219,7 @@ export const ResourceBodyEditor = forwardRef<
 
   return (
     <div className={cn('space-y-4', className)}>
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="reading-prose-width flex flex-wrap items-center justify-end gap-2">
         {extensions?.mentions && activeView !== 'render' && (
           <Badge variant="outline" className="gap-1">
             <Wand2 className="size-3" />
@@ -300,6 +307,7 @@ export const ResourceBodyEditor = forwardRef<
           <div className={BODY_EDITOR_MIN_HEIGHT}>
             <MarkdownRenderer
               content={value || 'Nothing to preview yet…'}
+              hideLeadingTitle={title}
               placeholders={extensions?.placeholders}
               syntaxTheme="auto"
               className="reading-body"

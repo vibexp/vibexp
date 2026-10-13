@@ -12,6 +12,10 @@ import {
   promptPlaceholderExtension,
   substituteFilledPlaceholders,
 } from './markdownPlaceholders'
+import {
+  markTaskListItems,
+  stripLeadingTitleHeading,
+} from './markdownTransforms'
 import { readMermaidTheme } from './mermaidTheme'
 
 /**
@@ -26,14 +30,50 @@ const escHtml = (s: string): string =>
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
 
+const COPY_ICON =
+  '<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"></path><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2h-1v1a1 1 0 01-1 1H7a1 1 0 01-1-1V3H6z"></path></svg>'
+const COPIED_ICON =
+  '<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>'
+
 /**
- * Builds the copy-to-clipboard button markup injected into highlighted code
- * blocks. The code text is stored URI-encoded in a data attribute so a single
- * delegated click listener can recover it without DOM mutation.
+ * Builds the copy-to-clipboard button markup for a code block. The code text
+ * is stored URI-encoded in a data attribute so a single delegated click
+ * listener can recover it without DOM mutation.
  */
-function buildCopyButtonHtml(codeContent: string, copyId: string): string {
-  const encodedCode = encodeURIComponent(codeContent.replace(/<[^<>]*>/g, ''))
-  return `<button class="copy-button absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-muted-foreground/80 text-background rounded text-xs hover:bg-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" title="Copy code" data-copy-id="${copyId}" data-code="${encodedCode}"><svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"></path><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2h-1v1a1 1 0 01-1 1H7a1 1 0 01-1-1V3H6z"></path></svg></button>`
+function buildCopyButtonHtml(plainCode: string, copyId: string): string {
+  return `<button type="button" class="copy-button" title="Copy code" aria-label="Copy code" data-copy-id="${copyId}" data-code="${encodeURIComponent(plainCode)}">${COPY_ICON}</button>`
+}
+
+/** The text of an HTML-escaped code body, with its entities decoded. */
+function decodeCodeText(escapedCode: string): string {
+  const scratch = document.createElement('div')
+  scratch.innerHTML = escapedCode
+  return scratch.textContent ?? ''
+}
+
+/**
+ * A fenced code block as rendered: a bar carrying the language (when the fence
+ * names one) and the copy button, above the `<pre>`. The bar is always
+ * visible — a control that only appears on hover does not exist on a touch
+ * screen. The surface and the syntax colours come from the stylesheet
+ * (`.code-block` in index.css), which follows the theme.
+ */
+function buildCodeBlockHtml({
+  className,
+  language,
+  highlightedCode,
+  copyButton,
+}: {
+  className: string
+  language: string | undefined
+  highlightedCode: string
+  copyButton: string
+}): string {
+  const label = language
+    ? `<span class="code-block-language">${escHtml(language)}</span>`
+    : '<span></span>'
+  const codeClass = className ? ` class="${className}"` : ''
+  return `<div class="code-block"><div class="code-block-bar">${label}${copyButton}</div><pre><code${codeClass}>${highlightedCode}</code></pre></div>`
 }
 
 /**
@@ -88,6 +128,13 @@ export interface MarkdownRendererProps {
    * referentially stable — a new one re-renders the markdown.
    */
   placeholders?: Record<string, string>
+  /**
+   * The title the page already shows for this content. A leading `# Heading`
+   * that only repeats it is left out of the rendering, so the title is not
+   * read twice in a row (see `stripLeadingTitleHeading`). The content itself
+   * is never changed.
+   */
+  hideLeadingTitle?: string
   onError?: (error: Error, context: string) => void
 }
 
@@ -285,6 +332,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   enableCodeCopy = true,
   linkTarget = '_blank',
   placeholders,
+  hideLeadingTitle,
   onError,
 }) => {
   const [renderedContent, setRenderedContent] = useState('')
@@ -364,7 +412,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         // (`-->` becomes `--&gt;`), so a fence-matching regex applied to
         // marked's OUTPUT can never match. Running it there meant no diagram
         // ever rendered — every one silently degraded to a code block (#744).
-        let source = content
+        let source = stripLeadingTitleHeading(content, hideLeadingTitle)
         if (enableMermaid) {
           const mermaidRegex = /```(?:mermaid|mmd)\r?\n([\s\S]*?)```/g
           const diagrams: { id: string; code: string }[] = []
@@ -398,52 +446,60 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
             )
           : await marked(source, options)
 
-        // Apply syntax highlighting and add copy buttons to code blocks in the HTML string
+        // Task-list items lose their bullet and get a themed, read-only box.
+        html = markTaskListItems(html)
+
+        // Apply syntax highlighting, and give every fenced block its bar: the
+        // language label and the copy button. A fence with no language has no
+        // class attribute at all, and gets the bar too.
         let copyButtonCounter = 0
         html = html.replace(
-          /<pre><code class="([^"]*)">([\s\S]*?)<\/code><\/pre>/g,
-          (_match: string, className: string, codeContent: string) => {
+          /<pre><code(?: class="([^"]*)")?>([\s\S]*?)<\/code><\/pre>/g,
+          (
+            _match: string,
+            className: string | undefined,
+            codeContent: string
+          ) => {
             // Extract language from className (e.g., "language-javascript" -> "javascript")
-            const match = /language-(\w+)/.exec(className)
+            const language = /language-([\w+#-]+)/.exec(className ?? '')?.[1]
+            // The code as text: what is highlighted, and what is copied. (The
+            // escaped HTML used to be what was copied, so `a < b` reached the
+            // clipboard as `a &lt; b`.)
+            const plainText = decodeCodeText(codeContent)
             let highlightedCode = codeContent
 
             // Apply Prism syntax highlighting if language is supported
-            if (match) {
-              const lang = match[1]
-              // Safely check if language grammar exists and get it
-              if (Object.hasOwn(Prism.languages, lang)) {
-                try {
-                  // Decode HTML entities before highlighting
-                  const tempDiv = document.createElement('div')
-                  tempDiv.innerHTML = codeContent
-                  const plainText = tempDiv.textContent ?? ''
-
-                  // Apply Prism highlighting - lang is validated above
-                  const languageGrammar =
-                    Prism.languages[lang as keyof typeof Prism.languages]
-                  highlightedCode = Prism.highlight(
-                    plainText,
-                    languageGrammar,
-                    lang
-                  )
-                } catch (error) {
-                  console.warn('Syntax highlighting failed:', error)
-                  // Keep original codeContent if highlighting fails
-                }
+            if (language && Object.hasOwn(Prism.languages, language)) {
+              try {
+                // Apply Prism highlighting - language is validated above
+                const languageGrammar =
+                  Prism.languages[language as keyof typeof Prism.languages]
+                highlightedCode = Prism.highlight(
+                  plainText,
+                  languageGrammar,
+                  language
+                )
+              } catch (error) {
+                console.warn('Syntax highlighting failed:', error)
+                // Keep original codeContent if highlighting fails
               }
             }
 
-            // Build the final HTML with highlighting and optional copy button.
             // Use a stable data-copy-id to allow event delegation without mutating
             // the DOM (avoids the replaceChild conflict with React's virtual DOM).
             const copyButton = enableCodeCopy
               ? buildCopyButtonHtml(
-                  codeContent,
+                  plainText,
                   `copy-${String(copyButtonCounter++)}`
                 )
               : ''
 
-            return `<pre class="relative group overflow-x-auto"><code class="${className}">${highlightedCode}</code>${copyButton}</pre>`
+            return buildCodeBlockHtml({
+              className: className ?? '',
+              language,
+              highlightedCode,
+              copyButton,
+            })
           }
         )
 
@@ -499,7 +555,14 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     }
     // onError intentionally omitted from deps - we use onErrorRef to avoid
     // re-render loops when callers pass inline callbacks (VIBEXP-FRONTEND-JS-3).
-  }, [content, configureMarked, enableMermaid, enableCodeCopy, placeholders])
+  }, [
+    content,
+    configureMarked,
+    enableMermaid,
+    enableCodeCopy,
+    placeholders,
+    hideLeadingTitle,
+  ])
 
   // Attach copy button click listeners via event delegation on the container.
   // This avoids cloneNode/replaceChild which conflicts with React's virtual DOM
@@ -534,11 +597,6 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   useEffect(() => {
     if (!containerRef.current || !enableCodeCopy) return
 
-    const checkSvg =
-      '<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>'
-    const copySvg =
-      '<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"></path><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2h-1v1a1 1 0 01-1 1H7a1 1 0 01-1-1V3H6z"></path></svg>'
-
     const buttons =
       containerRef.current.querySelectorAll<HTMLButtonElement>('.copy-button')
     buttons.forEach(button => {
@@ -548,7 +606,9 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       // targeting elements inside dangerouslySetInnerHTML (not React-managed
       // component trees), and we are only mutating SVG icon content, not
       // structural nodes that React tracks.
-      button.innerHTML = copiedIds.has(copyId) ? checkSvg : copySvg
+      const copied = copiedIds.has(copyId)
+      button.innerHTML = copied ? COPIED_ICON : COPY_ICON
+      button.setAttribute('aria-label', copied ? 'Copied' : 'Copy code')
     })
   }, [copiedIds, enableCodeCopy])
 

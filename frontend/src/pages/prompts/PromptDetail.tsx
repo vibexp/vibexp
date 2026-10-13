@@ -357,6 +357,7 @@ export function PromptDetail() {
       >
         <ResourceBody
           content={renderedBody !== '' ? renderedBody : prompt.body}
+          title={prompt.name}
           rawContent={prompt.body}
           placeholders={placeholderValues}
           mode={tab}

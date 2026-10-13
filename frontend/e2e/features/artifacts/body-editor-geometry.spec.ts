@@ -95,16 +95,18 @@ test.describe('Body editor geometry', () => {
     expect(await page.evaluate(() => window.scrollY)).toBe(0)
   })
 
-  test('edit opens on Raw, and its choice carries back to the reading page', async ({
+  test('edit opens on Raw, and its choice never reaches the reading page', async ({
     authenticatedPage: page,
   }) => {
     await createArtifactWithContent(page, 'Editor', 'editor-pref', CONTENT)
     const viewUrl = page.url()
 
-    // The reader prefers Rendered…
-    await bodyView(page).getByRole('tab', { name: 'Rendered' }).click()
+    // A reading page always opens on Rendered…
+    await expect(
+      bodyView(page).getByRole('tab', { name: 'Rendered' })
+    ).toHaveAttribute('aria-selected', 'true')
 
-    // …yet the editor always opens on the source.
+    // …and the editor always opens on the source.
     await page.getByTestId('edit-artifact-button').click()
     await expect(page).toHaveURL(/artifacts\/[^/]+\/[^/]+\/edit/)
     await expect(
@@ -112,16 +114,13 @@ test.describe('Body editor geometry', () => {
     ).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByTestId('artifact-content-textarea')).toBeVisible()
 
-    // Switching to Raw then Rendered in edit writes the shared preference.
-    await bodyView(page).getByRole('tab', { name: 'Raw' }).click()
-    await page.goto(viewUrl)
-    await expect(page.getByTestId('resource-body-raw')).toBeVisible()
-
-    await page.getByTestId('edit-artifact-button').click()
-    await expect(page).toHaveURL(/artifacts\/[^/]+\/[^/]+\/edit/)
+    // The editor's Rendered pane is the reading body…
     await bodyView(page).getByRole('tab', { name: 'Rendered' }).click()
     await expect(page.locator('.reading-body').first()).toBeVisible()
 
+    // …but whatever is chosen in edit stays in edit: the reading page opens
+    // on Rendered regardless, and nothing is remembered.
+    await bodyView(page).getByRole('tab', { name: 'Raw' }).click()
     await page.goto(viewUrl)
     await expect(
       bodyView(page).getByRole('tab', { name: 'Rendered' })

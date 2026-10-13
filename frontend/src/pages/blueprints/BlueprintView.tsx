@@ -280,7 +280,7 @@ export function BlueprintView() {
           </div>
         }
       >
-        <ResourceBody content={blueprint.content} />
+        <ResourceBody content={blueprint.content} title={blueprint.title} />
       </ResourceReadingPage>
 
       {resourceLock.dialog}

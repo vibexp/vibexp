@@ -10,8 +10,16 @@ import type { BodyViewMode } from '../types'
 // marked/DOMPurify are heavy in jsdom; the body only needs to prove which text
 // reaches the renderer.
 vi.mock('@/components/MarkdownRenderer', () => ({
-  MarkdownRenderer: ({ content }: { content: string }) => (
-    <div data-testid="markdown-renderer">{content}</div>
+  MarkdownRenderer: ({
+    content,
+    hideLeadingTitle,
+  }: {
+    content: string
+    hideLeadingTitle?: string
+  }) => (
+    <div data-testid="markdown-renderer" data-hide-title={hideLeadingTitle}>
+      {content}
+    </div>
   ),
 }))
 
@@ -71,6 +79,22 @@ describe('ResourceBody', () => {
     await user.click(screen.getByRole('tab', { name: 'Raw' }))
 
     expect(screen.getByTestId('resource-body-raw')).toHaveTextContent(RENDERED)
+  })
+
+  it('tells the renderer the page title, so a repeated heading is left out, and never touches Raw', async () => {
+    const user = userEvent.setup()
+    render(<ResourceBody content={'# Guide\n\nBody'} title="Guide" />)
+
+    expect(screen.getByTestId('markdown-renderer')).toHaveAttribute(
+      'data-hide-title',
+      'Guide'
+    )
+
+    await user.click(screen.getByRole('tab', { name: 'Raw' }))
+    // The source is shown exactly as stored, heading included.
+    expect(screen.getByTestId('resource-body-raw').textContent).toBe(
+      '# Guide\n\nBody'
+    )
   })
 
   it('mounts exactly one tabpanel, so the body is never in the DOM twice', async () => {

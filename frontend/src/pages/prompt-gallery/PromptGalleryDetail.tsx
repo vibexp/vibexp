@@ -178,7 +178,7 @@ export function PromptGalleryDetail() {
         </div>
       }
     >
-      <ResourceBody content={prompt.content} />
+      <ResourceBody content={prompt.content} title={prompt.title} />
     </ResourceReadingPage>
   )
 }

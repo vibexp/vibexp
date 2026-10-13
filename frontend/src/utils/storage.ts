@@ -394,6 +394,9 @@ export const storageUtils = {
     // literal is not in STORAGE_KEYS any more.
     try {
       localStorage.removeItem('vx_body_view_raw')
+      // The reading-width toggle went the same way earlier: the column has one
+      // width, and nothing reads this key any more.
+      localStorage.removeItem('vx_reading_measured')
     } catch {
       // Ignore storage errors - storage may be unavailable
     }

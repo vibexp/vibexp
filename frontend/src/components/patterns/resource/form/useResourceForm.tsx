@@ -314,6 +314,9 @@ export function useResourceForm({
                 metadataReservedKeys={metadataReservedKeys}
                 onMetadataValidityChange={setMetadataValid}
                 renderBody={renderBody}
+                resourceTitle={
+                  typeof nameValue === 'string' ? nameValue : undefined
+                }
                 onChange={next => {
                   if (spec === slugSpec) slugManuallyEdited.current = true
                   field.onChange(next)
