@@ -323,7 +323,10 @@ test.describe.serial('Instance site info branding', () => {
     const sidebar = adminPage.getByTestId('app-sidebar')
     await expect(sidebar).toBeVisible({ timeout: UI_TIMEOUT })
 
-    await expect(adminPage).toHaveTitle(`${branded.company_name} · VibeXP`)
+    // The page first, then the company, and always the product (#1360).
+    await expect(adminPage).toHaveTitle(
+      `Dashboard · ${branded.company_name} · VibeXP`
+    )
 
     // Sidebar brand: the logo, loaded, and the company name; no VibeXP tagline.
     const brand = sidebar.locator('a[href="/"]').first()

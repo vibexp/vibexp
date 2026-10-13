@@ -18,8 +18,8 @@ import { e2eStackAvailable } from '../helpers/e2eDatabase'
  *        resolving citation and a Sources footer)
  *     -> collapsing, re-expanding and paging to results page 2 reuse it —
  *        still exactly ONE summary request for the search
- *     -> the header search dialog's compact summary hands over to /search
- *        without regenerating
+ *     -> the header search (a command palette) summarises nothing itself and
+ *        hands its query to /search, which generates one summary for it
  *     -> a settings change (style + "Results to read") reaches the next summary
  *     -> a rejected key renders the classified message, and Retry recovers
  *     -> and a team with no provider shows a member nothing and an owner the
@@ -365,31 +365,34 @@ test.describe.serial('AI Summary journey', () => {
     expect(ownerSummaryCount()).toBe(1)
   })
 
-  test('the header search dialog summary carries over to /search', async () => {
+  test('the header search hands its query to /search, which summarises it once', async () => {
     // A fresh page load empties the summary cache.
     await ownerPage.goto('/')
     const before = ownerSummaryCount()
 
+    // The header search is a command palette: it lists matches and offers the
+    // full search page. The AI Summary lives only on that page, so typing here
+    // must not cost a summary.
     await ownerPage.getByRole('button', { name: 'Search', exact: true }).click()
-    const dialog = ownerPage.getByRole('dialog')
-    await dialog.getByRole('textbox', { name: 'Search query' }).fill(QUERY)
-
-    const trigger = dialog.getByRole('button', { name: 'AI Summary' })
-    await expect(trigger).toBeVisible({ timeout: UI_TIMEOUT })
-    await trigger.click()
-    await expect(dialog.getByTestId('ai-summary-compact')).toContainText(
-      SUMMARY_TEXT,
-      { timeout: UI_TIMEOUT }
-    )
+    const palette = ownerPage.getByTestId('command-palette')
+    await palette.getByRole('combobox').fill(QUERY)
+    await expect(palette.getByRole('option').first()).toBeVisible({
+      timeout: UI_TIMEOUT,
+    })
+    await expect(palette.getByText('Searching…')).toHaveCount(0, {
+      timeout: UI_TIMEOUT,
+    })
     await expect(
-      dialog.getByTestId('ai-summary-compact').locator('sup[data-citation="1"]')
-    ).toBeVisible()
-    expect(ownerSummaryCount()).toBe(before + 1)
+      palette.getByRole('button', { name: 'AI Summary' })
+    ).toHaveCount(0)
+    expect(ownerSummaryCount()).toBe(before)
 
-    // "See full results" opens /search with the summary expanded, reusing the
-    // dialog's answer instead of generating another.
-    await dialog.getByRole('button', { name: 'See full results' }).click()
+    // Its last row takes the query to /search. The section remembers it was
+    // expanded, so the page generates the summary on its own — exactly once.
+    await palette.getByTestId('command-palette-see-all').click()
     await expect(ownerPage).toHaveURL(/\/search\?/)
+    expect(new URL(ownerPage.url()).searchParams.get('q')).toBe(QUERY)
+    await expect(palette).toBeHidden()
     await expect(ownerPage.getByText(SUMMARY_TEXT)).toBeVisible({
       timeout: UI_TIMEOUT,
     })
