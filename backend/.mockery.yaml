@@ -169,6 +169,7 @@ packages:
       ResourceLockEventRepository:
       ScheduleRepository:
       SearchRepository:
+      SignInMethodRepository:
       TeamEmailProviderRepository:
       TeamInvitationRepository:
       TeamFreshnessSettingsRepository:

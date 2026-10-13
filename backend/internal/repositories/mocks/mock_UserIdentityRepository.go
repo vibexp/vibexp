@@ -22,54 +22,6 @@ func (_m *MockUserIdentityRepository) EXPECT() *MockUserIdentityRepository_Expec
 	return &MockUserIdentityRepository_Expecter{mock: &_m.Mock}
 }
 
-// DeleteForUser provides a mock function with given fields: ctx, userID, identityID
-func (_m *MockUserIdentityRepository) DeleteForUser(ctx context.Context, userID string, identityID string) error {
-	ret := _m.Called(ctx, userID, identityID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for DeleteForUser")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
-		r0 = rf(ctx, userID, identityID)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// MockUserIdentityRepository_DeleteForUser_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteForUser'
-type MockUserIdentityRepository_DeleteForUser_Call struct {
-	*mock.Call
-}
-
-// DeleteForUser is a helper method to define mock.On call
-//   - ctx context.Context
-//   - userID string
-//   - identityID string
-func (_e *MockUserIdentityRepository_Expecter) DeleteForUser(ctx interface{}, userID interface{}, identityID interface{}) *MockUserIdentityRepository_DeleteForUser_Call {
-	return &MockUserIdentityRepository_DeleteForUser_Call{Call: _e.mock.On("DeleteForUser", ctx, userID, identityID)}
-}
-
-func (_c *MockUserIdentityRepository_DeleteForUser_Call) Run(run func(ctx context.Context, userID string, identityID string)) *MockUserIdentityRepository_DeleteForUser_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string))
-	})
-	return _c
-}
-
-func (_c *MockUserIdentityRepository_DeleteForUser_Call) Return(_a0 error) *MockUserIdentityRepository_DeleteForUser_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *MockUserIdentityRepository_DeleteForUser_Call) RunAndReturn(run func(context.Context, string, string) error) *MockUserIdentityRepository_DeleteForUser_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // ListByUserID provides a mock function with given fields: ctx, userID
 func (_m *MockUserIdentityRepository) ListByUserID(ctx context.Context, userID string) ([]models.UserIdentity, error) {
 	ret := _m.Called(ctx, userID)

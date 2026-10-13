@@ -128,12 +128,12 @@ type AccountServiceInterface interface {
 type AccountServiceDeps struct {
 	Users      repositories.UserRepository
 	Identities repositories.UserIdentityRepository
-	// MethodLock serializes the removal of sign-in methods per user.
-	MethodLock repositories.SignInMethodLock
-	Passwords  PasswordAuthServiceInterface
-	Policy     AuthPolicyResolver
-	Providers  IdentityProviderResolver
-	APIAccess  APIAccessServiceInterface
+	// Methods removes sign-in methods, never the last usable one.
+	Methods   repositories.SignInMethodRepository
+	Passwords PasswordAuthServiceInterface
+	Policy    AuthPolicyResolver
+	Providers IdentityProviderResolver
+	APIAccess APIAccessServiceInterface
 	// Notifier is told about password changes; nil means nobody is.
 	Notifier AccountNotifier
 	Logger   *slog.Logger
@@ -143,7 +143,7 @@ type AccountServiceDeps struct {
 type AccountService struct {
 	users      repositories.UserRepository
 	identities repositories.UserIdentityRepository
-	methodLock repositories.SignInMethodLock
+	methods    repositories.SignInMethodRepository
 	passwords  PasswordAuthServiceInterface
 	policy     AuthPolicyResolver
 	providers  IdentityProviderResolver
@@ -163,7 +163,7 @@ func NewAccountService(deps AccountServiceDeps) *AccountService {
 	return &AccountService{
 		users:      deps.Users,
 		identities: deps.Identities,
-		methodLock: deps.MethodLock,
+		methods:    deps.Methods,
 		passwords:  deps.Passwords,
 		policy:     deps.Policy,
 		providers:  deps.Providers,
@@ -314,56 +314,16 @@ func (s *AccountService) RemovePassword(ctx context.Context, userID string, rece
 	if !recentSignIn {
 		return ErrReauthenticationRequired
 	}
-	// The guard and the delete run under the per-user lock: see
-	// repositories.SignInMethodLock.
-	err := s.methodLock.WithLock(ctx, userID, func(ctx context.Context) error {
-		return s.removePasswordLocked(ctx, userID)
-	})
+	usable, err := s.usableMethods(ctx)
 	if err != nil {
 		return err
 	}
+	if err = s.methods.RemovePassword(ctx, userID, usable); err != nil {
+		return removalError("remove the password", err)
+	}
+	s.logger.With("user_id", userID).Info("Password removed")
 	s.notifier.PasswordChanged(ctx, userID)
 	return nil
-}
-
-// removePasswordLocked is RemovePassword's check-then-delete. The caller holds
-// the user's sign-in method lock.
-func (s *AccountService) removePasswordLocked(ctx context.Context, userID string) error {
-	passwordView, err := s.passwordView(ctx, userID)
-	if err != nil {
-		return err
-	}
-	if !passwordView.Set {
-		return ErrAccountPasswordNotSet
-	}
-	identities, err := s.identityViews(ctx, userID)
-	if err != nil {
-		return err
-	}
-	if usableIdentities(identities, "") == 0 {
-		return ErrLastSignInMethod
-	}
-
-	removed, err := s.passwords.RemovePassword(ctx, userID)
-	if err != nil {
-		return err
-	}
-	if !removed {
-		return ErrAccountPasswordNotSet
-	}
-	return nil
-}
-
-// usableIdentities counts the identities that can sign in right now, leaving
-// out the one with id except.
-func usableIdentities(identities []AccountIdentityView, except string) int {
-	count := 0
-	for i := range identities {
-		if identities[i].Available && identities[i].ID != except {
-			count++
-		}
-	}
-	return count
 }
 
 // DisconnectIdentity implements AccountServiceInterface.
@@ -373,57 +333,55 @@ func (s *AccountService) DisconnectIdentity(
 	if !recentSignIn {
 		return "", ErrReauthenticationRequired
 	}
-	var provider string
-	err := s.methodLock.WithLock(ctx, userID, func(ctx context.Context) error {
-		var lockedErr error
-		provider, lockedErr = s.disconnectIdentityLocked(ctx, userID, identityID)
-		return lockedErr
-	})
+	usable, err := s.usableMethods(ctx)
 	if err != nil {
 		return "", err
+	}
+	provider, err := s.methods.RemoveIdentity(ctx, userID, identityID, usable)
+	if err != nil {
+		return "", removalError("disconnect the sign-in identity", err)
 	}
 	s.logger.With("user_id", userID, "provider", provider).Info("Sign-in identity disconnected")
 	return provider, nil
 }
 
-// disconnectIdentityLocked is DisconnectIdentity's check-then-delete. The
-// caller holds the user's sign-in method lock.
-func (s *AccountService) disconnectIdentityLocked(
-	ctx context.Context, userID, identityID string,
-) (string, error) {
-	identities, err := s.identityViews(ctx, userID)
+// usableMethods says which sign-in methods WORK on the instance right now: a
+// password only while password sign-in is switched on, an identity only while
+// its provider is enabled. The repository applies it to the account's rows
+// under a lock, so "another usable method remains" is checked and the method
+// deleted with nothing in between. Counting anything else would let a user
+// remove their way back in.
+func (s *AccountService) usableMethods(ctx context.Context) (repositories.UsableSignInMethods, error) {
+	policy, err := s.policy.Policy(ctx)
 	if err != nil {
-		return "", err
+		return repositories.UsableSignInMethods{}, fmt.Errorf("read the authentication policy: %w", err)
 	}
-	var target *AccountIdentityView
-	for i := range identities {
-		if identities[i].ID == identityID {
-			target = &identities[i]
-		}
+	registry, err := s.providers.Snapshot(ctx)
+	if err != nil {
+		return repositories.UsableSignInMethods{}, fmt.Errorf("%w: %w", ErrIdentityProvidersUnresolvable, err)
 	}
-	if target == nil {
-		return "", ErrAccountIdentityNotFound
+	entries := registry.Entries()
+	usable := repositories.UsableSignInMethods{
+		Providers:     make([]string, 0, len(entries)),
+		PasswordLogin: policy.PasswordLoginEnabled,
 	}
+	for _, entry := range entries {
+		usable.Providers = append(usable.Providers, string(entry.Provider.Name()))
+	}
+	return usable, nil
+}
 
-	// What must remain is a method that WORKS: a password only while it can
-	// sign in, another identity only while its provider is enabled. Counting
-	// anything else would let a user remove their way back in.
-	passwordView, err := s.passwordView(ctx, userID)
-	if err != nil {
-		return "", err
+// removalError maps the repository's refusals to the service's.
+func removalError(action string, err error) error {
+	switch {
+	case errors.Is(err, repositories.ErrLastSignInMethod):
+		return ErrLastSignInMethod
+	case errors.Is(err, repositories.ErrUserCredentialNotFound):
+		return ErrAccountPasswordNotSet
+	case errors.Is(err, repositories.ErrUserIdentityNotFound):
+		return ErrAccountIdentityNotFound
 	}
-	if !passwordView.usable && usableIdentities(identities, identityID) == 0 {
-		return "", ErrLastSignInMethod
-	}
-
-	err = s.identities.DeleteForUser(ctx, userID, identityID)
-	if errors.Is(err, repositories.ErrUserIdentityNotFound) {
-		return "", ErrAccountIdentityNotFound
-	}
-	if err != nil {
-		return "", fmt.Errorf("disconnect the sign-in identity: %w", err)
-	}
-	return target.Provider, nil
+	return fmt.Errorf("%s: %w", action, err)
 }
 
 // RevokeAPIAccess implements AccountServiceInterface.

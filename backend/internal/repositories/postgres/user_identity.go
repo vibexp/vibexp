@@ -47,34 +47,6 @@ func (r *UserIdentityRepository) Upsert(ctx context.Context, userID, provider, s
 	return nil
 }
 
-// DeleteForUser implements repositories.UserIdentityRepository. One statement:
-// the identity is deleted only when it is the user's, and the legacy Google
-// alias with the same subject goes with it (a no-op for a non-Google identity,
-// whose subject no legacy row carries).
-func (r *UserIdentityRepository) DeleteForUser(ctx context.Context, userID, identityID string) error {
-	query := `
-		WITH removed AS (
-			DELETE FROM user_identities
-			WHERE id = $2 AND user_id = $1
-			RETURNING subject
-		), alias AS (
-			DELETE FROM user_identities
-			WHERE user_id = $1 AND provider = $3 AND subject IN (SELECT subject FROM removed)
-		)
-		SELECT count(*) FROM removed
-	`
-
-	var removed int
-	err := r.db.QueryRowContext(ctx, query, userID, identityID, models.LegacyGoogleIdentityProvider).Scan(&removed)
-	if err != nil {
-		return fmt.Errorf("failed to delete user identity: %w", err)
-	}
-	if removed == 0 {
-		return repositories.ErrUserIdentityNotFound
-	}
-	return nil
-}
-
 // ListByUserID returns the user's identities, oldest first.
 func (r *UserIdentityRepository) ListByUserID(ctx context.Context, userID string) ([]models.UserIdentity, error) {
 	query := `

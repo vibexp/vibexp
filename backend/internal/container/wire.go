@@ -37,7 +37,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideUserRepository,
 	providers.ProvideUserIdentityRepository,
 	providers.ProvideAPIAccessRepository,
-	providers.ProvideSignInMethodLock,
+	providers.ProvideSignInMethodRepository,
 	providers.ProvideUserCredentialRepository,
 	providers.ProvideAPIKeyRepository,
 	providers.ProvidePromptRepository,

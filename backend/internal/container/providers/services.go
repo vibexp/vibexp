@@ -886,7 +886,7 @@ func ProvideAuthPolicyResolver(
 type AccountServiceDeps struct {
 	Users      repositories.UserRepository
 	Identities repositories.UserIdentityRepository
-	MethodLock repositories.SignInMethodLock
+	Methods    repositories.SignInMethodRepository
 	Passwords  services.PasswordAuthServiceInterface
 	Policy     services.AuthPolicyResolver
 	Providers  services.IdentityProviderResolver
@@ -903,7 +903,7 @@ func ProvideAccountService(deps AccountServiceDeps) services.AccountServiceInter
 	return services.NewAccountService(services.AccountServiceDeps{
 		Users:      deps.Users,
 		Identities: deps.Identities,
-		MethodLock: deps.MethodLock,
+		Methods:    deps.Methods,
 		Passwords:  deps.Passwords,
 		Policy:     deps.Policy,
 		Providers:  deps.Providers,

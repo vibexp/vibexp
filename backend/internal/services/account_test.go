@@ -31,8 +31,6 @@ type fakePasswords struct {
 	verifyErr error
 	setErr    error
 	calls     []string
-	// onRemove, when set, runs inside RemovePassword.
-	onRemove func()
 }
 
 func (p *fakePasswords) PasswordStatus(context.Context, string) (PasswordStatus, error) {
@@ -54,9 +52,6 @@ func (p *fakePasswords) SetPassword(_ context.Context, _, plaintext string) erro
 
 func (p *fakePasswords) RemovePassword(context.Context, string) (bool, error) {
 	p.calls = append(p.calls, "remove")
-	if p.onRemove != nil {
-		p.onRemove()
-	}
 	removed := p.status.Set
 	p.status = PasswordStatus{}
 	return removed, nil
@@ -86,22 +81,8 @@ func (n *recordingNotifier) PasswordChanged(_ context.Context, userID string) {
 // accountFixture is an AccountService over fakes. By default password sign-in
 // is on, providers "google" and "github" are enabled, and the account has no
 // password and no identity.
-// recordingLock is a SignInMethodLock that runs fn at once and records, for
-// each call, the user it was taken for.
-type recordingLock struct {
-	held  bool
-	users []string
-}
-
-func (l *recordingLock) WithLock(ctx context.Context, userID string, fn func(context.Context) error) error {
-	l.users = append(l.users, userID)
-	l.held = true
-	defer func() { l.held = false }()
-	return fn(ctx)
-}
-
 type accountFixture struct {
-	lock       *recordingLock
+	methods    *repo_mocks.MockSignInMethodRepository
 	svc        *AccountService
 	users      *repo_mocks.MockUserRepository
 	identities *repo_mocks.MockUserIdentityRepository
@@ -120,7 +101,7 @@ func newAccountFixture(t *testing.T, policy AuthPolicyResolver) *accountFixture 
 		passwords:  &fakePasswords{},
 		apiAccess:  &fakeAPIAccess{},
 		notifier:   &recordingNotifier{},
-		lock:       &recordingLock{},
+		methods:    repo_mocks.NewMockSignInMethodRepository(t),
 	}
 	f.users.On("GetByID", mock.Anything, accountTestUser).
 		Return(&models.User{ID: accountTestUser, Email: "ada@example.com", Name: "Ada"}, nil).Maybe()
@@ -131,7 +112,7 @@ func newAccountFixture(t *testing.T, policy AuthPolicyResolver) *accountFixture 
 		idp.Entry{Provider: slugProvider("github"), Type: idp.ProviderGitHub, DisplayName: "GitHub"},
 	)
 	f.svc = NewAccountService(AccountServiceDeps{
-		Users: f.users, Identities: f.identities, MethodLock: f.lock, Passwords: f.passwords, Policy: policy,
+		Users: f.users, Identities: f.identities, Methods: f.methods, Passwords: f.passwords, Policy: policy,
 		Providers: staticIDPResolver{reg: registry}, APIAccess: f.apiAccess, Notifier: f.notifier, Logger: logger,
 	})
 	return f
@@ -319,163 +300,120 @@ func TestAccountService_SetPassword(t *testing.T) {
 	})
 }
 
+// What works on the fixture's instance: its two enabled providers, and the
+// password according to the policy.
+func usableWith(passwordLogin bool) repositories.UsableSignInMethods {
+	return repositories.UsableSignInMethods{Providers: []string{"google", "github"}, PasswordLogin: passwordLogin}
+}
+
+// The "another usable method remains" rule itself is the repository's, where
+// it runs under a lock with the delete (TestIntegrationSignInMethod_*). Here:
+// what the service tells it works, and how its answers are reported.
 func TestAccountService_RemovePassword(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("removed when another usable method remains", func(t *testing.T) {
-		f := newAccountFixture(t, passwordLoginOn).hasPassword()
-		f.holds("google")
+	t.Run("removed, and the notifier is told", func(t *testing.T) {
+		f := newAccountFixture(t, passwordLoginOn)
+		f.methods.EXPECT().RemovePassword(ctx, accountTestUser, usableWith(true)).Return(nil).Once()
 
 		require.NoError(t, f.svc.RemovePassword(ctx, accountTestUser, true))
 
-		assert.Equal(t, []string{"remove"}, f.passwords.calls)
 		assert.Equal(t, []string{accountTestUser}, f.notifier.notified)
 	})
 
-	t.Run("works while password sign-in is off", func(t *testing.T) {
-		f := newAccountFixture(t, passwordLoginOff).hasPassword()
-		f.holds("github")
+	t.Run("works while password sign-in is off, and says so to the repository", func(t *testing.T) {
+		f := newAccountFixture(t, passwordLoginOff)
+		f.methods.EXPECT().RemovePassword(ctx, accountTestUser, usableWith(false)).Return(nil).Once()
 
 		require.NoError(t, f.svc.RemovePassword(ctx, accountTestUser, true))
 	})
 
 	t.Run("needs a recent sign-in", func(t *testing.T) {
-		f := newAccountFixture(t, passwordLoginOn).hasPassword()
-		f.holds("google")
+		f := newAccountFixture(t, passwordLoginOn) // a strict mock: nothing is asked of the repository
 
 		require.ErrorIs(t, f.svc.RemovePassword(ctx, accountTestUser, false), ErrReauthenticationRequired)
-		assert.Empty(t, f.passwords.calls)
+		assert.Empty(t, f.notifier.notified)
 	})
 
-	t.Run("refused when it is the only usable method", func(t *testing.T) {
-		for name, arrange := range map[string]func(*accountFixture){
-			"no identity at all":                     func(*accountFixture) {},
-			"only an identity of a removed provider": func(f *accountFixture) { f.holds("old-sso") },
-			"only the legacy alias and dev login": func(f *accountFixture) {
-				f.holds(models.LegacyGoogleIdentityProvider)
-				f.holds(devIDPProvider)
-			},
-		} {
-			t.Run(name, func(t *testing.T) {
-				f := newAccountFixture(t, passwordLoginOn).hasPassword()
-				arrange(f)
+	for name, tc := range map[string]struct{ repoErr, want error }{
+		"the only usable method": {repositories.ErrLastSignInMethod, ErrLastSignInMethod},
+		"no password":            {repositories.ErrUserCredentialNotFound, ErrAccountPasswordNotSet},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newAccountFixture(t, passwordLoginOn)
+			f.methods.EXPECT().RemovePassword(ctx, accountTestUser, usableWith(true)).Return(tc.repoErr).Once()
 
-				require.ErrorIs(t, f.svc.RemovePassword(ctx, accountTestUser, true), ErrLastSignInMethod)
-				assert.Empty(t, f.passwords.calls)
-				assert.Empty(t, f.notifier.notified)
-			})
-		}
-	})
+			require.ErrorIs(t, f.svc.RemovePassword(ctx, accountTestUser, true), tc.want)
+			assert.Empty(t, f.notifier.notified)
+		})
+	}
 
-	t.Run("an account with no password", func(t *testing.T) {
+	t.Run("a storage failure is not reported as a refusal", func(t *testing.T) {
 		f := newAccountFixture(t, passwordLoginOn)
-		f.holds("google")
+		f.methods.EXPECT().RemovePassword(ctx, accountTestUser, usableWith(true)).Return(errors.New("pq: down")).Once()
 
-		require.ErrorIs(t, f.svc.RemovePassword(ctx, accountTestUser, true), ErrAccountPasswordNotSet)
+		err := f.svc.RemovePassword(ctx, accountTestUser, true)
+
+		require.Error(t, err)
+		require.NotErrorIs(t, err, ErrLastSignInMethod)
+		require.NotErrorIs(t, err, ErrAccountPasswordNotSet)
 	})
 }
 
 func TestAccountService_DisconnectIdentity(t *testing.T) {
 	ctx := context.Background()
+	const identityID = "identity-google"
 
-	t.Run("disconnected when another identity is usable", func(t *testing.T) {
+	t.Run("disconnected; the password did not change", func(t *testing.T) {
 		f := newAccountFixture(t, passwordLoginOn)
-		googleID := f.holds("google")
-		f.holds("github")
-		f.identities.On("DeleteForUser", ctx, accountTestUser, googleID).Return(nil).Once()
+		f.methods.EXPECT().RemoveIdentity(ctx, accountTestUser, identityID, usableWith(true)).Return("google", nil).Once()
 
-		provider, err := f.svc.DisconnectIdentity(ctx, accountTestUser, googleID, true)
+		provider, err := f.svc.DisconnectIdentity(ctx, accountTestUser, identityID, true)
 
 		require.NoError(t, err)
 		assert.Equal(t, "google", provider)
-		f.identities.AssertExpectations(t)
-		assert.Empty(t, f.notifier.notified, "the password did not change")
+		assert.Empty(t, f.notifier.notified)
 	})
 
-	t.Run("disconnected when a usable password remains", func(t *testing.T) {
-		f := newAccountFixture(t, passwordLoginOn).hasPassword()
-		googleID := f.holds("google")
-		f.identities.On("DeleteForUser", ctx, accountTestUser, googleID).Return(nil).Once()
+	t.Run("with password sign-in off, a password is not offered as what remains", func(t *testing.T) {
+		f := newAccountFixture(t, passwordLoginOff)
+		f.methods.EXPECT().RemoveIdentity(ctx, accountTestUser, identityID, usableWith(false)).
+			Return("", repositories.ErrLastSignInMethod).Once()
 
-		_, err := f.svc.DisconnectIdentity(ctx, accountTestUser, googleID, true)
+		_, err := f.svc.DisconnectIdentity(ctx, accountTestUser, identityID, true)
 
-		require.NoError(t, err)
-	})
-
-	t.Run("an identity of a removed provider can be cleaned up when something usable remains", func(t *testing.T) {
-		f := newAccountFixture(t, passwordLoginOn)
-		goneID := f.holds("old-sso")
-		f.holds("google")
-		f.identities.On("DeleteForUser", ctx, accountTestUser, goneID).Return(nil).Once()
-
-		_, err := f.svc.DisconnectIdentity(ctx, accountTestUser, goneID, true)
-
-		require.NoError(t, err)
-	})
-
-	t.Run("refused when nothing usable would remain", func(t *testing.T) {
-		for name, tc := range map[string]struct {
-			policy  AuthPolicyResolver
-			arrange func(*accountFixture)
-		}{
-			"the only identity, no password": {passwordLoginOn, func(*accountFixture) {}},
-			"a password, but password sign-in is off": {passwordLoginOff, func(f *accountFixture) {
-				f.hasPassword()
-			}},
-			"a password an administrator disabled": {passwordLoginOn, func(f *accountFixture) {
-				f.passwords.status = PasswordStatus{Set: true, Usable: false}
-			}},
-			"another identity whose provider is gone": {passwordLoginOn, func(f *accountFixture) {
-				f.holds("old-sso")
-			}},
-		} {
-			t.Run(name, func(t *testing.T) {
-				f := newAccountFixture(t, tc.policy)
-				tc.arrange(f)
-				googleID := f.holds("google")
-
-				_, err := f.svc.DisconnectIdentity(ctx, accountTestUser, googleID, true)
-
-				require.ErrorIs(t, err, ErrLastSignInMethod)
-				f.identities.AssertNotCalled(t, "DeleteForUser", mock.Anything, mock.Anything, mock.Anything)
-			})
-		}
+		require.ErrorIs(t, err, ErrLastSignInMethod)
 	})
 
 	t.Run("needs a recent sign-in", func(t *testing.T) {
-		f := newAccountFixture(t, passwordLoginOn)
-		googleID := f.holds("google")
-		f.holds("github")
+		f := newAccountFixture(t, passwordLoginOn) // a strict mock: nothing is asked of the repository
 
-		_, err := f.svc.DisconnectIdentity(ctx, accountTestUser, googleID, false)
+		_, err := f.svc.DisconnectIdentity(ctx, accountTestUser, identityID, false)
 
 		require.ErrorIs(t, err, ErrReauthenticationRequired)
-		f.identities.AssertNotCalled(t, "DeleteForUser", mock.Anything, mock.Anything, mock.Anything)
 	})
 
 	t.Run("an unknown, internal or someone else's identity is not found", func(t *testing.T) {
 		f := newAccountFixture(t, passwordLoginOn)
-		f.holds("google")
-		f.holds("github")
-		aliasID := f.holds(models.LegacyGoogleIdentityProvider)
+		f.methods.EXPECT().RemoveIdentity(ctx, accountTestUser, identityID, usableWith(true)).
+			Return("", repositories.ErrUserIdentityNotFound).Once()
 
-		for _, id := range []string{"identity-of-another-user", aliasID} {
-			_, err := f.svc.DisconnectIdentity(ctx, accountTestUser, id, true)
-			require.ErrorIs(t, err, ErrAccountIdentityNotFound, id)
-		}
-		f.identities.AssertNotCalled(t, "DeleteForUser", mock.Anything, mock.Anything, mock.Anything)
-	})
-
-	t.Run("an identity that vanished between the check and the delete is not found", func(t *testing.T) {
-		f := newAccountFixture(t, passwordLoginOn)
-		googleID := f.holds("google")
-		f.holds("github")
-		f.identities.On("DeleteForUser", ctx, accountTestUser, googleID).Return(repositories.ErrUserIdentityNotFound)
-
-		_, err := f.svc.DisconnectIdentity(ctx, accountTestUser, googleID, true)
+		_, err := f.svc.DisconnectIdentity(ctx, accountTestUser, identityID, true)
 
 		require.ErrorIs(t, err, ErrAccountIdentityNotFound)
 	})
+}
+
+// When the instance's providers or policy cannot be read, nothing is removed:
+// the service cannot say what would remain usable.
+func TestAccountService_RemovalsFailClosedWhenUsableMethodsAreUnknown(t *testing.T) {
+	ctx := context.Background()
+	f := newAccountFixture(t, fixedAuthPolicy{err: errors.New("pq: down")}) // a strict mock: nothing is asked of the repository
+
+	require.Error(t, f.svc.RemovePassword(ctx, accountTestUser, true))
+	_, err := f.svc.DisconnectIdentity(ctx, accountTestUser, "identity-google", true)
+	require.Error(t, err)
+	assert.Empty(t, f.notifier.notified)
 }
 
 func TestAccountService_RevokeAPIAccess(t *testing.T) {
@@ -503,63 +441,6 @@ func TestAccountService_DefaultNotifierIsANoop(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, first)
-}
-
-// The guard and the delete must run under the user's sign-in method lock:
-// without it two removals running together each see the other's method still
-// present, and the account ends with none.
-func TestAccountService_RemovalsReadAndDeleteUnderTheLock(t *testing.T) {
-	ctx := context.Background()
-
-	t.Run("removing the password", func(t *testing.T) {
-		f := newAccountFixture(t, passwordLoginOn).hasPassword()
-		f.holds("google")
-		var listedUnderLock bool
-		f.identities.ExpectedCalls = nil
-		f.identities.On("ListByUserID", mock.Anything, accountTestUser).
-			Return(func(context.Context, string) ([]models.UserIdentity, error) {
-				listedUnderLock = f.lock.held
-				return f.held, nil
-			})
-		f.passwords.onRemove = func() { assert.True(t, f.lock.held, "the delete runs under the lock") }
-
-		require.NoError(t, f.svc.RemovePassword(ctx, accountTestUser, true))
-
-		assert.True(t, listedUnderLock, "the guard reads the identities under the lock")
-		assert.Equal(t, []string{accountTestUser}, f.lock.users)
-	})
-
-	t.Run("disconnecting an identity", func(t *testing.T) {
-		f := newAccountFixture(t, passwordLoginOn).hasPassword()
-		id := f.holds("google")
-		var listedUnderLock, deletedUnderLock bool
-		f.identities.ExpectedCalls = nil
-		f.identities.On("ListByUserID", mock.Anything, accountTestUser).
-			Return(func(context.Context, string) ([]models.UserIdentity, error) {
-				listedUnderLock = f.lock.held
-				return f.held, nil
-			})
-		f.identities.On("DeleteForUser", mock.Anything, accountTestUser, id).
-			Return(func(context.Context, string, string) error {
-				deletedUnderLock = f.lock.held
-				return nil
-			})
-
-		_, err := f.svc.DisconnectIdentity(ctx, accountTestUser, id, true)
-
-		require.NoError(t, err)
-		assert.True(t, listedUnderLock, "the guard reads the identities under the lock")
-		assert.True(t, deletedUnderLock, "the delete runs under the lock")
-		assert.Equal(t, []string{accountTestUser}, f.lock.users)
-	})
-
-	t.Run("a refusal for a stale sign-in takes no lock", func(t *testing.T) {
-		f := newAccountFixture(t, passwordLoginOn).hasPassword()
-
-		require.ErrorIs(t, f.svc.RemovePassword(ctx, accountTestUser, false), ErrReauthenticationRequired)
-
-		assert.Empty(t, f.lock.users)
-	})
 }
 
 // An omitted current password cannot be right, and is refused without

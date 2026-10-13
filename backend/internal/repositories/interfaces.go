@@ -105,8 +105,11 @@ var (
 	// (provider, subject) pair already belongs to a different user.
 	ErrUserIdentityTaken = errors.New("sign-in identity belongs to another user")
 	// ErrUserIdentityNotFound is returned by
-	// UserIdentityRepository.DeleteForUser when the user has no such identity.
+	// SignInMethodRepository.RemoveIdentity when the user has no such identity.
 	ErrUserIdentityNotFound = errors.New("sign-in identity not found")
+	// ErrLastSignInMethod is returned by SignInMethodRepository when the
+	// removal would leave the account with no usable sign-in method.
+	ErrLastSignInMethod = errors.New("the account's last usable sign-in method cannot be removed")
 
 	// ErrProjectSlugExists is returned by ProjectRepository.Create when a project
 	// with the same slug already exists in the team (Postgres unique violation 23505).
@@ -544,23 +547,43 @@ type UserIdentityRepository interface {
 	Upsert(ctx context.Context, userID, provider, subject string) error
 	// ListByUserID returns the user's identities, oldest first.
 	ListByUserID(ctx context.Context, userID string) ([]models.UserIdentity, error)
-	// DeleteForUser removes the identity with identityID when it belongs to
-	// userID, and with it the user's legacy Google identity that has the same
-	// subject: left behind, that alias would keep the same Google account able
-	// to sign in. Returns ErrUserIdentityNotFound when the user has no such
-	// identity (including when it belongs to someone else).
-	DeleteForUser(ctx context.Context, userID, identityID string) error
 }
 
-// SignInMethodLock serializes the removal of an account's sign-in methods
-// (#1437). "Never remove the last usable method" is a check followed by a
-// delete; two removals running together would each see the other's method
-// still present and both succeed, leaving the account with no way in.
-type SignInMethodLock interface {
-	// WithLock runs fn while holding a lock that is exclusive per user. A
-	// second call for the same user waits until the first has returned, so
-	// whatever fn reads reflects every earlier removal. It returns fn's error.
-	WithLock(ctx context.Context, userID string, fn func(ctx context.Context) error) error
+// UsableSignInMethods says which sign-in methods work on the instance right
+// now. It is the caller's knowledge (the enabled providers, the policy); the
+// repository only applies it to one account's rows.
+type UsableSignInMethods struct {
+	// Providers are the slugs of the identity providers that can sign in.
+	Providers []string
+	// PasswordLogin is whether password sign-in is switched on.
+	PasswordLogin bool
+}
+
+// SignInMethodRepository removes an account's sign-in methods (#1437) without
+// ever removing the last one that works.
+//
+// "Another usable method remains" is a check followed by a delete. Run
+// separately, two removals sent together would each see the other's method
+// still present and both succeed, leaving the account with no way in. Each
+// method here therefore takes a per-user advisory lock, checks and deletes in
+// ONE transaction on one connection.
+type SignInMethodRepository interface {
+	// RemovePassword deletes the user's password. It returns
+	// ErrUserCredentialNotFound when there is none, and ErrLastSignInMethod
+	// when the user has no identity from one of usable.Providers.
+	RemovePassword(ctx context.Context, userID string, usable UsableSignInMethods) error
+	// RemoveIdentity deletes the identity with identityID when it belongs to
+	// userID, and with it the user's legacy Google identity that has the same
+	// subject (left behind, that alias would keep the same Google account able
+	// to sign in). It returns the identity's provider slug.
+	//
+	// ErrUserIdentityNotFound: the user has no such identity (including when it
+	// belongs to someone else, or is an internal row: the dev login or a legacy
+	// Google alias). ErrLastSignInMethod: nothing usable would remain, where a
+	// password counts only while usable.PasswordLogin is on and the credential
+	// is not disabled, and another identity only when its provider is in
+	// usable.Providers.
+	RemoveIdentity(ctx context.Context, userID, identityID string, usable UsableSignInMethods) (provider string, err error)
 }
 
 // APIAccessRepository revokes everything a user's non-browser access rests on

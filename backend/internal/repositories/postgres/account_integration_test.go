@@ -4,6 +4,9 @@ package postgres
 
 import (
 	"context"
+	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -65,75 +68,312 @@ func TestIntegrationUserCredential_PasswordChangedAtMovesOnlyOnANewPassword(t *t
 	assert.WithinDuration(t, time.Now(), changed.PasswordChangedAt, time.Minute, "a new password is a change")
 }
 
-func TestIntegrationUserIdentity_DeleteForUser(t *testing.T) {
+// signInMethodFixture is one account's sign-in methods over the real tables.
+type signInMethodFixture struct {
+	t          *testing.T
+	methods    repositories.SignInMethodRepository
+	identities repositories.UserIdentityRepository
+	passwords  repositories.UserCredentialRepository
+}
+
+func newSignInMethodFixture(t *testing.T) *signInMethodFixture {
+	t.Helper()
 	resetIntegrationTables(t)
+	return &signInMethodFixture{
+		t:          t,
+		methods:    NewSignInMethodRepository(integrationDB),
+		identities: NewUserIdentityRepository(integrationDB),
+		passwords:  NewUserCredentialRepository(integrationDB),
+	}
+}
+
+// user creates an account with a password (when asked) and one identity per
+// provider, and returns its id.
+func (f *signInMethodFixture) user(withPassword bool, providers ...string) string {
+	f.t.Helper()
 	ctx := context.Background()
-	identities := NewUserIdentityRepository(integrationDB)
-	owner := insertTestUser(t)
-	other := insertTestUser(t)
-	idOf := func(t *testing.T, userID, provider string) string {
-		t.Helper()
-		var id string
-		require.NoError(t, integrationDB.QueryRowContext(ctx,
-			"SELECT id FROM user_identities WHERE user_id = $1 AND provider = $2", userID, provider).Scan(&id))
-		return id
+	userID := insertTestUser(f.t)
+	if withPassword {
+		require.NoError(f.t, f.passwords.Upsert(ctx, userID, credentialTestHash))
 	}
-	providersOf := func(t *testing.T, userID string) []string {
-		t.Helper()
-		got, err := identities.ListByUserID(ctx, userID)
-		require.NoError(t, err)
-		providers := make([]string, 0, len(got))
-		for _, identity := range got {
-			providers = append(providers, identity.Provider)
-		}
-		return providers
+	for _, provider := range providers {
+		require.NoError(f.t, f.identities.Upsert(ctx, userID, provider, provider+"-"+userID))
 	}
-	// The owner signs in with Google (which also holds the legacy alias for the
-	// same subject) and GitHub. Another user has a Google identity of their own
-	// and, to prove the scoping, a legacy alias with the SAME subject string.
-	for _, row := range []struct{ user, provider, subject string }{
-		{owner, "google", "g-owner"},
-		{owner, models.LegacyGoogleIdentityProvider, "g-owner"},
-		{owner, "github", "gh-owner"},
-		{other, "google", "g-other"},
-		{other, models.LegacyGoogleIdentityProvider, "g-other"},
-	} {
-		require.NoError(t, identities.Upsert(ctx, row.user, row.provider, row.subject))
-	}
+	return userID
+}
 
-	t.Run("someone else's identity is not found and nothing is removed", func(t *testing.T) {
-		err := identities.DeleteForUser(ctx, owner, idOf(t, other, "google"))
+func (f *signInMethodFixture) identityID(userID, provider string) string {
+	f.t.Helper()
+	var id string
+	require.NoError(f.t, integrationDB.QueryRowContext(context.Background(),
+		"SELECT id FROM user_identities WHERE user_id = $1 AND provider = $2", userID, provider).Scan(&id))
+	return id
+}
 
-		require.ErrorIs(t, err, repositories.ErrUserIdentityNotFound)
-		assert.Len(t, providersOf(t, other), 2)
-		assert.Len(t, providersOf(t, owner), 3)
+func (f *signInMethodFixture) providersOf(userID string) []string {
+	f.t.Helper()
+	got, err := f.identities.ListByUserID(context.Background(), userID)
+	require.NoError(f.t, err)
+	providers := make([]string, 0, len(got))
+	for _, identity := range got {
+		providers = append(providers, identity.Provider)
+	}
+	return providers
+}
+
+func (f *signInMethodFixture) hasPassword(userID string) bool {
+	f.t.Helper()
+	_, err := f.passwords.Get(context.Background(), userID)
+	if errors.Is(err, repositories.ErrUserCredentialNotFound) {
+		return false
+	}
+	require.NoError(f.t, err)
+	return true
+}
+
+// What works on the test instance: Google and GitHub are enabled providers;
+// "old-sso" is one that was removed.
+func usableMethods(passwordLogin bool) repositories.UsableSignInMethods {
+	return repositories.UsableSignInMethods{Providers: []string{"google", "github"}, PasswordLogin: passwordLogin}
+}
+
+func TestIntegrationSignInMethod_RemovePassword(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("removed when an identity of an enabled provider remains", func(t *testing.T) {
+		f := newSignInMethodFixture(t)
+		userID := f.user(true, "google")
+
+		require.NoError(t, f.methods.RemovePassword(ctx, userID, usableMethods(true)))
+
+		assert.False(t, f.hasPassword(userID))
+		assert.Equal(t, []string{"google"}, f.providersOf(userID))
 	})
 
-	t.Run("an unknown identity is not found", func(t *testing.T) {
-		require.ErrorIs(t, identities.DeleteForUser(ctx, owner, uuid.New().String()), repositories.ErrUserIdentityNotFound)
+	t.Run("removed while password sign-in is off", func(t *testing.T) {
+		f := newSignInMethodFixture(t)
+		userID := f.user(true, "github")
+
+		require.NoError(t, f.methods.RemovePassword(ctx, userID, usableMethods(false)))
+		assert.False(t, f.hasPassword(userID))
+	})
+
+	for name, providers := range map[string][]string{
+		"no identity at all":                      nil,
+		"only an identity of a removed provider":  {"old-sso"},
+		"only the legacy alias and the dev login": {models.LegacyGoogleIdentityProvider, "dev"},
+	} {
+		t.Run("refused as the last usable method: "+name, func(t *testing.T) {
+			f := newSignInMethodFixture(t)
+			userID := f.user(true, providers...)
+
+			err := f.methods.RemovePassword(ctx, userID, usableMethods(true))
+
+			require.ErrorIs(t, err, repositories.ErrLastSignInMethod)
+			assert.True(t, f.hasPassword(userID), "nothing was removed")
+		})
+	}
+
+	t.Run("an account with no password, and another user's identity does not count", func(t *testing.T) {
+		f := newSignInMethodFixture(t)
+		userID := f.user(false, "google")
+		loner := f.user(true)
+
+		require.ErrorIs(t, f.methods.RemovePassword(ctx, userID, usableMethods(true)),
+			repositories.ErrUserCredentialNotFound)
+		require.ErrorIs(t, f.methods.RemovePassword(ctx, loner, usableMethods(true)),
+			repositories.ErrLastSignInMethod, "the first user's Google identity is not the loner's")
+	})
+}
+
+func TestIntegrationSignInMethod_RemoveIdentity(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("removed when another usable identity remains", func(t *testing.T) {
+		f := newSignInMethodFixture(t)
+		userID := f.user(false, "google", "github")
+
+		provider, err := f.methods.RemoveIdentity(ctx, userID, f.identityID(userID, "google"), usableMethods(true))
+
+		require.NoError(t, err)
+		assert.Equal(t, "google", provider)
+		assert.Equal(t, []string{"github"}, f.providersOf(userID))
+	})
+
+	t.Run("removed when a usable password remains", func(t *testing.T) {
+		f := newSignInMethodFixture(t)
+		userID := f.user(true, "google")
+
+		_, err := f.methods.RemoveIdentity(ctx, userID, f.identityID(userID, "google"), usableMethods(true))
+
+		require.NoError(t, err)
+		assert.Empty(t, f.providersOf(userID))
+		assert.True(t, f.hasPassword(userID))
+	})
+
+	t.Run("an identity of a removed provider can be cleaned up when something usable remains", func(t *testing.T) {
+		f := newSignInMethodFixture(t)
+		userID := f.user(false, "old-sso", "google")
+
+		provider, err := f.methods.RemoveIdentity(ctx, userID, f.identityID(userID, "old-sso"), usableMethods(true))
+
+		require.NoError(t, err)
+		assert.Equal(t, "old-sso", provider)
+	})
+
+	for name, tc := range map[string]struct {
+		password      bool
+		disable       bool
+		passwordLogin bool
+		others        []string
+	}{
+		"the only identity, no password":          {passwordLogin: true},
+		"a password, but password sign-in is off": {password: true},
+		"a password an administrator disabled":    {password: true, disable: true, passwordLogin: true},
+		"another identity whose provider is gone": {passwordLogin: true, others: []string{"old-sso"}},
+		"only the legacy alias and the dev login": {passwordLogin: true, others: []string{models.LegacyGoogleIdentityProvider, "dev"}},
+	} {
+		t.Run("refused when nothing usable would remain: "+name, func(t *testing.T) {
+			f := newSignInMethodFixture(t)
+			userID := f.user(tc.password, append([]string{"github"}, tc.others...)...)
+			if tc.disable {
+				_, err := integrationDB.ExecContext(ctx,
+					"UPDATE user_credentials SET disabled_at = now() WHERE user_id = $1", userID)
+				require.NoError(t, err)
+			}
+
+			_, err := f.methods.RemoveIdentity(ctx, userID, f.identityID(userID, "github"), usableMethods(tc.passwordLogin))
+
+			require.ErrorIs(t, err, repositories.ErrLastSignInMethod)
+			assert.Contains(t, f.providersOf(userID), "github", "nothing was removed")
+		})
+	}
+
+	t.Run("unknown, someone else's and internal identities are not found", func(t *testing.T) {
+		f := newSignInMethodFixture(t)
+		userID := f.user(true, "google", models.LegacyGoogleIdentityProvider, "dev")
+		other := f.user(true, "google")
+
+		for name, id := range map[string]string{
+			"unknown":        uuid.New().String(),
+			"someone else's": f.identityID(other, "google"),
+			"legacy alias":   f.identityID(userID, models.LegacyGoogleIdentityProvider),
+			"dev login":      f.identityID(userID, "dev"),
+		} {
+			_, err := f.methods.RemoveIdentity(ctx, userID, id, usableMethods(true))
+			require.ErrorIs(t, err, repositories.ErrUserIdentityNotFound, name)
+		}
+		assert.Len(t, f.providersOf(userID), 3)
+		assert.Len(t, f.providersOf(other), 1)
 	})
 
 	t.Run("disconnecting Google removes its legacy alias too, and only the owner's", func(t *testing.T) {
-		require.NoError(t, identities.DeleteForUser(ctx, owner, idOf(t, owner, "google")))
+		f := newSignInMethodFixture(t)
+		owner := insertTestUser(t)
+		other := insertTestUser(t)
+		// The same subject string under both users' aliases proves the scoping.
+		for _, row := range []struct{ user, provider, subject string }{
+			{owner, "google", "g-subject"},
+			{owner, models.LegacyGoogleIdentityProvider, "g-subject"},
+			{owner, "github", "gh-owner"},
+			{other, "google", "g-other"},
+			{other, models.LegacyGoogleIdentityProvider, "g-subject-other"},
+		} {
+			require.NoError(t, f.identities.Upsert(ctx, row.user, row.provider, row.subject))
+		}
 
-		assert.Equal(t, []string{"github"}, providersOf(t, owner),
+		_, err := f.methods.RemoveIdentity(ctx, owner, f.identityID(owner, "google"), usableMethods(true))
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"github"}, f.providersOf(owner),
 			"left behind, the alias would keep that Google account able to sign in")
-		assert.ElementsMatch(t, []string{"google", models.LegacyGoogleIdentityProvider}, providersOf(t, other))
-		_, err := NewUserRepository(integrationDB).GetByIDPSubject(ctx, models.LegacyGoogleIdentityProvider, "g-owner")
+		assert.ElementsMatch(t, []string{"google", models.LegacyGoogleIdentityProvider}, f.providersOf(other))
+		_, err = NewUserRepository(integrationDB).GetByIDPSubject(ctx, models.LegacyGoogleIdentityProvider, "g-subject")
 		require.ErrorIs(t, err, repositories.ErrUserNotFound)
 	})
 
-	t.Run("an identity with no alias is simply removed", func(t *testing.T) {
-		require.NoError(t, identities.DeleteForUser(ctx, owner, idOf(t, owner, "github")))
-
-		assert.Empty(t, providersOf(t, owner))
-	})
-
 	t.Run("removing it twice is not found", func(t *testing.T) {
-		gone := idOf(t, other, "google")
-		require.NoError(t, identities.DeleteForUser(ctx, other, gone))
-		require.ErrorIs(t, identities.DeleteForUser(ctx, other, gone), repositories.ErrUserIdentityNotFound)
+		f := newSignInMethodFixture(t)
+		userID := f.user(true, "google")
+		id := f.identityID(userID, "google")
+		_, err := f.methods.RemoveIdentity(ctx, userID, id, usableMethods(true))
+		require.NoError(t, err)
+
+		_, err = f.methods.RemoveIdentity(ctx, userID, id, usableMethods(true))
+		require.ErrorIs(t, err, repositories.ErrUserIdentityNotFound)
 	})
+}
+
+// Two removals sent together must not leave an account with no way in: each
+// would see the other's method still present if the check and the delete were
+// not serialized. Repeated over many accounts so a lost race would show.
+func TestIntegrationSignInMethod_ConcurrentRemovalsKeepOneMethod(t *testing.T) {
+	f := newSignInMethodFixture(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	const accounts = 20
+	for range accounts {
+		userID := f.user(true, "google")
+		identityID := f.identityID(userID, "google")
+		errs := make([]error, 2)
+		var wg sync.WaitGroup
+		wg.Go(func() { errs[0] = f.methods.RemovePassword(ctx, userID, usableMethods(true)) })
+		wg.Go(func() { _, errs[1] = f.methods.RemoveIdentity(ctx, userID, identityID, usableMethods(true)) })
+		wg.Wait()
+
+		refused := 0
+		for _, err := range errs {
+			if err != nil {
+				require.ErrorIs(t, err, repositories.ErrLastSignInMethod)
+				refused++
+			}
+		}
+		require.Equal(t, 1, refused, "exactly one of the two removals is refused")
+		remaining := len(f.providersOf(userID))
+		if f.hasPassword(userID) {
+			remaining++
+		}
+		require.Equal(t, 1, remaining, "one sign-in method is left")
+	}
+}
+
+// More callers than the pool has connections, all for one user: each waits for
+// the lock holding ONE connection, and the holder needs no second one, so they
+// finish one after another and the pool stays usable. (A lock held on one
+// connection while the work ran on others starved the pool here.)
+func TestIntegrationSignInMethod_ManyCallersDoNotStarveThePool(t *testing.T) {
+	f := newSignInMethodFixture(t)
+	userID := f.user(true, "google", "github")
+	identityID := f.identityID(userID, "google")
+	callers := 2*integrationDB.Stats().MaxOpenConnections + 10
+	if callers < 60 {
+		callers = 60 // an unlimited test pool: still far more than run at once
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	var removed, notFound atomic.Int32
+	var wg sync.WaitGroup
+	for range callers {
+		wg.Go(func() {
+			_, err := f.methods.RemoveIdentity(ctx, userID, identityID, usableMethods(true))
+			switch {
+			case err == nil:
+				removed.Add(1)
+			case errors.Is(err, repositories.ErrUserIdentityNotFound):
+				notFound.Add(1)
+			default:
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+	wg.Wait()
+
+	assert.EqualValues(t, 1, removed.Load(), "the identity is removed once")
+	assert.EqualValues(t, callers-1, notFound.Load(), "everyone else finds it gone")
+	var one int
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT 1").Scan(&one), "the pool still answers")
 }
 
 func TestIntegrationUser_UpdateName(t *testing.T) {
