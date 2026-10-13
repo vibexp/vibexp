@@ -30,9 +30,7 @@ export function ReadingOutline({
       data-testid="reading-outline"
       className={className}
     >
-      <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
-        On this page
-      </p>
+      <p className="type-overline text-muted-foreground mb-2">On this page</p>
       <ul className="space-y-0.5 text-sm">
         {entries.map(entry => {
           const active = entry.id === activeId

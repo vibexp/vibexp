@@ -179,7 +179,7 @@ export function TeamSwitcher({
           trigger
         )}
         <PopoverContent
-          className="w-[240px] p-0"
+          className="w-60 p-0"
           align="start"
           side={rail ? 'right' : 'bottom'}
         >

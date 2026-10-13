@@ -109,7 +109,7 @@ export function ResourceHeaderMeta({
           {showVersion && (
             <Link
               to={version.to}
-              className="bg-muted text-muted-foreground hover:text-foreground rounded px-1.5 py-0.5 font-mono"
+              className="bg-muted text-muted-foreground hover:text-foreground rounded-sm px-1.5 py-0.5 font-mono"
               aria-label={`Version ${String(version.current)}, view version history`}
             >
               v{version.current}

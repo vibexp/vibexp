@@ -134,7 +134,7 @@ export function NeedsAttention({
       <ul className={DASHBOARD_GROUP} aria-busy="true">
         {[0, 1].map(i => (
           <li key={i} className={DASHBOARD_ROW}>
-            <Skeleton className="size-4 rounded" />
+            <Skeleton className="size-4 rounded-sm" />
             <div className="flex-1 space-y-1.5">
               <Skeleton className="h-4 w-1/3" />
               <Skeleton className="h-3 w-1/2" />

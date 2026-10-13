@@ -290,7 +290,7 @@ export function ReadingPage({
               'overflow-y-auto p-5',
               isTablet
                 ? 'w-details-column sm:max-w-sm'
-                : 'max-h-[78dvh] rounded-t-xl'
+                : 'max-h-reading-sheet rounded-t-xl'
             )}
             data-testid="reading-contents-sheet"
           >
@@ -367,7 +367,7 @@ function ToolbarExtras({
             </TooltipTrigger>
             <TooltipContent side="bottom">
               {focusLabel}
-              <kbd className="bg-muted text-muted-foreground ml-2 rounded px-1 font-mono text-[0.7rem]">
+              <kbd className="bg-muted text-muted-foreground ml-2 rounded-sm px-1 font-mono text-xs">
                 {focusMode ? 'Esc' : FOCUS_MODE_KEY}
               </kbd>
             </TooltipContent>
@@ -433,7 +433,7 @@ function DetailsSheet({
           'overflow-y-auto p-0',
           side === 'right'
             ? 'w-details-column sm:max-w-sm'
-            : 'h-[78dvh] rounded-t-xl'
+            : 'h-reading-sheet rounded-t-xl'
         )}
         data-testid="reading-details-sheet"
         data-presentation={presentation}

@@ -10,9 +10,8 @@ import type { FeedItem } from '@/services/feedService'
 import type { TeamMember } from '@/services/teamService'
 
 import { mergeRecentChanges, type RecentChange } from './dashboardLogic'
-import { DashboardSection } from './DashboardSection'
+import { DASHBOARD_ROW, DashboardSection } from './DashboardSection'
 import {
-  LIST_ROW_CLASS,
   LIST_ROW_LINK_CLASS,
   ListBody,
   RecentActivityList,
@@ -79,7 +78,7 @@ function ChangeRow({
           {row}
         </Link>
       ) : (
-        <div className={LIST_ROW_CLASS}>{row}</div>
+        <div className={DASHBOARD_ROW}>{row}</div>
       )}
     </li>
   )

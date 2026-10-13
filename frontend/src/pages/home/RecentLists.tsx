@@ -19,6 +19,8 @@ import type { RecentComment } from '@/services/commentService'
 import type { FeedItem } from '@/services/feedService'
 import type { TeamMember } from '@/services/teamService'
 
+import { DASHBOARD_ROW } from './DashboardSection'
+
 export function getActivitySubtitle(activity: ActivityType): string {
   const parts: string[] = []
   if (activity.entity_type) {
@@ -42,9 +44,8 @@ interface ListBodyProps {
   children: ReactNode
 }
 
-/** Row classes shared by every list in the "What changed" block. */
-export const LIST_ROW_CLASS = 'flex items-center gap-3 px-4 py-2.5'
-export const LIST_ROW_LINK_CLASS = `${LIST_ROW_CLASS} hover:bg-muted/40 transition-colors`
+/** A row that is a link, in any list of the "What changed" block. */
+export const LIST_ROW_LINK_CLASS = `${DASHBOARD_ROW} hover:bg-muted/40 transition-colors`
 
 /**
  * Shared body for the lists inside the "What changed" block: loading
@@ -65,7 +66,7 @@ export function ListBody({
     return (
       <ul className="divide-y" aria-busy="true">
         {Array.from({ length: 5 }).map((_, i) => (
-          <li key={i} className={LIST_ROW_CLASS}>
+          <li key={i} className={DASHBOARD_ROW}>
             <Skeleton className="size-7 rounded-md" />
             <div className="flex-1 space-y-1.5">
               <Skeleton className="h-4 w-2/3" />
@@ -222,7 +223,7 @@ export function RecentCommentsList({
                   {row}
                 </Link>
               ) : (
-                <div className={LIST_ROW_CLASS}>{row}</div>
+                <div className={DASHBOARD_ROW}>{row}</div>
               )}
             </li>
           )
@@ -256,7 +257,7 @@ export function RecentActivityList({
             activity.entity_type
           )
           return (
-            <li key={activity.id} className={LIST_ROW_CLASS}>
+            <li key={activity.id} className={DASHBOARD_ROW}>
               <div className="bg-muted text-foreground flex size-7 shrink-0 items-center justify-center rounded-md">
                 <Icon className="size-3.5" />
               </div>

@@ -1,9 +1,13 @@
 import { ChevronRight } from 'lucide-react'
-import { type ReactNode, useId } from 'react'
+import type { ReactNode } from 'react'
 
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import { STORAGE_KEYS } from '@/constants/storageKeys'
 import { useLocalStorage } from '@/hooks/useLocalStorage'
-import { cn } from '@/lib/utils'
 
 /**
  * The reading rail's "Usage" section: the access-activity chart and channel
@@ -21,30 +25,21 @@ export function UsageDisclosure({
     STORAGE_KEYS.USAGE_OPEN,
     false
   )
-  const contentId = useId()
 
   return (
-    <div data-testid="usage-disclosure" data-state={open ? 'open' : 'closed'}>
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={contentId}
-        onClick={() => {
-          setOpen(current => !current)
-        }}
-        className="hover:text-foreground flex w-full items-center gap-1.5 text-sm font-semibold"
-      >
+    <Collapsible
+      data-testid="usage-disclosure"
+      open={open}
+      onOpenChange={setOpen}
+    >
+      <CollapsibleTrigger className="group hover:text-foreground flex w-full items-center gap-1.5 text-sm font-semibold">
         <ChevronRight
-          className={cn('size-4 transition-transform', open && 'rotate-90')}
+          className="size-4 transition-transform group-data-[state=open]:rotate-90"
           aria-hidden
         />
         Usage
-      </button>
-      {open && (
-        <div id={contentId} className="mt-3">
-          {children}
-        </div>
-      )}
-    </div>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-3">{children}</CollapsibleContent>
+    </Collapsible>
   )
 }
