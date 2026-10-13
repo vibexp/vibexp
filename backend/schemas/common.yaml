@@ -307,6 +307,29 @@ ResourceLock:
     - comment
     - locked_at
 
+ResourceWriteSource:
+  type: string
+  description: >-
+    The channel a write of a prompt, artifact, blueprint or memory arrived
+    through: the web app, the CLI, the MCP server, or any other API client.
+    The server derives it from how the request was authenticated and routed (a
+    session cookie is web, an API key with the CLI's user agent is cli, the MCP
+    endpoint is mcp, anything else is api); a client cannot set it.
+  enum:
+    - web
+    - cli
+    - mcp
+    - api
+  # Fully prefixed names: the Go client generates the whole spec into one
+  # package, where an unprefixed Web/Cli/Mcp/Api would collide with the
+  # access-source enums and make oapi-codegen rename existing constants.
+  x-enum-varnames:
+    - ResourceWriteSourceWeb
+    - ResourceWriteSourceCLI
+    - ResourceWriteSourceMCP
+    - ResourceWriteSourceAPI
+  example: "mcp"
+
 ResourceWriteLockedError:
   description: >-
     RFC 9457 problem returned with `423 Locked` and code

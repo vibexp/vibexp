@@ -101,6 +101,30 @@ Prompt:
         locked. Present on every read, list and write response. Always null
         on a prompt read through a share link: lock state is internal to the
         team.
+    last_write_source:
+      # allOf, not a bare $ref: under OpenAPI 3.0.3 a sibling of $ref is
+      # ignored, and `nullable` is real API surface here.
+      allOf:
+        - $ref: './common.yaml#/ResourceWriteSource'
+      nullable: true
+      description: >-
+        The channel the most recent recorded write (create or update) of this
+        resource arrived through (#1418). Null when no write of it has a
+        recorded channel: it was last written before write channels were
+        recorded, and has not been written since. Null is "not known", never a
+        guessed channel. Present on every read, list and write response. Always
+        null on a prompt read through a share link: how a team writes is
+        internal to the team.
+    last_write_assistant_name:
+      type: string
+      nullable: true
+      maxLength: 30
+      description: >-
+        The name the MCP client that made the most recent recorded write
+        reported for itself (its clientInfo.name), trimmed and capped at 30
+        characters. It is a label the client chose, not a verified identity.
+        Null unless last_write_source is mcp and the client reported a name.
+      example: "claude-code"
   required:
     - id
     - name
@@ -118,6 +142,8 @@ Prompt:
     - version
     - project
     - lock
+    - last_write_source
+    - last_write_assistant_name
 
 CreatePromptRequest:
   type: object
