@@ -19,6 +19,7 @@ packages:
     interfaces:
       A2AHTTPClientInterface:
       AccessAllowlistResolver:
+      AuthPolicyResolver:
       ActiveEmbeddingProviderResolver:
       AdminServiceInterface:
       AgentInvocationServiceInterface:
@@ -134,6 +135,7 @@ packages:
       InstanceAISummarySettingsRepository:
       InstanceAdminRepository:
       InstanceAuthAllowlistRepository:
+      InstanceAuthPolicyRepository:
       InstanceAuthProviderRepository:
       InstanceAuthSetupRepository:
       InstanceAuthSettingsVersionRepository:

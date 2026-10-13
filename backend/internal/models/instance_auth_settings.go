@@ -84,6 +84,63 @@ func (a *InstanceAuthAllowlist) IsOpenAccess() bool {
 	return a == nil || (len(a.Domains) == 0 && len(a.Emails) == 0)
 }
 
+// Registration modes of the instance authentication policy. The values are
+// stored in instance_auth_policy.registration_mode (its CHECK lists them) and
+// published in the admin API; change all three together.
+const (
+	// RegistrationModeOpen lets anyone the access allowlist admits get an
+	// account by signing in through a provider. It is the behaviour the
+	// instance had before the policy existed, and the default.
+	RegistrationModeOpen = "open"
+	// RegistrationModeInviteOnly admits only people who were invited to a team
+	// or created by an administrator, whatever sign-in method they use.
+	RegistrationModeInviteOnly = "invite_only"
+)
+
+// ValidRegistrationMode reports whether mode is a registration mode.
+func ValidRegistrationMode(mode string) bool {
+	return mode == RegistrationModeOpen || mode == RegistrationModeInviteOnly
+}
+
+// InstanceAuthPolicy is the instance authentication policy (#1429): whether
+// people may sign in with an email and password, and who may get an account.
+// The table is a singleton. No row stored means DefaultInstanceAuthPolicy.
+//
+// It holds no credential, so its audit snapshot is the row itself.
+type InstanceAuthPolicy struct {
+	// PasswordLoginEnabled is whether email and password sign-in is offered.
+	PasswordLoginEnabled bool `json:"password_login_enabled" db:"password_login_enabled"`
+	// RegistrationMode is one of the RegistrationMode* values.
+	RegistrationMode string    `json:"registration_mode" db:"registration_mode"`
+	CreatedAt        time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at" db:"updated_at"`
+	// UpdatedBy is nil once that user is deleted.
+	UpdatedBy *string `json:"updated_by,omitempty" db:"updated_by"`
+	// Version is the row's own compare-and-set counter; 0 when the policy is
+	// the default and no row is stored. Every write to the policy also bumps
+	// the shared auth settings version.
+	Version int64 `json:"version" db:"version"`
+}
+
+// DefaultInstanceAuthPolicy is the policy of an instance that has stored none:
+// password login off and open registration, which is how every instance behaved
+// before the policy existed.
+func DefaultInstanceAuthPolicy() InstanceAuthPolicy {
+	return InstanceAuthPolicy{RegistrationMode: RegistrationModeOpen}
+}
+
+// IsStored reports whether the policy was read from a stored row, as opposed to
+// being the default of an instance that has saved none.
+func (p InstanceAuthPolicy) IsStored() bool {
+	return p.Version > 0
+}
+
+// InviteOnly reports whether only invited or admin-created people may get an
+// account.
+func (p InstanceAuthPolicy) InviteOnly() bool {
+	return p.RegistrationMode == RegistrationModeInviteOnly
+}
+
 // InstanceAdminGrant is one instance admin granted in the database, in addition
 // to those named in config.yaml.
 type InstanceAdminGrant struct {

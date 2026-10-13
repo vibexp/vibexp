@@ -32,6 +32,7 @@ import (
 const (
 	adminMsgAuthProviderInvalid  = "The sign-in provider is invalid"
 	adminMsgAuthAllowlistInvalid = "The access allowlist is invalid"
+	adminMsgAuthPolicyInvalid    = "The authentication policy is invalid"
 	adminMsgLockoutConfirm       = "; send confirm_lockout_risk to apply it anyway"
 
 	authProviderResource = "auth provider"
@@ -324,6 +325,55 @@ func (a *adminStrictServer) PreviewAdminAuthAllowlist(
 	}, nil
 }
 
+// --- policy -------------------------------------------------------------------
+
+// GetAdminAuthPolicy returns the authentication policy. It is never a 404:
+// with nothing stored the defaults are returned, with no version.
+//
+// The policy routes are instance-admin only. They are deliberately absent from
+// adminSetupSessionRoutes: a setup session exists to configure a sign-in
+// provider before anyone can sign in, and whether it may also switch password
+// login on is decided with password-only bootstrap (#1438), not here.
+func (a *adminStrictServer) GetAdminAuthPolicy(
+	ctx context.Context, _ admingen.GetAdminAuthPolicyRequestObject,
+) (admingen.GetAdminAuthPolicyResponseObject, error) {
+	const handler = "GetAdminAuthPolicy"
+
+	policy, err := a.s.container.InstanceAuthSettingsService().GetPolicy(ctx)
+	if err != nil {
+		return nil, a.adminInternalError(handler, err)
+	}
+	resp, err := toGenAdminAuthPolicy(policy)
+	if err != nil {
+		return nil, a.adminInternalError(handler, err)
+	}
+	return admingen.GetAdminAuthPolicy200JSONResponse(resp), nil
+}
+
+// UpdateAdminAuthPolicy replaces the authentication policy.
+func (a *adminStrictServer) UpdateAdminAuthPolicy(
+	ctx context.Context, request admingen.UpdateAdminAuthPolicyRequestObject,
+) (admingen.UpdateAdminAuthPolicyResponseObject, error) {
+	const handler = "UpdateAdminAuthPolicy"
+	if request.Body == nil {
+		return nil, apierrors.NewBadRequestError(msgInvalidBodyWellFormedJSON)
+	}
+
+	policy, err := a.s.container.InstanceAuthSettingsService().UpdatePolicy(ctx, a.actingAdminID(ctx),
+		models.InstanceAuthPolicy{
+			PasswordLoginEnabled: request.Body.PasswordLoginEnabled,
+			RegistrationMode:     string(request.Body.RegistrationMode),
+		}, request.Body.ExpectedVersion)
+	if err != nil {
+		return nil, a.mapInstanceAuthError(handler, adminMsgAuthPolicyInvalid, err)
+	}
+	resp, err := toGenAdminAuthPolicy(policy)
+	if err != nil {
+		return nil, a.adminInternalError(handler, err)
+	}
+	return admingen.UpdateAdminAuthPolicy200JSONResponse(resp), nil
+}
+
 // --- instance admins ----------------------------------------------------------
 
 // ListAdminInstanceAdmins returns the root admins' emails and the DB-granted
@@ -411,6 +461,9 @@ var authAuditSnapshotFilters = map[admingen.AdminAuthSettingsAuditSetting]func(j
 	admingen.AdminAuthSettingsAuditSettingAuthSetup: func(raw json.RawMessage) *map[string]interface{} {
 		return filterInstanceAuditSnapshot(raw, authSetupAuditSnapshotKeys)
 	},
+	admingen.AdminAuthSettingsAuditSettingAuthPolicy: func(raw json.RawMessage) *map[string]interface{} {
+		return filterInstanceAuditSnapshot(raw, authPolicyAuditSnapshotKeys)
+	},
 }
 
 // authAuditSourceKey is the snapshot key naming where a write came from when
@@ -432,6 +485,11 @@ var (
 	authAllowlistAuditSnapshotKeys = []string{
 		"domains", "emails", "created_at", "updated_at", "updated_by", "version", authAuditSourceKey,
 	}
+	// authPolicyAuditSnapshotKeys is models.InstanceAuthPolicy's JSON shape.
+	authPolicyAuditSnapshotKeys = []string{
+		"password_login_enabled", "registration_mode", "created_at", "updated_at", "updated_by", "version",
+		authAuditSourceKey,
+	}
 	// instanceAdminAuditSnapshotKeys is models.InstanceAdminGrant's JSON shape.
 	instanceAdminAuditSnapshotKeys = []string{"user_id", "granted_by", "created_at", authAuditSourceKey}
 	// authSetupAuditSnapshotKeys is models.InstanceAuthSetup's JSON shape (which
@@ -451,7 +509,7 @@ func (a *adminStrictServer) ListAdminAuthSettingsAudit(
 	filter, ok := authAuditSnapshotFilters[request.Params.Setting]
 	if !ok {
 		return nil, apierrors.NewBadRequestError(fmt.Sprintf(
-			"invalid setting %q: must be one of auth_providers, auth_allowlist, instance_admins, auth_setup",
+			"invalid setting %q: must be one of auth_providers, auth_allowlist, instance_admins, auth_setup, auth_policy",
 			request.Params.Setting))
 	}
 	// The enum's values are the stored setting names (pinned by
@@ -475,7 +533,8 @@ func (a *adminStrictServer) mapInstanceAuthError(handler, invalidMsg string, err
 	var lockout *services.ErrAuthLockoutRisk
 	switch {
 	case errors.Is(err, services.ErrInvalidInstanceAuthProvider),
-		errors.Is(err, services.ErrInvalidInstanceAuthAllowlist):
+		errors.Is(err, services.ErrInvalidInstanceAuthAllowlist),
+		errors.Is(err, services.ErrInvalidInstanceAuthPolicy):
 		return apierrors.NewInstanceSettingsValidationError(invalidMsg, instanceSettingsValidationErrors(err))
 	case errors.Is(err, repositories.ErrInstanceAuthProviderInvalid):
 		// The database refused a row the validator accepted.
@@ -587,6 +646,25 @@ func toGenAdminAuthAllowlist(allowlist *models.InstanceAuthAllowlist) (admingen.
 		UpdatedAt:       &updatedAt,
 		UpdatedByUserId: updatedBy,
 	}, nil
+}
+
+// toGenAdminAuthPolicy maps the policy. One that is not stored (the defaults)
+// has no version, no save time and no author.
+func toGenAdminAuthPolicy(policy *models.InstanceAuthPolicy) (admingen.AdminAuthPolicy, error) {
+	resp := admingen.AdminAuthPolicy{
+		PasswordLoginEnabled: policy.PasswordLoginEnabled,
+		RegistrationMode:     admingen.AdminAuthRegistrationMode(policy.RegistrationMode),
+	}
+	if !policy.IsStored() {
+		return resp, nil
+	}
+	updatedBy, err := optionalGenUUID(policy.UpdatedBy)
+	if err != nil {
+		return admingen.AdminAuthPolicy{}, fmt.Errorf("updated_by: %w", err)
+	}
+	version, updatedAt := policy.Version, policy.UpdatedAt
+	resp.Version, resp.UpdatedAt, resp.UpdatedByUserId = &version, &updatedAt, updatedBy
+	return resp, nil
 }
 
 func toGenAdminInstanceAdmin(view *models.InstanceAdminView) (admingen.AdminInstanceAdmin, error) {

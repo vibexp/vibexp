@@ -232,6 +232,10 @@ paths:
         instead of hardcoding the provider list. The list is in the
         admin-defined sort order, reflects provider changes with no restart, and
         may be empty when no provider is enabled.
+
+        The `password` object says whether email and password sign-in is switched
+        on, and whether a forgotten password is reset by an emailed link or by
+        asking an administrator.
       operationId: listAuthProviders
       security: []
       responses:
@@ -248,7 +252,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: The enabled providers could not be read
+          description: The enabled providers or the authentication policy could not be read
           content:
             application/problem+json:
               schema:
@@ -322,7 +326,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: The enabled providers could not be read
+          description: The enabled providers or the authentication policy could not be read
           content:
             application/problem+json:
               schema:
@@ -14733,6 +14737,97 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/admin/settings/auth/policy:
+    get:
+      summary: Get the authentication policy
+      description: |
+        Returns the instance's authentication policy: whether email and password
+        sign-in is offered and who may get an account. Always 200: with nothing
+        stored the defaults are returned (password sign-in off, registration
+        `open`) and `version` is null.
+        Instance-admin only (a setup session is not admitted); non-admin and unauthenticated requests receive 404.
+      operationId: getAdminAuthPolicy
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: The authentication policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAuthPolicy'
+        '404':
+          description: Not found — the caller is not an instance admin
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Replace the authentication policy
+      description: |
+        Stores a whole replacement of the authentication policy and appends one
+        entry (`action: upsert`) to the `auth_policy` audit log in the same
+        transaction. The stored policy is served to the sign-in page and the
+        authentication services within seconds, with no restart. A body that
+        omits a setting, sends one as null, names an unknown registration mode,
+        or carries an unknown field is rejected with 400.
+        Instance-admin only (a setup session is not admitted); non-admin and unauthenticated requests receive 404.
+      operationId: updateAdminAuthPolicy
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminAuthPolicyUpdate'
+      responses:
+        '200':
+          description: The stored policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAuthPolicy'
+        '400':
+          description: |
+            Bad request — the registration mode is not one of the known values
+            (`INSTANCE_SETTINGS_VALIDATION_FAILED`, with `validation_errors` naming
+            the field), or the body is malformed, omits or nulls a setting, or
+            carries an unknown field
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found — the caller is not an instance admin
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict — `expected_version` does not match the stored version (`INSTANCE_SETTINGS_VERSION_CONFLICT`); nothing was changed
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/admin/settings/auth/admins:
     get:
       summary: List the instance admins
@@ -14885,7 +14980,8 @@ paths:
       summary: List an authentication setting's audit log
       description: |
         Returns one page of the audit log of one authentication setting
-        (`auth_providers`, `auth_allowlist`, `instance_admins` or `auth_setup`),
+        (`auth_providers`, `auth_allowlist`, `instance_admins`, `auth_setup` or
+        `auth_policy`),
         newest first, with each actor's display name resolved. Snapshots never
         contain a credential. Pass the previous page's `next_cursor` to continue.
         Instance-admin only (a setup session is not admitted); non-admin and unauthenticated requests receive 404.
@@ -20945,8 +21041,39 @@ components:
           description: Enabled login providers, ordered by the admin-defined sort order
           items:
             $ref: '#/components/schemas/AuthProvider'
+        password:
+          $ref: '#/components/schemas/PasswordLogin'
       required:
         - providers
+        - password
+    PasswordLogin:
+      type: object
+      description: |
+        Whether this instance offers email and password sign-in, and how a
+        forgotten password is reset. The login screen uses it to decide whether to
+        show the password form and what the "Forgot password?" link leads to.
+      properties:
+        enabled:
+          type: boolean
+          description: Whether email and password sign-in is switched on for this instance.
+          example: false
+        reset:
+          type: string
+          description: |
+            How a user who forgot their password gets a new one. `email`: the
+            instance has an email provider configured, so a reset link can be
+            emailed. `admin`: it has none, so the user must ask an administrator
+            for a reset link. Reported whether or not password sign-in is enabled.
+          enum:
+            - email
+            - admin
+          x-enum-varnames:
+            - PasswordResetByEmail
+            - PasswordResetByAdmin
+          example: admin
+      required:
+        - enabled
+        - reset
     SetupStatusResponse:
       type: object
       description: |
@@ -31257,9 +31384,9 @@ components:
         and `ai_summary` snapshots are the settings' values, which hold no
         credential. For `auth_providers` each entry is one provider, reporting
         only `has_client_secret` and, on an upsert's `after`, a `client_secret`
-        marker (`changed` or `unchanged`); `auth_allowlist`, `instance_admins`
-        and `auth_setup` snapshots hold no credential (the setup token and its
-        hash are never recorded). A snapshot of any of these four settings
+        marker (`changed` or `unchanged`); `auth_allowlist`, `instance_admins`,
+        `auth_setup` and `auth_policy` snapshots hold no credential (the setup
+        token and its hash are never recorded). A snapshot of any of these five settings
         carries `source: cli` when the change was made by the `vibexp admin auth`
         commands rather than through this API. The `site_info` snapshot is the
         company branding values, which hold no credential.
@@ -31290,6 +31417,7 @@ components:
             - instance_admins
             - auth_setup
             - site_info
+            - auth_policy
           x-enum-varnames:
             - AdminInstanceSettingsAuditEntrySettingEmailProvider
             - AdminInstanceSettingsAuditEntrySettingSearch
@@ -31299,6 +31427,7 @@ components:
             - AdminInstanceSettingsAuditEntrySettingInstanceAdmins
             - AdminInstanceSettingsAuditEntrySettingAuthSetup
             - AdminInstanceSettingsAuditEntrySettingSiteInfo
+            - AdminInstanceSettingsAuditEntrySettingAuthPolicy
           example: email_provider
         action:
           type: string
@@ -32379,6 +32508,94 @@ components:
             The `version` the caller last read. Send `0` when that `version` was
             null, to save only while nothing is stored. Omit it or send null for
             last-write-wins. A negative value matches nothing and is a 409.
+    AdminAuthPolicy:
+      type: object
+      description: |
+        The instance's authentication policy: whether email and password sign-in is
+        offered, and who may get an account. With nothing stored the defaults apply
+        (password sign-in off, registration `open`) and `version` is null.
+      additionalProperties: false
+      required:
+        - password_login_enabled
+        - registration_mode
+        - version
+        - updated_at
+        - updated_by_user_id
+      properties:
+        password_login_enabled:
+          type: boolean
+          description: Whether email and password sign-in is offered.
+          example: false
+        registration_mode:
+          $ref: '#/components/schemas/AdminAuthRegistrationMode'
+        version:
+          type: integer
+          format: int64
+          nullable: true
+          description: |
+            The stored policy's own version; null when nothing is stored. Send it
+            back as `expected_version` (`0` when it is null) to reject a save that
+            would overwrite someone else's change.
+          example: 3
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the policy was last saved; null when nothing is stored.
+        updated_by_user_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: |
+            Who last saved the policy. Null when nothing is stored, or once that
+            user has been deleted.
+    AdminAuthPolicyUpdate:
+      type: object
+      description: |
+        A whole replacement of the authentication policy. Both settings are
+        required.
+
+        `expected_version` is optional and makes the save a compare-and-set:
+
+        - omitted or null: last-write-wins, never a conflict.
+        - `0`: no policy may be stored yet; the save is rejected with 409 when one
+          is. Send it when the `version` last read was null.
+        - a positive value: the save is rejected with 409 unless it equals the
+          stored policy's `version`, and also when nothing is stored.
+      additionalProperties: false
+      required:
+        - password_login_enabled
+        - registration_mode
+      properties:
+        password_login_enabled:
+          type: boolean
+          description: Whether email and password sign-in is offered.
+          example: true
+        registration_mode:
+          $ref: '#/components/schemas/AdminAuthRegistrationMode'
+        expected_version:
+          type: integer
+          format: int64
+          minimum: 0
+          nullable: true
+          description: |
+            The `version` the caller last read. Send `0` when that `version` was
+            null, to save only while nothing is stored. Omit it or send null for
+            last-write-wins. A negative value matches nothing and is a 409.
+    AdminAuthRegistrationMode:
+      type: string
+      description: |
+        Who may get an account on this instance. `open`: anyone the access
+        allowlist admits gets an account by signing in through a provider (the
+        behaviour before this setting existed). `invite_only`: only people invited
+        to a team or created by an administrator, whatever sign-in method they use.
+      enum:
+        - open
+        - invite_only
+      x-enum-varnames:
+        - AdminAuthRegistrationModeOpen
+        - AdminAuthRegistrationModeInviteOnly
+      example: open
     AdminAuthAllowlistPreviewRequest:
       type: object
       description: A candidate allowlist to preview. Both lists are required (send `[]` for none).
@@ -32499,11 +32716,13 @@ components:
         - auth_allowlist
         - instance_admins
         - auth_setup
+        - auth_policy
       x-enum-varnames:
         - AdminAuthSettingsAuditSettingAuthProviders
         - AdminAuthSettingsAuditSettingAuthAllowlist
         - AdminAuthSettingsAuditSettingInstanceAdmins
         - AdminAuthSettingsAuditSettingAuthSetup
+        - AdminAuthSettingsAuditSettingAuthPolicy
       example: auth_providers
     ProjectResponse:
       allOf:

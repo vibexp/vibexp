@@ -335,6 +335,11 @@ var (
 	// an expected state (open access), not a failure.
 	ErrInstanceAuthAllowlistNotFound = errors.New("instance auth allowlist not found")
 
+	// ErrInstanceAuthPolicyNotFound is returned by
+	// InstanceAuthPolicyRepository.Get when no policy is stored. This is an
+	// expected state (the default policy applies), not a failure.
+	ErrInstanceAuthPolicyNotFound = errors.New("instance auth policy not found")
+
 	// ErrInstanceAuthSetupNotFound is returned by InstanceAuthSetupRepository.Get
 	// when no setup token was ever issued.
 	ErrInstanceAuthSetupNotFound = errors.New("instance auth setup not found")
@@ -2048,6 +2053,30 @@ type InstanceAuthAllowlistRepository interface {
 	CountUsersOutside(
 		ctx context.Context, domains, emails, exemptEmails []string, sampleLimit int,
 	) (count int, sample []string, err error)
+}
+
+// InstanceAuthPolicyRepository stores the instance authentication policy
+// (#1429): the password login switch and the registration mode. The table is a
+// database-enforced singleton. No row stored means the default policy
+// (models.DefaultInstanceAuthPolicy).
+//
+// Every write appends one instance_settings_audit entry
+// (models.InstanceSettingAuthPolicy) and bumps the shared auth settings version
+// in the same transaction.
+type InstanceAuthPolicyRepository interface {
+	// Get returns the stored policy, or ErrInstanceAuthPolicyNotFound when none
+	// is stored.
+	Get(ctx context.Context) (*models.InstanceAuthPolicy, error)
+	// UpsertAudited creates or replaces the policy (an actorUserID naming no
+	// user returns ErrUserNotFound), refreshing CreatedAt/UpdatedAt/Version on
+	// the passed struct. A non-nil expectedVersion is compared with the policy
+	// row's own version under the lock: a positive value must equal it (no row
+	// stored is a mismatch), and InstanceSettingsNoStoredVersion requires that
+	// no row is stored. Otherwise it returns ErrInstanceSettingsVersionConflict
+	// and writes nothing.
+	UpsertAudited(
+		ctx context.Context, policy *models.InstanceAuthPolicy, actorUserID *string, expectedVersion *int64,
+	) error
 }
 
 // InstanceAuthSettingsVersionRepository reads the shared change counter every

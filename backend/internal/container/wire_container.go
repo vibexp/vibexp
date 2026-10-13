@@ -145,6 +145,8 @@ type WireContainer struct {
 
 	// Access allowlist resolved from the database at runtime (#1235)
 	accessAllowlistResolver services.AccessAllowlistResolver
+	// Instance authentication policy resolved from the database at runtime (#1429)
+	authPolicyResolver services.AuthPolicyResolver
 	// First-run authentication setup mode (#1236)
 	setupModeService services.SetupModeService
 
@@ -298,6 +300,11 @@ func (c *WireContainer) InstanceAdminResolver() services.InstanceAdminResolver {
 // AccessAllowlistResolver returns the access allowlist resolver (#1235).
 func (c *WireContainer) AccessAllowlistResolver() services.AccessAllowlistResolver {
 	return c.accessAllowlistResolver
+}
+
+// AuthPolicyResolver returns the authentication policy resolver (#1429).
+func (c *WireContainer) AuthPolicyResolver() services.AuthPolicyResolver {
+	return c.authPolicyResolver
 }
 
 // SetupModeService returns the authentication setup-mode service (#1236).

@@ -33,6 +33,7 @@ const (
 	authSettingsPath      = "/api/v1/admin/settings/auth"
 	authProvidersPath     = authSettingsPath + "/providers"
 	authAllowlistPath     = authSettingsPath + "/allowlist"
+	authPolicyPath        = authSettingsPath + "/policy"
 	authAdminsPath        = authSettingsPath + "/admins"
 	authAuditPath         = authSettingsPath + "/audit"
 	authTestBaseURL       = "https://vibexp.test"
@@ -210,6 +211,7 @@ func newAuthSettingsFixture(t *testing.T) *authSettingsFixture {
 		instanceAuthSettingsService: services.NewInstanceAuthSettingsService(services.InstanceAuthSettingsDeps{
 			Providers:  f.store.Providers(),
 			Allowlists: f.store.Allowlist(),
+			Policies:   f.store.Policy(),
 			Versions:   f.store.Versions(),
 			Grants:     f.store.Grants(),
 			Users:      f.users,
@@ -1085,6 +1087,7 @@ func TestAuthSettingsAuditVocabularyMatchesSpec(t *testing.T) {
 	settings := []string{
 		models.InstanceSettingAuthProviders, models.InstanceSettingAuthAllowlist,
 		models.InstanceSettingInstanceAdmins, models.InstanceSettingAuthSetup,
+		models.InstanceSettingAuthPolicy,
 	}
 	require.Len(t, authAuditSnapshotFilters, len(settings))
 	for _, setting := range settings {
@@ -1260,6 +1263,7 @@ func TestAdminSetupSessionRoutesPattern(t *testing.T) {
 	}
 	refused := []string{
 		authAdminsPath, authAdminsPath + "/" + authTestMemberID, authAuditPath, authSettingsPath,
+		authPolicyPath,
 		authProvidersPath + "/a/b", authProvidersPath + "/", "/api/v1/admin/settings/email",
 		"/x" + authProvidersPath, authProvidersPath + "x",
 		// A route a later change might add under either prefix.

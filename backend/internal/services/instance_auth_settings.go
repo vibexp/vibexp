@@ -87,6 +87,17 @@ type InstanceAuthSettingsServiceInterface interface {
 	// stores nothing.
 	PreviewAllowlist(ctx context.Context, domains, emails []string) (*AllowlistImpact, error)
 
+	// GetPolicy returns the authentication policy:
+	// models.DefaultInstanceAuthPolicy (not stored, version 0) when none is
+	// stored. It reads the table, not the resolver's cache, so an admin always
+	// sees the version their next save must name.
+	GetPolicy(ctx context.Context) (*models.InstanceAuthPolicy, error)
+	// UpdatePolicy validates and stores a whole replacement of the policy. A
+	// non-nil expectedVersion is compared with the stored policy's own version;
+	// repositories.InstanceSettingsNoStoredVersion expects none stored.
+	UpdatePolicy(ctx context.Context, actorUserID string, policy models.InstanceAuthPolicy,
+		expectedVersion *int64) (*models.InstanceAuthPolicy, error)
+
 	// ListAdmins returns the root admins' emails and the DB-granted admins.
 	ListAdmins(ctx context.Context) (*models.InstanceAdminList, error)
 	// GrantAdmin makes an existing user an instance admin. actingUserID must be
@@ -102,6 +113,7 @@ type InstanceAuthSettingsServiceInterface interface {
 type InstanceAuthSettingsDeps struct {
 	Providers  repositories.InstanceAuthProviderRepository
 	Allowlists repositories.InstanceAuthAllowlistRepository
+	Policies   repositories.InstanceAuthPolicyRepository
 	Versions   repositories.InstanceAuthSettingsVersionRepository
 	Grants     repositories.InstanceAdminRepository
 	Users      repositories.UserRepository
@@ -524,6 +536,40 @@ func (s *InstanceAuthSettingsService) PreviewAllowlist(
 ) (*AllowlistImpact, error) {
 	return s.deps.AllowlistResolver.PreviewAllowlistImpact(ctx,
 		models.InstanceAuthAllowlist{Domains: domains, Emails: emails})
+}
+
+// --- policy -------------------------------------------------------------------
+
+// GetPolicy implements InstanceAuthSettingsServiceInterface.
+func (s *InstanceAuthSettingsService) GetPolicy(ctx context.Context) (*models.InstanceAuthPolicy, error) {
+	policy, err := s.deps.Policies.Get(ctx)
+	if errors.Is(err, repositories.ErrInstanceAuthPolicyNotFound) {
+		defaults := models.DefaultInstanceAuthPolicy()
+		return &defaults, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get the authentication policy: %w", err)
+	}
+	return policy, nil
+}
+
+// UpdatePolicy implements InstanceAuthSettingsServiceInterface. Only the two
+// settings of the passed policy are stored; its other fields are replaced by
+// what the write returns.
+func (s *InstanceAuthSettingsService) UpdatePolicy(
+	ctx context.Context, actorUserID string, policy models.InstanceAuthPolicy, expectedVersion *int64,
+) (*models.InstanceAuthPolicy, error) {
+	if err := ValidateInstanceAuthPolicy(policy); err != nil {
+		return nil, err
+	}
+	stored := &models.InstanceAuthPolicy{
+		PasswordLoginEnabled: policy.PasswordLoginEnabled,
+		RegistrationMode:     policy.RegistrationMode,
+	}
+	if err := s.deps.Policies.UpsertAudited(ctx, stored, optionalActor(actorUserID), expectedVersion); err != nil {
+		return nil, fmt.Errorf("failed to store the authentication policy: %w", err)
+	}
+	return stored, nil
 }
 
 // --- instance admins ----------------------------------------------------------

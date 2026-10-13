@@ -89,9 +89,28 @@ func (e AdminAuthProviderType) Valid() bool {
 	}
 }
 
+// Defines values for AdminAuthRegistrationMode.
+const (
+	AdminAuthRegistrationModeInviteOnly AdminAuthRegistrationMode = "invite_only"
+	AdminAuthRegistrationModeOpen       AdminAuthRegistrationMode = "open"
+)
+
+// Valid indicates whether the value is a known member of the AdminAuthRegistrationMode enum.
+func (e AdminAuthRegistrationMode) Valid() bool {
+	switch e {
+	case AdminAuthRegistrationModeInviteOnly:
+		return true
+	case AdminAuthRegistrationModeOpen:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminAuthSettingsAuditSetting.
 const (
 	AdminAuthSettingsAuditSettingAuthAllowlist  AdminAuthSettingsAuditSetting = "auth_allowlist"
+	AdminAuthSettingsAuditSettingAuthPolicy     AdminAuthSettingsAuditSetting = "auth_policy"
 	AdminAuthSettingsAuditSettingAuthProviders  AdminAuthSettingsAuditSetting = "auth_providers"
 	AdminAuthSettingsAuditSettingAuthSetup      AdminAuthSettingsAuditSetting = "auth_setup"
 	AdminAuthSettingsAuditSettingInstanceAdmins AdminAuthSettingsAuditSetting = "instance_admins"
@@ -101,6 +120,8 @@ const (
 func (e AdminAuthSettingsAuditSetting) Valid() bool {
 	switch e {
 	case AdminAuthSettingsAuditSettingAuthAllowlist:
+		return true
+	case AdminAuthSettingsAuditSettingAuthPolicy:
 		return true
 	case AdminAuthSettingsAuditSettingAuthProviders:
 		return true
@@ -210,6 +231,7 @@ func (e AdminInstanceSettingsAuditEntryAction) Valid() bool {
 const (
 	AdminInstanceSettingsAuditEntrySettingAiSummary      AdminInstanceSettingsAuditEntrySetting = "ai_summary"
 	AdminInstanceSettingsAuditEntrySettingAuthAllowlist  AdminInstanceSettingsAuditEntrySetting = "auth_allowlist"
+	AdminInstanceSettingsAuditEntrySettingAuthPolicy     AdminInstanceSettingsAuditEntrySetting = "auth_policy"
 	AdminInstanceSettingsAuditEntrySettingAuthProviders  AdminInstanceSettingsAuditEntrySetting = "auth_providers"
 	AdminInstanceSettingsAuditEntrySettingAuthSetup      AdminInstanceSettingsAuditEntrySetting = "auth_setup"
 	AdminInstanceSettingsAuditEntrySettingEmailProvider  AdminInstanceSettingsAuditEntrySetting = "email_provider"
@@ -224,6 +246,8 @@ func (e AdminInstanceSettingsAuditEntrySetting) Valid() bool {
 	case AdminInstanceSettingsAuditEntrySettingAiSummary:
 		return true
 	case AdminInstanceSettingsAuditEntrySettingAuthAllowlist:
+		return true
+	case AdminInstanceSettingsAuditEntrySettingAuthPolicy:
 		return true
 	case AdminInstanceSettingsAuditEntrySettingAuthProviders:
 		return true
@@ -1270,6 +1294,58 @@ type AdminAuthAllowlistUpdate struct {
 	ExpectedVersion *int64 `json:"expected_version,omitempty"`
 }
 
+// AdminAuthPolicy The instance's authentication policy: whether email and password sign-in is
+// offered, and who may get an account. With nothing stored the defaults apply
+// (password sign-in off, registration `open`) and `version` is null.
+type AdminAuthPolicy struct {
+	// PasswordLoginEnabled Whether email and password sign-in is offered.
+	PasswordLoginEnabled bool `json:"password_login_enabled"`
+
+	// RegistrationMode Who may get an account on this instance. `open`: anyone the access
+	// allowlist admits gets an account by signing in through a provider (the
+	// behaviour before this setting existed). `invite_only`: only people invited
+	// to a team or created by an administrator, whatever sign-in method they use.
+	RegistrationMode AdminAuthRegistrationMode `json:"registration_mode"`
+
+	// UpdatedAt When the policy was last saved; null when nothing is stored.
+	UpdatedAt *time.Time `json:"updated_at"`
+
+	// UpdatedByUserId Who last saved the policy. Null when nothing is stored, or once that
+	// user has been deleted.
+	UpdatedByUserId *openapi_types.UUID `json:"updated_by_user_id"`
+
+	// Version The stored policy's own version; null when nothing is stored. Send it
+	// back as `expected_version` (`0` when it is null) to reject a save that
+	// would overwrite someone else's change.
+	Version *int64 `json:"version"`
+}
+
+// AdminAuthPolicyUpdate A whole replacement of the authentication policy. Both settings are
+// required.
+//
+// `expected_version` is optional and makes the save a compare-and-set:
+//
+//   - omitted or null: last-write-wins, never a conflict.
+//   - `0`: no policy may be stored yet; the save is rejected with 409 when one
+//     is. Send it when the `version` last read was null.
+//   - a positive value: the save is rejected with 409 unless it equals the
+//     stored policy's `version`, and also when nothing is stored.
+type AdminAuthPolicyUpdate struct {
+	// ExpectedVersion The `version` the caller last read. Send `0` when that `version` was
+	// null, to save only while nothing is stored. Omit it or send null for
+	// last-write-wins. A negative value matches nothing and is a 409.
+	ExpectedVersion *int64 `json:"expected_version,omitempty"`
+
+	// PasswordLoginEnabled Whether email and password sign-in is offered.
+	PasswordLoginEnabled bool `json:"password_login_enabled"`
+
+	// RegistrationMode Who may get an account on this instance. `open`: anyone the access
+	// allowlist admits gets an account by signing in through a provider (the
+	// behaviour before this setting existed). `invite_only`: only people invited
+	// to a team or created by an administrator, whatever sign-in method they use.
+	RegistrationMode AdminAuthRegistrationMode `json:"registration_mode"`
+}
+
 // AdminAuthProvider One sign-in identity provider. The client secret is write-only: it is never
 // returned, and `has_client_secret` reports only whether one is stored.
 type AdminAuthProvider struct {
@@ -1464,6 +1540,12 @@ type AdminAuthProviderUpdate struct {
 	IssuerUrl *string `json:"issuer_url,omitempty"`
 	SortOrder int     `json:"sort_order"`
 }
+
+// AdminAuthRegistrationMode Who may get an account on this instance. `open`: anyone the access
+// allowlist admits gets an account by signing in through a provider (the
+// behaviour before this setting existed). `invite_only`: only people invited
+// to a team or created by an administrator, whatever sign-in method they use.
+type AdminAuthRegistrationMode string
 
 // AdminAuthSettingsAuditSetting Which authentication setting's audit log to read.
 type AdminAuthSettingsAuditSetting string
@@ -2070,9 +2152,9 @@ type AdminInstanceSearchValues struct {
 // and `ai_summary` snapshots are the settings' values, which hold no
 // credential. For `auth_providers` each entry is one provider, reporting
 // only `has_client_secret` and, on an upsert's `after`, a `client_secret`
-// marker (`changed` or `unchanged`); `auth_allowlist`, `instance_admins`
-// and `auth_setup` snapshots hold no credential (the setup token and its
-// hash are never recorded). A snapshot of any of these four settings
+// marker (`changed` or `unchanged`); `auth_allowlist`, `instance_admins`,
+// `auth_setup` and `auth_policy` snapshots hold no credential (the setup
+// token and its hash are never recorded). A snapshot of any of these five settings
 // carries `source: cli` when the change was made by the `vibexp admin auth`
 // commands rather than through this API. The `site_info` snapshot is the
 // company branding values, which hold no credential.
@@ -4291,6 +4373,9 @@ type UpdateAdminAuthAllowlistJSONRequestBody = AdminAuthAllowlistUpdate
 // PreviewAdminAuthAllowlistJSONRequestBody defines body for PreviewAdminAuthAllowlist for application/json ContentType.
 type PreviewAdminAuthAllowlistJSONRequestBody = AdminAuthAllowlistPreviewRequest
 
+// UpdateAdminAuthPolicyJSONRequestBody defines body for UpdateAdminAuthPolicy for application/json ContentType.
+type UpdateAdminAuthPolicyJSONRequestBody = AdminAuthPolicyUpdate
+
 // CreateAdminAuthProviderJSONRequestBody defines body for CreateAdminAuthProvider for application/json ContentType.
 type CreateAdminAuthProviderJSONRequestBody = AdminAuthProviderCreate
 
@@ -4389,6 +4474,12 @@ type ServerInterface interface {
 	// List an authentication setting's audit log
 	// (GET /api/v1/admin/settings/auth/audit)
 	ListAdminAuthSettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminAuthSettingsAuditParams)
+	// Get the authentication policy
+	// (GET /api/v1/admin/settings/auth/policy)
+	GetAdminAuthPolicy(w http.ResponseWriter, r *http.Request)
+	// Replace the authentication policy
+	// (PUT /api/v1/admin/settings/auth/policy)
+	UpdateAdminAuthPolicy(w http.ResponseWriter, r *http.Request)
 	// List the sign-in identity providers
 	// (GET /api/v1/admin/settings/auth/providers)
 	ListAdminAuthProviders(w http.ResponseWriter, r *http.Request)
@@ -4665,6 +4756,18 @@ func (_ Unimplemented) PreviewAdminAuthAllowlist(w http.ResponseWriter, r *http.
 // List an authentication setting's audit log
 // (GET /api/v1/admin/settings/auth/audit)
 func (_ Unimplemented) ListAdminAuthSettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminAuthSettingsAuditParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get the authentication policy
+// (GET /api/v1/admin/settings/auth/policy)
+func (_ Unimplemented) GetAdminAuthPolicy(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Replace the authentication policy
+// (PUT /api/v1/admin/settings/auth/policy)
+func (_ Unimplemented) UpdateAdminAuthPolicy(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -6372,6 +6475,50 @@ func (siw *ServerInterfaceWrapper) ListAdminAuthSettingsAudit(w http.ResponseWri
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListAdminAuthSettingsAudit(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminAuthPolicy operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminAuthPolicy(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminAuthPolicy(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAdminAuthPolicy operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminAuthPolicy(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAdminAuthPolicy(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -10165,6 +10312,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/admin/settings/auth/audit", wrapper.ListAdminAuthSettingsAudit)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/settings/auth/policy", wrapper.GetAdminAuthPolicy)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/admin/settings/auth/policy", wrapper.UpdateAdminAuthPolicy)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/settings/auth/providers", wrapper.ListAdminAuthProviders)
 	})
 	r.Group(func(r chi.Router) {
@@ -11774,6 +11927,133 @@ func (response ListAdminAuthSettingsAudit404ApplicationProblemPlusJSONResponse) 
 type ListAdminAuthSettingsAudit500ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response ListAdminAuthSettingsAudit500ApplicationProblemPlusJSONResponse) VisitListAdminAuthSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminAuthPolicyRequestObject struct {
+}
+
+type GetAdminAuthPolicyResponseObject interface {
+	VisitGetAdminAuthPolicyResponse(w http.ResponseWriter) error
+}
+
+type GetAdminAuthPolicy200JSONResponse AdminAuthPolicy
+
+func (response GetAdminAuthPolicy200JSONResponse) VisitGetAdminAuthPolicyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminAuthPolicy404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminAuthPolicy404ApplicationProblemPlusJSONResponse) VisitGetAdminAuthPolicyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminAuthPolicy500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminAuthPolicy500ApplicationProblemPlusJSONResponse) VisitGetAdminAuthPolicyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuthPolicyRequestObject struct {
+	Body *UpdateAdminAuthPolicyJSONRequestBody
+}
+
+type UpdateAdminAuthPolicyResponseObject interface {
+	VisitUpdateAdminAuthPolicyResponse(w http.ResponseWriter) error
+}
+
+type UpdateAdminAuthPolicy200JSONResponse AdminAuthPolicy
+
+func (response UpdateAdminAuthPolicy200JSONResponse) VisitUpdateAdminAuthPolicyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuthPolicy400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAuthPolicy400ApplicationProblemPlusJSONResponse) VisitUpdateAdminAuthPolicyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuthPolicy404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAuthPolicy404ApplicationProblemPlusJSONResponse) VisitUpdateAdminAuthPolicyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuthPolicy409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAuthPolicy409ApplicationProblemPlusJSONResponse) VisitUpdateAdminAuthPolicyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuthPolicy500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAuthPolicy500ApplicationProblemPlusJSONResponse) VisitUpdateAdminAuthPolicyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -14724,6 +15004,12 @@ type StrictServerInterface interface {
 	// List an authentication setting's audit log
 	// (GET /api/v1/admin/settings/auth/audit)
 	ListAdminAuthSettingsAudit(ctx context.Context, request ListAdminAuthSettingsAuditRequestObject) (ListAdminAuthSettingsAuditResponseObject, error)
+	// Get the authentication policy
+	// (GET /api/v1/admin/settings/auth/policy)
+	GetAdminAuthPolicy(ctx context.Context, request GetAdminAuthPolicyRequestObject) (GetAdminAuthPolicyResponseObject, error)
+	// Replace the authentication policy
+	// (PUT /api/v1/admin/settings/auth/policy)
+	UpdateAdminAuthPolicy(ctx context.Context, request UpdateAdminAuthPolicyRequestObject) (UpdateAdminAuthPolicyResponseObject, error)
 	// List the sign-in identity providers
 	// (GET /api/v1/admin/settings/auth/providers)
 	ListAdminAuthProviders(ctx context.Context, request ListAdminAuthProvidersRequestObject) (ListAdminAuthProvidersResponseObject, error)
@@ -15499,6 +15785,61 @@ func (sh *strictHandler) ListAdminAuthSettingsAudit(w http.ResponseWriter, r *ht
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListAdminAuthSettingsAuditResponseObject); ok {
 		if err := validResponse.VisitListAdminAuthSettingsAuditResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminAuthPolicy operation middleware
+func (sh *strictHandler) GetAdminAuthPolicy(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminAuthPolicyRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminAuthPolicy(ctx, request.(GetAdminAuthPolicyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminAuthPolicy")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminAuthPolicyResponseObject); ok {
+		if err := validResponse.VisitGetAdminAuthPolicyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateAdminAuthPolicy operation middleware
+func (sh *strictHandler) UpdateAdminAuthPolicy(w http.ResponseWriter, r *http.Request) {
+	var request UpdateAdminAuthPolicyRequestObject
+
+	var body UpdateAdminAuthPolicyJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateAdminAuthPolicy(ctx, request.(UpdateAdminAuthPolicyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateAdminAuthPolicy")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateAdminAuthPolicyResponseObject); ok {
+		if err := validResponse.VisitUpdateAdminAuthPolicyResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
