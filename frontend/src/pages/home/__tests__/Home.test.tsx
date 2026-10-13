@@ -526,7 +526,7 @@ describe('Home — how your knowledge is used', () => {
     ).toBeInTheDocument()
     expect(
       usage.getByRole('link', { name: /Connect one over MCP/ })
-    ).toHaveAttribute('href', '/mcp-servers/vibexp-mcp')
+    ).toHaveAttribute('href', '/connect/mcp')
     // The plain number, for the one channel that was used.
     expect(usage.getByText('Web').nextElementSibling).toHaveTextContent('41')
     expect(usage.getByText('MCP').nextElementSibling).toHaveTextContent('0')
@@ -628,7 +628,7 @@ describe('Home — empty workspace', () => {
     expect(steps[0]).toHaveTextContent('1. Connect an AI tool')
     expect(
       within(steps[0]).getByRole('link', { name: /Set up MCP/ })
-    ).toHaveAttribute('href', '/mcp-servers/vibexp-mcp')
+    ).toHaveAttribute('href', '/connect/mcp')
     expect(steps[1]).toHaveTextContent('2. Add your first resource')
     expect(
       within(steps[1]).getByRole('link', { name: '+ Prompt' })

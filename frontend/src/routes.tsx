@@ -18,6 +18,8 @@ import { BlueprintEdit } from '@/pages/blueprints/BlueprintEdit'
 import { Blueprints } from '@/pages/blueprints/Blueprints'
 import { BlueprintVersions } from '@/pages/blueprints/BlueprintVersions'
 import { BlueprintView } from '@/pages/blueprints/BlueprintView'
+import { Connect } from '@/pages/connect/Connect'
+import { CONNECT_PATHS } from '@/pages/connect/connectTabs'
 import { NotFound } from '@/pages/errors/NotFound'
 import { FeedEdit } from '@/pages/feeds/FeedEdit'
 import { FeedItemView } from '@/pages/feeds/FeedItemView'
@@ -25,10 +27,6 @@ import { FeedNew } from '@/pages/feeds/FeedNew'
 import { Feeds } from '@/pages/feeds/Feeds'
 import { FeedView } from '@/pages/feeds/FeedView'
 import { Home } from '@/pages/home/Home'
-import { ApiClient } from '@/pages/integrations/ApiClient'
-import { CliPage } from '@/pages/integrations/CLI'
-import { RestApis } from '@/pages/integrations/RestApis'
-import { VibeXPMCP } from '@/pages/mcp/VibeXPMCP'
 import { Memories } from '@/pages/memories/Memories'
 import { MemoryCreate } from '@/pages/memories/MemoryCreate'
 import { MemoryEdit } from '@/pages/memories/MemoryEdit'
@@ -149,10 +147,28 @@ export function AppRoutes() {
       <Route path="agents/:id/chat" element={<AgentChat />} />
       <Route path="agents/:id/conversations" element={<AgentConversations />} />
       <Route path="agents/:id/tasks" element={<AgentTasks />} />
-      <Route path="integrations/cli" element={<CliPage />} />
-      <Route path="integrations/rest-apis" element={<RestApis />} />
-      <Route path="integrations/api-client" element={<ApiClient />} />
-      <Route path="mcp-servers/vibexp-mcp" element={<VibeXPMCP />} />
+      {/* One Connect page, one tab per way of connecting. `/connect` and an
+          unknown tab land on MCP (the page redirects). */}
+      <Route path="connect" element={<Connect />} />
+      <Route path="connect/:tab" element={<Connect />} />
+      {/* The four pages' retired URLs, kept so old links and bookmarks land
+          on the matching tab. */}
+      <Route
+        path="integrations/cli"
+        element={<Navigate to={CONNECT_PATHS.cli} replace />}
+      />
+      <Route
+        path="integrations/rest-apis"
+        element={<Navigate to={CONNECT_PATHS.restApi} replace />}
+      />
+      <Route
+        path="integrations/api-client"
+        element={<Navigate to={CONNECT_PATHS.apiClient} replace />}
+      />
+      <Route
+        path="mcp-servers/vibexp-mcp"
+        element={<Navigate to={CONNECT_PATHS.mcp} replace />}
+      />
       <Route
         path="mcp-servers/*"
         element={<ComingSoon title="MCP Servers" />}

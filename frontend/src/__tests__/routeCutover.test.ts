@@ -397,7 +397,7 @@ describe('resource routes are normalised (#920)', () => {
     )
   })
 
-  it('routes both redirects through <Navigate ... replace>', () => {
+  it('routes every redirect through <Navigate ... replace>', () => {
     // `replace` is what keeps the retired URL out of the history stack; without
     // it Back bounces the user straight back into the redirect.
     // Self-closing elements only, so the prose in this file's own comments
@@ -405,7 +405,9 @@ describe('resource routes are normalised (#920)', () => {
     const navigates = [...routesSource.matchAll(/<Navigate\s[^>]*\/>/g)].map(
       m => m[0]
     )
-    expect(navigates).toHaveLength(2)
+    // The two resource redirects, plus the four retired integration URLs
+    // that now land on a Connect tab.
+    expect(navigates).toHaveLength(6)
     for (const tag of navigates) {
       expect(tag).toContain('replace')
     }

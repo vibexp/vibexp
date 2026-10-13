@@ -2,10 +2,11 @@ import { ArrowRight } from 'lucide-react'
 import { Link } from 'react-router'
 
 import { Button } from '@/components/ui/button'
+import { CONNECT_PATHS } from '@/pages/connect/connectTabs'
 
 import { DashboardSection } from './DashboardSection'
 
-export const MCP_SETUP_PATH = '/mcp-servers/vibexp-mcp'
+export const MCP_SETUP_PATH = CONNECT_PATHS.mcp
 
 const CREATE_ENTRY_POINTS: { label: string; to: string }[] = [
   { label: 'Prompt', to: '/prompts/new' },

@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { usePermissions } from '@/hooks/usePermissions'
+import { CONNECT_PATHS } from '@/pages/connect/connectTabs'
 import { FeedItemCard } from '@/pages/feeds/FeedItemCard'
 import type { FeedItem } from '@/services/feedService'
 import type { TeamMember } from '@/services/teamService'
@@ -98,7 +99,7 @@ export function FeedItemList({
             <Button
               variant="outline"
               onClick={() => {
-                void navigate('/mcp-servers/vibexp-mcp')
+                void navigate(CONNECT_PATHS.mcp)
               }}
             >
               MCP setup

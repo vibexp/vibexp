@@ -17,46 +17,28 @@ describe('NAV_GROUPS', () => {
     expect(teams?.href).toBe('/teams')
   })
 
-  // #1043: MCP Server moved out of System into a dedicated Integrations
-  // group, which also hosts the CLI page. Later Integrations entries
-  // (#1044/#1045) append after these two.
-  it('puts MCP Server then CLI first in the Integrations group', () => {
-    const items = group('Integrations').items
-    expect(items.slice(0, 2).map(i => [i.label, i.href])).toEqual([
-      ['MCP Server', '/mcp-servers/vibexp-mcp'],
-      ['CLI', '/integrations/cli'],
-    ])
+  // The four setup pages (MCP, CLI, REST API, API client) are tabs of one
+  // Connect page: visited once, they no longer take four rows of the sidebar.
+  it('has one Connect entry in place of the four integration pages', () => {
+    const labels = NAV_ITEMS.map(i => i.label)
+    expect(labels).toContain('Connect')
+    for (const retired of ['MCP Server', 'CLI', 'REST APIs', 'API Client']) {
+      expect(labels).not.toContain(retired)
+    }
+    expect(NAV_ITEMS.find(i => i.label === 'Connect')?.href).toBe('/connect')
   })
 
-  // #1044: REST APIs is the third Integrations entry, after MCP Server and CLI.
-  it('puts REST APIs third in the Integrations group', () => {
-    const third = group('Integrations').items[2]
-    expect([third.label, third.href]).toEqual([
-      'REST APIs',
-      '/integrations/rest-apis',
-    ])
-  })
-
-  // #1045: API Client is the fourth Integrations entry, after REST APIs.
-  it('puts API Client fourth in the Integrations group', () => {
-    const fourth = group('Integrations').items[3]
-    expect([fourth.label, fourth.href]).toEqual([
-      'API Client',
-      '/integrations/api-client',
-    ])
-  })
-
-  it('places Integrations between Workspace and System', () => {
+  it('has no Integrations group left', () => {
     expect(NAV_GROUPS.map(g => g.label)).toEqual([
       'General',
       'Workspace',
-      'Integrations',
       'System',
     ])
   })
 
-  it('no longer lists MCP Server under System', () => {
+  it('lists Connect, Teams and Settings under System', () => {
     expect(group('System').items.map(i => i.label)).toEqual([
+      'Connect',
       'Teams',
       'Settings',
     ])
