@@ -312,15 +312,28 @@ func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
+	// An expired session with no refresh token is over: nothing can renew it.
+	// Answering here, before the account lookup, keeps that answer a 401 even
+	// when the lookup would fail, and costs an expired cookie no database read.
+	if sess.IsExpired() && sess.RefreshToken == "" {
+		logger.With(
+			"middleware", "authenticateWithSession",
+			"user_id", sess.UserID,
+		).Info("Session expired and no refresh token available")
+		apiErr := apierrors.NewAuthInvalidError("Session expired")
+		apierrors.WriteJSONError(w, r, apiErr)
+		return
+	}
+
 	// Set user context from session. A suspended account is rejected HERE rather
 	// than at sign-in, which is what makes an already-issued cookie stop working.
 	//
-	// This runs BEFORE the expiry check and the refresh below, on purpose: a
-	// revoked cookie must not get to spend the refresh token. The cookie a user
-	// keeps after "sign out my other sessions" carries the same refresh token as
-	// the copies that were revoked, and most providers accept a refresh token
-	// once, so a revoked copy that refreshed first would sign the survivor out.
-	// Nothing the check reads (the user id and the epoch) is changed by a refresh.
+	// This runs BEFORE the refresh below, on purpose: a revoked cookie must not
+	// get to spend the refresh token. The cookie a user keeps after "sign out my
+	// other sessions" carries the same refresh token as the copies that were
+	// revoked, and most providers accept a refresh token once, so a revoked copy
+	// that refreshed first would sign the survivor out. Nothing the check reads
+	// (the user id and the epoch) is changed by a refresh.
 	ctx, err := s.authenticateUser(r.Context(), sess.UserID, authTypeCookie, nil, sess)
 	if err != nil {
 		s.logSuspendedRejection(r.Context(), "authenticateWithSession", authTypeCookie, sess.UserID, err)
@@ -334,16 +347,6 @@ func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request,
 	// session, so a handler that re-issues the cookie writes the refreshed
 	// tokens and not the spent ones.
 	if sess.IsExpired() {
-		if sess.RefreshToken == "" {
-			logger.With(
-				"middleware", "authenticateWithSession",
-				"user_id", sess.UserID,
-			).Info("Session expired and no refresh token available")
-			apiErr := apierrors.NewAuthInvalidError("Session expired")
-			apierrors.WriteJSONError(w, r, apiErr)
-			return
-		}
-
 		mu := s.refreshLockFor(sess.UserID)
 		mu.Lock()
 
