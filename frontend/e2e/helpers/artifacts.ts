@@ -46,4 +46,12 @@ export async function createArtifactWithContent(
   await page.locator('button:has-text("Create Artifact")').click()
 
   await expect(page).toHaveURL(/artifacts\/[^/]+\/[^/]+/, { timeout: 10000 })
+  // The URL changes a moment before the create form unmounts, and the detail
+  // page first shows a loading state. Return only once the loaded detail page
+  // is there, so a caller's next click cannot land on the form (whose
+  // Rendered | Raw switch has the same name as the reading page's) (#1423).
+  await expect(page.getByTestId('artifact-title-input')).toHaveCount(0)
+  await expect(page.getByTestId('edit-artifact-button')).toBeVisible({
+    timeout: 10000,
+  })
 }
