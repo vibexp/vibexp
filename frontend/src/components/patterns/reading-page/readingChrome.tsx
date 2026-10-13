@@ -11,6 +11,12 @@ export interface BodyViewHandle {
 interface ReadingChromeValue {
   /** Called by the body with its view state, and with `null` when it unmounts. */
   setBodyView: (handle: BodyViewHandle | null) => void
+  /**
+   * Where an edit page's header draws the body editor's controls (its
+   * Rendered / Raw switch and whatever sits beside it), or `null` where the
+   * header has no room for them and the editor keeps them above the text.
+   */
+  controlsSlot: HTMLElement | null
 }
 
 /**
@@ -21,6 +27,12 @@ interface ReadingChromeValue {
  * toolbar, beside Edit and Copy, rather than on a row of its own above the
  * text. The body hands its state up through this context; outside a reading
  * page there is no context and the body keeps drawing the switch itself.
+ *
+ * An edit page does the same for its editor, so the body starts at the same
+ * place under the header on both: the editor's controls are several and its
+ * own (a prompt's reference hint, a template loader), so instead of handing
+ * state up it renders them into `controlsSlot`, the end of the header's meta
+ * row.
  */
 export const ReadingChromeContext = createContext<ReadingChromeValue | null>(
   null
@@ -61,4 +73,12 @@ export function useHostedBodyView(
   }, [setBodyView])
 
   return chrome !== null
+}
+
+/**
+ * The element an edit page's header offers the body editor's controls, or
+ * `null` when the editor should draw them itself.
+ */
+export function useBodyControlsSlot(): HTMLElement | null {
+  return useContext(ReadingChromeContext)?.controlsSlot ?? null
 }

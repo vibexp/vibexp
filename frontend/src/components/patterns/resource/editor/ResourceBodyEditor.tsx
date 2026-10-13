@@ -2,9 +2,11 @@ import { AlertCircle, Download, Wand2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { RefObject } from 'react'
 import { forwardRef, useId, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import type { BodyFormat } from '@/components/patterns/reading-page'
+import { useBodyControlsSlot } from '@/components/patterns/reading-page/readingChrome'
 import { PromptMentionTextarea } from '@/components/PromptMentionTextarea'
 import type { SegmentedOption } from '@/components/SegmentedControl'
 import { SegmentedControl } from '@/components/SegmentedControl'
@@ -251,6 +253,9 @@ export const ResourceBodyEditor = forwardRef<
     else if (ref) ref.current = node
   }
   useAutoGrow(fieldRef, value, activeView === 'write')
+  // On an edit page the header draws these controls, in the place of the
+  // reading page's toolbar, so the body starts where the reading body does.
+  const controlsSlot = useBodyControlsSlot()
 
   const keys = useRawEditorKeys(onChange)
   const tabHintId = useId()
@@ -266,34 +271,49 @@ export const ResourceBodyEditor = forwardRef<
     'aria-invalid': invalid,
   }
 
+  const controls = (
+    <>
+      {extensions?.mentions && activeView !== 'render' && (
+        <Badge variant="outline" className="gap-1">
+          <Wand2 className="size-3" />
+          Type @ to reference prompts
+        </Badge>
+      )}
+      {extensions?.templates && (
+        <Button
+          variant="outline"
+          size="sm"
+          type="button"
+          onClick={extensions.templates}
+        >
+          <Download className="mr-2 size-3.5" />
+          Load template
+        </Button>
+      )}
+      <SegmentedControl
+        size="sm"
+        aria-label="Body view"
+        options={options}
+        value={activeView}
+        onChange={handleViewChange}
+      />
+    </>
+  )
+
   return (
     <div className={cn('space-y-4', className)}>
-      <div className="reading-prose-width flex flex-wrap items-center justify-end gap-2">
-        {extensions?.mentions && activeView !== 'render' && (
-          <Badge variant="outline" className="gap-1">
-            <Wand2 className="size-3" />
-            Type @ to reference prompts
-          </Badge>
-        )}
-        {extensions?.templates && (
-          <Button
-            variant="outline"
-            size="sm"
-            type="button"
-            onClick={extensions.templates}
-          >
-            <Download className="mr-2 size-3.5" />
-            Load template
-          </Button>
-        )}
-        <SegmentedControl
-          size="sm"
-          aria-label="Body view"
-          options={options}
-          value={activeView}
-          onChange={handleViewChange}
-        />
-      </div>
+      {controlsSlot ? (
+        createPortal(
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {controls}
+          </div>,
+          controlsSlot
+        )
+      ) : (
+        <div className="reading-prose-width flex flex-wrap items-center justify-end gap-2">
+          {controls}
+        </div>
+      )}
 
       {/*
         Only the active pane is mounted, under `role="tabpanel"`, exactly as in

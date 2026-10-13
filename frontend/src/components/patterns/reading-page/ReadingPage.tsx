@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils'
 import { DetailsColumn } from './DetailsPanel'
 import { ReadingActions } from './ReadingActions'
 import { type BodyViewHandle, ReadingChromeContext } from './readingChrome'
-import { READING_TITLE_CLASS } from './readingHeader'
+import { READING_META_ROW_CLASS, READING_TITLE_CLASS } from './readingHeader'
 import { ReadingOutline } from './ReadingOutline'
 import { ReadingRail } from './ReadingRail'
 import { ReadingTitleBar } from './ReadingTitleBar'
@@ -163,7 +163,11 @@ export function ReadingPage({
   // The body hands its Rendered / Raw state up so the toolbar can draw the
   // switch (see `readingChrome`).
   const [bodyView, setBodyView] = useState<BodyViewHandle | null>(null)
-  const chrome = useMemo(() => ({ setBodyView }), [])
+  // An edit page's header draws the editor's controls in its meta row, where
+  // the reading page's toolbar is, so the body starts at the same place on
+  // both. A phone's header has no room: there the editor keeps them.
+  const [controlsSlot, setControlsSlot] = useState<HTMLElement | null>(null)
+  const chrome = useMemo(() => ({ setBodyView, controlsSlot }), [controlsSlot])
 
   const articleRef = useRef<HTMLElement>(null)
   const outline = useReadingOutline(articleRef, reading)
@@ -239,6 +243,7 @@ export function ReadingPage({
               meta={meta}
               description={description}
               chips={actionsAsChips ? actions : undefined}
+              controlsSlotRef={isTablet ? setControlsSlot : undefined}
             />
           )}
           <ReadingChromeContext.Provider value={chrome}>
@@ -385,6 +390,7 @@ function PlainHeader({
   meta,
   description,
   chips,
+  controlsSlotRef,
 }: Readonly<{
   title: string
   heading: ReactNode
@@ -392,10 +398,31 @@ function PlainHeader({
   description: ReactNode
   /** Save / Cancel as a chip row, on the widths with no rail to hold them. */
   chips: readonly ReadingAction[] | undefined
+  /**
+   * Receives the element at the end of the meta row that the body editor
+   * draws its controls into — the place of the reading page's toolbar.
+   */
+  controlsSlotRef: ((element: HTMLElement | null) => void) | undefined
 }>) {
   return (
-    <header className="mb-8">
+    // `flow-root` so the floated controls can never hang out of the header.
+    <header className="mb-8 flow-root">
       {heading ?? <h1 className={READING_TITLE_CLASS}>{title}</h1>}
+      {/* Floated, not a row of its own: the line under the title (status,
+          slug, updated) may come from `meta` or lead the `description`, and
+          the controls sit at the end of that line whichever it is — as the
+          toolbar does on a reading page — without moving it. Where the two
+          would meet, the line narrows and wraps instead of overlapping. */}
+      {controlsSlotRef && (
+        <div
+          ref={controlsSlotRef}
+          data-testid="reading-header-controls"
+          className={cn(
+            READING_META_ROW_CLASS,
+            'float-right mt-2 ml-4 justify-end'
+          )}
+        />
+      )}
       {meta && <div className="mt-2">{meta}</div>}
       {description && (
         <div className="text-muted-foreground mt-2 max-w-3xl text-sm">
