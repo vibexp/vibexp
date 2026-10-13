@@ -37,6 +37,8 @@ describe('BlueprintService', () => {
   const mockSlug = 'api-spec'
 
   const mockBlueprint: Blueprint = {
+    last_write_source: null,
+    last_write_assistant_name: null,
     lock: null,
     id: 'spec-123',
     project_id: 'my-project',

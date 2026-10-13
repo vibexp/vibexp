@@ -94,6 +94,8 @@ import { projectService } from '@/services/projectService'
 import { BlueprintView } from '../BlueprintView'
 
 const mockBlueprint: Blueprint = vi.hoisted(() => ({
+  last_write_source: null,
+  last_write_assistant_name: null,
   lock: null,
   id: 'blueprint-1',
   project_id: 'my-project',

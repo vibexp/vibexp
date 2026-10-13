@@ -75,6 +75,8 @@ import { projectService } from '@/services/projectService'
 import { MemoryView } from '../MemoryView'
 
 const mockMemory: Memory = {
+  last_write_source: null,
+  last_write_assistant_name: null,
   id: 'memory-1',
   user_id: 'user-1',
   team_id: 'team-1',

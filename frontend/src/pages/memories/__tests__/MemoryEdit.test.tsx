@@ -46,6 +46,8 @@ import { memoryService } from '@/services/memoryService'
 import { MemoryEdit } from '../MemoryEdit'
 
 const memory: Memory = {
+  last_write_source: null,
+  last_write_assistant_name: null,
   id: 'mem-1',
   user_id: 'user-1',
   team_id: 'team-1',
