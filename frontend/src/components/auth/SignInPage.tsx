@@ -1,4 +1,4 @@
-import { KeyRound, Moon, Shield, Sun, Users, Zap } from 'lucide-react'
+import { BookOpen, KeyRound, Moon, Save, Sun, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
@@ -111,23 +111,25 @@ function ThemeToggle() {
   )
 }
 
+// The loop, in order: read, write back, compound for the team.
 const PITCH_BULLETS = [
   {
-    icon: Zap,
-    title: 'Reusable prompts',
-    description: 'Template library with variables and MCP exposure.',
+    icon: BookOpen,
+    title: 'Read before every task',
+    description:
+      "Your AI tools pull the team's prompts, rules and memory before they start.",
   },
   {
-    icon: Shield,
-    title: 'Your data, your control',
+    icon: Save,
+    title: 'Written back as it works',
     description:
-      'Free and open source. Self-host it on your own infrastructure.',
+      'Lessons, memory and artifacts are saved by the AI, not by hand.',
   },
   {
     icon: Users,
-    title: 'Teams & agents',
+    title: 'One workspace for the whole team',
     description:
-      "One workspace your whole team's AI reads from and writes back to.",
+      'Every session makes the next one richer, for everyone. Free, open source, self-hostable.',
   },
 ] as const
 
