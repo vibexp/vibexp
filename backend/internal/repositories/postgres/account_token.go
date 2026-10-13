@@ -39,12 +39,16 @@ func scanAccountToken(row rowScanner) (*models.AccountToken, error) {
 	return &t, nil
 }
 
-// consumeAccountLink marks a link consumed if it is still live at $2.
+// consumeAccountLink marks a link consumed if it is still live at $2. Its
+// RETURNING list is accountLinkColumns written out, because the statement
+// runs on a transaction and must be one literal; scanAccountToken reads both,
+// and TestAccountLinkQueriesReturnTheSameColumns keeps them equal.
 const consumeAccountLink = `
 	UPDATE account_tokens
 	SET consumed_at = $2
 	WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > $2
-	RETURNING ` + accountLinkColumns
+	RETURNING id, user_id, purpose, delivery, token_hash, expires_at, consumed_at,
+		created_by, created_at`
 
 // inTx runs fn in a transaction: it commits when fn returns nil and rolls back
 // otherwise. op names the operation in error messages.
