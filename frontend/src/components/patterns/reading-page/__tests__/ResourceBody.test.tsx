@@ -113,7 +113,7 @@ describe('ResourceBody', () => {
     await user.click(screen.getByRole('tab', { name: 'Raw' }))
     expect(screen.getByTestId('resource-body-raw')).toBeInTheDocument()
     // Raw is for this page view only: nothing is written anywhere.
-    expect(globalThis.localStorage.length).toBe(0)
+    expect(globalThis.localStorage).toHaveLength(0)
 
     unmount()
     render(<ResourceBody content="Another resource" />)
@@ -210,7 +210,7 @@ describe('ResourceBody', () => {
       await user.click(screen.getByRole('tab', { name: 'Raw' }))
 
       expect(onModeChange).toHaveBeenCalledWith('raw')
-      expect(globalThis.localStorage.length).toBe(0)
+      expect(globalThis.localStorage).toHaveLength(0)
     })
   })
 })

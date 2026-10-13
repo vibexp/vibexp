@@ -47,7 +47,7 @@ describe('useBodyViewMode', () => {
     act(() => {
       result.current[1]('raw')
     })
-    expect(globalThis.localStorage.length).toBe(0)
+    expect(globalThis.localStorage).toHaveLength(0)
   })
 
   it('returns to rendered when the reader navigates to another resource in the same mounted page', () => {

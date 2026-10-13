@@ -638,7 +638,7 @@ describe('ResourceBodyEditor', () => {
       await user.click(screen.getByRole('tab', { name: 'Raw' }))
 
       // Nothing is stored, and a reading body mounted afterwards is unaffected.
-      expect(globalThis.localStorage.length).toBe(0)
+      expect(globalThis.localStorage).toHaveLength(0)
       expect(readingMode()).toBe('rendered')
     })
 

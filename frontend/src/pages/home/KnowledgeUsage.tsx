@@ -108,6 +108,21 @@ function LoopRow({
   )
 }
 
+/** Which half of the loop is missing in the period, said in one sentence. */
+function loopNotRunningMessage(
+  noAiReads: boolean,
+  noAiWrites: boolean,
+  rangeLabel: string
+): string {
+  if (noAiReads && noAiWrites) {
+    return `No AI tool has read from or written back to this workspace in the last ${rangeLabel}.`
+  }
+  if (noAiReads) {
+    return `No AI tool has read from this workspace in the last ${rangeLabel}.`
+  }
+  return `No AI tool wrote back to this workspace in the last ${rangeLabel}.`
+}
+
 /**
  * The third block of the dashboard, and the one where the loop shows: what
  * read the workspace's knowledge and what wrote back to it, by channel, over
@@ -209,11 +224,7 @@ export function KnowledgeUsage({
 
       {(noAiReads || noAiWrites) && (
         <p className="text-sm" data-testid="loop-not-running">
-          {noAiReads && noAiWrites
-            ? `No AI tool has read from or written back to this workspace in the last ${rangeLabel}.`
-            : noAiReads
-              ? `No AI tool has read from this workspace in the last ${rangeLabel}.`
-              : `No AI tool wrote back to this workspace in the last ${rangeLabel}.`}
+          {loopNotRunningMessage(noAiReads, noAiWrites, rangeLabel)}
           {noAiWrites && writes.web > 0 && ` ${webWrites(writes.web)}`}{' '}
           <ConnectLink />
         </p>

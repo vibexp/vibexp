@@ -12,9 +12,8 @@
 /* the top of this file (headings, paragraphs, links, inline code, quotes,    */
 /* tables, lists). They bind to the design tokens, so dark mode needs no      */
 /* extra class. Fenced code blocks (the frame, the copy button, the syntax    */
-/* colours) and the GFM task-list checkbox come from `markdown.css`.          */
-/*                                                                            */
-/* App-only additions: only what the package does not provide.                */
+/* colours) and the GFM task-list checkbox come from `markdown.css`. What     */
+/* follows is app-only: just what the package does not provide.               */
 /* -------------------------------------------------------------------------- */
 .v2-root .prose {
   --tw-prose-kbd: var(--foreground);
