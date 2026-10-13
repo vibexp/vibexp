@@ -90,13 +90,18 @@ type DeleteInstanceAuthProviderRequest struct {
 }
 
 // InstanceAuthLockoutContext is what the lockout guard needs to know about the
-// caller of a provider change.
+// caller of a provider or policy change.
 type InstanceAuthLockoutContext struct {
 	// SessionProvider is the slug of the provider the caller's session was
 	// issued by; empty for an API key, a setup session, dev login and sessions
 	// that predate multi-provider sign-in, which have no provider of their own
 	// to lose.
 	SessionProvider string
+	// AuthMethod is how the caller's session signed in (one of the
+	// session.AuthMethod* values); empty for an API key, a setup session and
+	// sessions that predate the field. Switching password login off is judged
+	// by it.
+	AuthMethod string
 	// Confirmed is the caller's confirm_lockout_risk: it applies a change the
 	// guard would otherwise refuse.
 	Confirmed bool

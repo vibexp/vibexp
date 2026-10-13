@@ -58,6 +58,12 @@ type memCredentials struct {
 	rows map[string]*models.UserCredential
 }
 
+// The two counts are setup mode's and the lockout guard's (#1438); sign-in
+// never asks for them.
+func (m *memCredentials) CountUsableForAdmins(context.Context, []string) (int, error) { return 0, nil }
+
+func (m *memCredentials) CountPasswordOnly(context.Context) (int, error) { return 0, nil }
+
 func (m *memCredentials) Get(_ context.Context, userID string) (*models.UserCredential, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -794,4 +800,65 @@ func TestPasswordLogin_NothingSecretLeaves(t *testing.T) {
 			assert.NotContains(t, response, secret)
 		}
 	}
+}
+
+// consumeRecorder is a setup-mode service that records who ConsumeOnRootLogin
+// was called for.
+type consumeRecorder struct {
+	services.SetupModeService
+	consumedFor []string
+	err         error
+}
+
+func (c *consumeRecorder) ConsumeOnRootLogin(_ context.Context, user *models.User) error {
+	c.consumedFor = append(c.consumedFor, user.ID)
+	return c.err
+}
+
+// setupRecordingContainer installs a consumeRecorder as the setup-mode service.
+type setupRecordingContainer struct {
+	*MockAuthContainer
+	setup *consumeRecorder
+}
+
+func (c *setupRecordingContainer) SetupModeService() services.SetupModeService { return c.setup }
+
+// A password sign-in hands the user to the setup-mode service, as a provider
+// sign-in does: on a password-only instance nothing else would ever end setup
+// (#1438). Whether the user is a root admin is that service's decision.
+func TestPasswordLogin_OffersTheSignInToSetupMode(t *testing.T) {
+	t.Run("a successful sign-in", func(t *testing.T) {
+		f := newPwLoginFixture(t)
+		f.expectActivity(activities.ActivityTypeAuthLogin)
+		setup := &consumeRecorder{}
+		f.srv.container = &setupRecordingContainer{MockAuthContainer: f.container, setup: setup}
+
+		rec := f.post(t, pwLoginEmail, pwLoginPassword)
+
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		assert.Equal(t, []string{pwLoginUserID}, setup.consumedFor)
+	})
+
+	t.Run("a failure to consume never fails the sign-in", func(t *testing.T) {
+		f := newPwLoginFixture(t)
+		f.expectActivity(activities.ActivityTypeAuthLogin)
+		setup := &consumeRecorder{err: errors.New("pq: down")}
+		f.srv.container = &setupRecordingContainer{MockAuthContainer: f.container, setup: setup}
+
+		rec := f.post(t, pwLoginEmail, pwLoginPassword)
+
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	})
+
+	t.Run("a refused sign-in is not offered", func(t *testing.T) {
+		f := newPwLoginFixture(t)
+		f.expectActivity(activities.ActivityTypeAuthFailure)
+		setup := &consumeRecorder{}
+		f.srv.container = &setupRecordingContainer{MockAuthContainer: f.container, setup: setup}
+
+		rec := f.post(t, pwLoginEmail, "not the password at all")
+
+		require.Equal(t, http.StatusUnauthorized, rec.Code)
+		assert.Empty(t, setup.consumedFor)
+	})
 }

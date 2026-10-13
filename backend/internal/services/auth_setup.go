@@ -96,8 +96,10 @@ type SetupModeService interface {
 
 // SetupModeDeps are the collaborators of the setup-mode service.
 type SetupModeDeps struct {
-	Setup     repositories.InstanceAuthSetupRepository
-	Providers repositories.InstanceAuthProviderRepository
+	Setup repositories.InstanceAuthSetupRepository
+	// WayIn decides whether a sign-in method works; setup mode is active
+	// while none does.
+	WayIn AuthWayIn
 	// IsRootAdmin reports whether an email is a root instance admin
 	// (InstanceAdminResolver.IsRootAdmin).
 	IsRootAdmin func(email string) bool
@@ -111,7 +113,7 @@ type SetupModeDeps struct {
 
 type setupModeService struct {
 	setup        repositories.InstanceAuthSetupRepository
-	providers    repositories.InstanceAuthProviderRepository
+	wayIn        AuthWayIn
 	isRootAdmin  func(email string) bool
 	baseURL      string
 	recoveryMode bool
@@ -131,7 +133,7 @@ func NewSetupModeService(deps SetupModeDeps) SetupModeService {
 func newSetupModeService(deps SetupModeDeps) *setupModeService {
 	return &setupModeService{
 		setup:        deps.Setup,
-		providers:    deps.Providers,
+		wayIn:        deps.WayIn,
 		isRootAdmin:  deps.IsRootAdmin,
 		baseURL:      strings.TrimRight(deps.BaseURL, "/"),
 		recoveryMode: deps.RecoveryMode,
@@ -142,8 +144,9 @@ func newSetupModeService(deps SetupModeDeps) *setupModeService {
 
 // Why setup mode is active. Each is the "reason" logged beside the setup URL.
 const (
-	setupReasonNoProvider = "no identity provider is enabled; open this URL to configure sign-in"
-	setupReasonRearmed    = "authentication setup was re-armed with `vibexp admin auth setup rearm`; " +
+	setupReasonNoWayIn = "no sign-in method is usable (no identity provider is enabled, and password login is " +
+		"off or no instance admin has a password); open this URL to configure sign-in"
+	setupReasonRearmed = "authentication setup was re-armed with `vibexp admin auth setup rearm`; " +
 		"open this URL to configure sign-in"
 	setupReasonRecovery = "auth.recovery_mode (AUTH_SETTINGS_RECOVERY_MODE) is set; open this URL to " +
 		"repair sign-in, then remove the flag and restart"
@@ -167,31 +170,14 @@ func (s *setupModeService) activeReason(ctx context.Context) (string, error) {
 	if row != nil && row.Rearmed && !row.IsConsumed() {
 		return setupReasonRearmed, nil
 	}
-	enabled, err := s.hasEnabledProvider(ctx)
+	usable, err := s.wayIn.Any(ctx)
 	if err != nil {
 		return "", err
 	}
-	if enabled {
+	if usable {
 		return "", nil
 	}
-	return setupReasonNoProvider, nil
-}
-
-// hasEnabledProvider reads the provider ROWS rather than the resolver's built
-// snapshot: the snapshot leaves out an enabled provider that failed to build,
-// so judging by it would open setup mode whenever an identity provider had an
-// outage.
-func (s *setupModeService) hasEnabledProvider(ctx context.Context) (bool, error) {
-	rows, err := s.providers.List(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to list identity providers: %w", err)
-	}
-	for _, row := range rows {
-		if row.Enabled {
-			return true, nil
-		}
-	}
-	return false, nil
+	return setupReasonNoWayIn, nil
 }
 
 // stored returns the setup row, or nil when no token was ever issued.

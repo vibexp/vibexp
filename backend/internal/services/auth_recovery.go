@@ -20,6 +20,9 @@ type AuthRecoveryDeps struct {
 	Allowlist repositories.InstanceAuthAllowlistRepository
 	Setup     repositories.InstanceAuthSetupRepository
 	Version   repositories.InstanceAuthSettingsVersionRepository
+	// RootPasswords sets a root admin's password (#1438). Built without an
+	// event publisher: the CLI has no server, so it cannot create accounts.
+	RootPasswords *RootAdminPasswordService
 	// BaseURL is frontend.base_url, the origin the setup URL is built on.
 	BaseURL string
 }
@@ -38,6 +41,7 @@ type AuthRecoveryService struct {
 	allowlist repositories.InstanceAuthAllowlistRepository
 	setup     repositories.InstanceAuthSetupRepository
 	version   repositories.InstanceAuthSettingsVersionRepository
+	rootPw    *RootAdminPasswordService
 	baseURL   string
 
 	// Injectable for tests.
@@ -51,6 +55,7 @@ func NewAuthRecoveryService(deps AuthRecoveryDeps) *AuthRecoveryService {
 		allowlist: deps.Allowlist,
 		setup:     deps.Setup,
 		version:   deps.Version,
+		rootPw:    deps.RootPasswords,
 		baseURL:   deps.BaseURL,
 		now:       time.Now,
 	}
@@ -150,4 +155,15 @@ func (s *AuthRecoveryService) RearmSetup(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return SetupURL(s.baseURL, token), nil
+}
+
+// SetRootAdminPassword gives the root admin with email a password, and with
+// enableLogin switches password login on (audited with source "cli"). It is the
+// way back into a password-only instance nobody can sign in to (#1438). The
+// account must exist: see RootAdminPasswordService.Set for what it checks and
+// leaves behind.
+func (s *AuthRecoveryService) SetRootAdminPassword(
+	ctx context.Context, email, plaintext string, enableLogin bool,
+) (*RootAdminPasswordResult, error) {
+	return s.rootPw.Set(s.audited(ctx), email, plaintext, enableLogin)
 }

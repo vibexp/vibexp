@@ -227,7 +227,7 @@ func isSetupSessionRequest(ctx context.Context) bool {
 // next root sign-in or the token's expiry.
 func (s *Server) consumeSetupOnRootLogin(ctx context.Context, user *models.User) {
 	if err := s.container.SetupModeService().ConsumeOnRootLogin(ctx, user); err != nil {
-		s.logger.With("handler", "handleCallback", "user_id", user.ID, "error", err).
+		s.logger.With("handler", "consumeSetupOnRootLogin", "user_id", user.ID, "error", err).
 			Error("Failed to consume the setup token on a root admin sign-in")
 	}
 }

@@ -141,6 +141,13 @@ var adminGuardedBodies = []adminGuardedBody{
 		requireAll: true,
 	},
 	{
+		// Both fields are required; an unknown one is refused, not dropped.
+		method:     http.MethodPut,
+		path:       regexp.MustCompile(`^/api/v1/admin/settings/auth/bootstrap-admin$`),
+		bodyType:   admingen.AdminBootstrapPasswordRequest{},
+		requireAll: true,
+	},
+	{
 		method:     http.MethodPost,
 		path:       regexp.MustCompile(`^/api/v1/admin/settings/auth/allowlist/preview$`),
 		bodyType:   admingen.AdminAuthAllowlistPreviewRequest{},

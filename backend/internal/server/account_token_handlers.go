@@ -250,5 +250,9 @@ func (h *passwordAuthStrictServer) signInWithPassword(
 		h.s.metrics.RecordUserLoginSuccessful(ctx)
 	}
 	h.recordAuthActivity(ctx, user.ID, activities.ActivityTypeAuthLogin, metadata)
+	// A root admin signing in with a password, or through a link that set
+	// one, ends setup mode as a provider sign-in does: on a password-only
+	// instance nothing else ever would (#1438).
+	h.s.consumeSetupOnRootLogin(ctx, user)
 	return cookie.String(), nil
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/vibexp/vibexp/internal/services"
 	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
 	"github.com/vibexp/vibexp/internal/specconformance"
+	"github.com/vibexp/vibexp/internal/testutils/memauthsettings"
 )
 
 const (
@@ -135,8 +136,10 @@ type setupHarness struct {
 
 func newSetupModeService(state *memSetupState, providers *memAuthProviders) services.SetupModeService {
 	return services.NewSetupModeService(services.SetupModeDeps{
-		Setup:       state,
-		Providers:   providers,
+		Setup: state,
+		WayIn: services.NewAuthWayIn(services.AuthWayInDeps{
+			Providers: providers, Policies: memauthsettings.New().Policy(),
+		}),
 		IsRootAdmin: func(email string) bool { return strings.EqualFold(email, setupTestRootEmail) },
 		BaseURL:     setupTestBaseURL,
 		Logger:      slog.New(slog.DiscardHandler),

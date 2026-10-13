@@ -143,4 +143,4 @@ func (r *SignInMethodRepository) RemoveIdentity(
 // of another identity and the localhost-only dev login. They are never a
 // target and never count as what remains, even if a real provider is later
 // given the slug "dev".
-var internalIdentityProviders = []string{models.LegacyGoogleIdentityProvider, "dev"}
+var internalIdentityProviders = []string{models.LegacyGoogleIdentityProvider, models.DevIdentityProvider}

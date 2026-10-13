@@ -85,6 +85,119 @@ func (_c *MockUserCredentialRepository_BeginAttempt_Call) RunAndReturn(run func(
 	return _c
 }
 
+// CountPasswordOnly provides a mock function with given fields: ctx
+func (_m *MockUserCredentialRepository) CountPasswordOnly(ctx context.Context) (int, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountPasswordOnly")
+	}
+
+	var r0 int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) (int, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) int); ok {
+		r0 = rf(ctx)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockUserCredentialRepository_CountPasswordOnly_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountPasswordOnly'
+type MockUserCredentialRepository_CountPasswordOnly_Call struct {
+	*mock.Call
+}
+
+// CountPasswordOnly is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MockUserCredentialRepository_Expecter) CountPasswordOnly(ctx interface{}) *MockUserCredentialRepository_CountPasswordOnly_Call {
+	return &MockUserCredentialRepository_CountPasswordOnly_Call{Call: _e.mock.On("CountPasswordOnly", ctx)}
+}
+
+func (_c *MockUserCredentialRepository_CountPasswordOnly_Call) Run(run func(ctx context.Context)) *MockUserCredentialRepository_CountPasswordOnly_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *MockUserCredentialRepository_CountPasswordOnly_Call) Return(_a0 int, _a1 error) *MockUserCredentialRepository_CountPasswordOnly_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockUserCredentialRepository_CountPasswordOnly_Call) RunAndReturn(run func(context.Context) (int, error)) *MockUserCredentialRepository_CountPasswordOnly_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CountUsableForAdmins provides a mock function with given fields: ctx, rootEmails
+func (_m *MockUserCredentialRepository) CountUsableForAdmins(ctx context.Context, rootEmails []string) (int, error) {
+	ret := _m.Called(ctx, rootEmails)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountUsableForAdmins")
+	}
+
+	var r0 int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string) (int, error)); ok {
+		return rf(ctx, rootEmails)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []string) int); ok {
+		r0 = rf(ctx, rootEmails)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []string) error); ok {
+		r1 = rf(ctx, rootEmails)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockUserCredentialRepository_CountUsableForAdmins_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountUsableForAdmins'
+type MockUserCredentialRepository_CountUsableForAdmins_Call struct {
+	*mock.Call
+}
+
+// CountUsableForAdmins is a helper method to define mock.On call
+//   - ctx context.Context
+//   - rootEmails []string
+func (_e *MockUserCredentialRepository_Expecter) CountUsableForAdmins(ctx interface{}, rootEmails interface{}) *MockUserCredentialRepository_CountUsableForAdmins_Call {
+	return &MockUserCredentialRepository_CountUsableForAdmins_Call{Call: _e.mock.On("CountUsableForAdmins", ctx, rootEmails)}
+}
+
+func (_c *MockUserCredentialRepository_CountUsableForAdmins_Call) Run(run func(ctx context.Context, rootEmails []string)) *MockUserCredentialRepository_CountUsableForAdmins_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]string))
+	})
+	return _c
+}
+
+func (_c *MockUserCredentialRepository_CountUsableForAdmins_Call) Return(_a0 int, _a1 error) *MockUserCredentialRepository_CountUsableForAdmins_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockUserCredentialRepository_CountUsableForAdmins_Call) RunAndReturn(run func(context.Context, []string) (int, error)) *MockUserCredentialRepository_CountUsableForAdmins_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Delete provides a mock function with given fields: ctx, userID
 func (_m *MockUserCredentialRepository) Delete(ctx context.Context, userID string) (bool, error) {
 	ret := _m.Called(ctx, userID)

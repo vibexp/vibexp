@@ -1154,6 +1154,8 @@ components:
       $ref: "./schemas/admin.yaml#/AdminAuthPolicy"
     AdminAuthPolicyUpdate:
       $ref: "./schemas/admin.yaml#/AdminAuthPolicyUpdate"
+    AdminBootstrapPasswordRequest:
+      $ref: "./schemas/admin.yaml#/AdminBootstrapPasswordRequest"
     AdminAuthRegistrationMode:
       $ref: "./schemas/admin.yaml#/AdminAuthRegistrationMode"
     AdminAuthAllowlistPreviewRequest:
@@ -1580,6 +1582,8 @@ paths:
     $ref: "./paths/admin.yaml#/api-v1-admin-settings-auth-allowlist-preview"
   /api/v1/admin/settings/auth/policy:
     $ref: "./paths/admin.yaml#/api-v1-admin-settings-auth-policy"
+  /api/v1/admin/settings/auth/bootstrap-admin:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-auth-bootstrap-admin"
   /api/v1/admin/settings/auth/admins:
     $ref: "./paths/admin.yaml#/api-v1-admin-settings-auth-admins"
   /api/v1/admin/settings/auth/admins/{user_id}:

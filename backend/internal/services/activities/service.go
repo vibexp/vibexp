@@ -289,6 +289,7 @@ func (s *Service) GetActivityTypes() []string {
 		ActivityTypeAuthCredentialChanged,
 		ActivityTypeAuthCredentialRemoved,
 		ActivityTypeAuthIdentityDisconnected,
+		ActivityTypeAuthAdminBootstrap,
 		ActivityTypeAPIKeyCreated,
 		ActivityTypeAPIKeyDeleted,
 		ActivityTypeAPIKeyUsed,
@@ -648,6 +649,8 @@ func (s *Service) generateAuthActivityDescription(activityType string, metadata 
 		return "Authentication failed"
 	case ActivityTypeTokenRefresh:
 		return "Authentication token refreshed"
+	case ActivityTypeAuthAdminBootstrap:
+		return "Password set by the instance operator, without signing in"
 	default:
 		return fmt.Sprintf("Authentication activity: %s", activityType)
 	}

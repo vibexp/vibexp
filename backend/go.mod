@@ -68,6 +68,7 @@ require (
 require (
 	go.opentelemetry.io/contrib/instrumentation/runtime v0.72.0
 	golang.org/x/crypto v0.57.0
+	golang.org/x/term v0.46.0
 )
 
 require (
