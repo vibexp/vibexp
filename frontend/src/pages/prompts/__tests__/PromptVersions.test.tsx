@@ -91,6 +91,8 @@ function snapshot(
     content,
     change_summary: summary,
     actor_type: 'human',
+    source: null,
+    assistant_name: null,
     created_by: 'user-1',
     author: {
       id: 'user-1',

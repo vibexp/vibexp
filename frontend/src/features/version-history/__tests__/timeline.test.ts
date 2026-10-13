@@ -25,6 +25,8 @@ function snapshot(
     content,
     change_summary: `summary ${String(n)}`,
     actor_type: 'human',
+    source: null,
+    assistant_name: null,
     created_by: authorId,
     author: author(authorId),
     created_at: '2026-06-10T10:00:00.000Z',

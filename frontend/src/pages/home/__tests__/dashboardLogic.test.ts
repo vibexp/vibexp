@@ -8,6 +8,7 @@ import {
   mergeRecentChanges,
   type StaleResult,
   summarizeAccessChannels,
+  summarizeWriteChannels,
   toDashboardResource,
   unansweredFeedItems,
 } from '../dashboardLogic'
@@ -269,6 +270,7 @@ describe('summarizeAccessChannels', () => {
       api: 4,
       web: 41,
       total: 48,
+      aiTools: 7,
       noAiToolReads: false,
     })
   })
@@ -295,7 +297,28 @@ describe('summarizeAccessChannels', () => {
       api: 0,
       web: 0,
       total: 0,
+      aiTools: 0,
       noAiToolReads: true,
     })
+  })
+})
+
+describe('summarizeWriteChannels', () => {
+  it('headlines the AI tools share: MCP, CLI and API, not the web', () => {
+    expect(summarizeWriteChannels({ web: 4, cli: 1, mcp: 5, api: 2 })).toEqual({
+      mcp: 5,
+      cli: 1,
+      api: 2,
+      web: 4,
+      total: 12,
+      aiTools: 8,
+      noAiToolWrites: false,
+    })
+  })
+
+  it('reports no AI-tool writes when only the web wrote', () => {
+    const summary = summarizeWriteChannels({ web: 7, cli: 0, mcp: 0, api: 0 })
+    expect(summary.noAiToolWrites).toBe(true)
+    expect(summary.total).toBe(7)
   })
 })

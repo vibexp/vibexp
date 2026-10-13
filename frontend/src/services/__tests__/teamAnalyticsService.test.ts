@@ -1,3 +1,5 @@
+import { emptyBySource, writesBySource } from '@/lib/testing/creationMetrics'
+
 import type { ResourceAccessMetricsResponse } from '../resourceAccessService'
 import type {
   TeamResourceCreationMetricsResponse,
@@ -52,6 +54,8 @@ describe('teamService analytics methods', () => {
       data: {
         total_created: 7,
         range: '7d',
+        by_source: emptyBySource(),
+        writes_by_source: writesBySource(),
         counts: [
           {
             date: '2026-05-01',

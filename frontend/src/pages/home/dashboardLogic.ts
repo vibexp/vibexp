@@ -212,6 +212,8 @@ export interface AccessChannelSummary {
   api: number
   web: number
   total: number
+  /** Reads that arrived through MCP, the CLI or the API: the AI's share. */
+  aiTools: number
   /**
    * True when nothing read the workspace through MCP, the CLI or the API in
    * the range — the channels an AI tool reads through. Web reads are a person
@@ -236,6 +238,44 @@ export function summarizeAccessChannels(
     api,
     web,
     total: mcp + cli + api + web,
+    aiTools: mcp + cli + api,
     noAiToolReads: mcp + cli + api === 0,
+  }
+}
+
+export interface WriteChannelSummary {
+  mcp: number
+  cli: number
+  api: number
+  web: number
+  total: number
+  /** Writes that arrived through MCP, the CLI or the API: the AI's share. */
+  aiTools: number
+  /**
+   * True when nothing was written through MCP, the CLI or the API in the
+   * range: the loop's write-back half did not run. Web writes are a person in
+   * this app.
+   */
+  noAiToolWrites: boolean
+}
+
+/**
+ * Writes (creates and updates) per channel over a range. The API reports the
+ * range's totals, not a daily series, and counts only writes whose channel was
+ * recorded.
+ */
+export function summarizeWriteChannels(
+  writes: Readonly<Record<'mcp' | 'cli' | 'api' | 'web', number>>
+): WriteChannelSummary {
+  const { mcp, cli, api, web } = writes
+  const aiTools = mcp + cli + api
+  return {
+    mcp,
+    cli,
+    api,
+    web,
+    total: aiTools + web,
+    aiTools,
+    noAiToolWrites: aiTools === 0,
   }
 }

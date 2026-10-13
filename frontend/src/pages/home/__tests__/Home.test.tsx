@@ -9,6 +9,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import type { Mocked } from 'vitest'
 
+import { emptyBySource, writesBySource } from '@/lib/testing/creationMetrics'
 import type {
   ActivitiesResponse,
   Activity as ActivityType,
@@ -257,13 +258,29 @@ function emptyMetrics() {
   }
 }
 
+function creationMetrics(writes: Parameters<typeof writesBySource>[0] = {}) {
+  return {
+    status: 'success',
+    message: 'ok',
+    data: {
+      total_created: 0,
+      range: '7d' as const,
+      counts: [],
+      by_source: emptyBySource(),
+      writes_by_source: writesBySource(writes),
+    },
+  }
+}
+
 function setup(stats: TeamStats = makeStats(), activities = [makeActivity()]) {
   mockActivity.getActivities.mockResolvedValue(activitiesResponse(activities))
   mockFeed.getFeedItems.mockResolvedValue(feedResponse([]))
   mockComment.recent.mockResolvedValue({ comments: [], total_count: 0 })
   mockTeam.getTeamMembers.mockResolvedValue([])
   mockTeam.getTeamStats.mockResolvedValue(stats)
-  mockTeam.getTeamResourceCreationMetrics.mockResolvedValue(emptyMetrics())
+  mockTeam.getTeamResourceCreationMetrics.mockResolvedValue(
+    creationMetrics({ web: 3 })
+  )
   mockTeam.getTeamFeedCreationMetrics.mockResolvedValue(emptyMetrics())
   mockTeam.getTeamResourceAccessMetrics.mockResolvedValue(
     accessMetrics({ web: 41 })
@@ -516,6 +533,9 @@ describe('Home — what changed', () => {
 describe('Home — how your knowledge is used', () => {
   it('leads with reads by channel and says when no AI tool has read anything', async () => {
     setup()
+    mockTeam.getTeamResourceCreationMetrics.mockResolvedValue(
+      creationMetrics({ web: 3, mcp: 2 })
+    )
     renderHome()
 
     const usage = within(section('How your knowledge is used'))
@@ -528,8 +548,9 @@ describe('Home — how your knowledge is used', () => {
       usage.getByRole('link', { name: /Connect one over MCP/ })
     ).toHaveAttribute('href', '/connect/mcp')
     // The plain number, for the one channel that was used.
-    expect(usage.getByText('Web').nextElementSibling).toHaveTextContent('41')
-    expect(usage.getByText('MCP').nextElementSibling).toHaveTextContent('0')
+    const reads = within(usage.getByTestId('loop-reads'))
+    expect(reads.getByText('Web').nextElementSibling).toHaveTextContent('41')
+    expect(reads.getByText('MCP').nextElementSibling).toHaveTextContent('0')
     expect(usage.getByTestId('access-chart')).toBeInTheDocument()
     expect(usage.getByTestId('top-accessed')).toBeInTheDocument()
   })
@@ -548,23 +569,84 @@ describe('Home — how your knowledge is used', () => {
     expect(usage.queryByText(/No AI tool has read/)).not.toBeInTheDocument()
   })
 
-  it('shows no write-back figure anywhere on the page', async () => {
+  it('headlines what AI tools wrote back, with the same channels as the reads', async () => {
+    setup()
+    mockTeam.getTeamResourceAccessMetrics.mockResolvedValue(
+      accessMetrics({ web: 41, mcp: 3 })
+    )
+    mockTeam.getTeamResourceCreationMetrics.mockResolvedValue(
+      creationMetrics({ web: 4, mcp: 5, cli: 1, api: 2 })
+    )
+    renderHome()
+
+    const usage = within(section('How your knowledge is used'))
+    const writes = within(await usage.findByTestId('loop-writes'))
+    // MCP + CLI + API is the headline; web is a person in this app.
+    expect(writes.getByText('Written back by AI tools')).toBeInTheDocument()
+    expect(writes.getByText('8')).toBeInTheDocument()
+    expect(writes.getByText('of 12 writes')).toBeInTheDocument()
+    expect(writes.getByText('MCP').nextElementSibling).toHaveTextContent('5')
+    expect(writes.getByText('Web').nextElementSibling).toHaveTextContent('4')
+
+    const order = (testId: string) =>
+      within(usage.getByTestId(testId))
+        .getAllByRole('term')
+        .map(term => term.textContent)
+    expect(order('loop-writes')).toEqual(['MCP', 'CLI', 'API', 'Web'])
+    expect(order('loop-reads')).toEqual(order('loop-writes'))
+    expect(usage.queryByTestId('loop-not-running')).not.toBeInTheDocument()
+  })
+
+  it('says plainly when no AI tool wrote back, instead of a row of zeros', async () => {
+    setup()
+    mockTeam.getTeamResourceAccessMetrics.mockResolvedValue(
+      accessMetrics({ web: 41, mcp: 3 })
+    )
+    renderHome()
+
+    const usage = within(section('How your knowledge is used'))
+    const notice = await usage.findByTestId('loop-not-running')
+    expect(notice).toHaveTextContent(
+      'No AI tool wrote back to this workspace in the last 30 days. People made 3 writes in the web app.'
+    )
+    expect(
+      within(notice).getByRole('link', { name: /Connect one over MCP/ })
+    ).toHaveAttribute('href', '/connect/mcp')
+    expect(usage.queryByTestId('loop-writes')).not.toBeInTheDocument()
+  })
+
+  it('says it once, with one link, when AI tools neither read nor wrote', async () => {
     setup()
     renderHome()
 
-    await screen.findByText('Release checklist')
+    const usage = within(section('How your knowledge is used'))
+    expect(await usage.findByTestId('loop-not-running')).toHaveTextContent(
+      'No AI tool has read from or written back to this workspace in the last 30 days.'
+    )
     expect(
-      screen.queryByText(/written by ai|write-?back/i)
-    ).not.toBeInTheDocument()
+      usage.getAllByRole('link', { name: /Connect one over MCP/ })
+    ).toHaveLength(1)
   })
 
-  it('reloads the reads when the range changes', async () => {
+  it('keeps the reads when the writes fail to load', async () => {
+    setup()
+    mockTeam.getTeamResourceCreationMetrics.mockRejectedValue(new Error('no'))
+    renderHome()
+
+    const usage = within(section('How your knowledge is used'))
+    expect(
+      await usage.findByText('Could not load writes by channel just now.')
+    ).toBeInTheDocument()
+    expect(usage.getByText('Web').nextElementSibling).toHaveTextContent('41')
+  })
+
+  it('reloads reads and writes together when the range changes', async () => {
     const user = userEvent.setup()
     setup()
     renderHome()
 
     const usage = within(section('How your knowledge is used'))
-    await usage.findByText('Reads by channel in the last 30 days.')
+    await usage.findByText('Reads and writes by channel in the last 30 days.')
     await user.click(usage.getByRole('tab', { name: '7 days' }))
 
     await waitFor(() => {
@@ -572,9 +654,13 @@ describe('Home — how your knowledge is used', () => {
         'team-1',
         '7d'
       )
+      expect(mockTeam.getTeamResourceCreationMetrics).toHaveBeenCalledWith(
+        'team-1',
+        '7d'
+      )
     })
     expect(
-      await usage.findByText('Reads by channel in the last 7 days.')
+      await usage.findByText('Reads and writes by channel in the last 7 days.')
     ).toBeInTheDocument()
   })
 })

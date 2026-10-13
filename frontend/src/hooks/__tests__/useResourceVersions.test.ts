@@ -27,6 +27,8 @@ const version = (version_number: number): ContentVersion => ({
   content: 'snapshot content',
   change_summary: null,
   actor_type: 'human',
+  source: null,
+  assistant_name: null,
   created_by: null,
   author: null,
   created_at: '2026-09-01T09:00:00Z',
