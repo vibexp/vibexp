@@ -408,6 +408,76 @@ func setTestLock(t *testing.T, table, id, lockerID string) {
 	require.NoError(t, err)
 }
 
+// lockedMigrationSeed is what one locked-resource subtest put in the source
+// project: one resource per lockable table (ids, keyed by table), a feed item,
+// and the reference a refused migration must name.
+type lockedMigrationSeed struct {
+	fx       migrationFixture
+	ids      map[string]string
+	feedItem string
+	want     models.LockedResourceRef
+}
+
+// allResourcesExcept selects everything but one resource table's type, which
+// is left out entirely.
+func allResourcesExcept(table string) ResourceSelections {
+	sel := allResources()
+	switch table {
+	case "prompts":
+		sel.Prompts = ResourceSelection{}
+	case "artifacts":
+		sel.Artifacts = ResourceSelection{}
+	case "blueprints":
+		sel.Blueprints = ResourceSelection{}
+	}
+	return sel
+}
+
+// assertMigrationRefused runs one migration request against a source project
+// that holds a locked resource: it must be refused with the error naming that
+// resource, and nothing may have moved.
+func assertMigrationRefused(
+	ctx context.Context, t *testing.T, svc *Service, seeded lockedMigrationSeed, selection ResourceSelections, name string,
+) {
+	t.Helper()
+	fx := seeded.fx
+	result, err := svc.Migrate(ctx, fx.userID, fx.teamID, fx.srcID, &MigrationRequest{
+		DestinationProjectID: fx.dstID,
+		Resources:            selection,
+		ConflictPolicy:       ConflictPolicySkip,
+	})
+	assert.Nil(t, result, name)
+	var locked *repositories.LockedResourcesError
+	require.ErrorAs(t, err, &locked, name)
+	require.ErrorIs(t, err, repositories.ErrProjectHasLockedResources, name)
+	assert.Equal(t, []models.LockedResourceRef{seeded.want}, locked.Resources, name)
+
+	for table, id := range seeded.ids {
+		assert.Equal(t, fx.srcID, projectIDOf(t, table, id), "%s: %s must not move", name, table)
+	}
+	assert.Equal(t, fx.srcID, projectIDOf(t, "feed_items", seeded.feedItem), name)
+	for _, table := range []string{"prompts", "artifacts", "blueprints", "feed_items"} {
+		assert.Zero(t, countInProject(t, table, fx.dstID), "%s: destination must stay empty of %s", name, table)
+	}
+}
+
+// assertMigrationMovesEverything runs the everything-selected migration once
+// the lock is gone: it succeeds and every seeded resource is in the destination.
+func assertMigrationMovesEverything(ctx context.Context, t *testing.T, svc *Service, seeded lockedMigrationSeed) {
+	t.Helper()
+	fx := seeded.fx
+	result, err := svc.Migrate(ctx, fx.userID, fx.teamID, fx.srcID, &MigrationRequest{
+		DestinationProjectID: fx.dstID,
+		Resources:            allResources(),
+		ConflictPolicy:       ConflictPolicySkip,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, ResourceMigrationCounts{Prompts: 1, Artifacts: 1, Blueprints: 1, FeedItems: 1}, result.Migrated)
+	for table, id := range seeded.ids {
+		assert.Equal(t, fx.dstID, projectIDOf(t, table, id), table)
+	}
+}
+
 // A migration rewrites project_id, a frozen field of a locked resource (issue
 // #1290). While the source project holds a locked prompt, blueprint or
 // artifact the migration is refused with the error that names it, and nothing
@@ -456,51 +526,15 @@ func TestIntegrationMigrate_RefusedWhileSourceHoldsALockedResource(t *testing.T)
 			requests := map[string]ResourceSelections{
 				"everything selected": allResources(),
 				// The locked resource's own type is left out entirely.
-				"the locked resource not selected": func() ResourceSelections {
-					sel := allResources()
-					switch lockedType.table {
-					case "prompts":
-						sel.Prompts = ResourceSelection{}
-					case "artifacts":
-						sel.Artifacts = ResourceSelection{}
-					case "blueprints":
-						sel.Blueprints = ResourceSelection{}
-					}
-					return sel
-				}(),
+				"the locked resource not selected": allResourcesExcept(lockedType.table),
 			}
+			seeded := lockedMigrationSeed{fx: fx, ids: ids, feedItem: feedItem, want: want}
 			for name, selection := range requests {
-				result, err := svc.Migrate(ctx, fx.userID, fx.teamID, fx.srcID, &MigrationRequest{
-					DestinationProjectID: fx.dstID,
-					Resources:            selection,
-					ConflictPolicy:       ConflictPolicySkip,
-				})
-				assert.Nil(t, result, name)
-				var locked *repositories.LockedResourcesError
-				require.ErrorAs(t, err, &locked, name)
-				require.ErrorIs(t, err, repositories.ErrProjectHasLockedResources, name)
-				assert.Equal(t, []models.LockedResourceRef{want}, locked.Resources, name)
-
-				for table, id := range ids {
-					assert.Equal(t, fx.srcID, projectIDOf(t, table, id), "%s: %s must not move", name, table)
-				}
-				assert.Equal(t, fx.srcID, projectIDOf(t, "feed_items", feedItem), name)
-				for _, table := range []string{"prompts", "artifacts", "blueprints", "feed_items"} {
-					assert.Zero(t, countInProject(t, table, fx.dstID), "%s: destination must stay empty of %s", name, table)
-				}
+				assertMigrationRefused(ctx, t, svc, seeded, selection, name)
 			}
 
 			setTestLock(t, lockedType.table, lockedID, "")
-			result, err := svc.Migrate(ctx, fx.userID, fx.teamID, fx.srcID, &MigrationRequest{
-				DestinationProjectID: fx.dstID,
-				Resources:            allResources(),
-				ConflictPolicy:       ConflictPolicySkip,
-			})
-			require.NoError(t, err)
-			assert.Equal(t, ResourceMigrationCounts{Prompts: 1, Artifacts: 1, Blueprints: 1, FeedItems: 1}, result.Migrated)
-			for table, id := range ids {
-				assert.Equal(t, fx.dstID, projectIDOf(t, table, id), table)
-			}
+			assertMigrationMovesEverything(ctx, t, svc, seeded)
 		})
 	}
 }
