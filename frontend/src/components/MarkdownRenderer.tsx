@@ -15,6 +15,8 @@ import {
 import {
   addHeadingIds,
   markTaskListItems,
+  replaceCodeBlocks,
+  replaceMermaidFences,
   stripLeadingTitleHeading,
 } from './markdownTransforms'
 import { readMermaidTheme } from './mermaidTheme'
@@ -416,25 +418,21 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         // ever rendered — every one silently degraded to a code block (#744).
         let source = stripLeadingTitleHeading(content, hideLeadingTitle)
         if (enableMermaid) {
-          const mermaidRegex = /```(?:mermaid|mmd)\r?\n([\s\S]*?)```/g
           const diagrams: { id: string; code: string }[] = []
 
-          source = source.replace(
-            mermaidRegex,
-            (_match: string, code: string) => {
-              const randomStr = Math.random().toString(36).substring(2, 11)
-              const id = `mermaid-${String(Date.now())}-${randomStr}`
-              diagrams.push({
-                id,
-                code: placeholders
-                  ? substituteFilledPlaceholders(code.trim(), placeholders)
-                  : code.trim(),
-              })
-              // Surrounding blank lines keep this a top-level HTML block, so
-              // marked emits it verbatim instead of wrapping it in a <p>.
-              return `\n\n<div data-mermaid-id="${id}"></div>\n\n`
-            }
-          )
+          source = replaceMermaidFences(source, (code: string) => {
+            const randomStr = Math.random().toString(36).substring(2, 11)
+            const id = `mermaid-${String(Date.now())}-${randomStr}`
+            diagrams.push({
+              id,
+              code: placeholders
+                ? substituteFilledPlaceholders(code.trim(), placeholders)
+                : code.trim(),
+            })
+            // Surrounding blank lines keep this a top-level HTML block, so
+            // marked emits it verbatim instead of wrapping it in a <p>.
+            return `\n\n<div data-mermaid-id="${id}"></div>\n\n`
+          })
 
           setMermaidDiagrams(diagrams)
         }
@@ -457,13 +455,9 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         // language label and the copy button. A fence with no language has no
         // class attribute at all, and gets the bar too.
         let copyButtonCounter = 0
-        html = html.replace(
-          /<pre><code(?: class="([^"]*)")?>([\s\S]*?)<\/code><\/pre>/g,
-          (
-            _match: string,
-            className: string | undefined,
-            codeContent: string
-          ) => {
+        html = replaceCodeBlocks(
+          html,
+          (className: string | undefined, codeContent: string) => {
             // Extract language from className (e.g., "language-javascript" -> "javascript")
             const language = /language-([\w+#-]+)/.exec(className ?? '')?.[1]
             // The code as text: what is highlighted, and what is copied. (The

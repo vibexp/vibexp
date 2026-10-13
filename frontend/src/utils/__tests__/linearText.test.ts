@@ -1,4 +1,10 @@
-import { forwardFinder, trimChar, trimEndChar } from '../linearText'
+import {
+  forwardFinder,
+  forwardSearch,
+  removeSpans,
+  trimChar,
+  trimEndChar,
+} from '../linearText'
 
 describe('trimEndChar', () => {
   it('drops only the trailing run', () => {
@@ -55,5 +61,40 @@ describe('on a long adversarial input', () => {
       expect(trimEndChar(`${'/'.repeat(N)}a`, '/')).toHaveLength(N + 1)
       expect(trimChar(`a${'-'.repeat(N)}a`, '-')).toHaveLength(N + 2)
     })
+  })
+})
+
+describe('removeSpans', () => {
+  it('drops every span from an opening to the first closing character', () => {
+    expect(removeSpans('a <em>b</em> c', '<', '>')).toBe('a b c')
+    expect(removeSpans('<<x>y', '<', '>')).toBe('y')
+    expect(removeSpans('<>', '<', '>')).toBe('')
+  })
+
+  it('leaves an opening with no closing after it', () => {
+    expect(removeSpans('a < b', '<', '>')).toBe('a < b')
+    expect(removeSpans('a > b < c', '<', '>')).toBe('a > b < c')
+    expect(removeSpans('', '<', '>')).toBe('')
+  })
+
+  it('stays fast on a long run of openings that never close', () => {
+    const text = '<'.repeat(50_000)
+    expectFast(() => {
+      expect(removeSpans(text, '<', '>')).toBe(text)
+    })
+  })
+})
+
+describe('forwardSearch', () => {
+  it('asks the search again only once the last hit is behind', () => {
+    const search = vi.fn((from: number) => (from <= 10 ? 10 : -1))
+    const find = forwardSearch(search)
+    expect(find(0)).toBe(10)
+    expect(find(5)).toBe(10)
+    expect(find(10)).toBe(10)
+    expect(search).toHaveBeenCalledTimes(1)
+    expect(find(11)).toBe(-1)
+    expect(find(12)).toBe(-1)
+    expect(search).toHaveBeenCalledTimes(2)
   })
 })

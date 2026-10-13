@@ -6,7 +6,7 @@
  */
 
 import { createSlugger } from '@/components/patterns/reading-page/outline'
-import { forwardFinder } from '@/utils/linearText'
+import { forwardFinder, removeSpans } from '@/utils/linearText'
 
 const normalize = (text: string): string =>
   text.trim().replace(/\s+/g, ' ').toLowerCase()
@@ -127,11 +127,110 @@ export function addHeadingIds(html: string): string {
       continue
     }
     const inner = html.slice(innerStart, close)
-    const text = decodeEntities(inner.replace(/<[^>]*>/g, ''))
+    const text = decodeEntities(removeSpans(inner, '<', '>'))
     const end = close + `</h${level}>`.length
     out += `${html.slice(copiedTo, open.index)}<h${level} id="${slug(text)}">${inner}</h${level}>`
     copiedTo = end
     opening.lastIndex = end
   }
   return out + html.slice(copiedTo)
+}
+
+const CODE_BLOCK_OPEN = '<pre><code'
+const CODE_BLOCK_CLASS = ' class="'
+const CODE_BLOCK_CLOSE = '</code></pre>'
+
+/**
+ * Replaces every `<pre><code>…</code></pre>` block marked emitted with what
+ * `replace` returns for it. `className` is the `class` attribute's value when
+ * the opening tag carries exactly that one attribute (a fence with a language),
+ * and `undefined` for a bare `<pre><code>`; `code` is the escaped body, up to
+ * the first closing pair. Anything else — another attribute, a block that is
+ * never closed — is left as written.
+ *
+ * A scan, not `<pre><code(?: class="([^"]*)")?>([\s\S]*?)<\/code><\/pre>`:
+ * that pattern reads to the end of the document from every opening that is
+ * never closed.
+ */
+export function replaceCodeBlocks(
+  html: string,
+  replace: (className: string | undefined, code: string) => string
+): string {
+  const nextQuote = forwardFinder(html, '"')
+  const nextClose = forwardFinder(html, CODE_BLOCK_CLOSE)
+  let out = ''
+  let copiedTo = 0
+  let from = 0
+  for (;;) {
+    const open = html.indexOf(CODE_BLOCK_OPEN, from)
+    if (open === -1) break
+    let cursor = open + CODE_BLOCK_OPEN.length
+    let className: string | undefined
+    if (html.startsWith(CODE_BLOCK_CLASS, cursor)) {
+      const valueStart = cursor + CODE_BLOCK_CLASS.length
+      const quote = nextQuote(valueStart)
+      // No closing quote from here on: no later block can have a class.
+      if (quote !== -1) {
+        className = html.slice(valueStart, quote)
+        cursor = quote + 1
+      }
+    }
+    const close = html[cursor] === '>' ? nextClose(cursor + 1) : -1
+    if (close === -1) {
+      from = open + 1
+      continue
+    }
+    out +=
+      html.slice(copiedTo, open) +
+      replace(className, html.slice(cursor + 1, close))
+    copiedTo = close + CODE_BLOCK_CLOSE.length
+    from = copiedTo
+  }
+  return out + html.slice(copiedTo)
+}
+
+const FENCE = '```'
+const MERMAID_INFO_STRINGS = ['mermaid', 'mmd'] as const
+
+/**
+ * Replaces every ```` ```mermaid ```` (or ```` ```mmd ````) fence in raw
+ * markdown with what `replace` returns for its body. The info string must be
+ * followed directly by a line break (LF or CRLF); the body runs to the next
+ * three backticks. A fence that is never closed is left as written.
+ *
+ * A scan, not ```` ```(?:mermaid|mmd)\r?\n([\s\S]*?)``` ````: that pattern
+ * reads to the end of the document from every such opening that never closes.
+ */
+export function replaceMermaidFences(
+  source: string,
+  replace: (code: string) => string
+): string {
+  const nextClose = forwardFinder(source, FENCE)
+  let out = ''
+  let copiedTo = 0
+  let from = 0
+  for (;;) {
+    const open = source.indexOf(FENCE, from)
+    if (open === -1) break
+    const infoStart = open + FENCE.length
+    const info = MERMAID_INFO_STRINGS.find(name =>
+      source.startsWith(name, infoStart)
+    )
+    let bodyStart = -1
+    if (info !== undefined) {
+      let cursor = infoStart + info.length
+      if (source[cursor] === '\r') cursor += 1
+      if (source[cursor] === '\n') bodyStart = cursor + 1
+    }
+    const close = bodyStart === -1 ? -1 : nextClose(bodyStart)
+    if (close === -1) {
+      from = open + 1
+      continue
+    }
+    out +=
+      source.slice(copiedTo, open) + replace(source.slice(bodyStart, close))
+    copiedTo = close + FENCE.length
+    from = copiedTo
+  }
+  return out + source.slice(copiedTo)
 }
