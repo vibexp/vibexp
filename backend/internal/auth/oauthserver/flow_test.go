@@ -286,6 +286,52 @@ func TestAuthorizationCodeFlow_IssuesAudienceBoundJWT(t *testing.T) {
 	assert.Equal(t, "user-1", claims["sub"])
 	assert.Contains(t, audienceStrings(claims["aud"]), testResourceURI,
 		"token must be audience-bound to the MCP resource URI (RFC 8707)")
+	// Revoking a user's API access refuses bearer tokens by issue time, and
+	// refuses one with no iat at all (#1449). A token minted here without iat
+	// would lock every revoked user out of MCP for good.
+	iat := numericClaim(t, claims, "iat")
+	assert.WithinDuration(t, time.Now(), iat, 10*time.Second, "an access token must carry the time it was issued")
+}
+
+// numericClaim reads a NumericDate claim of a verified token.
+func numericClaim(t *testing.T, claims map[string]any, name string) time.Time {
+	t.Helper()
+	seconds, ok := claims[name].(float64)
+	require.Truef(t, ok, "claim %q must be a number, got %T (%v)", name, claims[name], claims[name])
+	return time.Unix(int64(seconds), 0)
+}
+
+// A refreshed access token carries the iat of the grant's FIRST code exchange,
+// not of the refresh: the session, with its claims, is stored once and cloned on
+// every refresh. API access revocation (#1449) relies on this. Its cut-off
+// refuses tokens issued before it, so a refresh that raced the revocation still
+// yields a token the cut-off refuses. If a library upgrade starts stamping iat
+// at refresh time, that race opens, and this test is where it shows.
+func TestRefreshToken_AccessTokenKeepsTheGrantsIssuedAt(t *testing.T) {
+	h := newTestHarness(t)
+	defer h.close()
+
+	code := h.runAuthorizeToCode(t, pkceChallenge())
+	first := jsonBody(t, h.exchangeCode(t, code, testVerifier))
+	firstAccess, _ := first["access_token"].(string)
+	refreshToken, _ := first["refresh_token"].(string)
+	require.NotEmpty(t, firstAccess)
+	require.NotEmpty(t, refreshToken)
+	grantedAt := numericClaim(t, h.verifyJWTAgainstJWKS(t, firstAccess), "iat")
+
+	// iat has one-second resolution; cross a second so "kept" and "restamped"
+	// cannot look the same.
+	time.Sleep(1100 * time.Millisecond)
+
+	res := h.refresh(t, refreshToken)
+	require.Equal(t, http.StatusOK, res.status)
+	refreshedAccess, _ := jsonBody(t, res)["access_token"].(string)
+	require.NotEmpty(t, refreshedAccess)
+	require.NotEqual(t, firstAccess, refreshedAccess, "a refresh issues a new access token")
+
+	refreshedAt := numericClaim(t, h.verifyJWTAgainstJWKS(t, refreshedAccess), "iat")
+	assert.True(t, grantedAt.Equal(refreshedAt),
+		"refreshed token iat = %s, grant iat = %s", refreshedAt, grantedAt)
 }
 
 func TestAuthorizationCodeFlow_RejectsWrongPKCEVerifier(t *testing.T) {

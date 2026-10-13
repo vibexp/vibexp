@@ -152,6 +152,16 @@ func TestVerify_IssuedAt(t *testing.T) {
 		assert.True(t, issued.Equal(info.IssuedAt))
 	})
 
+	t.Run("a fractional iat verifies and is truncated to the second", func(t *testing.T) {
+		claims := validClaims(j.issuer())
+		claims["iat"] = 1700000000.5
+
+		info, err := v.Verify(context.Background(), j.sign(t, claims))
+
+		require.NoError(t, err, "a NumericDate may be fractional; iat must never fail verification")
+		assert.True(t, time.Unix(1700000000, 0).Equal(info.IssuedAt))
+	})
+
 	t.Run("a token without iat reports the zero time", func(t *testing.T) {
 		info, err := v.Verify(context.Background(), j.sign(t, validClaims(j.issuer())))
 

@@ -272,7 +272,7 @@ func (s *Server) authenticateWithOAuthJWT(w http.ResponseWriter, r *http.Request
 
 	ctx, err := s.authenticateUser(r.Context(), info.UserID, authTypeOAuth, nil, nil, info.IssuedAt)
 	if err != nil {
-		s.logSuspendedRejection(r.Context(), "authenticateWithOAuthJWT", "oauth", info.UserID, err)
+		s.logSuspendedRejection(r.Context(), "authenticateWithOAuthJWT", authTypeOAuth, info.UserID, err)
 		s.writeSuspensionAuthError(w, r, err)
 		return
 	}
@@ -545,7 +545,7 @@ func (s *Server) optionalOAuthJWTContext(r *http.Request, token string) (context
 	if err == nil {
 		ctx, authErr := s.authenticateUser(r.Context(), info.UserID, authTypeOAuth, nil, nil, info.IssuedAt)
 		if authErr != nil {
-			s.logSuspendedRejection(r.Context(), "optionalAuthMiddleware", "oauth", info.UserID, authErr)
+			s.logSuspendedRejection(r.Context(), "optionalAuthMiddleware", authTypeOAuth, info.UserID, authErr)
 			return nil, false
 		}
 		return ctx, true

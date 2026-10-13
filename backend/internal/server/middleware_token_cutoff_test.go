@@ -173,8 +173,9 @@ func TestTokenRevoked_Boundaries(t *testing.T) {
 	assert.False(t, tokenRevoked(&models.User{}, time.Time{}), "no cut-off, nothing is revoked")
 }
 
-// A JWT minted the way the embedded Authorization Server does (with iat) is the
-// realistic case for both paths; this pins the claim name end to end.
+// The cut-off reads the standard iat claim. This token is hand-built; that the
+// embedded Authorization Server really mints iat, and what a refreshed token
+// carries, is pinned in internal/auth/oauthserver/flow_test.go.
 func TestTokenCutoff_ClaimNameIsIAT(t *testing.T) {
 	j := newOAuthJWKSServer(t)
 	cutoff := time.Now().Add(-time.Minute)

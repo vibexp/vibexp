@@ -137,7 +137,9 @@ const rejectReasonNotOnAllowlist = "not_on_allowlist"
 // zero time for every other auth type. Once the user has a bearer-token
 // cut-off, a token issued before it is refused, and so is one whose issue time
 // is unknown: a token that cannot be placed after the revocation is not trusted
-// to be.
+// to be. For a token of the embedded Authorization Server, iat is when the
+// GRANT was first exchanged; a refreshed token inherits it, so refreshing never
+// carries a token past the cut-off.
 //
 // Errors are of two kinds and callers must distinguish them:
 //   - errUserSuspended / errUserNotOnAllowlist / errSessionRevoked /
@@ -175,6 +177,13 @@ func (s *Server) authenticateUser(
 // iat has one-second resolution and the cut-off does not, so a token issued in
 // the same second as the revocation, even just after it, is refused once and
 // the client re-authorizes. That errs on the side the revocation exists for.
+//
+// The cut-off is the DATABASE clock and iat the clock of the server that minted
+// the token. If the minting server's clock runs ahead of the database by N
+// seconds, a grant first exchanged in the N seconds before a revocation reads
+// as issued after it and keeps working until it expires (its rows are gone, so
+// it cannot be refreshed). Clocks kept in sync, as any deployment needs for
+// token expiry anyway, make that window negligible.
 func tokenRevoked(user *models.User, issuedAt time.Time) bool {
 	if user.APITokensValidAfter == nil {
 		return false

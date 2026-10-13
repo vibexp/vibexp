@@ -143,8 +143,12 @@ type claims struct {
 	Audience  jwt.ClaimStrings `json:"aud"`
 	ExpiresAt int64            `json:"exp"`
 	NotBefore int64            `json:"nbf"`
-	IssuedAt  int64            `json:"iat"`
-	Scope     string           `json:"scope"`
+	// IssuedAt is informational to the verifier (it is reported, never
+	// validated), so it is decoded leniently: a NumericDate may be fractional
+	// (RFC 7519 §2), and a token must not fail verification over a claim the
+	// verifier does not judge.
+	IssuedAt float64 `json:"iat"`
+	Scope    string  `json:"scope"`
 }
 
 // TokenInfo is the result of a successful verification: the resolved internal
@@ -369,7 +373,7 @@ func (v *Verifier) Verify(ctx context.Context, token string) (*TokenInfo, error)
 		Expiration: time.Unix(c.ExpiresAt, 0),
 	}
 	if c.IssuedAt > 0 {
-		info.IssuedAt = time.Unix(c.IssuedAt, 0)
+		info.IssuedAt = time.Unix(int64(c.IssuedAt), 0)
 	}
 	return info, nil
 }
