@@ -584,7 +584,7 @@ func runPromptShareHasAccessScenario(t *testing.T, sc promptShareHasAccessScenar
 	repo, mock, mockDB := newPromptShareMockRepo(t)
 	defer closeMockDB(t, mockDB)
 
-	exp := mock.ExpectQuery(`SELECT EXISTS\(SELECT 1 FROM prompt_share_access WHERE share_id = \$1 AND email = \$2\)`).
+	exp := mock.ExpectQuery(`SELECT EXISTS\(SELECT 1 FROM prompt_share_access WHERE share_id = \$1 AND lower\(email\) = lower\(\$2\)\)`).
 		WithArgs("share-1", "a@example.com")
 	if sc.queryErr != nil {
 		exp.WillReturnError(sc.queryErr)

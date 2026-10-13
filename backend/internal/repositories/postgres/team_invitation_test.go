@@ -434,7 +434,7 @@ func TestTeamInvitationRepository_GetPendingByEmail(t *testing.T) {
 					models.InvitationStatusPending, expiresAt, now, now,
 				)
 
-				mock.ExpectQuery(`SELECT .+ FROM team_invitations WHERE invitee_email`).
+				mock.ExpectQuery(`SELECT .+ FROM team_invitations WHERE lower\(invitee_email\) = lower\(\$1\)`).
 					WithArgs("invite@example.com", models.InvitationStatusPending).
 					WillReturnRows(rows)
 			},
@@ -450,7 +450,7 @@ func TestTeamInvitationRepository_GetPendingByEmail(t *testing.T) {
 					"status", "expires_at", "created_at", "updated_at",
 				})
 
-				mock.ExpectQuery(`SELECT .+ FROM team_invitations WHERE invitee_email`).
+				mock.ExpectQuery(`SELECT .+ FROM team_invitations WHERE lower\(invitee_email\) = lower\(\$1\)`).
 					WithArgs("noinvites@example.com", models.InvitationStatusPending).
 					WillReturnRows(rows)
 			},
@@ -461,7 +461,7 @@ func TestTeamInvitationRepository_GetPendingByEmail(t *testing.T) {
 			name:  "database error",
 			email: "error@example.com",
 			setupMock: func() {
-				mock.ExpectQuery(`SELECT .+ FROM team_invitations WHERE invitee_email`).
+				mock.ExpectQuery(`SELECT .+ FROM team_invitations WHERE lower\(invitee_email\) = lower\(\$1\)`).
 					WithArgs("error@example.com", models.InvitationStatusPending).
 					WillReturnError(sql.ErrConnDone)
 			},
@@ -744,7 +744,7 @@ func TestTeamInvitationRepository_GetPendingByEmail_RowsIterationError(t *testin
 		models.InvitationStatusPending, expiresAt, now, now,
 	).RowError(0, driver.ErrBadConn)
 
-	mock.ExpectQuery(`SELECT .+ FROM team_invitations WHERE invitee_email`).
+	mock.ExpectQuery(`SELECT .+ FROM team_invitations WHERE lower\(invitee_email\) = lower\(\$1\)`).
 		WithArgs("invite@example.com", models.InvitationStatusPending).
 		WillReturnRows(rows)
 

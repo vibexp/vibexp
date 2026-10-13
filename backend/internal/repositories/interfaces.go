@@ -101,6 +101,9 @@ var (
 	// domain error, so callers can answer 409 without importing lib/pq or
 	// re-checking with a second query that a concurrent insert could invalidate.
 	ErrUserEmailTaken = errors.New("user email already registered")
+	// ErrUserIdentityTaken is returned by UserIdentityRepository.Upsert when the
+	// (provider, subject) pair already belongs to a different user.
+	ErrUserIdentityTaken = errors.New("sign-in identity belongs to another user")
 
 	// ErrProjectSlugExists is returned by ProjectRepository.Create when a project
 	// with the same slug already exists in the team (Postgres unique violation 23505).
@@ -468,12 +471,20 @@ type OAuthLoginSessionRepository interface {
 // UserRepository defines the interface for user data access operations
 type UserRepository interface {
 	GetByID(ctx context.Context, userID string) (*models.User, error)
+	// GetByEmail matches case-insensitively: the argument is normalized with
+	// models.NormalizeEmail, the form every stored address is in.
 	GetByEmail(ctx context.Context, email string) (*models.User, error)
-	GetByGoogleID(ctx context.Context, googleID string) (*models.User, error)
-	// GetByIDPSubject looks up a user by the (idp_provider, idp_subject) tuple
-	// populated by the provider-agnostic auth flow.
+	// GetByIDPSubject looks up the user who owns the (provider, subject)
+	// sign-in identity in user_identities. The users.idp_* columns are not
+	// consulted. A legacy Google subject is looked up under
+	// models.LegacyGoogleIdentityProvider.
 	GetByIDPSubject(ctx context.Context, provider, subject string) (*models.User, error)
+	// Create inserts the user and, in the same statement, the sign-in
+	// identities the row carries: (IDPProvider, IDPSubject) when both are set
+	// and the legacy Google identity when GoogleID is set. The email is stored
+	// normalized and user.Email is updated to the stored form.
 	Create(ctx context.Context, user *models.User) error
+	// Update stores the email normalized and updates user.Email to that form.
 	Update(ctx context.Context, user *models.User) error
 	UpdateDefaultTeamID(ctx context.Context, userID, teamID string) error
 	MarkOnboardingCompleted(ctx context.Context, userID string) error
@@ -486,6 +497,19 @@ type UserRepository interface {
 	// It is NOT the admin-facing delete — that one is guarded (see #455) because a
 	// user with data cascades far more widely.
 	DeleteByID(ctx context.Context, userID string) error
+}
+
+// UserIdentityRepository stores the sign-in identities a user holds
+// (user_identities). Looking a user up BY identity is
+// UserRepository.GetByIDPSubject.
+type UserIdentityRepository interface {
+	// Upsert records that userID signed in with (provider, subject): it creates
+	// the identity if the user does not hold it yet and stamps last_used_at
+	// either way. Returns ErrUserIdentityTaken when the pair already belongs to
+	// a different user.
+	Upsert(ctx context.Context, userID, provider, subject string) error
+	// ListByUserID returns the user's identities, oldest first.
+	ListByUserID(ctx context.Context, userID string) ([]models.UserIdentity, error)
 }
 
 // TeamRepository defines the interface for team data access operations

@@ -230,9 +230,11 @@ func (r *PromptShareRepository) GetAccessEmails(ctx context.Context, shareID str
 	return emails, nil
 }
 
-// HasAccess checks if an email has access to a share
+// HasAccess checks if an email has access to a share. The match is
+// case-insensitive: a grant keeps the casing the sharer typed, while the
+// viewer's users.email is always lower case (#1427).
 func (r *PromptShareRepository) HasAccess(ctx context.Context, shareID, email string) (bool, error) {
-	query := `SELECT EXISTS(SELECT 1 FROM prompt_share_access WHERE share_id = $1 AND email = $2)`
+	query := `SELECT EXISTS(SELECT 1 FROM prompt_share_access WHERE share_id = $1 AND lower(email) = lower($2))`
 
 	var hasAccess bool
 	err := r.db.QueryRowContext(ctx, query, shareID, email).Scan(&hasAccess)

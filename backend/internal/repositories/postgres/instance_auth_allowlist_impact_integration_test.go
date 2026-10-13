@@ -32,13 +32,16 @@ func TestIntegrationInstanceAuthAllowlist_CountUsersOutside(t *testing.T) {
 	ctx := context.Background()
 	repo := NewInstanceAuthAllowlistRepository(integrationDB)
 
+	// Stored addresses are always lower case since migration 023
+	// (users_email_lowercase), so the fixtures are too; padding is still
+	// representable and still has to be trimmed by the query.
 	for _, email := range []string{
 		// Admitted by domain example.com.
-		"dev@example.com", "Dev2@EXAMPLE.com", " padded@example.com ", `"x@y"@example.com`,
+		"dev@example.com", "dev2@example.com", " padded@example.com ", `"x@y"@example.com`,
 		// Admitted by exact email.
-		"Guest@Other.com",
+		"guest@other.com",
 		// Exempt root admins.
-		"root@corp.example", "ROOT2@corp.example",
+		"root@corp.example", "root2@corp.example",
 		// Not admitted.
 		"a@sub.example.com", "a@evil-example.com", "a@example.com.attacker.com",
 		"not-an-email", "example.com", "outsider@elsewhere.test",

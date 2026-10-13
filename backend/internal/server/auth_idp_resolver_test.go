@@ -98,6 +98,13 @@ func (m *memUsersByIDP) Create(_ context.Context, u *models.User) error {
 
 func (m *memUsersByIDP) Update(context.Context, *models.User) error { return nil }
 
+// noopIdentities accepts every identity a sign-in records.
+type noopIdentities struct {
+	repositories.UserIdentityRepository
+}
+
+func (noopIdentities) Upsert(context.Context, string, string, string) error { return nil }
+
 // realAuthContainer serves a real AuthService over the mock auth container.
 type realAuthContainer struct {
 	*MockAuthContainer
@@ -127,7 +134,7 @@ func newResolverAuthHarness(t *testing.T) *resolverAuthHarness {
 		CallbackURL: "http://localhost:8080/api/v1/auth/callback",
 		Logger:      logger,
 	})
-	auth := services.NewAuthService(h.users, resolver, nil, logger, staticAllowlistResolver(nil, nil)) // open access
+	auth := services.NewAuthService(h.users, noopIdentities{}, resolver, nil, logger, staticAllowlistResolver(nil, nil)) // open access
 
 	mc := newMockAuthContainer(t)
 	mc.activityService.On("RecordAuthActivity",

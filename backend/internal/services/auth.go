@@ -21,6 +21,7 @@ import (
 // package — HS256 JWT signing is removed in this release.
 type AuthService struct {
 	userRepo     repositories.UserRepository
+	identityRepo repositories.UserIdentityRepository
 	resolver     IdentityProviderResolver
 	allowlist    AccessAllowlistResolver
 	eventManager events.EventPublisher
@@ -106,12 +107,14 @@ func (as *AuthService) ensureAccessAllowed(
 }
 
 func NewAuthService(
-	userRepo repositories.UserRepository, resolver IdentityProviderResolver,
+	userRepo repositories.UserRepository, identityRepo repositories.UserIdentityRepository,
+	resolver IdentityProviderResolver,
 	eventManager events.EventPublisher, logger *slog.Logger,
 	allowlist AccessAllowlistResolver,
 ) *AuthService {
 	return &AuthService{
 		userRepo:     userRepo,
+		identityRepo: identityRepo,
 		resolver:     resolver,
 		allowlist:    allowlist,
 		eventManager: eventManager,
@@ -277,11 +280,14 @@ func (as *AuthService) ProvisionFromClaims(
 	return user, err
 }
 
-// createOrUpdateUserFromClaims looks up an existing user via the
-// (idp_provider, idp_subject) tuple, falling back to legacy lookup by
-// google_id, then creates a new user if none is found. providerName is the
-// slug of the provider that produced the claims (persisted as idp_provider) and
+// createOrUpdateUserFromClaims looks up an existing user by the sign-in
+// identity (provider slug, subject) in user_identities, falling back to the
+// legacy Google identity, then creates a new user if none is found.
+// providerName is the slug of the provider that produced the claims and
 // providerType its kind, which decides the Google-only legacy handling.
+//
+// users.idp_provider and users.idp_subject are still written (the admin list
+// and export read them) but are no longer what a sign-in is resolved by.
 func (as *AuthService) createOrUpdateUserFromClaims(
 	ctx context.Context, providerName string, providerType idp.ProviderName, claims *idp.Claims,
 ) (*models.User, bool, error) {
@@ -299,18 +305,43 @@ func (as *AuthService) createOrUpdateUserFromClaims(
 		return as.createUserFromClaims(ctx, providerName, providerType, claims, avatarURL)
 	}
 
+	now := time.Now()
+	user.EmailVerifiedAt = emailVerifiedAtAfterSignIn(user, claims, now)
 	user.Email = claims.Email
 	user.Name = claims.Name
 	user.AvatarURL = avatarURL
 	user.IDPProvider = &providerName
 	user.IDPSubject = &claims.Subject
-	user.UpdatedAt = time.Now()
+	user.UpdatedAt = now
 
 	if err := as.userRepo.Update(ctx, user); err != nil {
 		return nil, false, fmt.Errorf("failed to update user: %w", err)
 	}
 
+	// Record the identity this sign-in used. For a user matched through the
+	// legacy Google identity this is also what gives them their slug identity.
+	if err := as.identityRepo.Upsert(ctx, user.ID, providerName, claims.Subject); err != nil {
+		return nil, false, fmt.Errorf("failed to record sign-in identity: %w", err)
+	}
+
 	return user, false, nil
+}
+
+// emailVerifiedAtAfterSignIn returns the email_verified_at an existing user
+// should carry once this sign-in has replaced their email with the claims'. The
+// timestamp describes the STORED address: it is set the first time a provider
+// verifies it, kept while the address is unchanged, and when the address
+// changes it restarts from this sign-in (verified) or is cleared (unverified).
+func emailVerifiedAtAfterSignIn(user *models.User, claims *idp.Claims, now time.Time) *time.Time {
+	emailChanged := models.NormalizeEmail(claims.Email) != models.NormalizeEmail(user.Email)
+	switch {
+	case claims.EmailVerified && (user.EmailVerifiedAt == nil || emailChanged):
+		return &now
+	case !claims.EmailVerified && emailChanged:
+		return nil
+	default:
+		return user.EmailVerifiedAt
+	}
 }
 
 // isUserNotFoundErr reports whether err is or wraps
@@ -320,14 +351,9 @@ func isUserNotFoundErr(err error) bool {
 	return errors.Is(err, repositories.ErrUserNotFound)
 }
 
-// findUserForClaims locates the user matching the IDP tuple, falling back
-// to a google_id lookup so legacy users sign in cleanly on first try.
-//
-// Defense-in-depth: when a row is matched by GetByIDPSubject we also verify
-// the row's stored idp_provider equals the current provider name. This is
-// already enforced by the SQL WHERE clause, but the check guards against a
-// future repository implementation that loosens the lookup, and against
-// any code path that aliases a non-Google IdP under the "google" name.
+// findUserForClaims locates the user who owns the (provider slug, subject)
+// sign-in identity, falling back to the legacy Google identity so users from
+// before provider slugs sign in cleanly on first try.
 func (as *AuthService) findUserForClaims(
 	ctx context.Context, providerName string, providerType idp.ProviderName, subject string,
 ) (*models.User, error) {
@@ -336,19 +362,15 @@ func (as *AuthService) findUserForClaims(
 		return nil, fmt.Errorf("failed to query user: %w", err)
 	}
 	if user != nil {
-		if user.IDPProvider != nil && *user.IDPProvider != providerName {
-			return nil, fmt.Errorf("idp provider mismatch on lookup: stored=%q current=%q",
-				*user.IDPProvider, providerName)
-		}
 		return user, nil
 	}
 	// Legacy fallback only applies when the current provider IS Google (by
 	// type, since the slug is admin-chosen); non-Google providers must never
-	// claim an existing google_id row.
+	// claim a legacy Google identity.
 	if providerType != idp.ProviderGoogle {
 		return nil, nil
 	}
-	legacy, lerr := as.userRepo.GetByGoogleID(ctx, subject)
+	legacy, lerr := as.userRepo.GetByIDPSubject(ctx, models.LegacyGoogleIdentityProvider, subject)
 	if lerr != nil && !isUserNotFoundErr(lerr) {
 		return nil, fmt.Errorf("failed to query legacy user: %w", lerr)
 	}
@@ -370,8 +392,13 @@ func (as *AuthService) createUserFromClaims(
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	// Maintain google_id for Google users (legacy compatibility).
-	// Non-Google providers do not receive a google_id.
+	if claims.EmailVerified {
+		newUser.EmailVerifiedAt = &now
+	}
+	// Maintain google_id for Google users (legacy compatibility): the
+	// repository stores it as the legacy Google identity as well, so the user
+	// is still found if the Google provider is later recreated under another
+	// slug. Non-Google providers do not receive a google_id.
 	if providerType == idp.ProviderGoogle {
 		subject := claims.Subject
 		newUser.GoogleID = &subject
@@ -405,13 +432,15 @@ func (as *AuthService) GetUserByID(ctx context.Context, userID string) (*models.
 }
 
 // devIDPProvider is the idp_provider tag stored on users provisioned through
-// the development-only login bypass. Dev users are resolved by email (never by
-// the (idp_provider, idp_subject) tuple or the bearer-token verifier), so this
-// value is purely a stable, self-describing marker.
+// the development-only login bypass, and the provider of their sign-in
+// identity. Dev users are resolved by email (never by identity or the
+// bearer-token verifier), so this value is purely a stable, self-describing
+// marker.
 const devIDPProvider = "dev"
 
 func (as *AuthService) createDevUser(ctx context.Context, email, name string) (*models.User, error) {
 	devProvider := devIDPProvider
+	email = models.NormalizeEmail(email)
 	devSubject := fmt.Sprintf("dev_%s", email)
 	now := time.Now()
 	newUser := &models.User{

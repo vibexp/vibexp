@@ -32,11 +32,15 @@ func NewUserBasicInfo(u *User) *UserBasicInfo {
 }
 
 type User struct {
-	ID                    string     `json:"id" db:"id"`
-	GoogleID              *string    `json:"google_id,omitempty" db:"google_id"`
-	IDPProvider           *string    `json:"idp_provider,omitempty" db:"idp_provider"`
-	IDPSubject            *string    `json:"idp_subject,omitempty" db:"idp_subject"`
-	Email                 string     `json:"email" db:"email"`
+	ID          string  `json:"id" db:"id"`
+	GoogleID    *string `json:"google_id,omitempty" db:"google_id"`
+	IDPProvider *string `json:"idp_provider,omitempty" db:"idp_provider"`
+	IDPSubject  *string `json:"idp_subject,omitempty" db:"idp_subject"`
+	Email       string  `json:"email" db:"email"`
+	// EmailVerifiedAt is when a sign-in provider first reported the current
+	// Email as verified; it restarts when the email changes and is nil when
+	// no provider has verified it. Not part of any API response.
+	EmailVerifiedAt       *time.Time `json:"-" db:"email_verified_at"`
 	Name                  string     `json:"name" db:"name"`
 	AvatarURL             *string    `json:"avatar_url" db:"avatar_url"`
 	DefaultTeamID         *string    `json:"default_team_id,omitempty" db:"default_team_id"`

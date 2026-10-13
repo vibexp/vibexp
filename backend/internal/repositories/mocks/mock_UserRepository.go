@@ -175,65 +175,6 @@ func (_c *MockUserRepository_GetByEmail_Call) RunAndReturn(run func(context.Cont
 	return _c
 }
 
-// GetByGoogleID provides a mock function with given fields: ctx, googleID
-func (_m *MockUserRepository) GetByGoogleID(ctx context.Context, googleID string) (*models.User, error) {
-	ret := _m.Called(ctx, googleID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetByGoogleID")
-	}
-
-	var r0 *models.User
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.User, error)); ok {
-		return rf(ctx, googleID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *models.User); ok {
-		r0 = rf(ctx, googleID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.User)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, googleID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockUserRepository_GetByGoogleID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetByGoogleID'
-type MockUserRepository_GetByGoogleID_Call struct {
-	*mock.Call
-}
-
-// GetByGoogleID is a helper method to define mock.On call
-//   - ctx context.Context
-//   - googleID string
-func (_e *MockUserRepository_Expecter) GetByGoogleID(ctx interface{}, googleID interface{}) *MockUserRepository_GetByGoogleID_Call {
-	return &MockUserRepository_GetByGoogleID_Call{Call: _e.mock.On("GetByGoogleID", ctx, googleID)}
-}
-
-func (_c *MockUserRepository_GetByGoogleID_Call) Run(run func(ctx context.Context, googleID string)) *MockUserRepository_GetByGoogleID_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
-	})
-	return _c
-}
-
-func (_c *MockUserRepository_GetByGoogleID_Call) Return(_a0 *models.User, _a1 error) *MockUserRepository_GetByGoogleID_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockUserRepository_GetByGoogleID_Call) RunAndReturn(run func(context.Context, string) (*models.User, error)) *MockUserRepository_GetByGoogleID_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GetByID provides a mock function with given fields: ctx, userID
 func (_m *MockUserRepository) GetByID(ctx context.Context, userID string) (*models.User, error) {
 	ret := _m.Called(ctx, userID)

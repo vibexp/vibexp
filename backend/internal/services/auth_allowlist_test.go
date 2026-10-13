@@ -25,7 +25,7 @@ func newAllowlistAuthService(
 	repo *repo_mocks.MockUserRepository, provider *idpmocks.MockIdentityProvider,
 ) (*AuthService, *allowlistHarness) {
 	h := newAllowlistHarness(allowlistRootAdmin)
-	return NewAuthService(repo, newTestRegistry(provider), nil, h.resolver.logger, h.resolver), h
+	return NewAuthService(repo, permissiveIdentityRepo(), newTestRegistry(provider), nil, h.resolver.logger, h.resolver), h
 }
 
 func TestAuthService_AllowlistChangeAppliesToTheNextSignIn(t *testing.T) {

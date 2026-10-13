@@ -58,15 +58,17 @@ func TestIntegrationUser_CreateGetRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assertUserRoundTrip(t, user, byID, googleID, avatarURL)
 
-	// GetByEmail and GetByGoogleID use the same column list, so a misalignment
-	// would surface identically — assert them too rather than trusting one path.
+	// GetByEmail and GetByIDPSubject use the same column list (the latter its
+	// u.-qualified twin), so a misalignment would surface identically — assert
+	// them too rather than trusting one path.
 	byEmail, err := repo.GetByEmail(ctx, user.Email)
 	require.NoError(t, err)
 	assertUserRoundTrip(t, user, byEmail, googleID, avatarURL)
 
-	byGoogleID, err := repo.GetByGoogleID(ctx, googleID)
+	// A google_id is stored as the legacy Google identity in the same statement.
+	byLegacyIdentity, err := repo.GetByIDPSubject(ctx, models.LegacyGoogleIdentityProvider, googleID)
 	require.NoError(t, err)
-	assertUserRoundTrip(t, user, byGoogleID, googleID, avatarURL)
+	assertUserRoundTrip(t, user, byLegacyIdentity, googleID, avatarURL)
 }
 
 // assertUserRoundTrip pins every field scanUser populates. Asserting the whole
@@ -81,6 +83,7 @@ func assertUserRoundTrip(t *testing.T, want, got *models.User, googleID, avatarU
 	assert.Nil(t, got.IDPProvider)
 	assert.Nil(t, got.IDPSubject)
 	assert.Equal(t, want.Email, got.Email)
+	assert.Nil(t, got.EmailVerifiedAt, "no provider verified this address")
 	assert.Equal(t, "Round Trip User", got.Name)
 	require.NotNil(t, got.AvatarURL)
 	assert.Equal(t, avatarURL, *got.AvatarURL)
