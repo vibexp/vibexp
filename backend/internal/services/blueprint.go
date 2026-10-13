@@ -693,7 +693,7 @@ func (s *BlueprintService) GetBlueprintVersionInTeam(
 // by applying it through the shared update path, which snapshots the pre-restore content as a
 // new version. Resolves by team membership so a non-creator member can restore (#258).
 func (s *BlueprintService) RestoreBlueprintVersionInTeam(
-	userID, teamID, projectID, slug string, versionNumber int,
+	userID, teamID, projectID, slug string, versionNumber int, origin *models.WriteOrigin,
 ) (*models.Blueprint, error) {
 	blueprint, err := s.GetBlueprintByProjectIDAndSlugInTeam(userID, teamID, projectID, slug)
 	if err != nil {
@@ -715,7 +715,7 @@ func (s *BlueprintService) RestoreBlueprintVersionInTeam(
 	restoreSummary := fmt.Sprintf("Restored Version %d", versionNumber)
 	rawOverride := target.RawContent
 	return s.applyAndPersistBlueprintUpdate(
-		userID, blueprint, &models.UpdateBlueprintRequest{Content: &target.Content},
+		userID, blueprint, &models.UpdateBlueprintRequest{Content: &target.Content, WriteOrigin: origin},
 		models.ActorTypeSystem, &restoreSummary, &rawOverride,
 	)
 }

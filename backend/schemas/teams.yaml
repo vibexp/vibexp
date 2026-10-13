@@ -519,8 +519,7 @@ ResourceCreationBySource:
     and memories, the five channels sum to that type's total across counts.
     unknown holds resources with no recorded channel: those created before
     write sources were recorded, and those created by the system rather than
-    through a request (for example an import). Projects are not broken down by
-    channel.
+    through a request. Projects are not broken down by channel.
   required: [web, cli, mcp, api, unknown]
   properties:
     web:
@@ -538,10 +537,16 @@ ResourceWritesBySource:
   type: object
   description: >-
     Writes (creates and updates of prompts, artifacts, blueprints and memories)
-    recorded per channel over the same window. All four keys are always
-    present. There is no unknown key: a write with no recorded channel is not
-    counted, so these totals start when write sources began to be recorded.
-  required: [web, cli, mcp, api]
+    over the same window, per channel. All five keys are always present, and
+    web + cli + mcp + api + unknown is the number of writes the server knows of
+    in the window. unknown holds the writes with no recorded channel (#1418):
+    resources created in the window that have no create event (the by_source
+    unknown total), plus content changes in the window whose version snapshot
+    carries no source. Both come from before write channels were recorded, or
+    from a system action that is not a request. An update from before write
+    channels were recorded that changed no content left no trace and cannot be
+    counted, so unknown is a lower bound for that period and exact after it.
+  required: [web, cli, mcp, api, unknown]
   properties:
     web:
       type: integer
@@ -555,6 +560,10 @@ ResourceWritesBySource:
     api:
       type: integer
       example: 0
+    unknown:
+      type: integer
+      description: Writes in the window with no recorded channel.
+      example: 2
 
 TeamResourceCreationMetricsResponse:
   type: object

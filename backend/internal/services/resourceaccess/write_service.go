@@ -34,9 +34,12 @@ type SourceCreationCounts struct {
 //
 // Created always has the four write channels plus SourceUnknown, and for each
 // resource type the five values sum to that type's creation total over the
-// same window. Writes always has the four write channels and counts write
-// events, creates and updates alike; it has no SourceUnknown, because a write
-// that recorded no event cannot be counted.
+// same window. Writes always has the four write channels, counting write
+// events (creates and updates alike), plus SourceUnknown: the writes of the
+// window with no event (#1418). Those are the creations Created reports under
+// SourceUnknown and the content changes whose version snapshot has no source,
+// so the five values sum to every write of the window the database has a
+// record of.
 type CreationSources struct {
 	Created map[string]SourceCreationCounts
 	Writes  map[string]int
@@ -135,7 +138,11 @@ func (s *WriteService) GetTeamCreationSources(
 	if err != nil {
 		return nil, fmt.Errorf("ResourceWriteService.GetTeamCreationSources: writes: %w", err)
 	}
-	return buildCreationSources(created, writes), nil
+	unsourcedUpdates, err := s.repo.GetTeamUnsourcedUpdateCount(ctx, teamID, since)
+	if err != nil {
+		return nil, fmt.Errorf("ResourceWriteService.GetTeamCreationSources: unsourced updates: %w", err)
+	}
+	return buildCreationSources(created, writes, unsourcedUpdates), nil
 }
 
 // GetProjectCreationSources returns one project's per-channel creation and
@@ -151,7 +158,11 @@ func (s *WriteService) GetProjectCreationSources(
 	if err != nil {
 		return nil, fmt.Errorf("ResourceWriteService.GetProjectCreationSources: writes: %w", err)
 	}
-	return buildCreationSources(created, writes), nil
+	unsourcedUpdates, err := s.repo.GetProjectUnsourcedUpdateCount(ctx, teamID, projectSlug, since)
+	if err != nil {
+		return nil, fmt.Errorf("ResourceWriteService.GetProjectCreationSources: unsourced updates: %w", err)
+	}
+	return buildCreationSources(created, writes, unsourcedUpdates), nil
 }
 
 // buildCreationSources zero-fills the sparse repository rows so every channel
@@ -161,12 +172,18 @@ func (s *WriteService) GetProjectCreationSources(
 // SourceUnknown rather than dropped: dropping it would break the one promise
 // this breakdown makes, that a type's sources sum to its total. The table's
 // CHECK constraint means no such row should exist.
+//
+// Writes[SourceUnknown] is the window's writes with no event: the creations
+// counted under Created[SourceUnknown], plus unsourcedUpdates. A write event
+// whose source is not a write channel is still dropped, not folded in: if it
+// is a create event, its resource is already in Created[SourceUnknown], and
+// folding the event in as well would count that one write twice.
 func buildCreationSources(
-	created []models.ResourceCreationSourceCount, writes []models.ResourceWriteSourceCount,
+	created []models.ResourceCreationSourceCount, writes []models.ResourceWriteSourceCount, unsourcedUpdates int,
 ) *CreationSources {
 	result := &CreationSources{
 		Created: make(map[string]SourceCreationCounts, len(writeSources)+1),
-		Writes:  make(map[string]int, len(writeSources)),
+		Writes:  make(map[string]int, len(writeSources)+1),
 	}
 	for _, source := range writeSources {
 		result.Created[source] = SourceCreationCounts{}
@@ -196,6 +213,7 @@ func buildCreationSources(
 		result.Created[source] = counts
 	}
 
+	result.Writes[SourceUnknown] = result.Created[SourceUnknown].Total + unsourcedUpdates
 	for _, row := range writes {
 		if IsWriteSource(row.Source) {
 			result.Writes[row.Source] += row.Count

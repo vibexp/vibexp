@@ -552,9 +552,9 @@ func (_c *MockBlueprintServiceInterface_ListBlueprintsByProject_Call) RunAndRetu
 	return _c
 }
 
-// RestoreBlueprintVersionInTeam provides a mock function with given fields: userID, teamID, projectID, slug, versionNumber
-func (_m *MockBlueprintServiceInterface) RestoreBlueprintVersionInTeam(userID string, teamID string, projectID string, slug string, versionNumber int) (*models.Blueprint, error) {
-	ret := _m.Called(userID, teamID, projectID, slug, versionNumber)
+// RestoreBlueprintVersionInTeam provides a mock function with given fields: userID, teamID, projectID, slug, versionNumber, origin
+func (_m *MockBlueprintServiceInterface) RestoreBlueprintVersionInTeam(userID string, teamID string, projectID string, slug string, versionNumber int, origin *models.WriteOrigin) (*models.Blueprint, error) {
+	ret := _m.Called(userID, teamID, projectID, slug, versionNumber, origin)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RestoreBlueprintVersionInTeam")
@@ -562,19 +562,19 @@ func (_m *MockBlueprintServiceInterface) RestoreBlueprintVersionInTeam(userID st
 
 	var r0 *models.Blueprint
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, string, string, int) (*models.Blueprint, error)); ok {
-		return rf(userID, teamID, projectID, slug, versionNumber)
+	if rf, ok := ret.Get(0).(func(string, string, string, string, int, *models.WriteOrigin) (*models.Blueprint, error)); ok {
+		return rf(userID, teamID, projectID, slug, versionNumber, origin)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, string, string, int) *models.Blueprint); ok {
-		r0 = rf(userID, teamID, projectID, slug, versionNumber)
+	if rf, ok := ret.Get(0).(func(string, string, string, string, int, *models.WriteOrigin) *models.Blueprint); ok {
+		r0 = rf(userID, teamID, projectID, slug, versionNumber, origin)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Blueprint)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, string, string, int) error); ok {
-		r1 = rf(userID, teamID, projectID, slug, versionNumber)
+	if rf, ok := ret.Get(1).(func(string, string, string, string, int, *models.WriteOrigin) error); ok {
+		r1 = rf(userID, teamID, projectID, slug, versionNumber, origin)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -593,13 +593,14 @@ type MockBlueprintServiceInterface_RestoreBlueprintVersionInTeam_Call struct {
 //   - projectID string
 //   - slug string
 //   - versionNumber int
-func (_e *MockBlueprintServiceInterface_Expecter) RestoreBlueprintVersionInTeam(userID interface{}, teamID interface{}, projectID interface{}, slug interface{}, versionNumber interface{}) *MockBlueprintServiceInterface_RestoreBlueprintVersionInTeam_Call {
-	return &MockBlueprintServiceInterface_RestoreBlueprintVersionInTeam_Call{Call: _e.mock.On("RestoreBlueprintVersionInTeam", userID, teamID, projectID, slug, versionNumber)}
+//   - origin *models.WriteOrigin
+func (_e *MockBlueprintServiceInterface_Expecter) RestoreBlueprintVersionInTeam(userID interface{}, teamID interface{}, projectID interface{}, slug interface{}, versionNumber interface{}, origin interface{}) *MockBlueprintServiceInterface_RestoreBlueprintVersionInTeam_Call {
+	return &MockBlueprintServiceInterface_RestoreBlueprintVersionInTeam_Call{Call: _e.mock.On("RestoreBlueprintVersionInTeam", userID, teamID, projectID, slug, versionNumber, origin)}
 }
 
-func (_c *MockBlueprintServiceInterface_RestoreBlueprintVersionInTeam_Call) Run(run func(userID string, teamID string, projectID string, slug string, versionNumber int)) *MockBlueprintServiceInterface_RestoreBlueprintVersionInTeam_Call {
+func (_c *MockBlueprintServiceInterface_RestoreBlueprintVersionInTeam_Call) Run(run func(userID string, teamID string, projectID string, slug string, versionNumber int, origin *models.WriteOrigin)) *MockBlueprintServiceInterface_RestoreBlueprintVersionInTeam_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string), args[3].(string), args[4].(int))
+		run(args[0].(string), args[1].(string), args[2].(string), args[3].(string), args[4].(int), args[5].(*models.WriteOrigin))
 	})
 	return _c
 }
@@ -609,7 +610,7 @@ func (_c *MockBlueprintServiceInterface_RestoreBlueprintVersionInTeam_Call) Retu
 	return _c
 }
 
-func (_c *MockBlueprintServiceInterface_RestoreBlueprintVersionInTeam_Call) RunAndReturn(run func(string, string, string, string, int) (*models.Blueprint, error)) *MockBlueprintServiceInterface_RestoreBlueprintVersionInTeam_Call {
+func (_c *MockBlueprintServiceInterface_RestoreBlueprintVersionInTeam_Call) RunAndReturn(run func(string, string, string, string, int, *models.WriteOrigin) (*models.Blueprint, error)) *MockBlueprintServiceInterface_RestoreBlueprintVersionInTeam_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -406,6 +406,8 @@ components:
       $ref: "./schemas/common.yaml#/ResourceLockActor"
     ResourceLock:
       $ref: "./schemas/common.yaml#/ResourceLock"
+    ResourceWriteSource:
+      $ref: "./schemas/common.yaml#/ResourceWriteSource"
     ResourceWriteLockedError:
       $ref: "./schemas/common.yaml#/ResourceWriteLockedError"
     LockResourceRequest:

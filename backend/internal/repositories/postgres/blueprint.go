@@ -174,9 +174,10 @@ func (r *BlueprintRepository) GetByID(
 		s.path, s.path_derived, s.raw_content, s.content_sha,
 		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.source_content_sha, s.imported_at,
 		s.labels,
-		s.locked_by::text, s.locked_at, s.lock_comment, lock_u.name
+		s.locked_by::text, s.locked_at, s.lock_comment, lock_u.name, ` + resourceLastWriteProjection + `
 		FROM blueprints s
 		LEFT JOIN users lock_u ON lock_u.id = s.locked_by
+		LEFT JOIN ` + resourceLastWriteLateral(models.RelationResourceTypeBlueprint, "s") + `
 		WHERE s.id = $1
 			AND s.team_id = $2
 			AND (
@@ -189,6 +190,7 @@ func (r *BlueprintRepository) GetByID(
 	var metadataJSON []byte
 	var sync blueprintSyncScan
 	var lock resourceLockScan
+	var lastWrite resourceLastWriteScan
 	err := r.db.QueryRowContext(ctx, query, blueprintID, teamID, userID).Scan(
 		&blueprint.ID, &blueprint.ProjectID, &blueprint.Slug,
 		&blueprint.UserID, &blueprint.TeamID, &blueprint.Title, &blueprint.Description,
@@ -197,7 +199,7 @@ func (r *BlueprintRepository) GetByID(
 		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
 		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
 		&blueprint.Labels,
-		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName, &lastWrite.source, &lastWrite.assistantName,
 	)
 
 	if err != nil {
@@ -205,6 +207,7 @@ func (r *BlueprintRepository) GetByID(
 	}
 	sync.apply(&blueprint)
 	blueprint.Lock = lock.value()
+	blueprint.LastWrite = lastWrite.value()
 
 	// Initialize metadata if JSON is nil or empty
 	if len(metadataJSON) == 0 {
@@ -230,9 +233,10 @@ func (r *BlueprintRepository) GetByProjectIDAndPath(
 		s.path, s.path_derived, s.raw_content, s.content_sha,
 		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.source_content_sha, s.imported_at,
 		s.labels,
-		s.locked_by::text, s.locked_at, s.lock_comment, lock_u.name
+		s.locked_by::text, s.locked_at, s.lock_comment, lock_u.name, ` + resourceLastWriteProjection + `
 		FROM blueprints s
 		LEFT JOIN users lock_u ON lock_u.id = s.locked_by
+		LEFT JOIN ` + resourceLastWriteLateral(models.RelationResourceTypeBlueprint, "s") + `
 		WHERE s.project_id = $1
 			AND s.path = $2
 			AND s.team_id = $3
@@ -246,6 +250,7 @@ func (r *BlueprintRepository) GetByProjectIDAndPath(
 	var metadataJSON []byte
 	var sync blueprintSyncScan
 	var lock resourceLockScan
+	var lastWrite resourceLastWriteScan
 	err := r.db.QueryRowContext(ctx, query, projectID, path, teamID, userID).Scan(
 		&blueprint.ID, &blueprint.ProjectID, &blueprint.Slug,
 		&blueprint.UserID, &blueprint.TeamID, &blueprint.Title, &blueprint.Description,
@@ -254,7 +259,7 @@ func (r *BlueprintRepository) GetByProjectIDAndPath(
 		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
 		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
 		&blueprint.Labels,
-		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName, &lastWrite.source, &lastWrite.assistantName,
 	)
 	if err != nil {
 		return nil, mapNoRows(
@@ -264,6 +269,7 @@ func (r *BlueprintRepository) GetByProjectIDAndPath(
 	}
 	sync.apply(&blueprint)
 	blueprint.Lock = lock.value()
+	blueprint.LastWrite = lastWrite.value()
 	if len(metadataJSON) == 0 {
 		blueprint.Metadata = make(map[string]interface{})
 	} else if err := json.Unmarshal(metadataJSON, &blueprint.Metadata); err != nil {
@@ -284,9 +290,10 @@ func (r *BlueprintRepository) GetByProjectIDAndSlug(
 		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.source_content_sha, s.imported_at,
 		s.labels,
 		` + projectSummaryProjection + `,
-		s.locked_by::text, s.locked_at, s.lock_comment, lock_u.name
+		s.locked_by::text, s.locked_at, s.lock_comment, lock_u.name, ` + resourceLastWriteProjection + `
 		FROM blueprints s` + projectSummaryJoin("s") + `
 		LEFT JOIN users lock_u ON lock_u.id = s.locked_by
+		LEFT JOIN ` + resourceLastWriteLateral(models.RelationResourceTypeBlueprint, "s") + `
 		WHERE s.project_id = $1
 			AND s.slug = $2
 			AND s.team_id = $3
@@ -301,6 +308,7 @@ func (r *BlueprintRepository) GetByProjectIDAndSlug(
 	var sync blueprintSyncScan
 	var project projectSummaryScan
 	var lock resourceLockScan
+	var lastWrite resourceLastWriteScan
 	err := r.db.QueryRowContext(ctx, query, projectID, slug, teamID, userID).Scan(
 		&blueprint.ID, &blueprint.ProjectID, &blueprint.Slug,
 		&blueprint.UserID, &blueprint.TeamID, &blueprint.Title, &blueprint.Description,
@@ -310,7 +318,7 @@ func (r *BlueprintRepository) GetByProjectIDAndSlug(
 		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
 		&blueprint.Labels,
 		&project.id, &project.name, &project.slug,
-		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName, &lastWrite.source, &lastWrite.assistantName,
 	)
 
 	if err != nil {
@@ -321,6 +329,7 @@ func (r *BlueprintRepository) GetByProjectIDAndSlug(
 	}
 	sync.apply(&blueprint)
 	blueprint.Lock = lock.value()
+	blueprint.LastWrite = lastWrite.value()
 	blueprint.Project = project.value()
 
 	// Initialize metadata if JSON is nil or empty
@@ -345,9 +354,10 @@ func (r *BlueprintRepository) GetByIDCrossTeam(
 		s.path, s.path_derived, s.raw_content, s.content_sha,
 		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.source_content_sha, s.imported_at,
 		s.labels,
-		s.locked_by::text, s.locked_at, s.lock_comment, lock_u.name
+		s.locked_by::text, s.locked_at, s.lock_comment, lock_u.name, ` + resourceLastWriteProjection + `
 		FROM blueprints s
 		LEFT JOIN users lock_u ON lock_u.id = s.locked_by
+		LEFT JOIN ` + resourceLastWriteLateral(models.RelationResourceTypeBlueprint, "s") + `
 		WHERE s.id = $1 AND s.user_id = $2
 	`
 
@@ -355,6 +365,7 @@ func (r *BlueprintRepository) GetByIDCrossTeam(
 	var metadataJSON []byte
 	var sync blueprintSyncScan
 	var lock resourceLockScan
+	var lastWrite resourceLastWriteScan
 	err := r.db.QueryRowContext(ctx, query, blueprintID, userID).Scan(
 		&blueprint.ID, &blueprint.ProjectID, &blueprint.Slug,
 		&blueprint.UserID, &blueprint.TeamID, &blueprint.Title, &blueprint.Description,
@@ -363,7 +374,7 @@ func (r *BlueprintRepository) GetByIDCrossTeam(
 		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
 		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
 		&blueprint.Labels,
-		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName, &lastWrite.source, &lastWrite.assistantName,
 	)
 
 	if err != nil {
@@ -374,6 +385,7 @@ func (r *BlueprintRepository) GetByIDCrossTeam(
 	}
 	sync.apply(&blueprint)
 	blueprint.Lock = lock.value()
+	blueprint.LastWrite = lastWrite.value()
 
 	// Initialize metadata if JSON is nil or empty
 	if len(metadataJSON) == 0 {
@@ -558,8 +570,10 @@ func (r *BlueprintRepository) queryList(
 	query, args, err := psql.
 		Select(blueprintListColumns...).
 		Columns(resourceLockColumns("s")...).
+		Columns(resourceLastWriteColumns...).
 		From("blueprints s").
 		LeftJoin(resourceLockJoin("s")).
+		LeftJoin(resourceLastWriteLateral(models.RelationResourceTypeBlueprint, "s")).
 		Where(where).
 		OrderBy(buildBlueprintListOrderByClause(filters)).
 		Limit(limit).
@@ -602,6 +616,7 @@ func scanBlueprintListRows(rows *sql.Rows) ([]models.Blueprint, error) {
 		var metadataJSON []byte
 		var sync blueprintSyncScan
 		var lock resourceLockScan
+		var lastWrite resourceLastWriteScan
 		scanErr := rows.Scan(
 			&blueprint.ID, &blueprint.ProjectID, &blueprint.Slug,
 			&blueprint.UserID, &blueprint.TeamID, &blueprint.Title, &blueprint.Description,
@@ -610,7 +625,7 @@ func scanBlueprintListRows(rows *sql.Rows) ([]models.Blueprint, error) {
 			&blueprint.Path, &blueprint.PathDerived, &sync.contentSHA,
 			&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.importedAt,
 			&blueprint.Labels,
-			&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
+			&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName, &lastWrite.source, &lastWrite.assistantName,
 		)
 		if scanErr != nil {
 			return nil, fmt.Errorf("failed to scan blueprint: %w", scanErr)
@@ -629,6 +644,7 @@ func scanBlueprintListRows(rows *sql.Rows) ([]models.Blueprint, error) {
 		// provenance). rawContent stays empty and is omitted from the response.
 		sync.apply(&blueprint)
 		blueprint.Lock = lock.value()
+		blueprint.LastWrite = lastWrite.value()
 		blueprints = append(blueprints, blueprint)
 	}
 

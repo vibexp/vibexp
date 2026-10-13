@@ -181,7 +181,7 @@ func TestHandleRestoreMemoryVersion_Success(t *testing.T) {
 	}
 
 	mockContainer.memoryService.On(
-		"RestoreMemoryVersion", "user-123", versionTeamID, versionMemoryID, 1,
+		"RestoreMemoryVersion", "user-123", versionTeamID, versionMemoryID, 1, (*models.WriteOrigin)(nil),
 	).Return(restored, nil)
 
 	srv := createMemoryTestServer(mockContainer)

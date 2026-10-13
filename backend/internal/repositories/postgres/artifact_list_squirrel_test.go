@@ -449,8 +449,8 @@ func TestArtifactRepository_List_ExplicitProjection(t *testing.T) {
 		`SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, ` +
 			`a\.title, a\.description, a\.status, a\.type, a\.metadata, ` +
 			`a\.created_at, a\.updated_at, a\.labels, ` +
-			`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name ` +
-			`FROM artifacts a LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by WHERE`,
+			`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name, lw\.source, lw\.assistant_name ` +
+			`FROM artifacts a LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by LEFT JOIN LATERAL \(.*\) lw ON true WHERE`,
 	).
 		WithArgs(artifactListDefaultArgs()...).
 		WillReturnRows(artifactListOneRow(now))
@@ -486,8 +486,8 @@ func TestArtifactRepository_ListCrossTeam_ExplicitProjection(t *testing.T) {
 		`SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, ` +
 			`a\.title, a\.description, a\.status, a\.type, a\.metadata, ` +
 			`a\.created_at, a\.updated_at, a\.labels, ` +
-			`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name ` +
-			`FROM artifacts a LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by WHERE`,
+			`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name, lw\.source, lw\.assistant_name ` +
+			`FROM artifacts a LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by LEFT JOIN LATERAL \(.*\) lw ON true WHERE`,
 	).
 		WithArgs(artifactCrossTeamDefaultArgs()...).
 		WillReturnRows(artifactListOneRow(now))

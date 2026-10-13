@@ -947,7 +947,8 @@ func (s *Server) mountPromptsHandlers(r chi.Router) {
 	// Prompt content versions (generic content-versioning core, resource_type=prompt).
 	r.Get(base+"/{slug}/versions", s.handleListPromptVersions)
 	r.Get(base+"/{slug}/versions/{version_number}", s.handleGetPromptVersion)
-	r.Post(base+"/{slug}/versions/{version_number}/restore", s.handleRestorePromptVersion)
+	r.With(s.annotateWriteSource).
+		Post(base+"/{slug}/versions/{version_number}/restore", s.handleRestorePromptVersion)
 	r.Get(base+"/{slug}/placeholders", s.handleGetPromptPlaceholders)
 	r.Get(base+"/{slug}/dependencies", s.handleGetPromptDependencies)
 	r.Post(base+"/{slug}/render", s.handleRenderPrompt)
@@ -1038,7 +1039,8 @@ func (s *Server) mountArtifactsHandlers(r chi.Router) {
 	// Artifact content versions (generic content-versioning core, resource_type=artifact).
 	r.Get(base+"/{project_id}/{slug}/versions", s.handleListArtifactVersions)
 	r.Get(base+"/{project_id}/{slug}/versions/{version_number}", s.handleGetArtifactVersion)
-	r.Post(base+"/{project_id}/{slug}/versions/{version_number}/restore", s.handleRestoreArtifactVersion)
+	r.With(s.annotateWriteSource).
+		Post(base+"/{project_id}/{slug}/versions/{version_number}/restore", s.handleRestoreArtifactVersion)
 }
 
 // setupAttachmentsRoutes registers the universal attachments endpoint. owner_type
@@ -1295,7 +1297,8 @@ func (s *Server) mountBlueprintsHandlers(r chi.Router) {
 	// Blueprint content versions (generic content-versioning core, resource_type=blueprint).
 	r.Get(base+"/{project_id}/{slug}/versions", s.handleListBlueprintVersions)
 	r.Get(base+"/{project_id}/{slug}/versions/{version_number}", s.handleGetBlueprintVersion)
-	r.Post(base+"/{project_id}/{slug}/versions/{version_number}/restore", s.handleRestoreBlueprintVersion)
+	r.With(s.annotateWriteSource).
+		Post(base+"/{project_id}/{slug}/versions/{version_number}/restore", s.handleRestoreBlueprintVersion)
 }
 
 func (s *Server) setupFeedsRoutes(r chi.Router) {
@@ -1444,7 +1447,8 @@ func (s *Server) mountMemoriesHandlers(r chi.Router) {
 	// Memory content versions
 	r.Get(base+"/{id}/versions", s.handleListMemoryVersions)
 	r.Get(base+"/{id}/versions/{version_number}", s.handleGetMemoryVersion)
-	r.Post(base+"/{id}/versions/{version_number}/restore", s.handleRestoreMemoryVersion)
+	r.With(s.annotateWriteSource).
+		Post(base+"/{id}/versions/{version_number}/restore", s.handleRestoreMemoryVersion)
 }
 
 // memoryTeamValidationMiddleware validates team_id from URL path and team access for memory operations
@@ -1590,7 +1594,7 @@ func (s *Server) setupGitHubIntegrationRoutes(r chi.Router) {
 		r.Post("/callback", s.handleGitHubCallback)
 		r.Get("/repositories", s.handleGitHubRepositories)
 		r.Post("/repositories/{repo_id}/import-project", s.handleGitHubImportProject)
-		r.Post("/import-blueprints", s.handleGitHubImportBlueprints)
+		r.With(s.annotateWriteSource).Post("/import-blueprints", s.handleGitHubImportBlueprints)
 		r.Delete("/disconnect", s.handleGitHubDisconnect)
 	})
 }

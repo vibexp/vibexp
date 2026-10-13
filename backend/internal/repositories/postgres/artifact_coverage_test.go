@@ -45,7 +45,7 @@ func TestArtifactRepository_GetByIDCrossTeam(t *testing.T) {
 		defer closeMockDB(t, mockDB)
 
 		mock.ExpectQuery(
-			`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+`+
+			`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+LEFT JOIN LATERAL \(.*\) lw ON true\s+`+
 				`WHERE a\.id = \$1 AND a\.user_id = \$2`,
 		).
 			WithArgs("art-1", "user-1").

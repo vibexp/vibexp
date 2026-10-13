@@ -371,19 +371,21 @@ func toGenArtifact(src *models.Artifact) (artifactsgen.Artifact, error) {
 	metadata := map[string]interface{}(src.Metadata)
 
 	out := artifactsgen.Artifact{
-		Id:          src.ID,
-		ProjectId:   projectID,
-		Slug:        src.Slug,
-		UserId:      src.UserID,
-		Title:       src.Title,
-		Description: &description,
-		Type:        src.Type,
-		Status:      artifactsgen.ArtifactStatus(src.Status),
-		Metadata:    &metadata,
-		Labels:      genLabels(src.Labels),
-		CreatedAt:   src.CreatedAt,
-		UpdatedAt:   src.UpdatedAt,
-		Lock:        toGenArtifactLock(src.Lock),
+		Id:                     src.ID,
+		ProjectId:              projectID,
+		Slug:                   src.Slug,
+		UserId:                 src.UserID,
+		Title:                  src.Title,
+		Description:            &description,
+		Type:                   src.Type,
+		Status:                 artifactsgen.ArtifactStatus(src.Status),
+		Metadata:               &metadata,
+		Labels:                 genLabels(src.Labels),
+		CreatedAt:              src.CreatedAt,
+		UpdatedAt:              src.UpdatedAt,
+		Lock:                   toGenArtifactLock(src.Lock),
+		LastWriteSource:        toGenWriteSource[artifactsgen.ResourceWriteSource](src.LastWriteSource),
+		LastWriteAssistantName: src.LastWriteAssistantName,
 	}
 
 	if src.Content != "" {

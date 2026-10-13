@@ -123,8 +123,9 @@ func TestArtifactService_RestoreSnapshotsAsSystem(t *testing.T) {
 					req.NewContent == "v2-content" &&
 					req.ActorType == models.ActorTypeSystem &&
 					req.ChangeSummary != nil && *req.ChangeSummary == "Restored Version 2" &&
-					// A restore is a system action: it records no write channel.
-					req.Origin == nil
+					// A restore is system-authored but still arrives through a
+					// channel (#1418): the snapshot carries the request's origin.
+					req.Origin != nil && req.Origin.Source == "web"
 			}),
 		).
 		Return(nil).
@@ -140,6 +141,6 @@ func TestArtifactService_RestoreSnapshotsAsSystem(t *testing.T) {
 		ContentVersionSvc: cvs,
 		CommentRepo:       nil,
 	})
-	_, err := svc.RestoreArtifactVersionInTeam(userID, teamID, projectID, slug, 2)
+	_, err := svc.RestoreArtifactVersionInTeam(userID, teamID, projectID, slug, 2, &models.WriteOrigin{Source: "web"})
 	require.NoError(t, err)
 }

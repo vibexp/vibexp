@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -218,8 +219,9 @@ func TestRecordResourceWrite_OmitsAbsentAttribution(t *testing.T) {
 	assert.Nil(t, event.AssistantName)
 }
 
-// An internal caller has no write origin in its context (an import, a restore,
-// a scheduled job): its write records no event.
+// A caller that is not a request has no write origin in its context (a
+// scheduled job, a migration): its write records no event, and it leaves the
+// model's last write as the repository resolved it rather than blanking it.
 func TestRecordResourceWrite_NoOriginRecordsNothing(t *testing.T) {
 	t.Parallel()
 
@@ -227,8 +229,89 @@ func TestRecordResourceWrite_NoOriginRecordsNothing(t *testing.T) {
 	writes := ramocks.NewMockResourceWriteService(t)
 	srv := &Server{container: &writeTestContainer{writes: writes}, logger: slog.New(slog.DiscardHandler)}
 
+	previous := resourceaccess.SourceWeb
+	artifact := &models.Artifact{
+		ID: "art-1", ProjectID: writeTestProjectID, LastWrite: models.LastWrite{LastWriteSource: &previous},
+	}
 	srv.recordResourceWrite(context.Background(), writeTestUserID, models.WriteActionCreate,
-		writtenArtifact(writeTestTeamID, &models.Artifact{ID: "art-1", ProjectID: writeTestProjectID}))
+		writtenArtifact(writeTestTeamID, artifact))
+
+	require.NotNil(t, artifact.LastWriteSource)
+	assert.Equal(t, resourceaccess.SourceWeb, *artifact.LastWriteSource)
+}
+
+// The write being recorded is the resource's latest, so its origin replaces
+// whatever the model carried (#1418): the previous write's channel when the
+// service read the row back, or nothing for a create. The event lands off the
+// request path, so the response cannot wait to read it.
+func TestRecordResourceWrite_StampsLastWriteOnTheModel(t *testing.T) {
+	t.Parallel()
+
+	writes, _ := captureWrites(t)
+	srv := &Server{container: &writeTestContainer{writes: writes}, logger: slog.New(slog.DiscardHandler)}
+
+	previous, previousAssistant := resourceaccess.SourceMCP, "claude-code"
+	prompt := &models.Prompt{ID: "prompt-1", LastWrite: models.LastWrite{
+		LastWriteSource: &previous, LastWriteAssistantName: &previousAssistant,
+	}}
+
+	ctx := resourceaccess.WithWriteOrigin(context.Background(), resourceaccess.SourceWeb, "")
+	srv.recordResourceWrite(ctx, writeTestUserID, models.WriteActionUpdate, writtenPrompt(writeTestTeamID, prompt))
+
+	require.NotNil(t, prompt.LastWriteSource)
+	assert.Equal(t, resourceaccess.SourceWeb, *prompt.LastWriteSource)
+	// The MCP client's name belonged to the previous write, not this one.
+	assert.Nil(t, prompt.LastWriteAssistantName)
+}
+
+// A GitHub import writes blueprints through the repository, so the handler
+// records the events itself (#1418): a create per imported blueprint, an update
+// per refreshed one, and nothing for a blueprint the import left alone.
+func TestRecordImportedBlueprintWrites(t *testing.T) {
+	t.Parallel()
+
+	writes, events := captureWrites(t)
+	srv := &Server{container: &writeTestContainer{writes: writes}, logger: slog.New(slog.DiscardHandler)}
+	ctx := resourceaccess.WithWriteOrigin(context.Background(), resourceaccess.SourceWeb, "")
+
+	srv.recordImportedBlueprintWrites(ctx, writeTestUserID, writeTestTeamID, &models.BlueprintImportReport{
+		ProjectID:       writeTestProjectID,
+		SuccessfulItems: []models.BlueprintImportSuccess{{BlueprintID: "bp-new-1"}, {BlueprintID: "bp-new-2"}},
+		UpdatedItems:    []models.BlueprintImportUpdated{{BlueprintID: "bp-refreshed"}},
+		UpToDateItems:   []models.BlueprintImportUpToDate{{}},
+		ConflictItems:   []models.BlueprintImportConflict{{}},
+		SkippedItems:    []models.BlueprintImportSkipped{{}},
+		FailedItems:     []models.BlueprintImportFailed{{}},
+	})
+
+	require.Len(t, *events, 3)
+	got := make(map[string]string, len(*events))
+	for _, event := range *events {
+		got[event.ResourceID] = event.Action
+		assert.Equal(t, "blueprint", event.ResourceType)
+		assert.Equal(t, resourceaccess.SourceWeb, event.Source)
+		assert.Equal(t, writeTestTeamID, event.TeamID)
+		require.NotNil(t, event.ProjectID)
+		assert.Equal(t, writeTestProjectID, *event.ProjectID)
+	}
+	assert.Equal(t, map[string]string{
+		"bp-new-1":     models.WriteActionCreate,
+		"bp-new-2":     models.WriteActionCreate,
+		"bp-refreshed": models.WriteActionUpdate,
+	}, got)
+}
+
+// An import that failed before it produced a report has nothing to record.
+func TestRecordImportedBlueprintWrites_NilReport(t *testing.T) {
+	t.Parallel()
+
+	writes := ramocks.NewMockResourceWriteService(t)
+	srv := &Server{container: &writeTestContainer{writes: writes}, logger: slog.New(slog.DiscardHandler)}
+	ctx := resourceaccess.WithWriteOrigin(context.Background(), resourceaccess.SourceWeb, "")
+
+	assert.NotPanics(t, func() {
+		srv.recordImportedBlueprintWrites(ctx, writeTestUserID, writeTestTeamID, nil)
+	})
 }
 
 func TestRecordResourceWrite_NilServiceIsSafe(t *testing.T) {
@@ -723,6 +806,48 @@ func restWriteCases() []restWriteCase {
 				returnOrFail(call, fail, memory, errWrite)
 			},
 		},
+		// A restore is an update requested through a channel like any other
+		// (#1418): it must reach the service with that channel, for the version
+		// snapshot, and record one update event.
+		{
+			name: "restore prompt", method: http.MethodPost, path: base + "/prompts/p/versions/2/restore",
+			wantStatus: http.StatusOK, resourceType: "prompt", action: models.WriteActionUpdate, resourceID: prompt.ID,
+			arrange: func(f *restWriteFixture, fail bool) {
+				call := f.prompts.On("RestorePromptVersion", writeTestUserID, writeTestTeamID, "p", 2,
+					mock.MatchedBy(isRESTOrigin))
+				returnOrFail(call, fail, prompt, errWrite)
+			},
+		},
+		{
+			name: "restore artifact", method: http.MethodPost,
+			path:       base + "/artifacts/" + writeTestProjectID + "/a/versions/2/restore",
+			wantStatus: http.StatusOK, resourceType: "artifact", action: models.WriteActionUpdate, resourceID: artifact.ID,
+			arrange: func(f *restWriteFixture, fail bool) {
+				call := f.artifacts.On("RestoreArtifactVersionInTeam",
+					writeTestUserID, writeTestTeamID, writeTestProjectID, "a", 2, mock.MatchedBy(isRESTOrigin))
+				returnOrFail(call, fail, artifact, errWrite)
+			},
+		},
+		{
+			name: "restore blueprint", method: http.MethodPost,
+			path:       base + "/blueprints/" + writeTestProjectID + "/b/versions/2/restore",
+			wantStatus: http.StatusOK, resourceType: "blueprint", action: models.WriteActionUpdate, resourceID: blueprint.ID,
+			arrange: func(f *restWriteFixture, fail bool) {
+				call := f.blueprints.On("RestoreBlueprintVersionInTeam",
+					writeTestUserID, writeTestTeamID, writeTestProjectID, "b", 2, mock.MatchedBy(isRESTOrigin))
+				returnOrFail(call, fail, blueprint, errWrite)
+			},
+		},
+		{
+			name: "restore memory", method: http.MethodPost,
+			path:       base + "/memories/" + writeTestMemoryID + "/versions/2/restore",
+			wantStatus: http.StatusOK, resourceType: "memory", action: models.WriteActionUpdate, resourceID: memory.ID,
+			arrange: func(f *restWriteFixture, fail bool) {
+				call := f.memories.On("RestoreMemoryVersion",
+					writeTestUserID, writeTestTeamID, writeTestMemoryID, 2, mock.MatchedBy(isRESTOrigin))
+				returnOrFail(call, fail, memory, errWrite)
+			},
+		},
 	}
 }
 
@@ -739,8 +864,10 @@ func restWriteRequest(tc restWriteCase) *http.Request {
 	return req.WithContext(ctx)
 }
 
-// Every REST create and update route records one write event, labelled with the
-// channel derived from the request's authentication.
+// Every REST create, update and restore route records one write event, labelled
+// with the channel derived from the request's authentication, and answers with
+// that channel as the resource's last write (#1418): the event is persisted off
+// the request path, so the body cannot wait for it to be readable.
 func TestRESTWriteRoutes_RecordWrite(t *testing.T) {
 	for _, tc := range restWriteCases() {
 		t.Run(tc.name, func(t *testing.T) {
@@ -766,6 +893,12 @@ func TestRESTWriteRoutes_RecordWrite(t *testing.T) {
 			assert.Equal(t, writeTestUserID, *event.UserID)
 			require.NotNil(t, event.APIKeyID)
 			assert.Equal(t, writeTestCallerRef, *event.APIKeyID)
+
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+			assert.Equal(t, resourceaccess.SourceCLI, body["last_write_source"])
+			assert.Contains(t, body, "last_write_assistant_name")
+			assert.Nil(t, body["last_write_assistant_name"])
 		})
 	}
 }

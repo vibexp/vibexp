@@ -927,6 +927,16 @@ type ResourceWriteEventRepository interface {
 	GetProjectWriteCountsBySource(
 		ctx context.Context, teamID, projectSlug string, since time.Time,
 	) ([]models.ResourceWriteSourceCount, error)
+	// GetTeamUnsourcedUpdateCount returns how many content changes the team's
+	// prompts, artifacts, blueprints and memories saw at or after since that
+	// carry no channel: version snapshots whose source is NULL. They are the
+	// updates no write event exists for.
+	GetTeamUnsourcedUpdateCount(ctx context.Context, teamID string, since time.Time) (int, error)
+	// GetProjectUnsourcedUpdateCount is GetTeamUnsourcedUpdateCount for the
+	// resources currently in one project of the team, identified by its slug.
+	GetProjectUnsourcedUpdateCount(
+		ctx context.Context, teamID, projectSlug string, since time.Time,
+	) (int, error)
 }
 
 // ContentVersionRepository defines the data-access contract for the polymorphic

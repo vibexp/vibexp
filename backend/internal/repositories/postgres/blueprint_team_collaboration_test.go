@@ -63,8 +63,8 @@ func TestBlueprintRepository_TeamMember_CanListOtherMembersSpecs(t *testing.T) {
 		`s\.description, s\.status, s\.type, s\.subtype, s\.metadata, s\.created_at, s\.updated_at, ` +
 		`s\.path, s\.path_derived, s\.content_sha, s\.source_repo, s\.source_commit_sha, ` +
 		`s\.source_blob_sha, s\.imported_at, s\.labels, ` +
-		`s\.locked_by::text, s\.locked_at, s\.lock_comment, lock_u\.name ` +
-		`FROM blueprints s LEFT JOIN users lock_u ON lock_u\.id = s\.locked_by WHERE`
+		`s\.locked_by::text, s\.locked_at, s\.lock_comment, lock_u\.name, lw\.source, lw\.assistant_name ` +
+		`FROM blueprints s LEFT JOIN users lock_u ON lock_u\.id = s\.locked_by LEFT JOIN LATERAL \(.*\) lw ON true WHERE`
 	mock.ExpectQuery(listQuery).
 		WithArgs(teamID, teamID, bobUserID, teamID, bobUserID).
 		WillReturnRows(sqlmock.NewRows(postgres.WithLockColumns(
@@ -122,8 +122,8 @@ func TestBlueprintRepository_TeamMember_CanGetOtherMembersSpecs(t *testing.T) {
 		`s\.content, s\.status, s\.type, s\.subtype, s\.metadata, s\.created_at, s\.updated_at, s\.version,\s+` +
 		`s\.path, s\.path_derived, s\.raw_content, s\.content_sha, s\.source_repo, s\.source_commit_sha, ` +
 		`s\.source_blob_sha, s\.source_content_sha, s\.imported_at,\s+s\.labels,\s+` +
-		`s\.locked_by::text, s\.locked_at, s\.lock_comment, lock_u\.name\s+` +
-		`FROM blueprints s\s+LEFT JOIN users lock_u ON lock_u\.id = s\.locked_by\s+WHERE.*`
+		`s\.locked_by::text, s\.locked_at, s\.lock_comment, lock_u\.name,\s+lw\.source, lw\.assistant_name\s+` +
+		`FROM blueprints s\s+LEFT JOIN users lock_u ON lock_u\.id = s\.locked_by\s+LEFT JOIN LATERAL \(.*\) lw ON true\s+WHERE.*`
 	mock.ExpectQuery(getQuery).
 		WithArgs(aliceSpecID, teamID, bobUserID).
 		WillReturnRows(sqlmock.NewRows(postgres.WithLockColumns(

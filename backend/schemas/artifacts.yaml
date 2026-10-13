@@ -112,6 +112,28 @@ Artifact:
       description: >-
         The lock held on this resource (epic #1285), or null when it is not
         locked. Present on every read, list and write response.
+    last_write_source:
+      # allOf, not a bare $ref: under OpenAPI 3.0.3 a sibling of $ref is
+      # ignored, and `nullable` is real API surface here.
+      allOf:
+        - $ref: './common.yaml#/ResourceWriteSource'
+      nullable: true
+      description: >-
+        The channel the most recent recorded write (create or update) of this
+        resource arrived through (#1418). Null when no write of it has a
+        recorded channel: it was last written before write channels were
+        recorded, and has not been written since. Null is "not known", never a
+        guessed channel. Present on every read, list and write response.
+    last_write_assistant_name:
+      type: string
+      nullable: true
+      maxLength: 30
+      description: >-
+        The name the MCP client that made the most recent recorded write
+        reported for itself (its clientInfo.name), trimmed and capped at 30
+        characters. It is a label the client chose, not a verified identity.
+        Null unless last_write_source is mcp and the client reported a name.
+      example: "claude-code"
   required:
     - id
     - project_id
@@ -125,6 +147,8 @@ Artifact:
     - labels
     - project
     - lock
+    - last_write_source
+    - last_write_assistant_name
 
 # Request model for creating artifacts
 CreateArtifactRequest:
@@ -350,8 +374,9 @@ ContentVersion:
         web app, the CLI, the MCP server, or any other API client. The server
         derives it from how the request was authenticated and routed; a client
         cannot set it. Null when it is not known: the version was written
-        before write sources were recorded, or a system action such as a
-        restore produced it.
+        before write sources were recorded, or a system action that is not a
+        request produced it. A restore is a request and reports the channel it
+        was requested through.
       enum:
         - web
         - cli

@@ -523,6 +523,9 @@ func (s *Server) handleGitHubImportBlueprints(w http.ResponseWriter, r *http.Req
 	report, err := s.container.GitHubAppService().ImportBlueprintsFromRepository(
 		r.Context(), userID, teamID, req.RepositoryID,
 	)
+	// Before the error check: a scan that fails part-way still returns the
+	// report of what it had already written.
+	s.recordImportedBlueprintWrites(r.Context(), userID, teamID, report)
 	if err != nil {
 		s.logger.Error("Failed to import blueprints from repository", "error", err)
 		s.handleImportBlueprintsError(w, r, err)

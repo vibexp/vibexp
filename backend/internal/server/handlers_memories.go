@@ -285,13 +285,15 @@ func toGenMemory(src *models.Memory) (memoriesgen.Memory, error) {
 		// Title is required-but-nullable in the schema, so the generated field
 		// carries no omitempty: a nil pointer renders as `"title": null`, which
 		// is exactly the wire shape an untitled memory must have (#911).
-		Title:     src.Title,
-		Text:      src.Text,
-		Status:    memoriesgen.MemoryStatus(src.Status),
-		Labels:    genLabels(src.Labels),
-		CreatedAt: src.CreatedAt,
-		UpdatedAt: src.UpdatedAt,
-		Version:   src.Version,
+		Title:                  src.Title,
+		Text:                   src.Text,
+		Status:                 memoriesgen.MemoryStatus(src.Status),
+		Labels:                 genLabels(src.Labels),
+		CreatedAt:              src.CreatedAt,
+		UpdatedAt:              src.UpdatedAt,
+		Version:                src.Version,
+		LastWriteSource:        toGenWriteSource[memoriesgen.ResourceWriteSource](src.LastWriteSource),
+		LastWriteAssistantName: src.LastWriteAssistantName,
 	}
 
 	// Always set, never conditionally: models.Memory declared `metadata` without

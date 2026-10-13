@@ -153,6 +153,30 @@ func (e ResourceLockEventAction) Valid() bool {
 	}
 }
 
+// Defines values for ResourceWriteSource.
+const (
+	ResourceWriteSourceAPI ResourceWriteSource = "api"
+	ResourceWriteSourceCLI ResourceWriteSource = "cli"
+	ResourceWriteSourceMCP ResourceWriteSource = "mcp"
+	ResourceWriteSourceWeb ResourceWriteSource = "web"
+)
+
+// Valid indicates whether the value is a known member of the ResourceWriteSource enum.
+func (e ResourceWriteSource) Valid() bool {
+	switch e {
+	case ResourceWriteSourceAPI:
+		return true
+	case ResourceWriteSourceCLI:
+		return true
+	case ResourceWriteSourceMCP:
+		return true
+	case ResourceWriteSourceWeb:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListArtifactsParamsFreshness.
 const (
 	ListArtifactsParamsFreshnessStale ListArtifactsParamsFreshness = "stale"
@@ -280,6 +304,12 @@ type Artifact struct {
 
 	// Labels Labels for categorising and filtering. Always present: an empty array when the resource has none. At most 10 labels, 50 characters each.
 	Labels []string `json:"labels"`
+
+	// LastWriteAssistantName The name the MCP client that made the most recent recorded write reported for itself (its clientInfo.name), trimmed and capped at 30 characters. It is a label the client chose, not a verified identity. Null unless last_write_source is mcp and the client reported a name.
+	LastWriteAssistantName *string `json:"last_write_assistant_name"`
+
+	// LastWriteSource The channel the most recent recorded write (create or update) of this resource arrived through (#1418). Null when no write of it has a recorded channel: it was last written before write channels were recorded, and has not been written since. Null is "not known", never a guessed channel. Present on every read, list and write response.
+	LastWriteSource *ResourceWriteSource `json:"last_write_source"`
 
 	// Lock The lock held on this resource (epic #1285), or null when it is not locked. Present on every read, list and write response.
 	Lock *ResourceLock `json:"lock"`
@@ -503,6 +533,9 @@ type ResourceLockHistoryResponse struct {
 	// Events Lock and unlock events, newest first. Not paginated: at most the 100 most recent events are returned.
 	Events []ResourceLockEvent `json:"events"`
 }
+
+// ResourceWriteSource The channel a write of a prompt, artifact, blueprint or memory arrived through: the web app, the CLI, the MCP server, or any other API client. The server derives it from how the request was authenticated and routed (a session cookie is web, an API key with the CLI's user agent is cli, the MCP endpoint is mcp, anything else is api); a client cannot set it.
+type ResourceWriteSource string
 
 // SimilarResource An embedding-similarity neighbor of a resource, COMPUTED live at read time from vector similarity — never a stored edge, and kept strictly distinct from the typed `related` edges. Score is 1 - cosine_distance (higher is closer).
 type SimilarResource struct {

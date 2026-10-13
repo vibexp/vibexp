@@ -6,10 +6,10 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
-// SourceUnknown is the creation-metrics bucket for resources that have no
-// create event: they were created before write events were recorded (#1392), or
-// by an internal caller that records none. It is a reporting key only. It is
-// never stored as an event's source.
+// SourceUnknown is the metrics bucket for writes with no recorded channel: the
+// resource or the version snapshot was written before write events were
+// recorded (#1392), or by an internal caller that records none. It is a
+// reporting key only. It is never stored as an event's source.
 const SourceUnknown = "unknown"
 
 // writeSources are the channels a write event can be recorded for, in the
@@ -49,8 +49,9 @@ func WithWriteOrigin(ctx context.Context, source, assistantName string) context.
 }
 
 // WriteOriginFromContext returns the origin set by WithWriteOrigin, or nil when
-// there is none. Nil is what internal callers see (import, restore, scheduled
-// jobs): their writes record no event and leave a version's source empty.
+// there is none. Nil is what a caller that is not a request sees (a scheduled
+// job, a migration): its writes record no event and leave a version's source
+// empty.
 func WriteOriginFromContext(ctx context.Context) *models.WriteOrigin {
 	origin, ok := ctx.Value(writeOriginKey{}).(models.WriteOrigin)
 	if !ok {

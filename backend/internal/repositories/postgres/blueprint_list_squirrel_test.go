@@ -308,8 +308,8 @@ func TestBlueprintRepository_List_ExplicitProjection(t *testing.T) {
 			`s\.title, s\.description, s\.status, s\.type, s\.subtype, s\.metadata, ` +
 			`s\.created_at, s\.updated_at, s\.path, s\.path_derived, s\.content_sha, ` +
 			`s\.source_repo, s\.source_commit_sha, s\.source_blob_sha, s\.imported_at, ` +
-			`s\.labels, s\.locked_by::text, s\.locked_at, s\.lock_comment, lock_u\.name ` +
-			`FROM blueprints s LEFT JOIN users lock_u ON lock_u\.id = s\.locked_by WHERE`,
+			`s\.labels, s\.locked_by::text, s\.locked_at, s\.lock_comment, lock_u\.name, lw\.source, lw\.assistant_name ` +
+			`FROM blueprints s LEFT JOIN users lock_u ON lock_u\.id = s\.locked_by LEFT JOIN LATERAL \(.*\) lw ON true WHERE`,
 	).
 		WithArgs(blueprintListBaseArgs()...).
 		WillReturnRows(blueprintListOneRow(now))

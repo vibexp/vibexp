@@ -673,9 +673,9 @@ func (_c *MockArtifactServiceInterface_ListArtifactsByProjectCrossTeam_Call) Run
 	return _c
 }
 
-// RestoreArtifactVersionInTeam provides a mock function with given fields: userID, teamID, projectID, slug, versionNumber
-func (_m *MockArtifactServiceInterface) RestoreArtifactVersionInTeam(userID string, teamID string, projectID string, slug string, versionNumber int) (*models.Artifact, error) {
-	ret := _m.Called(userID, teamID, projectID, slug, versionNumber)
+// RestoreArtifactVersionInTeam provides a mock function with given fields: userID, teamID, projectID, slug, versionNumber, origin
+func (_m *MockArtifactServiceInterface) RestoreArtifactVersionInTeam(userID string, teamID string, projectID string, slug string, versionNumber int, origin *models.WriteOrigin) (*models.Artifact, error) {
+	ret := _m.Called(userID, teamID, projectID, slug, versionNumber, origin)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RestoreArtifactVersionInTeam")
@@ -683,19 +683,19 @@ func (_m *MockArtifactServiceInterface) RestoreArtifactVersionInTeam(userID stri
 
 	var r0 *models.Artifact
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, string, string, int) (*models.Artifact, error)); ok {
-		return rf(userID, teamID, projectID, slug, versionNumber)
+	if rf, ok := ret.Get(0).(func(string, string, string, string, int, *models.WriteOrigin) (*models.Artifact, error)); ok {
+		return rf(userID, teamID, projectID, slug, versionNumber, origin)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, string, string, int) *models.Artifact); ok {
-		r0 = rf(userID, teamID, projectID, slug, versionNumber)
+	if rf, ok := ret.Get(0).(func(string, string, string, string, int, *models.WriteOrigin) *models.Artifact); ok {
+		r0 = rf(userID, teamID, projectID, slug, versionNumber, origin)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Artifact)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, string, string, int) error); ok {
-		r1 = rf(userID, teamID, projectID, slug, versionNumber)
+	if rf, ok := ret.Get(1).(func(string, string, string, string, int, *models.WriteOrigin) error); ok {
+		r1 = rf(userID, teamID, projectID, slug, versionNumber, origin)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -714,13 +714,14 @@ type MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call struct {
 //   - projectID string
 //   - slug string
 //   - versionNumber int
-func (_e *MockArtifactServiceInterface_Expecter) RestoreArtifactVersionInTeam(userID interface{}, teamID interface{}, projectID interface{}, slug interface{}, versionNumber interface{}) *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call {
-	return &MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call{Call: _e.mock.On("RestoreArtifactVersionInTeam", userID, teamID, projectID, slug, versionNumber)}
+//   - origin *models.WriteOrigin
+func (_e *MockArtifactServiceInterface_Expecter) RestoreArtifactVersionInTeam(userID interface{}, teamID interface{}, projectID interface{}, slug interface{}, versionNumber interface{}, origin interface{}) *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call {
+	return &MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call{Call: _e.mock.On("RestoreArtifactVersionInTeam", userID, teamID, projectID, slug, versionNumber, origin)}
 }
 
-func (_c *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call) Run(run func(userID string, teamID string, projectID string, slug string, versionNumber int)) *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call {
+func (_c *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call) Run(run func(userID string, teamID string, projectID string, slug string, versionNumber int, origin *models.WriteOrigin)) *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string), args[3].(string), args[4].(int))
+		run(args[0].(string), args[1].(string), args[2].(string), args[3].(string), args[4].(int), args[5].(*models.WriteOrigin))
 	})
 	return _c
 }
@@ -730,7 +731,7 @@ func (_c *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call) Return
 	return _c
 }
 
-func (_c *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call) RunAndReturn(run func(string, string, string, string, int) (*models.Artifact, error)) *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call {
+func (_c *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call) RunAndReturn(run func(string, string, string, string, int, *models.WriteOrigin) (*models.Artifact, error)) *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -55,6 +55,8 @@ type Memory struct {
 	// carries NO omitempty because the spec declares it required+nullable, i.e.
 	// the key is always present and `null` when the project is unknown.
 	Project *ProjectSummary `json:"project" db:"-"`
+	// LastWrite is how the resource was most recently written (issue #1418).
+	LastWrite
 }
 
 type CreateMemoryRequest struct {

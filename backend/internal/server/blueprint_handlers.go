@@ -749,13 +749,16 @@ func (s *Server) handleRestoreBlueprintVersion(w http.ResponseWriter, r *http.Re
 	).Info("Restore blueprint version request received")
 
 	blueprint, err := s.container.BlueprintService().RestoreBlueprintVersionInTeam(
-		userID, teamID, decodedProjectID, decodedSlug, versionNumber,
+		userID, teamID, decodedProjectID, decodedSlug, versionNumber, resourceaccess.WriteOriginFromContext(r.Context()),
 	)
 	if err != nil {
 		s.handleBlueprintVersionError(w, userID, decodedProjectID, decodedSlug, err)
 		return
 	}
 
+	// A restore is an update that arrived through a channel like any other
+	// (#1418): recorded, it is not an unknown write in the metrics.
+	s.recordResourceWrite(r.Context(), userID, models.WriteActionUpdate, writtenBlueprint(teamID, blueprint))
 	s.recordBlueprintActivity(r.Context(), blueprintActivityParams{
 		userID: userID, activityType: activities.ActivityTypeBlueprintUpdated, blueprintID: blueprint.ID,
 		projectID: decodedProjectID, slug: decodedSlug, description: "Restored blueprint: " + blueprint.Title,

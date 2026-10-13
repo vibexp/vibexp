@@ -422,7 +422,7 @@ func (s *MemoryService) GetMemoryVersion(
 // RestoreMemoryVersion restores a memory's text to the given version by applying it through
 // the shared update path, which snapshots the pre-restore text as a new version.
 func (s *MemoryService) RestoreMemoryVersion(
-	userID, teamID, memoryID string, versionNumber int,
+	userID, teamID, memoryID string, versionNumber int, origin *models.WriteOrigin,
 ) (*models.Memory, error) {
 	ctx := context.Background()
 	memory, err := s.repo.GetByID(ctx, userID, teamID, memoryID)
@@ -439,7 +439,7 @@ func (s *MemoryService) RestoreMemoryVersion(
 	// default "Restored Version N" summary so the timeline reads clearly.
 	restoreSummary := fmt.Sprintf("Restored Version %d", versionNumber)
 	return s.applyAndPersistMemoryUpdate(
-		ctx, userID, memory, &models.UpdateMemoryRequest{Text: &target},
+		ctx, userID, memory, &models.UpdateMemoryRequest{Text: &target, WriteOrigin: origin},
 		models.ActorTypeSystem, &restoreSummary,
 	)
 }

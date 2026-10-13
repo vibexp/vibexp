@@ -63,15 +63,16 @@ func TestMemoryRepository_TeamMember_CanListOtherMembersMemories(t *testing.T) {
 	// Mock list query - no DISTINCT or JOINs needed with EXISTS subqueries;
 	// LIMIT/OFFSET are inlined literals, so they are no longer bound args.
 	listQuery := `SELECT m\.id, m\.user_id, m\.team_id, m\.project_id, m\.title, m\.text, m\.status, m\.metadata, ` +
-		`m\.created_at, m\.updated_at, m\.labels FROM memories m WHERE .* LIMIT 20 OFFSET 0`
+		`m\.created_at, m\.updated_at, m\.labels, lw\.source, lw\.assistant_name ` +
+		`FROM memories m LEFT JOIN LATERAL \(.*\) lw ON true WHERE .* LIMIT 20 OFFSET 0`
 	mock.ExpectQuery(listQuery).
 		WithArgs(memoryListArgs...).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "user_id", "team_id", "project_id", "title", "text", "status", "metadata", "created_at",
-			"updated_at", "labels",
+			"updated_at", "labels", "lw_source", "lw_assistant_name",
 		}).AddRow(
 			aliceMemoryID, aliceUserID, teamID, "project-123", nil, "Machine learning best practices",
-			"active", []byte(`{"project": "ml-research"}`), now, now, pq.StringArray{},
+			"active", []byte(`{"project": "ml-research"}`), now, now, pq.StringArray{}, nil, nil,
 		))
 
 	// Bob lists memories
@@ -118,11 +119,11 @@ func TestMemoryRepository_TeamMember_CanGetOtherMembersMemories(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "user_id", "team_id", "project_id", "title", "text", "status", "metadata", "created_at",
 			"updated_at", "version", "labels",
-			"proj_id", "proj_name", "proj_slug",
+			"proj_id", "proj_name", "proj_slug", "lw_source", "lw_assistant_name",
 		}).AddRow(
 			aliceMemoryID, aliceUserID, teamID, "project-123", nil, "Machine learning best practices",
 			"active", []byte(`{"project": "ml-research"}`), now, now, 1, pq.StringArray{},
-			"project-123", "ML Research", "ml-research",
+			"project-123", "ML Research", "ml-research", nil, nil,
 		))
 
 	// Bob gets Alice's memory

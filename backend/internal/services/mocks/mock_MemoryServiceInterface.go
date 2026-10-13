@@ -370,9 +370,9 @@ func (_c *MockMemoryServiceInterface_ListMemoryVersions_Call) RunAndReturn(run f
 	return _c
 }
 
-// RestoreMemoryVersion provides a mock function with given fields: userID, teamID, memoryID, versionNumber
-func (_m *MockMemoryServiceInterface) RestoreMemoryVersion(userID string, teamID string, memoryID string, versionNumber int) (*models.Memory, error) {
-	ret := _m.Called(userID, teamID, memoryID, versionNumber)
+// RestoreMemoryVersion provides a mock function with given fields: userID, teamID, memoryID, versionNumber, origin
+func (_m *MockMemoryServiceInterface) RestoreMemoryVersion(userID string, teamID string, memoryID string, versionNumber int, origin *models.WriteOrigin) (*models.Memory, error) {
+	ret := _m.Called(userID, teamID, memoryID, versionNumber, origin)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RestoreMemoryVersion")
@@ -380,19 +380,19 @@ func (_m *MockMemoryServiceInterface) RestoreMemoryVersion(userID string, teamID
 
 	var r0 *models.Memory
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, string, int) (*models.Memory, error)); ok {
-		return rf(userID, teamID, memoryID, versionNumber)
+	if rf, ok := ret.Get(0).(func(string, string, string, int, *models.WriteOrigin) (*models.Memory, error)); ok {
+		return rf(userID, teamID, memoryID, versionNumber, origin)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, string, int) *models.Memory); ok {
-		r0 = rf(userID, teamID, memoryID, versionNumber)
+	if rf, ok := ret.Get(0).(func(string, string, string, int, *models.WriteOrigin) *models.Memory); ok {
+		r0 = rf(userID, teamID, memoryID, versionNumber, origin)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Memory)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, string, int) error); ok {
-		r1 = rf(userID, teamID, memoryID, versionNumber)
+	if rf, ok := ret.Get(1).(func(string, string, string, int, *models.WriteOrigin) error); ok {
+		r1 = rf(userID, teamID, memoryID, versionNumber, origin)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -410,13 +410,14 @@ type MockMemoryServiceInterface_RestoreMemoryVersion_Call struct {
 //   - teamID string
 //   - memoryID string
 //   - versionNumber int
-func (_e *MockMemoryServiceInterface_Expecter) RestoreMemoryVersion(userID interface{}, teamID interface{}, memoryID interface{}, versionNumber interface{}) *MockMemoryServiceInterface_RestoreMemoryVersion_Call {
-	return &MockMemoryServiceInterface_RestoreMemoryVersion_Call{Call: _e.mock.On("RestoreMemoryVersion", userID, teamID, memoryID, versionNumber)}
+//   - origin *models.WriteOrigin
+func (_e *MockMemoryServiceInterface_Expecter) RestoreMemoryVersion(userID interface{}, teamID interface{}, memoryID interface{}, versionNumber interface{}, origin interface{}) *MockMemoryServiceInterface_RestoreMemoryVersion_Call {
+	return &MockMemoryServiceInterface_RestoreMemoryVersion_Call{Call: _e.mock.On("RestoreMemoryVersion", userID, teamID, memoryID, versionNumber, origin)}
 }
 
-func (_c *MockMemoryServiceInterface_RestoreMemoryVersion_Call) Run(run func(userID string, teamID string, memoryID string, versionNumber int)) *MockMemoryServiceInterface_RestoreMemoryVersion_Call {
+func (_c *MockMemoryServiceInterface_RestoreMemoryVersion_Call) Run(run func(userID string, teamID string, memoryID string, versionNumber int, origin *models.WriteOrigin)) *MockMemoryServiceInterface_RestoreMemoryVersion_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string), args[3].(int))
+		run(args[0].(string), args[1].(string), args[2].(string), args[3].(int), args[4].(*models.WriteOrigin))
 	})
 	return _c
 }
@@ -426,7 +427,7 @@ func (_c *MockMemoryServiceInterface_RestoreMemoryVersion_Call) Return(_a0 *mode
 	return _c
 }
 
-func (_c *MockMemoryServiceInterface_RestoreMemoryVersion_Call) RunAndReturn(run func(string, string, string, int) (*models.Memory, error)) *MockMemoryServiceInterface_RestoreMemoryVersion_Call {
+func (_c *MockMemoryServiceInterface_RestoreMemoryVersion_Call) RunAndReturn(run func(string, string, string, int, *models.WriteOrigin) (*models.Memory, error)) *MockMemoryServiceInterface_RestoreMemoryVersion_Call {
 	_c.Call.Return(run)
 	return _c
 }

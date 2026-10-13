@@ -119,8 +119,9 @@ func TestMemoryService_RestoreSnapshotsAsSystem(t *testing.T) {
 					req.NewContent == "v2-content" &&
 					req.ActorType == models.ActorTypeSystem &&
 					req.ChangeSummary != nil && *req.ChangeSummary == "Restored Version 2" &&
-					// A restore is a system action: it records no write channel.
-					req.Origin == nil
+					// A restore is system-authored but still arrives through a
+					// channel (#1418): the snapshot carries the request's origin.
+					req.Origin != nil && req.Origin.Source == "web"
 			}),
 		).
 		Return(nil).
@@ -133,7 +134,7 @@ func TestMemoryService_RestoreSnapshotsAsSystem(t *testing.T) {
 		Logger:            logger,
 		ContentVersionSvc: cvs,
 	})
-	restored, err := svc.RestoreMemoryVersion(userID, teamID, memoryID, 2)
+	restored, err := svc.RestoreMemoryVersion(userID, teamID, memoryID, 2, &models.WriteOrigin{Source: "web"})
 	require.NoError(t, err)
 	require.Equal(t, "v2-content", restored.Text)
 }
@@ -225,7 +226,7 @@ func TestRestoreMemoryVersion_IsGated(t *testing.T) {
 		ContentVersionSvc: cvs,
 	})
 
-	_, err := svc.RestoreMemoryVersion(userID, teamID, memoryID, 2)
+	_, err := svc.RestoreMemoryVersion(userID, teamID, memoryID, 2, nil)
 
 	require.ErrorIs(t, err, services.ErrPermissionDenied)
 	repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)

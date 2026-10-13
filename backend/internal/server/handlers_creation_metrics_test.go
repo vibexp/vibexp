@@ -175,7 +175,9 @@ func decodeAPIError(t *testing.T, w *httptest.ResponseRecorder) apiErrorBody {
 }
 
 // sampleCreationSources is a breakdown whose per-type sums are known: prompts
-// 3, artifacts 0, blueprints 0, memories 2.
+// 3, artifacts 0, blueprints 0, memories 2. Its writes are 14 recorded (web 5,
+// mcp 9) and 4 with no channel: the 2 creations under unknown plus 2 content
+// changes with no source. 18 writes in all.
 func sampleCreationSources() *resourceaccess.CreationSources {
 	return &resourceaccess.CreationSources{
 		Created: map[string]resourceaccess.SourceCreationCounts{
@@ -188,8 +190,23 @@ func sampleCreationSources() *resourceaccess.CreationSources {
 		Writes: map[string]int{
 			resourceaccess.SourceWeb: 5, resourceaccess.SourceCLI: 0,
 			resourceaccess.SourceMCP: 9, resourceaccess.SourceAPI: 0,
+			resourceaccess.SourceUnknown: 4,
 		},
 	}
+}
+
+// assertSampleWritesBySource checks the wire shape of sampleCreationSources'
+// writes: all five keys are present, unknown included (#1418), and they sum to
+// the window's 18 writes, so a client can show the share with no recorded
+// channel instead of silently undercounting.
+func assertSampleWritesBySource(t *testing.T, writes map[string]int) {
+	t.Helper()
+	assert.Equal(t, map[string]int{"web": 5, "cli": 0, "mcp": 9, "api": 0, "unknown": 4}, writes)
+	total := 0
+	for _, count := range writes {
+		total += count
+	}
+	assert.Equal(t, 18, total)
 }
 
 // sumBySource adds one resource type across the five channels.
@@ -242,7 +259,7 @@ func TestGetTeamResourceCreationMetrics_Success(t *testing.T) {
 	assert.Equal(t, 6, last.Total)
 	assert.Equal(t, 0, body.Data.Counts[0].Total) // gap-free zero-fill.
 
-	// All five channels and all four write channels are present.
+	// All five channels are present, for creations and for writes.
 	require.Len(t, body.Data.BySource, 5)
 	for _, source := range []string{"web", "cli", "mcp", "api", "unknown"} {
 		assert.Contains(t, body.Data.BySource, source)
@@ -250,7 +267,7 @@ func TestGetTeamResourceCreationMetrics_Success(t *testing.T) {
 	assert.Equal(t, creationSourceCountsBody{Prompts: 2, Total: 2}, body.Data.BySource["web"])
 	assert.Equal(t, creationSourceCountsBody{Memories: 1, Total: 1}, body.Data.BySource["mcp"])
 	assert.Equal(t, creationSourceCountsBody{Prompts: 1, Memories: 1, Total: 2}, body.Data.BySource["unknown"])
-	assert.Equal(t, map[string]int{"web": 5, "cli": 0, "mcp": 9, "api": 0}, body.Data.WritesBySource)
+	assertSampleWritesBySource(t, body.Data.WritesBySource)
 
 	// The breakdown sums to the series, type by type. Projects are in the
 	// series and not in the breakdown.
@@ -448,7 +465,7 @@ func TestGetProjectResourceCreationMetrics_Success(t *testing.T) {
 	require.Len(t, body.Data.BySource, 5)
 	assert.Equal(t, body.Data.TotalCreated,
 		sumBySource(body.Data.BySource, func(c creationSourceCountsBody) int { return c.Total }))
-	assert.Equal(t, map[string]int{"web": 5, "cli": 0, "mcp": 9, "api": 0}, body.Data.WritesBySource)
+	assertSampleWritesBySource(t, body.Data.WritesBySource)
 }
 
 // The range defaults to 30d (a 31-day inclusive window) and an empty project
@@ -475,7 +492,7 @@ func TestGetProjectResourceCreationMetrics_DefaultRange(t *testing.T) {
 	assert.Equal(t, 0, body.Data.TotalCreated)
 	// Even when the service reports no channel at all, every key is on the wire.
 	require.Len(t, body.Data.BySource, 5)
-	assert.Equal(t, map[string]int{"web": 0, "cli": 0, "mcp": 0, "api": 0}, body.Data.WritesBySource)
+	assert.Equal(t, map[string]int{"web": 0, "cli": 0, "mcp": 0, "api": 0, "unknown": 0}, body.Data.WritesBySource)
 }
 
 // chi hands the handler a percent-encoded slug; the generated binder decodes it

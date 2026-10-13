@@ -31839,6 +31839,22 @@
             ],
             "nullable": true,
             "description": "The lock held on this resource (epic #1285), or null when it is not locked. Present on every read, list and write response. Always null on a prompt read through a share link: lock state is internal to the team."
+          },
+          "last_write_source": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResourceWriteSource"
+              }
+            ],
+            "nullable": true,
+            "description": "The channel the most recent recorded write (create or update) of this resource arrived through (#1418). Null when no write of it has a recorded channel: it was last written before write channels were recorded, and has not been written since. Null is \"not known\", never a guessed channel. Present on every read, list and write response. Always null on a prompt read through a share link: how a team writes is internal to the team."
+          },
+          "last_write_assistant_name": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 30,
+            "description": "The name the MCP client that made the most recent recorded write reported for itself (its clientInfo.name), trimmed and capped at 30 characters. It is a label the client chose, not a verified identity. Null unless last_write_source is mcp and the client reported a name.",
+            "example": "claude-code"
           }
         },
         "required": [
@@ -31857,7 +31873,9 @@
           "updated_at",
           "version",
           "project",
-          "lock"
+          "lock",
+          "last_write_source",
+          "last_write_assistant_name"
         ]
       },
       "CreatePromptRequest": {
@@ -34784,6 +34802,22 @@
             ],
             "nullable": true,
             "description": "The lock held on this resource (epic #1285), or null when it is not locked. Present on every read, list and write response."
+          },
+          "last_write_source": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResourceWriteSource"
+              }
+            ],
+            "nullable": true,
+            "description": "The channel the most recent recorded write (create or update) of this resource arrived through (#1418). Null when no write of it has a recorded channel: it was last written before write channels were recorded, and has not been written since. Null is \"not known\", never a guessed channel. Present on every read, list and write response."
+          },
+          "last_write_assistant_name": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 30,
+            "description": "The name the MCP client that made the most recent recorded write reported for itself (its clientInfo.name), trimmed and capped at 30 characters. It is a label the client chose, not a verified identity. Null unless last_write_source is mcp and the client reported a name.",
+            "example": "claude-code"
           }
         },
         "required": [
@@ -34798,7 +34832,9 @@
           "type",
           "labels",
           "project",
-          "lock"
+          "lock",
+          "last_write_source",
+          "last_write_assistant_name"
         ]
       },
       "CreateArtifactRequest": {
@@ -35210,7 +35246,7 @@
           "source": {
             "type": "string",
             "nullable": true,
-            "description": "The channel the write that produced this version arrived through: the web app, the CLI, the MCP server, or any other API client. The server derives it from how the request was authenticated and routed; a client cannot set it. Null when it is not known: the version was written before write sources were recorded, or a system action such as a restore produced it.",
+            "description": "The channel the write that produced this version arrived through: the web app, the CLI, the MCP server, or any other API client. The server derives it from how the request was authenticated and routed; a client cannot set it. Null when it is not known: the version was written before write sources were recorded, or a system action that is not a request produced it. A restore is a request and reports the channel it was requested through.",
             "enum": [
               "web",
               "cli",
@@ -35747,6 +35783,23 @@
           "locked_at"
         ]
       },
+      "ResourceWriteSource": {
+        "type": "string",
+        "description": "The channel a write of a prompt, artifact, blueprint or memory arrived through: the web app, the CLI, the MCP server, or any other API client. The server derives it from how the request was authenticated and routed (a session cookie is web, an API key with the CLI's user agent is cli, the MCP endpoint is mcp, anything else is api); a client cannot set it.",
+        "enum": [
+          "web",
+          "cli",
+          "mcp",
+          "api"
+        ],
+        "x-enum-varnames": [
+          "ResourceWriteSourceWeb",
+          "ResourceWriteSourceCLI",
+          "ResourceWriteSourceMCP",
+          "ResourceWriteSourceAPI"
+        ],
+        "example": "mcp"
+      },
       "ResourceWriteLockedError": {
         "description": "RFC 9457 problem returned with `423 Locked` and code `RESOURCE_WRITE_LOCKED` when a write is refused because the prompt, blueprint or artifact is locked. A locked resource cannot be deleted, and an update may not change one of its frozen fields; content, title/name and description stay editable. Unlock the resource to make the change.\n\nFrozen fields, as `metadata.field` names them: `slug`, `status`, `project_id`, `labels` and `mcp_expose` on a prompt; `slug`, `status`, `type`, `subtype`, `project_id`, `labels`, `metadata` and `path` on a blueprint; `slug`, `status`, `type`, `project_id`, `labels` and `metadata` on an artifact. A frozen field sent with its current value is not a change.",
         "allOf": [
@@ -36250,6 +36303,22 @@
           },
           "freshness": {
             "$ref": "#/components/schemas/ResourceFreshnessState"
+          },
+          "last_write_source": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResourceWriteSource"
+              }
+            ],
+            "nullable": true,
+            "description": "The channel the most recent recorded write (create or update) of this resource arrived through (#1418). Null when no write of it has a recorded channel: it was last written before write channels were recorded, and has not been written since. Null is \"not known\", never a guessed channel. Present on every read, list and write response."
+          },
+          "last_write_assistant_name": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 30,
+            "description": "The name the MCP client that made the most recent recorded write reported for itself (its clientInfo.name), trimmed and capped at 30 characters. It is a label the client chose, not a verified identity. Null unless last_write_source is mcp and the client reported a name.",
+            "example": "claude-code"
           }
         },
         "required": [
@@ -36264,7 +36333,9 @@
           "updated_at",
           "version",
           "labels",
-          "project"
+          "project",
+          "last_write_source",
+          "last_write_assistant_name"
         ]
       },
       "CreateMemoryRequest": {
@@ -36950,6 +37021,22 @@
             ],
             "nullable": true,
             "description": "The lock held on this resource (epic #1285), or null when it is not locked. Present on every read, list and write response."
+          },
+          "last_write_source": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResourceWriteSource"
+              }
+            ],
+            "nullable": true,
+            "description": "The channel the most recent recorded write (create or update) of this resource arrived through (#1418). Null when no write of it has a recorded channel: it was last written before write channels were recorded, and has not been written since. Null is \"not known\", never a guessed channel. Present on every read, list and write response."
+          },
+          "last_write_assistant_name": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 30,
+            "description": "The name the MCP client that made the most recent recorded write reported for itself (its clientInfo.name), trimmed and capped at 30 characters. It is a label the client chose, not a verified identity. Null unless last_write_source is mcp and the client reported a name.",
+            "example": "claude-code"
           }
         },
         "required": [
@@ -36966,7 +37053,9 @@
           "path",
           "labels",
           "project",
-          "lock"
+          "lock",
+          "last_write_source",
+          "last_write_assistant_name"
         ]
       },
       "BlueprintSource": {
@@ -46517,7 +46606,7 @@
       },
       "ResourceCreationBySource": {
         "type": "object",
-        "description": "The window's creations broken down by the channel each resource was created through: the web app, the CLI, the MCP server, or any other API client. All five keys are always present. For each of prompts, artifacts, blueprints and memories, the five channels sum to that type's total across counts. unknown holds resources with no recorded channel: those created before write sources were recorded, and those created by the system rather than through a request (for example an import). Projects are not broken down by channel.",
+        "description": "The window's creations broken down by the channel each resource was created through: the web app, the CLI, the MCP server, or any other API client. All five keys are always present. For each of prompts, artifacts, blueprints and memories, the five channels sum to that type's total across counts. unknown holds resources with no recorded channel: those created before write sources were recorded, and those created by the system rather than through a request. Projects are not broken down by channel.",
         "required": [
           "web",
           "cli",
@@ -46545,12 +46634,13 @@
       },
       "ResourceWritesBySource": {
         "type": "object",
-        "description": "Writes (creates and updates of prompts, artifacts, blueprints and memories) recorded per channel over the same window. All four keys are always present. There is no unknown key: a write with no recorded channel is not counted, so these totals start when write sources began to be recorded.",
+        "description": "Writes (creates and updates of prompts, artifacts, blueprints and memories) over the same window, per channel. All five keys are always present, and web + cli + mcp + api + unknown is the number of writes the server knows of in the window. unknown holds the writes with no recorded channel (#1418): resources created in the window that have no create event (the by_source unknown total), plus content changes in the window whose version snapshot carries no source. Both come from before write channels were recorded, or from a system action that is not a request. An update from before write channels were recorded that changed no content left no trace and cannot be counted, so unknown is a lower bound for that period and exact after it.",
         "required": [
           "web",
           "cli",
           "mcp",
-          "api"
+          "api",
+          "unknown"
         ],
         "properties": {
           "web": {
@@ -46568,6 +46658,11 @@
           "api": {
             "type": "integer",
             "example": 0
+          },
+          "unknown": {
+            "type": "integer",
+            "description": "Writes in the window with no recorded channel.",
+            "example": 2
           }
         }
       },

@@ -185,7 +185,7 @@ type ProjectResourceCreationDailyCount struct {
 
 // ProjectResourceCreationMetricsData defines model for ProjectResourceCreationMetricsData.
 type ProjectResourceCreationMetricsData struct {
-	// BySource The window's creations broken down by the channel each resource was created through: the web app, the CLI, the MCP server, or any other API client. All five keys are always present. For each of prompts, artifacts, blueprints and memories, the five channels sum to that type's total across counts. unknown holds resources with no recorded channel: those created before write sources were recorded, and those created by the system rather than through a request (for example an import). Projects are not broken down by channel.
+	// BySource The window's creations broken down by the channel each resource was created through: the web app, the CLI, the MCP server, or any other API client. All five keys are always present. For each of prompts, artifacts, blueprints and memories, the five channels sum to that type's total across counts. unknown holds resources with no recorded channel: those created before write sources were recorded, and those created by the system rather than through a request. Projects are not broken down by channel.
 	BySource ResourceCreationBySource                `json:"by_source"`
 	Counts   []ProjectResourceCreationDailyCount     `json:"counts"`
 	Range    ProjectResourceCreationMetricsDataRange `json:"range"`
@@ -193,7 +193,7 @@ type ProjectResourceCreationMetricsData struct {
 	// TotalCreated Sum of every creation count across the whole window. The by_source totals sum to this.
 	TotalCreated int `json:"total_created"`
 
-	// WritesBySource Writes (creates and updates of prompts, artifacts, blueprints and memories) recorded per channel over the same window. All four keys are always present. There is no unknown key: a write with no recorded channel is not counted, so these totals start when write sources began to be recorded.
+	// WritesBySource Writes (creates and updates of prompts, artifacts, blueprints and memories) over the same window, per channel. All five keys are always present, and web + cli + mcp + api + unknown is the number of writes the server knows of in the window. unknown holds the writes with no recorded channel (#1418): resources created in the window that have no create event (the by_source unknown total), plus content changes in the window whose version snapshot carries no source. Both come from before write channels were recorded, or from a system action that is not a request. An update from before write channels were recorded that changed no content left no trace and cannot be counted, so unknown is a lower bound for that period and exact after it.
 	WritesBySource ResourceWritesBySource `json:"writes_by_source"`
 }
 
@@ -207,7 +207,7 @@ type ProjectResourceCreationMetricsResponse struct {
 	Status  string                             `json:"status"`
 }
 
-// ResourceCreationBySource The window's creations broken down by the channel each resource was created through: the web app, the CLI, the MCP server, or any other API client. All five keys are always present. For each of prompts, artifacts, blueprints and memories, the five channels sum to that type's total across counts. unknown holds resources with no recorded channel: those created before write sources were recorded, and those created by the system rather than through a request (for example an import). Projects are not broken down by channel.
+// ResourceCreationBySource The window's creations broken down by the channel each resource was created through: the web app, the CLI, the MCP server, or any other API client. All five keys are always present. For each of prompts, artifacts, blueprints and memories, the five channels sum to that type's total across counts. unknown holds resources with no recorded channel: those created before write sources were recorded, and those created by the system rather than through a request. Projects are not broken down by channel.
 type ResourceCreationBySource struct {
 	// Api Resources created through one channel over the whole window, per resource type. total is the sum of the four.
 	Api ResourceCreationSourceCounts `json:"api"`
@@ -236,12 +236,15 @@ type ResourceCreationSourceCounts struct {
 	Total int `json:"total"`
 }
 
-// ResourceWritesBySource Writes (creates and updates of prompts, artifacts, blueprints and memories) recorded per channel over the same window. All four keys are always present. There is no unknown key: a write with no recorded channel is not counted, so these totals start when write sources began to be recorded.
+// ResourceWritesBySource Writes (creates and updates of prompts, artifacts, blueprints and memories) over the same window, per channel. All five keys are always present, and web + cli + mcp + api + unknown is the number of writes the server knows of in the window. unknown holds the writes with no recorded channel (#1418): resources created in the window that have no create event (the by_source unknown total), plus content changes in the window whose version snapshot carries no source. Both come from before write channels were recorded, or from a system action that is not a request. An update from before write channels were recorded that changed no content left no trace and cannot be counted, so unknown is a lower bound for that period and exact after it.
 type ResourceWritesBySource struct {
 	Api int `json:"api"`
 	Cli int `json:"cli"`
 	Mcp int `json:"mcp"`
-	Web int `json:"web"`
+
+	// Unknown Writes in the window with no recorded channel.
+	Unknown int `json:"unknown"`
+	Web     int `json:"web"`
 }
 
 // TeamResourceCreationDailyCount Per-resource-type creation counts for a single calendar day (UTC), zero-filled.
@@ -257,7 +260,7 @@ type TeamResourceCreationDailyCount struct {
 
 // TeamResourceCreationMetricsData defines model for TeamResourceCreationMetricsData.
 type TeamResourceCreationMetricsData struct {
-	// BySource The window's creations broken down by the channel each resource was created through: the web app, the CLI, the MCP server, or any other API client. All five keys are always present. For each of prompts, artifacts, blueprints and memories, the five channels sum to that type's total across counts. unknown holds resources with no recorded channel: those created before write sources were recorded, and those created by the system rather than through a request (for example an import). Projects are not broken down by channel.
+	// BySource The window's creations broken down by the channel each resource was created through: the web app, the CLI, the MCP server, or any other API client. All five keys are always present. For each of prompts, artifacts, blueprints and memories, the five channels sum to that type's total across counts. unknown holds resources with no recorded channel: those created before write sources were recorded, and those created by the system rather than through a request. Projects are not broken down by channel.
 	BySource ResourceCreationBySource             `json:"by_source"`
 	Counts   []TeamResourceCreationDailyCount     `json:"counts"`
 	Range    TeamResourceCreationMetricsDataRange `json:"range"`
@@ -265,7 +268,7 @@ type TeamResourceCreationMetricsData struct {
 	// TotalCreated Sum of every creation count across the whole window, projects included. The by_source totals sum to this minus the projects created in the window, because projects are not broken down by channel.
 	TotalCreated int `json:"total_created"`
 
-	// WritesBySource Writes (creates and updates of prompts, artifacts, blueprints and memories) recorded per channel over the same window. All four keys are always present. There is no unknown key: a write with no recorded channel is not counted, so these totals start when write sources began to be recorded.
+	// WritesBySource Writes (creates and updates of prompts, artifacts, blueprints and memories) over the same window, per channel. All five keys are always present, and web + cli + mcp + api + unknown is the number of writes the server knows of in the window. unknown holds the writes with no recorded channel (#1418): resources created in the window that have no create event (the by_source unknown total), plus content changes in the window whose version snapshot carries no source. Both come from before write channels were recorded, or from a system action that is not a request. An update from before write channels were recorded that changed no content left no trace and cannot be counted, so unknown is a lower bound for that period and exact after it.
 	WritesBySource ResourceWritesBySource `json:"writes_by_source"`
 }
 

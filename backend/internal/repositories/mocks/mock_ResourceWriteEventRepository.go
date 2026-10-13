@@ -132,6 +132,65 @@ func (_c *MockResourceWriteEventRepository_GetProjectCreationCountsBySource_Call
 	return _c
 }
 
+// GetProjectUnsourcedUpdateCount provides a mock function with given fields: ctx, teamID, projectSlug, since
+func (_m *MockResourceWriteEventRepository) GetProjectUnsourcedUpdateCount(ctx context.Context, teamID string, projectSlug string, since time.Time) (int, error) {
+	ret := _m.Called(ctx, teamID, projectSlug, since)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetProjectUnsourcedUpdateCount")
+	}
+
+	var r0 int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, time.Time) (int, error)); ok {
+		return rf(ctx, teamID, projectSlug, since)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, time.Time) int); ok {
+		r0 = rf(ctx, teamID, projectSlug, since)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, time.Time) error); ok {
+		r1 = rf(ctx, teamID, projectSlug, since)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockResourceWriteEventRepository_GetProjectUnsourcedUpdateCount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetProjectUnsourcedUpdateCount'
+type MockResourceWriteEventRepository_GetProjectUnsourcedUpdateCount_Call struct {
+	*mock.Call
+}
+
+// GetProjectUnsourcedUpdateCount is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - projectSlug string
+//   - since time.Time
+func (_e *MockResourceWriteEventRepository_Expecter) GetProjectUnsourcedUpdateCount(ctx interface{}, teamID interface{}, projectSlug interface{}, since interface{}) *MockResourceWriteEventRepository_GetProjectUnsourcedUpdateCount_Call {
+	return &MockResourceWriteEventRepository_GetProjectUnsourcedUpdateCount_Call{Call: _e.mock.On("GetProjectUnsourcedUpdateCount", ctx, teamID, projectSlug, since)}
+}
+
+func (_c *MockResourceWriteEventRepository_GetProjectUnsourcedUpdateCount_Call) Run(run func(ctx context.Context, teamID string, projectSlug string, since time.Time)) *MockResourceWriteEventRepository_GetProjectUnsourcedUpdateCount_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockResourceWriteEventRepository_GetProjectUnsourcedUpdateCount_Call) Return(_a0 int, _a1 error) *MockResourceWriteEventRepository_GetProjectUnsourcedUpdateCount_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockResourceWriteEventRepository_GetProjectUnsourcedUpdateCount_Call) RunAndReturn(run func(context.Context, string, string, time.Time) (int, error)) *MockResourceWriteEventRepository_GetProjectUnsourcedUpdateCount_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetProjectWriteCountsBySource provides a mock function with given fields: ctx, teamID, projectSlug, since
 func (_m *MockResourceWriteEventRepository) GetProjectWriteCountsBySource(ctx context.Context, teamID string, projectSlug string, since time.Time) ([]models.ResourceWriteSourceCount, error) {
 	ret := _m.Called(ctx, teamID, projectSlug, since)
@@ -249,6 +308,64 @@ func (_c *MockResourceWriteEventRepository_GetTeamCreationCountsBySource_Call) R
 }
 
 func (_c *MockResourceWriteEventRepository_GetTeamCreationCountsBySource_Call) RunAndReturn(run func(context.Context, string, time.Time) ([]models.ResourceCreationSourceCount, error)) *MockResourceWriteEventRepository_GetTeamCreationCountsBySource_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetTeamUnsourcedUpdateCount provides a mock function with given fields: ctx, teamID, since
+func (_m *MockResourceWriteEventRepository) GetTeamUnsourcedUpdateCount(ctx context.Context, teamID string, since time.Time) (int, error) {
+	ret := _m.Called(ctx, teamID, since)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetTeamUnsourcedUpdateCount")
+	}
+
+	var r0 int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, time.Time) (int, error)); ok {
+		return rf(ctx, teamID, since)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, time.Time) int); ok {
+		r0 = rf(ctx, teamID, since)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, time.Time) error); ok {
+		r1 = rf(ctx, teamID, since)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockResourceWriteEventRepository_GetTeamUnsourcedUpdateCount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetTeamUnsourcedUpdateCount'
+type MockResourceWriteEventRepository_GetTeamUnsourcedUpdateCount_Call struct {
+	*mock.Call
+}
+
+// GetTeamUnsourcedUpdateCount is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - since time.Time
+func (_e *MockResourceWriteEventRepository_Expecter) GetTeamUnsourcedUpdateCount(ctx interface{}, teamID interface{}, since interface{}) *MockResourceWriteEventRepository_GetTeamUnsourcedUpdateCount_Call {
+	return &MockResourceWriteEventRepository_GetTeamUnsourcedUpdateCount_Call{Call: _e.mock.On("GetTeamUnsourcedUpdateCount", ctx, teamID, since)}
+}
+
+func (_c *MockResourceWriteEventRepository_GetTeamUnsourcedUpdateCount_Call) Run(run func(ctx context.Context, teamID string, since time.Time)) *MockResourceWriteEventRepository_GetTeamUnsourcedUpdateCount_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockResourceWriteEventRepository_GetTeamUnsourcedUpdateCount_Call) Return(_a0 int, _a1 error) *MockResourceWriteEventRepository_GetTeamUnsourcedUpdateCount_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockResourceWriteEventRepository_GetTeamUnsourcedUpdateCount_Call) RunAndReturn(run func(context.Context, string, time.Time) (int, error)) *MockResourceWriteEventRepository_GetTeamUnsourcedUpdateCount_Call {
 	_c.Call.Return(run)
 	return _c
 }

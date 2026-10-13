@@ -103,9 +103,10 @@ func (r *ArtifactRepository) GetByID(ctx context.Context, userID, teamID, artifa
 	query := `
 		SELECT a.id, a.project_id, a.slug, a.user_id, a.team_id, a.title, a.description, a.content,
 		a.status, a.type, a.metadata, a.created_at, a.updated_at, a.version, a.labels,
-		a.locked_by::text, a.locked_at, a.lock_comment, lock_u.name
+		a.locked_by::text, a.locked_at, a.lock_comment, lock_u.name, ` + resourceLastWriteProjection + `
 		FROM artifacts a
 		LEFT JOIN users lock_u ON lock_u.id = a.locked_by
+		LEFT JOIN ` + resourceLastWriteLateral(models.RelationResourceTypeArtifact, "a") + `
 		WHERE a.id = $1
 			AND a.team_id = $2
 			AND (
@@ -117,18 +118,20 @@ func (r *ArtifactRepository) GetByID(ctx context.Context, userID, teamID, artifa
 	var artifact models.Artifact
 	var metadataJSON []byte
 	var lock resourceLockScan
+	var lastWrite resourceLastWriteScan
 	err := r.db.QueryRowContext(ctx, query, artifactID, teamID, userID).Scan(
 		&artifact.ID, &artifact.ProjectID, &artifact.Slug,
 		&artifact.UserID, &artifact.TeamID, &artifact.Title, &artifact.Description,
 		&artifact.Content, &artifact.Status, &artifact.Type,
 		&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Version, &artifact.Labels,
-		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName, &lastWrite.source, &lastWrite.assistantName,
 	)
 
 	if err != nil {
 		return nil, mapNoRows(fmt.Errorf("failed to get artifact by ID: %w", err), repositories.ErrArtifactNotFound)
 	}
 	artifact.Lock = lock.value()
+	artifact.LastWrite = lastWrite.value()
 
 	if err := json.Unmarshal(metadataJSON, &artifact.Metadata); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
@@ -146,9 +149,10 @@ func (r *ArtifactRepository) GetByProjectIDAndSlug(
 		SELECT a.id, a.project_id, a.slug, a.user_id, a.team_id, a.title, a.description, a.content,
 		a.status, a.type, a.metadata, a.created_at, a.updated_at, a.version, a.labels,
 		` + projectSummaryProjection + `,
-		a.locked_by::text, a.locked_at, a.lock_comment, lock_u.name
+		a.locked_by::text, a.locked_at, a.lock_comment, lock_u.name, ` + resourceLastWriteProjection + `
 		FROM artifacts a` + projectSummaryJoin("a") + `
 		LEFT JOIN users lock_u ON lock_u.id = a.locked_by
+		LEFT JOIN ` + resourceLastWriteLateral(models.RelationResourceTypeArtifact, "a") + `
 		WHERE a.project_id = $1
 			AND a.slug = $2
 			AND a.team_id = $3
@@ -162,13 +166,14 @@ func (r *ArtifactRepository) GetByProjectIDAndSlug(
 	var metadataJSON []byte
 	var project projectSummaryScan
 	var lock resourceLockScan
+	var lastWrite resourceLastWriteScan
 	err := r.db.QueryRowContext(ctx, query, projectID, slug, teamID, userID).Scan(
 		&artifact.ID, &artifact.ProjectID, &artifact.Slug,
 		&artifact.UserID, &artifact.TeamID, &artifact.Title, &artifact.Description,
 		&artifact.Content, &artifact.Status, &artifact.Type,
 		&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Version, &artifact.Labels,
 		&project.id, &project.name, &project.slug,
-		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName, &lastWrite.source, &lastWrite.assistantName,
 	)
 
 	if err != nil {
@@ -179,6 +184,7 @@ func (r *ArtifactRepository) GetByProjectIDAndSlug(
 	}
 	artifact.Project = project.value()
 	artifact.Lock = lock.value()
+	artifact.LastWrite = lastWrite.value()
 
 	if err := json.Unmarshal(metadataJSON, &artifact.Metadata); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
@@ -194,21 +200,23 @@ func (r *ArtifactRepository) GetByIDCrossTeam(
 	query := `
 		SELECT a.id, a.project_id, a.slug, a.user_id, a.team_id, a.title, a.description, a.content,
 		a.status, a.type, a.metadata, a.created_at, a.updated_at, a.version, a.labels,
-		a.locked_by::text, a.locked_at, a.lock_comment, lock_u.name
+		a.locked_by::text, a.locked_at, a.lock_comment, lock_u.name, ` + resourceLastWriteProjection + `
 		FROM artifacts a
 		LEFT JOIN users lock_u ON lock_u.id = a.locked_by
+		LEFT JOIN ` + resourceLastWriteLateral(models.RelationResourceTypeArtifact, "a") + `
 		WHERE a.id = $1 AND a.user_id = $2
 	`
 
 	var artifact models.Artifact
 	var metadataJSON []byte
 	var lock resourceLockScan
+	var lastWrite resourceLastWriteScan
 	err := r.db.QueryRowContext(ctx, query, artifactID, userID).Scan(
 		&artifact.ID, &artifact.ProjectID, &artifact.Slug,
 		&artifact.UserID, &artifact.TeamID, &artifact.Title, &artifact.Description,
 		&artifact.Content, &artifact.Status, &artifact.Type,
 		&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Version, &artifact.Labels,
-		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName, &lastWrite.source, &lastWrite.assistantName,
 	)
 
 	if err != nil {
@@ -218,6 +226,7 @@ func (r *ArtifactRepository) GetByIDCrossTeam(
 		)
 	}
 	artifact.Lock = lock.value()
+	artifact.LastWrite = lastWrite.value()
 
 	if err := json.Unmarshal(metadataJSON, &artifact.Metadata); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
@@ -233,21 +242,23 @@ func (r *ArtifactRepository) GetByProjectIDAndSlugCrossTeam(
 	query := `
 		SELECT a.id, a.project_id, a.slug, a.user_id, a.team_id, a.title, a.description, a.content,
 		a.status, a.type, a.metadata, a.created_at, a.updated_at, a.version, a.labels,
-		a.locked_by::text, a.locked_at, a.lock_comment, lock_u.name
+		a.locked_by::text, a.locked_at, a.lock_comment, lock_u.name, ` + resourceLastWriteProjection + `
 		FROM artifacts a
 		LEFT JOIN users lock_u ON lock_u.id = a.locked_by
+		LEFT JOIN ` + resourceLastWriteLateral(models.RelationResourceTypeArtifact, "a") + `
 		WHERE a.project_id = $1 AND a.slug = $2 AND a.user_id = $3
 	`
 
 	var artifact models.Artifact
 	var metadataJSON []byte
 	var lock resourceLockScan
+	var lastWrite resourceLastWriteScan
 	err := r.db.QueryRowContext(ctx, query, projectID, slug, userID).Scan(
 		&artifact.ID, &artifact.ProjectID, &artifact.Slug,
 		&artifact.UserID, &artifact.TeamID, &artifact.Title, &artifact.Description,
 		&artifact.Content, &artifact.Status, &artifact.Type,
 		&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Version, &artifact.Labels,
-		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName, &lastWrite.source, &lastWrite.assistantName,
 	)
 
 	if err != nil {
@@ -257,6 +268,7 @@ func (r *ArtifactRepository) GetByProjectIDAndSlugCrossTeam(
 		)
 	}
 	artifact.Lock = lock.value()
+	artifact.LastWrite = lastWrite.value()
 
 	if err := json.Unmarshal(metadataJSON, &artifact.Metadata); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
@@ -394,8 +406,10 @@ func (r *ArtifactRepository) queryArtifacts(
 	query, args, err := psql.
 		Select(artifactListColumns...).
 		Columns(resourceLockColumns("a")...).
+		Columns(resourceLastWriteColumns...).
 		From("artifacts a").
 		LeftJoin(resourceLockJoin("a")).
+		LeftJoin(resourceLastWriteLateral(models.RelationResourceTypeArtifact, "a")).
 		Where(where).
 		OrderBy(buildArtifactOrderByClause(filters)).
 		Limit(limit).
@@ -437,12 +451,13 @@ func scanArtifactListRows(rows *sql.Rows, crossTeam bool) ([]models.Artifact, er
 		var artifact models.Artifact
 		var metadataJSON []byte
 		var lock resourceLockScan
+		var lastWrite resourceLastWriteScan
 		scanErr := rows.Scan(
 			&artifact.ID, &artifact.ProjectID, &artifact.Slug,
 			&artifact.UserID, &artifact.TeamID, &artifact.Title, &artifact.Description,
 			&artifact.Status, &artifact.Type,
 			&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Labels,
-			&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
+			&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName, &lastWrite.source, &lastWrite.assistantName,
 		)
 		if scanErr != nil {
 			return nil, fmt.Errorf("failed to scan artifact%s: %w", artifactErrSuffix(crossTeam), scanErr)
@@ -453,6 +468,8 @@ func scanArtifactListRows(rows *sql.Rows, crossTeam bool) ([]models.Artifact, er
 		}
 
 		artifact.Lock = lock.value()
+
+		artifact.LastWrite = lastWrite.value()
 		artifacts = append(artifacts, artifact)
 	}
 

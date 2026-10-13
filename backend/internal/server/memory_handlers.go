@@ -410,12 +410,17 @@ func (s *Server) handleRestoreMemoryVersion(w http.ResponseWriter, r *http.Reque
 		"version_number", versionNumber,
 	).Info("Restore memory version request received")
 
-	memory, err := s.container.MemoryService().RestoreMemoryVersion(userID, teamID, memoryID, versionNumber)
+	memory, err := s.container.MemoryService().RestoreMemoryVersion(
+		userID, teamID, memoryID, versionNumber, resourceaccess.WriteOriginFromContext(r.Context()),
+	)
 	if err != nil {
 		s.handleMemoryVersionError(w, userID, memoryID, err)
 		return
 	}
 
+	// A restore is an update that arrived through a channel like any other
+	// (#1418): recorded, it is not an unknown write in the metrics.
+	s.recordResourceWrite(r.Context(), userID, models.WriteActionUpdate, writtenMemory(teamID, memory))
 	s.recordMemoryActivity(r.Context(), userID, activities.ActivityTypeMemoryUpdated, memoryID, "Restored memory", r)
 
 	writeOK(w, memory, s.logger)

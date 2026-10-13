@@ -85,6 +85,10 @@ type BlueprintImportRequest struct {
 
 // BlueprintImportReport represents the result of importing blueprints from a repository
 type BlueprintImportReport struct {
+	// ProjectID is the project the blueprints were imported into. It is not part
+	// of the response: the handler reads it to record the import's write events
+	// (#1418) against the right project.
+	ProjectID       string                            `json:"-"`
 	TotalScanned    int                               `json:"total_scanned"`
 	TotalSuccessful int                               `json:"total_successful"`
 	TotalFailed     int                               `json:"total_failed"`

@@ -471,12 +471,17 @@ func (s *Server) handleRestorePromptVersion(w http.ResponseWriter, r *http.Reque
 		"version_number", versionNumber,
 	).Info("Restore prompt version request received")
 
-	prompt, err := s.container.PromptService().RestorePromptVersion(userID, teamID, promptSlug, versionNumber)
+	prompt, err := s.container.PromptService().RestorePromptVersion(
+		userID, teamID, promptSlug, versionNumber, resourceaccess.WriteOriginFromContext(r.Context()),
+	)
 	if err != nil {
 		s.handlePromptVersionError(w, userID, promptSlug, err)
 		return
 	}
 
+	// A restore is an update that arrived through a channel like any other
+	// (#1418): recorded, it is not an unknown write in the metrics.
+	s.recordResourceWrite(r.Context(), userID, models.WriteActionUpdate, writtenPrompt(teamID, prompt))
 	s.recordPromptActivity(
 		r.Context(), userID, activities.ActivityTypePromptUpdated,
 		prompt.ID, promptSlug, "Restored prompt: "+promptSlug, r,

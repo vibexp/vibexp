@@ -450,7 +450,7 @@ func TestMaterializer_EditRestoreRoundTrip(t *testing.T) {
 	assert.NotEqual(t, originalRaw, string(afterEdit[targetPath]), "edit must change the materialized bytes")
 
 	// Restore version 1 -> raw reinstated byte-for-byte.
-	_, err = h.blueprintSvc.RestoreBlueprintVersionInTeam(mzUserID, mzTeamID, mzProjectID, target.Slug, 1)
+	_, err = h.blueprintSvc.RestoreBlueprintVersionInTeam(mzUserID, mzTeamID, mzProjectID, target.Slug, 1, nil)
 	require.NoError(t, err)
 
 	afterRestore, err := materialize(ctx, h.bpRepo.forProject(), h.attSvc)

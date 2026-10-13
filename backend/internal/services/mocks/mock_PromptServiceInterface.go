@@ -895,9 +895,9 @@ func (_c *MockPromptServiceInterface_RenderPromptBody_Call) RunAndReturn(run fun
 	return _c
 }
 
-// RestorePromptVersion provides a mock function with given fields: userID, teamID, slug, versionNumber
-func (_m *MockPromptServiceInterface) RestorePromptVersion(userID string, teamID string, slug string, versionNumber int) (*models.Prompt, error) {
-	ret := _m.Called(userID, teamID, slug, versionNumber)
+// RestorePromptVersion provides a mock function with given fields: userID, teamID, slug, versionNumber, origin
+func (_m *MockPromptServiceInterface) RestorePromptVersion(userID string, teamID string, slug string, versionNumber int, origin *models.WriteOrigin) (*models.Prompt, error) {
+	ret := _m.Called(userID, teamID, slug, versionNumber, origin)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RestorePromptVersion")
@@ -905,19 +905,19 @@ func (_m *MockPromptServiceInterface) RestorePromptVersion(userID string, teamID
 
 	var r0 *models.Prompt
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, string, int) (*models.Prompt, error)); ok {
-		return rf(userID, teamID, slug, versionNumber)
+	if rf, ok := ret.Get(0).(func(string, string, string, int, *models.WriteOrigin) (*models.Prompt, error)); ok {
+		return rf(userID, teamID, slug, versionNumber, origin)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, string, int) *models.Prompt); ok {
-		r0 = rf(userID, teamID, slug, versionNumber)
+	if rf, ok := ret.Get(0).(func(string, string, string, int, *models.WriteOrigin) *models.Prompt); ok {
+		r0 = rf(userID, teamID, slug, versionNumber, origin)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Prompt)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, string, int) error); ok {
-		r1 = rf(userID, teamID, slug, versionNumber)
+	if rf, ok := ret.Get(1).(func(string, string, string, int, *models.WriteOrigin) error); ok {
+		r1 = rf(userID, teamID, slug, versionNumber, origin)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -935,13 +935,14 @@ type MockPromptServiceInterface_RestorePromptVersion_Call struct {
 //   - teamID string
 //   - slug string
 //   - versionNumber int
-func (_e *MockPromptServiceInterface_Expecter) RestorePromptVersion(userID interface{}, teamID interface{}, slug interface{}, versionNumber interface{}) *MockPromptServiceInterface_RestorePromptVersion_Call {
-	return &MockPromptServiceInterface_RestorePromptVersion_Call{Call: _e.mock.On("RestorePromptVersion", userID, teamID, slug, versionNumber)}
+//   - origin *models.WriteOrigin
+func (_e *MockPromptServiceInterface_Expecter) RestorePromptVersion(userID interface{}, teamID interface{}, slug interface{}, versionNumber interface{}, origin interface{}) *MockPromptServiceInterface_RestorePromptVersion_Call {
+	return &MockPromptServiceInterface_RestorePromptVersion_Call{Call: _e.mock.On("RestorePromptVersion", userID, teamID, slug, versionNumber, origin)}
 }
 
-func (_c *MockPromptServiceInterface_RestorePromptVersion_Call) Run(run func(userID string, teamID string, slug string, versionNumber int)) *MockPromptServiceInterface_RestorePromptVersion_Call {
+func (_c *MockPromptServiceInterface_RestorePromptVersion_Call) Run(run func(userID string, teamID string, slug string, versionNumber int, origin *models.WriteOrigin)) *MockPromptServiceInterface_RestorePromptVersion_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string), args[3].(int))
+		run(args[0].(string), args[1].(string), args[2].(string), args[3].(int), args[4].(*models.WriteOrigin))
 	})
 	return _c
 }
@@ -951,7 +952,7 @@ func (_c *MockPromptServiceInterface_RestorePromptVersion_Call) Return(_a0 *mode
 	return _c
 }
 
-func (_c *MockPromptServiceInterface_RestorePromptVersion_Call) RunAndReturn(run func(string, string, string, int) (*models.Prompt, error)) *MockPromptServiceInterface_RestorePromptVersion_Call {
+func (_c *MockPromptServiceInterface_RestorePromptVersion_Call) RunAndReturn(run func(string, string, string, int, *models.WriteOrigin) (*models.Prompt, error)) *MockPromptServiceInterface_RestorePromptVersion_Call {
 	_c.Call.Return(run)
 	return _c
 }
