@@ -318,19 +318,7 @@ func (s *Server) handleCallbackSuccess(
 
 	// Write session cookie
 	if s.sessionManager != nil {
-		idpSubject := ""
-		if user.IDPSubject != nil {
-			idpSubject = *user.IDPSubject
-		}
-		sess := &sesslib.Session{
-			AccessToken:  tokens.AccessToken,
-			RefreshToken: tokens.RefreshToken,
-			ExpiresAt:    tokens.ExpiresAt,
-			IDPSubject:   idpSubject,
-			UserID:       user.ID,
-			Provider:     provider,
-		}
-		if err := s.sessionManager.Write(w, sess); err != nil {
+		if err := s.sessionManager.Write(w, newProviderSession(user, tokens, provider)); err != nil {
 			s.logger.With("error", err).Error("Failed to write session cookie")
 			apiErr := errors.NewInternalError("Failed to create session")
 			errors.WriteJSONError(w, r, apiErr)
@@ -352,6 +340,34 @@ func (s *Server) handleCallbackSuccess(
 
 	// Redirect to frontend home after successful authentication
 	http.Redirect(w, r, s.config.Frontend.BaseURL+"/", http.StatusFound)
+}
+
+// newProviderSession builds the session of a user who just signed in through
+// the identity provider with slug provider.
+//
+// A provider that issues no refresh token (GitHub never does) cannot keep the
+// session alive, and its access-token expiry says nothing about the session:
+// GitHub reports none at all, which reads as already expired. Such a session
+// gets the sliding lifetime instead of the token's expiry.
+func newProviderSession(user *models.User, tokens *idp.Tokens, provider string) *sesslib.Session {
+	idpSubject := ""
+	if user.IDPSubject != nil {
+		idpSubject = *user.IDPSubject
+	}
+	now := time.Now()
+	sess := &sesslib.Session{
+		AccessToken:     tokens.AccessToken,
+		RefreshToken:    tokens.RefreshToken,
+		ExpiresAt:       tokens.ExpiresAt,
+		IDPSubject:      idpSubject,
+		UserID:          user.ID,
+		Provider:        provider,
+		AuthMethod:      sesslib.AuthMethodOAuth,
+		AuthenticatedAt: now,
+		Epoch:           user.SessionEpoch,
+	}
+	sess.StartSliding(now)
+	return sess
 }
 
 // rejectSuspendedSignIn stops a suspended account from receiving a fresh
@@ -393,6 +409,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	).Info("Logout request received")
 
 	if s.sessionManager != nil {
+		s.recordLogout(r)
 		s.sessionManager.Clear(w)
 	}
 	// If sessionManager is nil there is no encrypted cookie that could
@@ -400,6 +417,73 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	// failure in production paths), so there is nothing to clear here.
 
 	writeOK(w, LogoutResponse{Message: "logged out"}, s.logger)
+}
+
+// recordLogout records the auth_logout activity for the session being ended
+// (#1428). The logout route is public, so the user is taken from the cookie
+// itself, and only a cookie that would still authenticate counts: the account
+// may sign in, the cookie's epoch is the user's current one, and a session with
+// no refresh token has not expired. Anything else signs nobody out and records
+// nothing. That keeps a revoked or expired copy of a cookie from writing
+// activity rows in its user's name, however often it is replayed.
+//
+// An expired session that has a refresh token is recorded: whether it would
+// still authenticate depends on a provider round trip that logout does not make.
+func (s *Server) recordLogout(r *http.Request) {
+	sess, err := s.sessionManager.Read(r)
+	if err != nil || sess.UserID == "" {
+		return
+	}
+	if sess.IsSliding() && sess.IsExpired() {
+		return
+	}
+	user, err := s.rejectIfSuspended(r.Context(), sess.UserID)
+	if err != nil || sess.Epoch != user.SessionEpoch {
+		return
+	}
+	metadata := map[string]interface{}{}
+	if sess.AuthMethod != "" {
+		metadata["auth_method"] = sess.AuthMethod
+	}
+	if sess.Provider != "" {
+		metadata["provider"] = sess.Provider
+	}
+	NewActivityRecorder(s.container.ActivityService()).
+		RecordAuthActivity(r.Context(), sess.UserID, activities.ActivityTypeAuthLogout, nil, metadata, r)
+}
+
+// revokeOtherSessions ends every cookie session of userID except the one this
+// request was authenticated by (#1428). It bumps the user's session epoch,
+// which the authentication chokepoint checks on every cookie request, and then
+// re-issues the caller's cookie under the new epoch when the caller is that
+// same user signed in by cookie. Otherwise (an administrator acting on someone
+// else, an API key) every cookie session of the user ends. API keys and
+// MCP/OAuth tokens are not affected.
+//
+// The cookie is re-issued from the session the middleware authenticated, not
+// from the request's cookie. The two differ when the middleware refreshed the
+// provider tokens on this very request: the request cookie then holds a spent
+// refresh token, and writing it back would sign the caller out on their next
+// refresh. It also means a request authenticated by an API key never revives
+// a cookie it happens to carry.
+//
+// The epoch is bumped before the cookie is written. If the write then fails the
+// caller is signed out along with everyone else, which is the safe direction:
+// the other order could leave a revoked session alive.
+func (s *Server) revokeOtherSessions(w http.ResponseWriter, r *http.Request, userID string) error {
+	epoch, err := s.container.AuthService().RevokeUserSessions(r.Context(), userID)
+	if err != nil {
+		return err
+	}
+	sess := authenticatedSession(r.Context())
+	if sess == nil || sess.UserID != userID || s.sessionManager == nil {
+		return nil
+	}
+	sess.Epoch = epoch
+	if err := s.sessionManager.Write(w, sess); err != nil {
+		return fmt.Errorf("failed to re-issue the session after revoking the others: %w", err)
+	}
+	return nil
 }
 
 func (s *Server) handleGetMe(w http.ResponseWriter, r *http.Request) {
@@ -533,17 +617,22 @@ func (s *Server) handleDevLoginSuccess(w http.ResponseWriter, r *http.Request, u
 
 	// Build and write session cookie for dev login. The access token is
 	// a non-validating marker — middleware never sends it to an identity
-	// provider, and RefreshToken is empty so the refresh path short-circuits
-	// on the "no refresh token available" branch when the session expires.
+	// provider, and RefreshToken is empty, which makes this a sliding session:
+	// it lasts SlidingLifetime from its last use, and the refresh path
+	// short-circuits on the "no refresh token available" branch once it expires.
 	if s.sessionManager != nil {
 		devSubject := fmt.Sprintf("dev_%s", user.Email)
+		now := time.Now()
 		sess := &sesslib.Session{
-			AccessToken:  fmt.Sprintf("dev:%s", user.Email),
-			RefreshToken: "",
-			ExpiresAt:    time.Now().Add(24 * time.Hour),
-			IDPSubject:   devSubject,
-			UserID:       user.ID,
+			AccessToken:     fmt.Sprintf("dev:%s", user.Email),
+			RefreshToken:    "",
+			IDPSubject:      devSubject,
+			UserID:          user.ID,
+			AuthMethod:      sesslib.AuthMethodDev,
+			AuthenticatedAt: now,
+			Epoch:           user.SessionEpoch,
 		}
+		sess.StartSliding(now)
 		if err := s.sessionManager.Write(w, sess); err != nil {
 			s.logger.With("error", err).Error("Failed to write dev session cookie")
 			apiErr := errors.NewInternalError("Failed to create session")

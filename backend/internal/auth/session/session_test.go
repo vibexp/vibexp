@@ -162,6 +162,8 @@ func TestSession_IsExpired(t *testing.T) {
 		{"not expired", time.Now().Add(time.Hour), false},
 		{"just expired", time.Now().Add(-time.Millisecond), true},
 		{"expired 1h ago", time.Now().Add(-time.Hour), true},
+		// A zero expiry is in the past. It must never mean "does not expire".
+		{"zero expiry", time.Time{}, true},
 	}
 
 	for _, tt := range tests {
@@ -277,4 +279,132 @@ func TestDeriveStateMACKey_DiffersAcrossManagers(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEqual(t, mgr1.DeriveStateMACKey(), mgr2.DeriveStateMACKey())
+}
+
+// TestRead_PayloadFromBeforeEpochs decodes the exact JSON a cookie minted before
+// #1428 carries: no epoch, no sign-in method, no sign-in time. It must decode,
+// with the epoch reading as 0 (the users.session_epoch default), so the upgrade
+// signs nobody out.
+func TestRead_PayloadFromBeforeEpochs(t *testing.T) {
+	mgr := newTestManager(t)
+	legacy := []byte(`{"access_token":"tok","refresh_token":"rt","expires_at":"2099-01-01T00:00:00Z",` +
+		`"idp_subject":"sub","user_id":"u-1","provider":"google"}`)
+	value, err := mgr.encrypt(legacy, nil)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(&http.Cookie{Name: CookieName, Value: value})
+	sess, err := mgr.Read(req)
+
+	require.NoError(t, err)
+	assert.Equal(t, "u-1", sess.UserID)
+	assert.Equal(t, int64(0), sess.Epoch)
+	assert.Empty(t, sess.AuthMethod)
+	assert.True(t, sess.AuthenticatedAt.IsZero())
+}
+
+func TestWriteAndRead_RoundTripsEpochMethodAndSignInTime(t *testing.T) {
+	mgr := newTestManager(t)
+	signedIn := time.Now().Add(-time.Hour).UTC().Truncate(time.Second)
+	rec := httptest.NewRecorder()
+	require.NoError(t, mgr.Write(rec, &Session{
+		UserID: "u-1", AccessToken: "tok", ExpiresAt: time.Now().Add(time.Hour),
+		AuthMethod: AuthMethodPassword, AuthenticatedAt: signedIn, Epoch: 7,
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	for _, c := range rec.Result().Cookies() {
+		req.AddCookie(c)
+	}
+	sess, err := mgr.Read(req)
+
+	require.NoError(t, err)
+	assert.Equal(t, AuthMethodPassword, sess.AuthMethod)
+	assert.True(t, signedIn.Equal(sess.AuthenticatedAt))
+	assert.Equal(t, int64(7), sess.Epoch)
+}
+
+func TestSession_IsSliding(t *testing.T) {
+	assert.True(t, (&Session{}).IsSliding(), "no refresh token: nothing but activity can keep it alive")
+	assert.False(t, (&Session{RefreshToken: "rt"}).IsSliding())
+}
+
+func TestSession_StartSliding(t *testing.T) {
+	now := time.Now()
+
+	t.Run("a refresh-less session gets the sliding lifetime whatever expiry it had", func(t *testing.T) {
+		for name, had := range map[string]time.Time{
+			"zero (GitHub)":         {},
+			"one hour (OIDC token)": now.Add(time.Hour),
+		} {
+			t.Run(name, func(t *testing.T) {
+				sess := &Session{ExpiresAt: had}
+				sess.StartSliding(now)
+				assert.Equal(t, now.Add(SlidingLifetime), sess.ExpiresAt)
+			})
+		}
+	})
+
+	t.Run("a session with a refresh token keeps the provider's expiry", func(t *testing.T) {
+		expiry := now.Add(time.Hour)
+		sess := &Session{RefreshToken: "rt", ExpiresAt: expiry}
+		sess.StartSliding(now)
+		assert.Equal(t, expiry, sess.ExpiresAt)
+	})
+}
+
+func TestSession_Slide(t *testing.T) {
+	now := time.Now()
+	// issued returns a sliding session last issued `age` ago.
+	issued := func(age time.Duration) *Session {
+		return &Session{ExpiresAt: now.Add(-age).Add(SlidingLifetime)}
+	}
+
+	tests := []struct {
+		name string
+		sess *Session
+		want bool
+	}{
+		{"just issued", issued(0), false},
+		{"issued a minute short of a day ago", issued(slidingReissueInterval - time.Minute), false},
+		{"issued exactly a day ago", issued(slidingReissueInterval), true},
+		{"issued 29 days ago", issued(29 * 24 * time.Hour), true},
+		{"expires this instant", issued(SlidingLifetime), true},
+		{"expired a second ago", issued(SlidingLifetime + time.Second), false},
+		{"zero expiry", &Session{}, false},
+		{"has a refresh token", &Session{RefreshToken: "rt", ExpiresAt: now.Add(time.Minute)}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			before := tt.sess.ExpiresAt
+
+			got := tt.sess.Slide(now)
+
+			assert.Equal(t, tt.want, got)
+			if tt.want {
+				assert.Equal(t, now.Add(SlidingLifetime), tt.sess.ExpiresAt)
+			} else {
+				assert.Equal(t, before, tt.sess.ExpiresAt, "a session that does not slide must be left untouched")
+			}
+		})
+	}
+}
+
+// TestWrite_CookieMaxAgeFollowsTheSessionKind pins the cookie lifetime to the
+// session's: a sliding session needs a cookie that outlives an idle day, and a
+// refreshable session keeps the 24-hour cookie it always had.
+func TestWrite_CookieMaxAgeFollowsTheSessionKind(t *testing.T) {
+	mgr := newTestManager(t)
+	maxAgeOf := func(sess *Session) int {
+		rec := httptest.NewRecorder()
+		require.NoError(t, mgr.Write(rec, sess))
+		cookies := rec.Result().Cookies()
+		require.Len(t, cookies, 1)
+		return cookies[0].MaxAge
+	}
+
+	assert.Equal(t, 30*24*60*60, maxAgeOf(&Session{UserID: "u", ExpiresAt: time.Now().Add(SlidingLifetime)}))
+	assert.Equal(t, 24*60*60,
+		maxAgeOf(&Session{UserID: "u", RefreshToken: "rt", ExpiresAt: time.Now().Add(time.Hour)}))
 }

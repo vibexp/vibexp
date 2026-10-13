@@ -6,6 +6,7 @@ package contextkeys
 import (
 	"context"
 	"log/slog"
+	"time"
 )
 
 // ContextKey is a custom type for context keys to avoid collisions
@@ -38,6 +39,16 @@ const (
 	// authentication settings routes, for the lockout guard, and is absent for
 	// API keys, setup sessions and dev-login sessions.
 	SessionProvider ContextKey = "session_provider"
+	// AuthMethod holds how the caller's cookie session was signed in: one of
+	// the session.AuthMethod* values (#1428). It is set for cookie
+	// authentication only, and is empty for an API key, a bearer token and a
+	// cookie minted before sign-in methods were recorded. Read it with
+	// GetAuthMethod.
+	AuthMethod ContextKey = "auth_method"
+	// AuthenticatedAt holds when the caller's cookie session was signed in
+	// (#1428), under the same conditions as AuthMethod. Read it with
+	// GetAuthenticatedAt.
+	AuthenticatedAt ContextKey = "authenticated_at"
 
 	// AccessedResourceID holds the resolved UUID of a resource read on the
 	// current request, set by a detail handler and read back by the
@@ -106,6 +117,23 @@ func GetLoggerFromContext(ctx context.Context) *slog.Logger {
 		logger = logger.With("request_id", requestID)
 	}
 	return logger
+}
+
+// GetAuthMethod returns how the caller's cookie session was signed in, or ""
+// when the request was not authenticated by a cookie or the cookie predates
+// recorded sign-in methods.
+func GetAuthMethod(ctx context.Context) string {
+	method, _ := ctx.Value(AuthMethod).(string)
+	return method
+}
+
+// GetAuthenticatedAt returns when the caller's cookie session was signed in.
+// It is the zero time when the request was not authenticated by a cookie or the
+// cookie predates recorded sign-in times, so a "signed in recently" check on
+// the result fails closed.
+func GetAuthenticatedAt(ctx context.Context) time.Time {
+	at, _ := ctx.Value(AuthenticatedAt).(time.Time)
+	return at
 }
 
 // GetRequestID retrieves the request ID from context.

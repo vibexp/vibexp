@@ -34,6 +34,11 @@ type AuthServiceInterface interface {
 	// ProvisionFromClaims resolves or creates a user from upstream IdP claims,
 	// used by the embedded OAuth Authorization Server's login leg (issue #31).
 	ProvisionFromClaims(ctx context.Context, providerName string, claims *idp.Claims) (*models.User, error)
+	// RevokeUserSessions ends every cookie session of the user by bumping their
+	// session epoch, and returns the new epoch so the caller can re-issue its own
+	// cookie under it (#1428). API keys and MCP/OAuth tokens are not affected.
+	// Returns repositories.ErrUserNotFound when the user does not exist.
+	RevokeUserSessions(ctx context.Context, userID string) (int64, error)
 	// HandleDevLogin creates or retrieves a dev user by email (dev env only).
 	// The caller is responsible for creating the session cookie.
 	HandleDevLogin(ctx context.Context, email, name string) (*models.User, error)

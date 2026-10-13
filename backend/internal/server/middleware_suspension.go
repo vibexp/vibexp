@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	sesslib "github.com/vibexp/vibexp/internal/auth/session"
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
@@ -47,6 +48,16 @@ import (
 // seconds), so it adds no database round trip of its own. Root instance admins
 // are exempt inside the resolver.
 
+// # Session revocation (#1428)
+//
+// A session cookie is stateless, so the only way to end one early is to make
+// the server stop accepting it. Every cookie carries the user's session_epoch
+// as of the moment it was minted, and this chokepoint compares it with the user
+// row it has already loaded: a mismatch means the user's sessions were revoked
+// after the cookie was issued. The comparison costs no query. It applies to
+// cookie authentication only: an API key and an MCP/OAuth token carry no epoch
+// and have their own revocation.
+
 // errUserSuspended is returned by authenticateUser when the resolved account is
 // suspended. Required-auth paths translate it into their normal
 // "not authenticated" response; optional-auth paths treat it as anonymous.
@@ -57,6 +68,26 @@ var errUserSuspended = errors.New("user account is suspended")
 // It is handled exactly like errUserSuspended: required-auth paths reject with
 // 401, optional-auth paths proceed anonymously.
 var errUserNotOnAllowlist = errors.New("user is not on the access allowlist")
+
+// errSessionRevoked is returned by authenticateUser when a session cookie was
+// minted under an earlier session epoch than the user's current one: the
+// user's sessions were revoked after it was issued. Required-auth paths clear
+// the cookie and answer 401; optional-auth paths proceed anonymously.
+var errSessionRevoked = errors.New("session was revoked")
+
+// errSessionMissing is returned by authenticateUser when a cookie
+// authentication reaches it without the session. It is a programming error,
+// reported as an infrastructure failure so the request is refused: a cookie
+// path that skipped the epoch check would make revocation bypassable.
+var errSessionMissing = errors.New("cookie authentication without a session")
+
+// sessionRevokedAuthDetail is the client-facing message for a revoked session.
+// It is the message an expired session already gets: to the client the two are
+// the same event, a session that no longer works and needs a new sign-in.
+const sessionRevokedAuthDetail = "Session expired"
+
+// rejectReasonSessionRevoked is the logged reason of an epoch rejection.
+const rejectReasonSessionRevoked = "session_revoked"
 
 // suspendedAuthDetail is the client-facing message for a rejected suspended
 // account. It is deliberately explicit rather than a generic auth failure: the
@@ -74,13 +105,18 @@ const notOnAllowlistAuthDetail = "Access restricted by the access allowlist"
 const rejectReasonNotOnAllowlist = "not_on_allowlist"
 
 // authenticateUser is the ONLY way to build an authenticated request context.
-// It rejects suspended accounts, and accounts the access allowlist no longer
-// admits, before delegating to authenticatedContext.
+// It rejects suspended accounts, accounts the access allowlist no longer
+// admits, and revoked cookie sessions, before delegating to
+// authenticatedContext.
+//
+// sess is the decrypted session of a cookie authentication and nil for every
+// other auth type. A cookie authentication must pass it: without it the epoch
+// could not be checked, so that is refused rather than waved through.
 //
 // Errors are of two kinds and callers must distinguish them:
-//   - errUserSuspended / errUserNotOnAllowlist — the account may not
-//     authenticate. Required-auth paths reject; the optional-auth paths proceed
-//     anonymously.
+//   - errUserSuspended / errUserNotOnAllowlist / errSessionRevoked — the
+//     credential may not authenticate. Required-auth paths reject; the
+//     optional-auth paths proceed anonymously.
 //   - anything else — an infrastructure failure looking the account up, or
 //     evaluating an allowlist that is known to be active. This must NOT be
 //     treated as "allowed": failing open here would make suspension and the
@@ -88,46 +124,57 @@ const rejectReasonNotOnAllowlist = "not_on_allowlist"
 //     return 500; optional-auth paths proceed anonymously (they already do that
 //     for every other failure, and they grant no access on their own).
 func (s *Server) authenticateUser(
-	ctx context.Context, userID, authType string, extra []any,
+	ctx context.Context, userID, authType string, extra []any, sess *sesslib.Session,
 ) (context.Context, error) {
-	if err := s.rejectIfSuspended(ctx, userID); err != nil {
+	if authType == authTypeCookie && sess == nil {
+		return nil, fmt.Errorf("%w for user %q", errSessionMissing, userID)
+	}
+	user, err := s.rejectIfSuspended(ctx, userID)
+	if err != nil {
 		return nil, err
 	}
-	return authenticatedContext(ctx, userID, authType, extra), nil
+	if sess != nil && sess.Epoch != user.SessionEpoch {
+		return nil, errSessionRevoked
+	}
+	return authenticatedContext(ctx, userID, authType, extra, sess), nil
 }
 
-// rejectIfSuspended returns errUserSuspended when the account is suspended, a
-// wrapped repository error when the lookup fails, and nil when the account may
-// authenticate.
+// rejectIfSuspended returns the account when it may authenticate,
+// errUserSuspended when it is suspended, and a wrapped repository error when
+// the lookup fails. The returned row is what the session epoch is checked
+// against, so that check needs no second read.
 //
 // An account that no longer exists is treated as suspended rather than as an
 // infrastructure error: a credential referencing a deleted user must not
 // authenticate (this is also the path a #455 hard delete leaves behind for any
 // still-live session).
-func (s *Server) rejectIfSuspended(ctx context.Context, userID string) error {
+func (s *Server) rejectIfSuspended(ctx context.Context, userID string) (*models.User, error) {
 	// Fail CLOSED when the repository is unavailable. Returning nil here would
 	// authenticate everyone the moment the container is partially wired, and a
 	// panic would turn it into a 500 storm; an error keeps the semantics honest
 	// (required-auth paths 500, optional-auth paths go anonymous).
 	if s.container == nil {
-		return fmt.Errorf("container unavailable for suspension check of %q", userID)
+		return nil, fmt.Errorf("container unavailable for suspension check of %q", userID)
 	}
 	repo := s.container.UserRepository()
 	if repo == nil {
-		return fmt.Errorf("user repository unavailable for suspension check of %q", userID)
+		return nil, fmt.Errorf("user repository unavailable for suspension check of %q", userID)
 	}
 
 	user, err := repo.GetByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, repositories.ErrUserNotFound) {
-			return errUserSuspended
+			return nil, errUserSuspended
 		}
-		return fmt.Errorf("failed to load user %q for suspension check: %w", userID, err)
+		return nil, fmt.Errorf("failed to load user %q for suspension check: %w", userID, err)
 	}
 	if user.IsSuspended() {
-		return errUserSuspended
+		return nil, errUserSuspended
 	}
-	return s.rejectIfNotOnAllowlist(ctx, user)
+	if err := s.rejectIfNotOnAllowlist(ctx, user); err != nil {
+		return nil, err
+	}
+	return user, nil
 }
 
 // rejectIfNotOnAllowlist returns errUserNotOnAllowlist when an access allowlist
@@ -169,13 +216,19 @@ func (s *Server) logSuspendedRejection(ctx context.Context, middleware, authType
 			Info("Rejected request from account no longer on the access allowlist")
 		return
 	}
+	if errors.Is(err, errSessionRevoked) {
+		logger.With("reason", rejectReasonSessionRevoked).
+			Info("Rejected request on a revoked session")
+		return
+	}
 	logger.With("error", fmt.Sprintf("%+v", err)).
 		Error("Account status check failed; refusing to authenticate")
 }
 
 // writeSuspensionAuthError renders the response for a required-auth path whose
 // suspension check failed. A suspended account reuses that path's ordinary
-// "credential rejected" response (401) so the failure shape does not change; an
+// "credential rejected" response (401) so the failure shape does not change, and
+// so does a revoked session, whose cookie is cleared as well; an
 // infrastructure failure is a 500, never a 401, so a database outage is never
 // mistaken for a credential problem.
 func (s *Server) writeSuspensionAuthError(w http.ResponseWriter, r *http.Request, err error) {
@@ -185,6 +238,15 @@ func (s *Server) writeSuspensionAuthError(w http.ResponseWriter, r *http.Request
 	}
 	if errors.Is(err, errUserNotOnAllowlist) {
 		apierrors.WriteJSONError(w, r, apierrors.NewAuthInvalidError(notOnAllowlistAuthDetail))
+		return
+	}
+	if errors.Is(err, errSessionRevoked) {
+		// The cookie can never authenticate again, so drop it instead of
+		// letting the browser present it on every request until it expires.
+		if s.sessionManager != nil {
+			s.sessionManager.Clear(w)
+		}
+		apierrors.WriteJSONError(w, r, apierrors.NewAuthInvalidError(sessionRevokedAuthDetail))
 		return
 	}
 	apierrors.WriteJSONError(w, r, apierrors.NewInternalError(""))
