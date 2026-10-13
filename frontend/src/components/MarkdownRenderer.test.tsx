@@ -871,9 +871,9 @@ describe('MarkdownRenderer', () => {
   })
 
   // Regression guard for #884. A wide markdown table used to escape its card
-  // and paint over the resource detail sidebar: `.v2-root .prose :where(table)`
-  // sets `width: 100%`, which does NOT cap an auto-layout table — it still
-  // grows to its min-content width. The fix wraps every rendered table in a
+  // and paint over the resource detail sidebar: the design system's
+  // `.prose :where(table)` (prose.css) sets `width: 100%`, which does NOT cap
+  // an auto-layout table — it still grows to its min-content width. The fix wraps every rendered table in a
   // `.markdown-table-wrapper` scroll container during the same post-processing
   // pass that rewrites code blocks. `marked` is stubbed in this file, so these
   // assert the post-processing pass itself (the part that broke) by feeding it
