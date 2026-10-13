@@ -61,6 +61,7 @@ type WireContainer struct {
 
 	// Services
 	authService                  services.AuthServiceInterface
+	apiAccessService             services.APIAccessServiceInterface
 	apiKeyService                services.APIKeyServiceInterface
 	promptService                services.PromptServiceInterface
 	promptGalleryService         services.PromptGalleryServiceInterface
@@ -348,6 +349,14 @@ func (c *WireContainer) FeedItemReplyRepository() repositories.FeedItemReplyRepo
 // Service methods
 func (c *WireContainer) AuthService() services.AuthServiceInterface {
 	return c.authService
+}
+
+// APIAccessService returns the service that revokes a user's non-browser
+// access (#1449). It is not on the Container interface yet: it has no HTTP
+// caller until the password-reset flag (#1432) and the account-claim hook
+// (#1431) use it.
+func (c *WireContainer) APIAccessService() services.APIAccessServiceInterface {
+	return c.apiAccessService
 }
 
 func (c *WireContainer) APIKeyService() services.APIKeyServiceInterface {

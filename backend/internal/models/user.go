@@ -54,6 +54,22 @@ type User struct {
 	// session is valid only while the epoch it was minted under equals this
 	// value. It is server-side state and is never serialized.
 	SessionEpoch int64 `json:"-" db:"session_epoch"`
+	// APITokensValidAfter is the bearer-token cut-off (#1449): an access token
+	// issued before it does not authenticate. Nil when the user's API access
+	// was never revoked. Server-side state, never serialized.
+	APITokensValidAfter *time.Time `json:"-" db:"api_tokens_valid_after"`
+}
+
+// APIAccessRevocation is what revoking all of a user's API access removed.
+type APIAccessRevocation struct {
+	// TokensValidAfter is the new bearer-token cut-off of the user.
+	TokensValidAfter time.Time
+	// APIKeys is the number of API keys deleted.
+	APIKeys int64
+	// OAuthGrants is the number of stored OAuth rows deleted: access tokens,
+	// refresh tokens, authorization codes, PKCE sessions and pending login
+	// sessions.
+	OAuthGrants int64
 }
 
 // CurrentUserResponse is the GET /api/v1/auth/me payload: the authenticated

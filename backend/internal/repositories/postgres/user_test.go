@@ -56,11 +56,11 @@ func TestUserRepository_GetByID(t *testing.T) {
 				rows := sqlmock.NewRows([]string{
 					"id", "google_id", "idp_provider", "idp_subject", "email", "email_verified_at", "name", "avatar_url",
 					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
-					"created_at", "updated_at", "version", "session_epoch",
+					"created_at", "updated_at", "version", "session_epoch", "api_tokens_valid_after",
 				}).AddRow(
 					"user-123", "google-123", nil, nil, "user@example.com", nil, "Test User", &avatarURL,
 					&defaultTeamID, "active", false, nil,
-					now, now, 1, 0,
+					now, now, 1, 0, nil,
 				)
 
 				mock.ExpectQuery(`SELECT .+ FROM users WHERE id`).
@@ -83,11 +83,11 @@ func TestUserRepository_GetByID(t *testing.T) {
 				rows := sqlmock.NewRows([]string{
 					"id", "google_id", "idp_provider", "idp_subject", "email", "email_verified_at", "name", "avatar_url",
 					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
-					"created_at", "updated_at", "version", "session_epoch",
+					"created_at", "updated_at", "version", "session_epoch", "api_tokens_valid_after",
 				}).AddRow(
 					"user-456", "google-456", nil, nil, "minimal@example.com", nil, "Minimal User", nil,
 					nil, "active", false, nil,
-					now, now, 1, 0,
+					now, now, 1, 0, nil,
 				)
 
 				mock.ExpectQuery(`SELECT .+ FROM users WHERE id`).
@@ -170,11 +170,11 @@ func TestUserRepository_GetByEmail(t *testing.T) {
 				rows := sqlmock.NewRows([]string{
 					"id", "google_id", "idp_provider", "idp_subject", "email", "email_verified_at", "name", "avatar_url",
 					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
-					"created_at", "updated_at", "version", "session_epoch",
+					"created_at", "updated_at", "version", "session_epoch", "api_tokens_valid_after",
 				}).AddRow(
 					"user-123", "google-123", nil, nil, "user@example.com", nil, "Test User", nil,
 					nil, "active", false, nil,
-					now, now, 1, 0,
+					now, now, 1, 0, nil,
 				)
 
 				mock.ExpectQuery(`SELECT .+ FROM users WHERE email`).
@@ -249,11 +249,11 @@ func TestUserRepository_GetByIDPSubject(t *testing.T) {
 		rows := sqlmock.NewRows([]string{
 			"id", "google_id", "idp_provider", "idp_subject", "email", "email_verified_at", "name", "avatar_url",
 			"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
-			"created_at", "updated_at", "version", "session_epoch",
+			"created_at", "updated_at", "version", "session_epoch", "api_tokens_valid_after",
 		}).AddRow(
 			"user-123", nil, "corp-sso", "sub-1", "user@example.com", now, "Test User", nil,
 			nil, "active", false, nil,
-			now, now, 1, 0,
+			now, now, 1, 0, nil,
 		)
 		mock.ExpectQuery(lookup).WithArgs("corp-sso", "sub-1").WillReturnRows(rows)
 

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 
@@ -88,8 +89,22 @@ func (v *Verifier) Verify(ctx context.Context, token string, _ *http.Request) (*
 		UserID:     info.UserID,
 		Scopes:     info.Scopes,
 		Expiration: info.Expiration,
-		Extra:      map[string]any{"sub": info.Subject},
+		Extra:      map[string]any{"sub": info.Subject, ExtraIssuedAt: info.IssuedAt},
 	}, nil
+}
+
+// ExtraIssuedAt is the TokenInfo.Extra key holding the token's iat as a
+// time.Time (the zero time when the token carries none). The MCP SDK's TokenInfo
+// has no field for it.
+const ExtraIssuedAt = "iat"
+
+// IssuedAt returns the iat a Verifier recorded on info, or the zero time.
+func IssuedAt(info *mcpauth.TokenInfo) time.Time {
+	if info == nil {
+		return time.Time{}
+	}
+	issuedAt, _ := info.Extra[ExtraIssuedAt].(time.Time)
+	return issuedAt
 }
 
 // translateError maps authkit errors to the MCP SDK contract while preserving

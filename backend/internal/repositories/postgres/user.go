@@ -15,12 +15,13 @@ import (
 // Keep in sync with scanUser below.
 const userColumns = `id, google_id, idp_provider, idp_subject, email, email_verified_at, name, avatar_url,
 		default_team_id, status, onboarding_completed,
-		onboarding_completed_at, created_at, updated_at, version, session_epoch`
+		onboarding_completed_at, created_at, updated_at, version, session_epoch, api_tokens_valid_after`
 
 // userColumnsQualified is userColumns for a query that joins users as u.
 const userColumnsQualified = `u.id, u.google_id, u.idp_provider, u.idp_subject, u.email, u.email_verified_at,
 		u.name, u.avatar_url, u.default_team_id, u.status, u.onboarding_completed,
-		u.onboarding_completed_at, u.created_at, u.updated_at, u.version, u.session_epoch`
+		u.onboarding_completed_at, u.created_at, u.updated_at, u.version, u.session_epoch,
+		u.api_tokens_valid_after`
 
 // usersEmailUniqueConstraint is the unique constraint on users.email. Create
 // writes to user_identities in the same statement, so a unique violation is a
@@ -52,6 +53,7 @@ func scanUser(row rowScanner) (*models.User, error) {
 		&user.DefaultTeamID, &user.Status,
 		&user.OnboardingCompleted, &user.OnboardingCompletedAt,
 		&user.CreatedAt, &user.UpdatedAt, &user.Version, &user.SessionEpoch,
+		&user.APITokensValidAfter,
 	)
 	if err != nil {
 		return nil, err

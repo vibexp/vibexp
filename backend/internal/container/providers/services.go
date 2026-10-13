@@ -32,6 +32,13 @@ func ProvideAuthService(
 	return services.NewAuthService(userRepo, identityRepo, resolver, eventManager, logger, allowlist)
 }
 
+// ProvideAPIAccessService creates a new APIAccessService
+func ProvideAPIAccessService(
+	repo repositories.APIAccessRepository, logger *slog.Logger,
+) services.APIAccessServiceInterface {
+	return services.NewAPIAccessService(repo, logger)
+}
+
 // ProvideAPIKeyService creates a new APIKeyService
 func ProvideAPIKeyService(
 	apiKeyRepo repositories.APIKeyRepository,

@@ -135,6 +135,41 @@ func TestVerify_ValidToken(t *testing.T) {
 	assert.False(t, info.Expiration.IsZero())
 }
 
+// IssuedAt carries the token's iat, and is the zero time when there is none:
+// revocation by issue time (#1449) must be able to tell "old" from "unknown".
+func TestVerify_IssuedAt(t *testing.T) {
+	j := newJWKSTestServer(t)
+	v := newTestVerifier(t, j, RequireAudience(testResource), stubResolver{id: testInternalID})
+
+	t.Run("a token with iat reports it", func(t *testing.T) {
+		issued := time.Now().Add(-10 * time.Minute).Truncate(time.Second)
+		claims := validClaims(j.issuer())
+		claims["iat"] = issued.Unix()
+
+		info, err := v.Verify(context.Background(), j.sign(t, claims))
+
+		require.NoError(t, err)
+		assert.True(t, issued.Equal(info.IssuedAt))
+	})
+
+	t.Run("a fractional iat verifies and is truncated to the second", func(t *testing.T) {
+		claims := validClaims(j.issuer())
+		claims["iat"] = 1700000000.5
+
+		info, err := v.Verify(context.Background(), j.sign(t, claims))
+
+		require.NoError(t, err, "a NumericDate may be fractional; iat must never fail verification")
+		assert.True(t, time.Unix(1700000000, 0).Equal(info.IssuedAt))
+	})
+
+	t.Run("a token without iat reports the zero time", func(t *testing.T) {
+		info, err := v.Verify(context.Background(), j.sign(t, validClaims(j.issuer())))
+
+		require.NoError(t, err)
+		assert.True(t, info.IssuedAt.IsZero())
+	})
+}
+
 // TestVerify_WithInProcessKeySet exercises WithKeySet(NewLocalKeySet(...)): the
 // embedded Authorization Server verifies its own tokens against in-process public
 // keys, with no HTTP JWKS fetch — so verification does not depend on the issuer
