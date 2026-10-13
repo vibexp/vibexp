@@ -33,16 +33,33 @@ type AuthServiceDeps struct {
 	EventManager events.EventPublisher
 	Logger       *slog.Logger
 	Allowlist    services.AccessAllowlistResolver
+	// Gate enforces the registration mode for a new account (#1434).
+	Gate services.RegistrationGate
 }
 
 // ProvideAuthService creates a new AuthService. An unverified account claimed
 // by a verified provider sign-in loses its password (#1431) and its API access
-// (#1449): whoever set them up need not be the mailbox's owner.
+// (#1449): whoever set them up need not be the mailbox's owner. A sign-in that
+// would create an account goes through the registration gate (#1434).
 func ProvideAuthService(deps AuthServiceDeps) services.AuthServiceInterface {
 	return services.NewAuthService(
 		deps.UserRepo, deps.IdentityRepo, deps.Resolver, deps.EventManager, deps.Logger, deps.Allowlist,
+		services.WithRegistrationGate(deps.Gate),
 		services.WithUnverifiedAccountClaimHook(
 			services.NewUnverifiedAccountCleanup(deps.Credentials, deps.APIAccess, deps.Logger)))
+}
+
+// ProvideRegistrationGate creates the gate that enforces the instance's
+// registration mode when a sign-in would create a new account (#1434).
+func ProvideRegistrationGate(
+	policy services.AuthPolicyResolver,
+	invitations repositories.TeamInvitationRepository,
+	rootAdmins services.InstanceAdminResolver,
+	logger *slog.Logger,
+) services.RegistrationGate {
+	return services.NewRegistrationGate(services.RegistrationGateDeps{
+		Policy: policy, Invitations: invitations, RootAdmins: rootAdmins, Logger: logger,
+	})
 }
 
 // ProvideAPIAccessService creates a new APIAccessService
@@ -904,8 +921,10 @@ func ProvideAdminService(
 	userRepo repositories.UserRepository,
 	eventManager events.EventPublisher,
 	freshness services.FreshnessServiceInterface,
+	allowlist services.AccessAllowlistResolver,
 ) services.AdminServiceInterface {
-	return services.NewAdminService(adminRepo, userRepo, eventManager, freshness)
+	return services.NewAdminService(adminRepo, userRepo, eventManager, freshness,
+		services.WithAdminAccessAllowlist(allowlist))
 }
 
 // ProvideEmbeddingBackfillService creates a new EmbeddingBackfillService that

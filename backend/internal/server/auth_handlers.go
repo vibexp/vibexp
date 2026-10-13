@@ -50,6 +50,12 @@ const (
 	// EXISTING_SIGN_IN_REQUIRED_CODE in the frontend.
 	callbackErrorExistingSignInRequired = "existing_sign_in_required"
 
+	// callbackErrorRegistrationClosed is the SPA callback error code for a
+	// sign-in that would have created an account while the registration mode
+	// is invite_only and the person was not invited (#1434). Mirrored by
+	// REGISTRATION_CLOSED_CODE in the frontend.
+	callbackErrorRegistrationClosed = "registration_closed"
+
 	// stateCookieMaxAge is 10 minutes — enough for a human to complete the
 	// identity-provider login flow and be redirected back to the callback.
 	stateCookieMaxAge = 10 * 60 // 10 minutes in seconds
@@ -272,6 +278,12 @@ func (s *Server) handleCallbackFailure(w http.ResponseWriter, r *http.Request, s
 	// sign-in method, so it must be signed in to that way first.
 	if stderrors.Is(err, services.ErrExistingSignInRequired) {
 		s.redirectCallbackError(w, r, callbackErrorExistingSignInRequired)
+		return
+	}
+	// The sign-in would have created an account and registration is by
+	// invitation only (#1434). The service logged the reason.
+	if stderrors.Is(err, services.ErrRegistrationClosed) {
+		s.redirectCallbackError(w, r, callbackErrorRegistrationClosed)
 		return
 	}
 	// The provider the flow started with was disabled or removed before the

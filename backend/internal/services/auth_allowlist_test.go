@@ -76,6 +76,7 @@ func TestAuthService_UnverifiedRootAdminEmailIsDeniedWhileAllowlistActive(t *tes
 	provider.On("Name").Return(idp.ProviderOIDC)
 	provider.On("ExchangeCode", ctx, "test-auth-code", "").
 		Return(&idp.Tokens{AccessToken: "test-access-token"}, claims, nil)
+	noAccountYet(repo)
 
 	_, _, _, err := service.HandleCallback(ctx, "test-auth-code", string(idp.ProviderOIDC))
 	require.ErrorIs(t, err, ErrAccessRestricted)

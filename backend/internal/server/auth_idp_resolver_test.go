@@ -174,7 +174,36 @@ type resolverAuthHarness struct {
 	providers  *memAuthProviders
 	users      *memUsersByIDP
 	identities *memIdentities
+	gate       *switchableGate
 	enc        services.EncryptionServiceInterface
+}
+
+// switchableGate is the registration gate of the harness: open until a test
+// closes it, like an admin switching the instance to invite_only. While closed
+// it admits the addresses in invited, the way a pending invitation does.
+type switchableGate struct {
+	mu      sync.Mutex
+	closed  bool
+	invited map[string]bool
+}
+
+func (g *switchableGate) AllowNewAccount(_ context.Context, email string, verified bool) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if !g.closed || (verified && g.invited[models.NormalizeEmail(email)]) {
+		return nil
+	}
+	return services.ErrRegistrationClosed
+}
+
+func (g *switchableGate) inviteOnly(invited ...string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.closed = true
+	g.invited = map[string]bool{}
+	for _, email := range invited {
+		g.invited[email] = true
+	}
 }
 
 func newResolverAuthHarness(t *testing.T) *resolverAuthHarness {
@@ -183,7 +212,8 @@ func newResolverAuthHarness(t *testing.T) *resolverAuthHarness {
 	require.NoError(t, err)
 	logger := slog.New(slog.DiscardHandler)
 	h := &resolverAuthHarness{
-		providers: &memAuthProviders{}, users: &memUsersByIDP{}, identities: &memIdentities{}, enc: enc,
+		providers: &memAuthProviders{}, users: &memUsersByIDP{}, identities: &memIdentities{},
+		gate: &switchableGate{}, enc: enc,
 	}
 
 	resolver := services.NewIdentityProviderResolver(services.IdentityProviderResolverDeps{
@@ -193,7 +223,9 @@ func newResolverAuthHarness(t *testing.T) *resolverAuthHarness {
 		CallbackURL: "http://localhost:8080/api/v1/auth/callback",
 		Logger:      logger,
 	})
-	auth := services.NewAuthService(h.users, h.identities, resolver, nil, logger, staticAllowlistResolver(nil, nil)) // open access
+	auth := services.NewAuthService(h.users, h.identities, resolver, nil, logger,
+		staticAllowlistResolver(nil, nil), // open access
+		services.WithRegistrationGate(h.gate))
 
 	mc := newMockAuthContainer(t)
 	mc.activityService.On("RecordAuthActivity",
@@ -360,6 +392,87 @@ func TestResolverAuth_CallbackLinksByVerifiedEmail(t *testing.T) {
 		assert.Equal(t, "http://localhost:5173/auth/callback?error=account_suspended", w.Header().Get("Location"))
 		assert.Nil(t, sessionCookie(w))
 		assert.Empty(t, h.identities.recorded())
+	})
+}
+
+// Registration mode at the callback (#1434): in invite_only mode a sign-in that
+// would create an account is redirected with registration_closed and creates
+// nothing, an invited address gets its account, and an existing account is
+// never affected.
+func TestResolverAuth_CallbackRegistrationMode(t *testing.T) {
+	setup := func(t *testing.T) *resolverAuthHarness {
+		t.Helper()
+		h := newResolverAuthHarness(t)
+		iss := fakeoidc.New(t, rtClientID, rtClientSecret, rtSubject, "Newcomer@Example.com")
+		h.providers.replace(h.oidcRow(t, "id-a", "corp-sso", iss.URL, 0))
+		return h
+	}
+	signIn := func(t *testing.T, h *resolverAuthHarness) *httptest.ResponseRecorder {
+		t.Helper()
+		state, cookie := h.login(t, "corp-sso")
+		w := h.callback(t, state, cookie)
+		require.Equal(t, http.StatusFound, w.Code, w.Body.String())
+		return w
+	}
+
+	t.Run("open: a newcomer gets an account", func(t *testing.T) {
+		h := setup(t)
+
+		w := signIn(t, h)
+
+		assert.Equal(t, "http://localhost:5173/", w.Header().Get("Location"))
+		require.NotNil(t, sessionCookie(w))
+		require.Len(t, h.users.users, 1)
+	})
+
+	t.Run("invite_only: an uninvited newcomer is refused and no account is created", func(t *testing.T) {
+		h := setup(t)
+		h.gate.inviteOnly()
+
+		w := signIn(t, h)
+
+		assert.Equal(t, "http://localhost:5173/auth/callback?error=registration_closed", w.Header().Get("Location"))
+		assert.Nil(t, sessionCookie(w), "no session is issued")
+		assert.Empty(t, h.users.users, "no account is created")
+		assert.Empty(t, h.identities.recorded())
+	})
+
+	t.Run("invite_only: an invited address gets its account", func(t *testing.T) {
+		h := setup(t)
+		h.gate.inviteOnly("newcomer@example.com")
+
+		w := signIn(t, h)
+
+		assert.Equal(t, "http://localhost:5173/", w.Header().Get("Location"))
+		require.NotNil(t, sessionCookie(w))
+		require.Len(t, h.users.users, 1)
+	})
+
+	t.Run("invite_only: an admin-created account signs in", func(t *testing.T) {
+		h := setup(t)
+		h.gate.inviteOnly()
+		h.users.users = append(h.users.users,
+			&models.User{ID: "pre-created", Email: "newcomer@example.com", Status: models.UserStatusActive})
+
+		w := signIn(t, h)
+
+		assert.Equal(t, "http://localhost:5173/", w.Header().Get("Location"))
+		require.NotNil(t, sessionCookie(w))
+		require.Len(t, h.users.users, 1, "the existing account is used; the registration mode does not apply to it")
+		assert.Equal(t, []string{"pre-created corp-sso " + rtSubject}, h.identities.recorded())
+	})
+
+	t.Run("invite_only: a returning user is unaffected", func(t *testing.T) {
+		h := setup(t)
+		signIn(t, h) // registers while the instance is open
+		require.Len(t, h.users.users, 1)
+		h.gate.inviteOnly()
+
+		w := signIn(t, h)
+
+		assert.Equal(t, "http://localhost:5173/", w.Header().Get("Location"))
+		require.NotNil(t, sessionCookie(w))
+		require.Len(t, h.users.users, 1)
 	})
 }
 

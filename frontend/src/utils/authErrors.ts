@@ -72,6 +72,24 @@ export const EXISTING_SIGN_IN_REQUIRED_ERROR: AuthErrorView = {
 }
 
 /**
+ * Stable code the callback redirects with
+ * (`/auth/callback?error=registration_closed`) when the sign-in would have
+ * created a new account, but this instance only admits people who were invited
+ * to a team or whose account an administrator created. Mirrors
+ * `callbackErrorRegistrationClosed` in
+ * `backend/internal/server/auth_handlers.go`.
+ */
+export const REGISTRATION_CLOSED_CODE = 'registration_closed'
+
+export const REGISTRATION_CLOSED_ERROR: AuthErrorView = {
+  title: 'Sign-up is by invitation only',
+  description:
+    'You do not have an account here yet, and new accounts need an invitation. Ask a team admin to invite this email address, or ask your administrator to create an account for you, then sign in again.',
+  actionLabel: 'Back to sign in',
+  actionHref: '/login',
+}
+
+/**
  * Fallback for a cancelled login or any error code we don't recognise — the
  * denial is not attributable, so we keep the pre-existing generic wording.
  */
@@ -95,6 +113,9 @@ export function mapAuthCallbackError(code: string | null): AuthErrorView {
   }
   if (code === EXISTING_SIGN_IN_REQUIRED_CODE) {
     return EXISTING_SIGN_IN_REQUIRED_ERROR
+  }
+  if (code === REGISTRATION_CLOSED_CODE) {
+    return REGISTRATION_CLOSED_ERROR
   }
   return GENERIC_AUTH_ERROR
 }

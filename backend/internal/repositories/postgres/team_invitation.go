@@ -21,8 +21,11 @@ func NewTeamInvitationRepository(db *database.DB) repositories.TeamInvitationRep
 	}
 }
 
-// Create creates a new team invitation
+// Create creates a new team invitation. The invitee's address is stored
+// normalized (models.NormalizeEmail; team_invitations_invitee_email_lowercase
+// rejects anything else) and invitation.InviteeEmail is updated to that form.
 func (r *TeamInvitationRepository) Create(ctx context.Context, invitation *models.TeamInvitation) error {
+	invitation.InviteeEmail = models.NormalizeEmail(invitation.InviteeEmail)
 	query := `
 		INSERT INTO team_invitations (
 			team_id, inviter_id, invitee_email, role, token,
@@ -121,20 +124,21 @@ func (r *TeamInvitationRepository) GetByTeamID(ctx context.Context, teamID strin
 	return invitations, nil
 }
 
-// GetPendingByEmail retrieves pending invitations for an email address. The
-// match is case-insensitive: invitee_email keeps the casing the inviter typed,
-// while users.email is always lower case (#1427).
+// GetPendingByEmail retrieves pending, unexpired invitations for an email
+// address. Stored addresses are always normalized (#1434), so normalizing the
+// argument makes the match case-insensitive while still using
+// idx_team_invitations_invitee_email.
 func (r *TeamInvitationRepository) GetPendingByEmail(
 	ctx context.Context, email string,
 ) ([]models.TeamInvitation, error) {
 	query := `
 		SELECT id, team_id, inviter_id, invitee_email, role, token, status, expires_at, created_at, updated_at
 		FROM team_invitations
-		WHERE lower(invitee_email) = lower($1) AND status = $2 AND expires_at > NOW()
+		WHERE invitee_email = $1 AND status = $2 AND expires_at > NOW()
 		ORDER BY created_at DESC
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, email, models.InvitationStatusPending)
+	rows, err := r.db.QueryContext(ctx, query, models.NormalizeEmail(email), models.InvitationStatusPending)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query pending invitations: %w", err)
 	}

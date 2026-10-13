@@ -58,6 +58,17 @@ func permissiveIdentityRepo() *repo_mocks.MockUserIdentityRepository {
 	return identities
 }
 
+// noAccountYet makes repo answer "no such account" to both sign-in lookups, by
+// identity and by email. Since #1434 a sign-in is resolved to its account
+// before the allowlist decides (an existing account is judged by its stored
+// email), so a denial test must let the lookups run; what it asserts is that
+// nothing was WRITTEN.
+func noAccountYet(repo *repo_mocks.MockUserRepository) {
+	repo.On("GetByIDPSubject", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, repositories.ErrUserNotFound).Maybe()
+	repo.On("GetByEmail", mock.Anything, mock.Anything).Return(nil, repositories.ErrUserNotFound).Maybe()
+}
+
 // denialReason returns the `reason` attribute of the sign-in-denied audit log.
 func denialReason(t *testing.T, recorder *logtest.Recorder) string {
 	t.Helper()
@@ -261,7 +272,10 @@ func TestAuthService_CreateOrUpdateUserFromClaims(t *testing.T) {
 			mockRepo := &repo_mocks.MockUserRepository{}
 			mockIDP := &idpmocks.MockIdentityProvider{}
 			mockIDP.On("Name").Return(idp.ProviderOIDC)
-			service := createTestAuthServiceNew(mockRepo, mockIDP, []string{"test@example.com"})
+			// An open instance: these cases are about resolving and writing the
+			// account. Which email the allowlist judges is covered by
+			// TestAuthService_AllowlistSubject.
+			service := createTestAuthServiceNew(mockRepo, mockIDP, nil)
 			tt.setupMocks(mockRepo)
 
 			ctx := context.Background()
@@ -413,19 +427,26 @@ func TestAuthService_HandleCallback(t *testing.T) {
 			},
 		},
 		{
-			name:          "successful callback with existing user update",
-			code:          "test-auth-code",
-			allowedEmails: []string{"test@example.com"},
+			name: "successful callback with existing user update",
+			code: "test-auth-code",
+			// The allowlist judges an existing account by its STORED email
+			// (#1434), which here differs from the claim email.
+			allowedEmails: []string{"old@example.com"},
 			setupMocks: func(mockRepo *repo_mocks.MockUserRepository, mockIDP *idpmocks.MockIdentityProvider) {
+				verifiedAt := time.Now().Add(-24 * time.Hour)
 				existingUser := &models.User{
 					ID:          "user-existing-123",
 					GoogleID:    nil,
 					IDPProvider: strPtr(testProvider),
 					IDPSubject:  strPtr("oidc-sub-123"),
 					Email:       "old@example.com",
-					Name:        "Old Name",
-					CreatedAt:   time.Now().Add(-time.Hour),
-					UpdatedAt:   time.Now().Add(-time.Hour),
+					// Verified earlier, so the stored address satisfies the
+					// allowlist's verification rule although today's claim is for
+					// another address.
+					EmailVerifiedAt: &verifiedAt,
+					Name:            "Old Name",
+					CreatedAt:       time.Now().Add(-time.Hour),
+					UpdatedAt:       time.Now().Add(-time.Hour),
 				}
 
 				mockIDP.On("Name").Return(idp.ProviderOIDC)
@@ -523,16 +544,17 @@ func TestAuthService_HandleCallback_AccessRestricted(t *testing.T) {
 	mockIDP.On("Name").Return(idp.ProviderOIDC)
 	mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "").
 		Return(testTokens, createTestClaims(), nil)
+	noAccountYet(mockRepo)
 
 	user, tokens, isNewUser, err := service.HandleCallback(
 		context.Background(), "test-auth-code", string(idp.ProviderOIDC))
 
 	assert.ErrorIs(t, err, ErrAccessRestricted)
+	assert.Equal(t, ErrAccessRestricted, err, "a denial is returned as is, not wrapped as a failure")
 	assert.Nil(t, user)
 	assert.Nil(t, tokens)
 	assert.False(t, isNewUser)
-	// No user row was touched: the repo was never asked to look up or create.
-	mockRepo.AssertNotCalled(t, "GetByIDPSubject", mock.Anything, mock.Anything, mock.Anything)
+	// No user row was touched: nothing was created or updated.
 	mockRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 	mockRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
 	mockRepo.AssertExpectations(t)
@@ -591,7 +613,9 @@ func TestAuthService_HandleCallback_EmailVerifiedWithAllowlist(t *testing.T) {
 			mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "").
 				Return(testTokens, claims, nil)
 
-			if !tt.expectDenied {
+			if tt.expectDenied {
+				noAccountYet(mockRepo)
+			} else {
 				existing := &models.User{ID: "user-1", Email: claims.Email, Name: claims.Name}
 				mockRepo.On("GetByIDPSubject", context.Background(), string(idp.ProviderOIDC), claims.Subject).
 					Return(existing, nil)
@@ -605,8 +629,8 @@ func TestAuthService_HandleCallback_EmailVerifiedWithAllowlist(t *testing.T) {
 				assert.ErrorIs(t, err, ErrAccessRestricted, tt.rationale)
 				assert.Nil(t, user)
 				// Denied before any row is touched: no residue, no user.created event.
-				mockRepo.AssertNotCalled(t, "GetByIDPSubject", mock.Anything, mock.Anything, mock.Anything)
 				mockRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+				mockRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
 			} else {
 				require.NoError(t, err, tt.rationale)
 				assert.NotNil(t, user)
@@ -656,6 +680,7 @@ func TestAuthService_HandleCallback_DenialLogsDistinctReason(t *testing.T) {
 			mockIDP.On("Name").Return(idp.ProviderOIDC)
 			mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "").
 				Return(&idp.Tokens{AccessToken: "test-access-token"}, claims, nil)
+			noAccountYet(mockRepo)
 
 			_, _, _, err := service.HandleCallback(
 				context.Background(), "test-auth-code", string(idp.ProviderOIDC))
@@ -894,7 +919,9 @@ func TestAuthService_PublishesUserCreatedEvent(t *testing.T) {
 
 			logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
 
-			allowlist := newStaticAllowlistResolver(logger, []string{"test@example.com", "dev@example.com"})
+			// An open instance: this test is about the user.created event, not
+			// about who the allowlist admits.
+			allowlist := newStaticAllowlistResolver(logger, nil)
 
 			service := NewAuthService(mockRepo, permissiveIdentityRepo(), staticIDPResolver{reg: idp.NewRegistry(mockIDP)}, mockEventManager, logger, allowlist)
 

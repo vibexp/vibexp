@@ -206,28 +206,6 @@ func TestIntegrationUser_EmailIsCaseInsensitive(t *testing.T) {
 	requirePQCode(t, err, pqCheckViolation)
 }
 
-// A pending invitation is found for the invited account whatever casing the
-// inviter typed: invitee_email keeps their casing, users.email is lower case.
-func TestIntegrationTeamInvitation_GetPendingByEmailIsCaseInsensitive(t *testing.T) {
-	resetIntegrationTables(t)
-	ctx := context.Background()
-	inviter := insertTestUser(t)
-	var teamID string
-	require.NoError(t, integrationDB.QueryRowContext(ctx,
-		"INSERT INTO teams (name, slug, owner_id) VALUES ('T', $1, $2) RETURNING id",
-		"t-"+uuid.New().String()[:8], inviter).Scan(&teamID))
-	_, err := integrationDB.ExecContext(ctx,
-		`INSERT INTO team_invitations (team_id, inviter_id, invitee_email, role, token, status, expires_at)
-		 VALUES ($1, $2, 'Bob@Example.com', 'member', $3, $4, now() + interval '1 day')`,
-		teamID, inviter, uuid.New().String(), models.InvitationStatusPending)
-	require.NoError(t, err)
-
-	got, err := NewTeamInvitationRepository(integrationDB).GetPendingByEmail(ctx, "bob@example.com")
-	require.NoError(t, err)
-	require.Len(t, got, 1)
-	assert.Equal(t, "Bob@Example.com", got[0].InviteeEmail, "the stored casing is returned untouched")
-}
-
 // A restricted prompt share granted to an address typed with capitals still
 // admits that account, whose users.email is lower case since migration 023.
 func TestIntegrationPromptShare_HasAccessIsCaseInsensitive(t *testing.T) {

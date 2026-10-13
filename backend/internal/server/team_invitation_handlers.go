@@ -205,6 +205,26 @@ func handleDuplicateMembersError(w http.ResponseWriter, r *http.Request, duplica
 	apierrors.WriteJSONError(w, r, apiErr)
 }
 
+// inviteesNotAllowedAPIError is the validation error for invited addresses the
+// access allowlist does not admit: one field-level entry per address, so the
+// form can say which ones to remove. Nothing was created.
+func inviteesNotAllowedAPIError(emails []string) *apierrors.APIError {
+	fields := make([]apierrors.ValidationError, 0, len(emails))
+	for _, email := range emails {
+		fields = append(fields, apierrors.ValidationError{
+			Field:   "emails",
+			Message: email + " is not permitted by this instance's access allowlist",
+			Code:    codeEmailNotAllowed,
+		})
+	}
+	detail := "No invitations were sent. Not permitted by the access allowlist: " + strings.Join(emails, ", ")
+	return apierrors.NewValidationError(detail, fields)
+}
+
+// codeEmailNotAllowed is the field-level code of an address the access
+// allowlist does not admit, on invitations and on admin user creation.
+const codeEmailNotAllowed = "email_not_allowed"
+
 // handleRevokeInvitation revokes a team invitation
 // DELETE /api/v1/teams/{id}/invitations/{invitationId}
 // handleInvitationError handles errors from invitation operations
@@ -218,6 +238,12 @@ func (s *Server) handleInvitationError(w http.ResponseWriter, r *http.Request, e
 	var duplicateErr *services.DuplicateMembersError
 	if errors.As(err, &duplicateErr) {
 		handleDuplicateMembersError(w, r, duplicateErr)
+		return
+	}
+
+	var notAllowedErr *services.InviteesNotAllowedError
+	if errors.As(err, &notAllowedErr) {
+		apierrors.WriteJSONError(w, r, inviteesNotAllowedAPIError(notAllowedErr.Emails))
 		return
 	}
 

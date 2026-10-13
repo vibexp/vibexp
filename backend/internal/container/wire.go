@@ -124,6 +124,7 @@ var ProviderSet = wire.NewSet(
 
 	// Services
 	providers.ProvideAuthService,
+	providers.ProvideRegistrationGate,
 	providers.ProvideAPIAccessService,
 	providers.ProvideAPIKeyService,
 	providers.ProvidePromptService,

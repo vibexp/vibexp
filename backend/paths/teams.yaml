@@ -530,6 +530,17 @@ api-v1-teams-id-invitations:
 
       Inviting users who are already team members returns `409` with code
       `DUPLICATE_MEMBERS` and a top-level `duplicate_emails` string array.
+
+      Addresses are stored trimmed and lower-cased, and a repeated address is
+      invited once.
+
+      When the instance has an active access allowlist, every address must be
+      admitted by it (root instance admins are exempt): such an invitation could
+      never be accepted. If any address is not admitted, the WHOLE request is
+      refused with `400`, code `VALIDATION_FAILED`, and one `validation_errors`
+      entry per rejected address (`field` `emails`, `code` `email_not_allowed`,
+      the address in `message`); no invitation is created or sent, including for
+      the addresses that were admitted.
     operationId: sendTeamInvitations
     security:
       - ApiKeyAuth: []
@@ -556,7 +567,11 @@ api-v1-teams-id-invitations:
             schema:
               $ref: '../openapi.yaml#/components/schemas/InvitationResponseList'
       '400':
-        description: Invalid request body, validation error, more than 50 emails, or invalid role
+        description: |
+          Invalid request body, validation error, more than 50 emails, or invalid
+          role. Also returned, with `validation_errors` entries of code
+          `email_not_allowed`, when the access allowlist does not admit one or
+          more of the addresses; nothing is created in that case.
         content:
           application/problem+json:
             schema:

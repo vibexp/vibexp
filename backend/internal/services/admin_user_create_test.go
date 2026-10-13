@@ -239,3 +239,72 @@ func TestAdminUserEmailTakenMessage(t *testing.T) {
 	assert.Contains(t, err.Error(), "taken@example.com")
 	assert.Contains(t, err.Error(), "already exists")
 }
+
+// allowlistOf is an access allowlist of exact emails; root admins are exempt
+// from it, as at sign-in.
+type allowlistOf struct {
+	AccessAllowlistResolver
+	emails map[string]bool
+	err    error
+}
+
+func (a allowlistOf) IsEmailAllowed(_ context.Context, email string) (allowed, active bool, err error) {
+	if a.err != nil {
+		return false, true, a.err
+	}
+	return a.emails[email], true, nil
+}
+
+// An address the access allowlist does not admit could never sign in, so the
+// account is not created at all (#1434).
+func TestCreateUser_RejectsAnEmailOutsideTheAllowlist(t *testing.T) {
+	adminRepo := repomocks.NewMockAdminRepository(t)
+	userRepo := repomocks.NewMockUserRepository(t)
+	pub := &stubPublisher{}
+	svc := NewAdminService(adminRepo, userRepo, pub, nil,
+		WithAdminAccessAllowlist(allowlistOf{emails: map[string]bool{"inside@corp.example": true}}))
+
+	got, err := svc.CreateUser(context.Background(), AdminUserCreateRequest{
+		Email: " Outside@Elsewhere.test ", Name: "Outside",
+	})
+
+	var notAllowed *ErrAdminUserEmailNotAllowed
+	require.ErrorAs(t, err, &notAllowed)
+	assert.Equal(t, "outside@elsewhere.test", notAllowed.Email, "the address is named, normalized")
+	assert.Contains(t, err.Error(), "outside@elsewhere.test")
+	assert.Nil(t, got)
+	assert.Empty(t, pub.published, "no account, so no user.created event")
+	// userRepo is a strict mock: neither the existence check nor Create ran.
+}
+
+func TestCreateUser_AdmitsAnEmailOnTheAllowlist(t *testing.T) {
+	adminRepo := repomocks.NewMockAdminRepository(t)
+	userRepo := repomocks.NewMockUserRepository(t)
+	pub := &stubPublisher{}
+	svc := NewAdminService(adminRepo, userRepo, pub, nil,
+		WithAdminAccessAllowlist(allowlistOf{emails: map[string]bool{"new.user@example.com": true}}))
+	userRepo.On("GetByEmail", mock.Anything, "new.user@example.com").Return(nil, repositories.ErrUserNotFound)
+	userRepo.On("Create", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		args.Get(1).(*models.User).ID = createdUserID
+	}).Return(nil)
+	adminRepo.On("GetUserDetail", mock.Anything, createdUserID).Return(createdDetail(), nil)
+
+	got, err := svc.CreateUser(context.Background(), AdminUserCreateRequest{Email: "New.User@example.com", Name: "New User"})
+
+	require.NoError(t, err)
+	assert.Equal(t, createdUserID, got.ID)
+}
+
+// An allowlist that cannot be evaluated fails the request; it is not reported
+// as a rejection and no account is created on a guess.
+func TestCreateUser_FailsWhenTheAllowlistCannotBeEvaluated(t *testing.T) {
+	boom := errors.New("allowlist unreadable")
+	svc := NewAdminService(repomocks.NewMockAdminRepository(t), repomocks.NewMockUserRepository(t), &stubPublisher{}, nil,
+		WithAdminAccessAllowlist(allowlistOf{err: boom}))
+
+	_, err := svc.CreateUser(context.Background(), AdminUserCreateRequest{Email: "a@corp.example", Name: "A"})
+
+	require.ErrorIs(t, err, boom)
+	var notAllowed *ErrAdminUserEmailNotAllowed
+	assert.False(t, errors.As(err, &notAllowed))
+}

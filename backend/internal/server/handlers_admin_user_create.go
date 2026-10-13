@@ -42,6 +42,16 @@ func (a *adminStrictServer) CreateAdminUser(
 		if errors.As(err, &takenErr) {
 			return nil, adminConflictError(takenErr.Error())
 		}
+		var notAllowedErr *services.ErrAdminUserEmailNotAllowed
+		if errors.As(err, &notAllowedErr) {
+			return nil, apierrors.NewValidationError(
+				"The user was not created: "+notAllowedErr.Error(),
+				[]apierrors.ValidationError{{
+					Field:   "email",
+					Message: notAllowedErr.Error(),
+					Code:    codeEmailNotAllowed,
+				}})
+		}
 		a.s.logger.With(
 			"service", serverLogServiceName, "handler", "CreateAdminUser", "error", err,
 		).Error("Failed to create admin user")
