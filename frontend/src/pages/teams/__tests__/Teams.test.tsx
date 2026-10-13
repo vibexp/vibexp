@@ -177,7 +177,7 @@ describe('Teams page', () => {
       expect(screen.getByTestId('create-team-button')).toBeInTheDocument()
     })
 
-    it('falls back to the member role badge and hides the member count for personal teams', async () => {
+    it('falls back to the member role badge and shows the member count for personal teams', async () => {
       ;(teamService.getTeams as Mock).mockResolvedValue([
         buildTeam({
           name: 'Personal',
@@ -194,9 +194,10 @@ describe('Teams page', () => {
         'tr'
       ) as HTMLElement
       expect(within(row).getByText('Member')).toBeInTheDocument()
-      // Personal workspaces show a dash instead of a member count.
-      expect(within(row).getByText('-')).toBeInTheDocument()
-      expect(within(row).queryByText('1')).not.toBeInTheDocument()
+      // The count comes from the payload like any other team's; a dash here
+      // read as missing data.
+      expect(within(row).getByText('1')).toBeInTheDocument()
+      expect(within(row).queryByText('-')).not.toBeInTheDocument()
     })
 
     it('shows the error alert and empties the lists when loading fails', async () => {

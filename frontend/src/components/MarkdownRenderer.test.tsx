@@ -23,6 +23,20 @@ vi.mock('mermaid', () => {
   return { ...mermaid, default: mermaid }
 })
 
+// The theme is read from CSS colour tokens through a canvas, neither of which
+// jsdom has; the reader is stubbed so a test can switch the theme under a
+// rendered diagram. Its own logic is covered in `mermaidTheme.test.ts`.
+const mockTheme = vi.hoisted(() => {
+  const current: {
+    darkMode: boolean
+    themeVariables: Record<string, string>
+  } = { darkMode: false, themeVariables: {} }
+  return { current }
+})
+vi.mock('./mermaidTheme', () => ({
+  readMermaidTheme: () => mockTheme.current,
+}))
+
 // Records every React root created through `react-dom/client` so the mermaid
 // lifecycle tests can find the diagram roots (those mounted inside a
 // `[data-mermaid-id]` placeholder) and assert they are unmounted (#1109).
@@ -620,6 +634,50 @@ describe('MarkdownRenderer', () => {
       vi.mocked(marked).mockResolvedValue('<p>mocked content</p>')
     })
 
+    it('draws the diagram from the app colour tokens and redraws it on a theme switch', async () => {
+      const light = {
+        darkMode: false,
+        themeVariables: { lineColor: 'rgb(10, 10, 10)' },
+      }
+      const dark = {
+        darkMode: true,
+        themeVariables: { lineColor: 'rgb(250, 250, 250)' },
+      }
+      mockTheme.current = light
+      vi.mocked(mermaid.render).mockClear()
+      vi.mocked(mermaid.initialize).mockClear()
+
+      const { container } = render(<MarkdownRenderer content={FENCE_A} />)
+      await waitFor(() => {
+        expect(diagramSvg(container)).toBeInTheDocument()
+      })
+      expect(vi.mocked(mermaid.initialize)).toHaveBeenLastCalledWith(
+        expect.objectContaining({ theme: 'base', ...light })
+      )
+      expect(vi.mocked(mermaid.render)).toHaveBeenCalledTimes(1)
+
+      // A class change that leaves the tokens as they were redraws nothing.
+      document.documentElement.classList.add('unrelated')
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 20))
+      })
+      expect(vi.mocked(mermaid.render)).toHaveBeenCalledTimes(1)
+
+      mockTheme.current = dark
+      document.documentElement.classList.add('dark')
+      await waitFor(() => {
+        expect(vi.mocked(mermaid.render)).toHaveBeenCalledTimes(2)
+      })
+      expect(vi.mocked(mermaid.initialize)).toHaveBeenLastCalledWith(
+        expect.objectContaining({ theme: 'base', ...dark })
+      )
+      // The old diagram is replaced in place, never by the spinner.
+      expect(container.querySelector('.animate-spin')).not.toBeInTheDocument()
+
+      document.documentElement.classList.remove('dark', 'unrelated')
+      mockTheme.current = { darkMode: false, themeVariables: {} }
+    })
+
     it('keeps the diagram after a parent re-render that does not change content', async () => {
       const { container } = render(
         <Parent content={`${FENCE_A}\n\n${CODE_BLOCK}\n`} />
@@ -813,9 +871,9 @@ describe('MarkdownRenderer', () => {
   })
 
   // Regression guard for #884. A wide markdown table used to escape its card
-  // and paint over the resource detail sidebar: `.v2-root .prose :where(table)`
-  // sets `width: 100%`, which does NOT cap an auto-layout table — it still
-  // grows to its min-content width. The fix wraps every rendered table in a
+  // and paint over the resource detail sidebar: the design system's
+  // `.prose :where(table)` (prose.css) sets `width: 100%`, which does NOT cap
+  // an auto-layout table — it still grows to its min-content width. The fix wraps every rendered table in a
   // `.markdown-table-wrapper` scroll container during the same post-processing
   // pass that rewrites code blocks. `marked` is stubbed in this file, so these
   // assert the post-processing pass itself (the part that broke) by feeding it
@@ -934,6 +992,138 @@ describe('MarkdownRenderer', () => {
         container.querySelector('.markdown-table-wrapper')
       ).not.toBeInTheDocument()
       expect(container.querySelector('table')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('code blocks', () => {
+    beforeEach(() => {
+      vi.mocked(marked).mockImplementation((src: string) =>
+        Promise.resolve(src)
+      )
+    })
+
+    afterEach(() => {
+      vi.mocked(marked).mockResolvedValue('<p>mocked content</p>')
+    })
+
+    it('gives a fenced block a bar with its language and a copy button', async () => {
+      const { container } = render(
+        <MarkdownRenderer content='<pre><code class="language-sql">SELECT 1</code></pre>' />
+      )
+
+      await waitFor(() => {
+        expect(container.querySelector('.code-block')).toBeInTheDocument()
+      })
+      expect(container.querySelector('.code-block-language')).toHaveTextContent(
+        'sql'
+      )
+      expect(
+        container.querySelector('.code-block .copy-button')
+      ).toHaveAttribute('aria-label', 'Copy code')
+      expect(container.querySelector('.code-block pre code')).toHaveClass(
+        'language-sql'
+      )
+    })
+
+    it('gives a fence with no language the bar too, without a label', async () => {
+      const { container } = render(
+        <MarkdownRenderer content="<pre><code>plain text</code></pre>" />
+      )
+
+      await waitFor(() => {
+        expect(container.querySelector('.code-block')).toBeInTheDocument()
+      })
+      expect(
+        container.querySelector('.code-block-language')
+      ).not.toBeInTheDocument()
+      expect(container.querySelector('.copy-button')).toBeInTheDocument()
+    })
+
+    it('copies the code as text, not its HTML-escaped form', async () => {
+      const { container } = render(
+        <MarkdownRenderer content='<pre><code class="language-text">if a &lt; b &amp;&amp; c</code></pre>' />
+      )
+
+      await waitFor(() => {
+        expect(container.querySelector('.copy-button')).toBeInTheDocument()
+      })
+      const button = container.querySelector<HTMLButtonElement>('.copy-button')
+      fireEvent.click(button!)
+
+      await waitFor(() => {
+        expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+          'if a < b && c'
+        )
+      })
+    })
+
+    it('leaves the bar without a button when copying is disabled', async () => {
+      const { container } = render(
+        <MarkdownRenderer
+          content='<pre><code class="language-go">x</code></pre>'
+          enableCodeCopy={false}
+        />
+      )
+
+      await waitFor(() => {
+        expect(container.querySelector('.code-block')).toBeInTheDocument()
+      })
+      expect(container.querySelector('.copy-button')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('rendering around the parser', () => {
+    it('leaves a leading heading that repeats the page title out of what is parsed', async () => {
+      const markedMock = vi.mocked(marked)
+      markedMock.mockClear()
+
+      render(
+        <MarkdownRenderer
+          content={'# Release checklist\n\nDrain the node.'}
+          hideLeadingTitle="release checklist"
+        />
+      )
+
+      await waitFor(() => {
+        expect(markedMock).toHaveBeenCalled()
+      })
+      const source = markedMock.mock.calls[0]?.[0]
+      expect(source).not.toContain('# Release checklist')
+      expect(source).toContain('Drain the node.')
+    })
+
+    it('parses the heading when no title is given, or it differs', async () => {
+      const markedMock = vi.mocked(marked)
+      markedMock.mockClear()
+
+      render(
+        <MarkdownRenderer
+          content={'# Release checklist\n\nDrain the node.'}
+          hideLeadingTitle="Something else"
+        />
+      )
+
+      await waitFor(() => {
+        expect(markedMock).toHaveBeenCalled()
+      })
+      expect(markedMock.mock.calls[0]?.[0]).toContain('# Release checklist')
+    })
+
+    it('turns task-list items into themed, read-only boxes', async () => {
+      vi.mocked(marked).mockResolvedValueOnce(
+        '<ul><li><input checked="" disabled="" type="checkbox"> Done</li><li><input disabled="" type="checkbox"> Todo</li></ul>'
+      )
+
+      const { container } = render(<MarkdownRenderer content="tasks" />)
+
+      await waitFor(() => {
+        expect(container.querySelectorAll('li.task-list-item')).toHaveLength(2)
+      })
+      expect(container.querySelector('input')).not.toBeInTheDocument()
+      const boxes = container.querySelectorAll('.task-checkbox')
+      expect(boxes[0]).toHaveAttribute('data-checked', 'true')
+      expect(boxes[0]).toHaveAttribute('aria-label', 'Completed')
+      expect(boxes[1]).toHaveAttribute('data-checked', 'false')
     })
   })
 })

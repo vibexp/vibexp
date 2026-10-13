@@ -247,8 +247,7 @@ describe('parseLocalDate', () => {
       render(<TimeSeriesBarChart {...buildProps()} />)
       expect(screen.getByTestId('timeseries-bar-chart')).toHaveClass(
         'rounded-lg',
-        'border',
-        'shadow-sm'
+        'border'
       )
     })
   })

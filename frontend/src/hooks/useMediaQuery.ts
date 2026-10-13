@@ -10,6 +10,13 @@ export const BREAKPOINT_QUERIES = {
   md: '(min-width: 48rem)',
   /** ≥ 1024px — desktop. */
   lg: '(min-width: 64rem)',
+  /**
+   * Wider than 1280px — room for a reading page's rail beside its text. One
+   * pixel past Tailwind's `xl`, on purpose: a 1280px-wide window (a common
+   * laptop size) is exactly where 320px of rail starts to cost the text too
+   * much, so it belongs with the narrower layouts.
+   */
+  xl: '(min-width: 80.0625rem)',
 } as const
 
 function canMatchMedia(): boolean {

@@ -56,7 +56,7 @@ export function FeedManageDropdown({
               <button
                 type="button"
                 aria-label={`Edit ${feed.name}`}
-                className="rounded p-1 hover:bg-muted"
+                className="rounded-sm p-1 hover:bg-muted"
                 onClick={() => {
                   void navigate(`/feeds/${encodeURIComponent(feed.id)}/edit`)
                 }}
@@ -67,7 +67,7 @@ export function FeedManageDropdown({
                 <button
                   type="button"
                   aria-label={`Delete ${feed.name}`}
-                  className="rounded p-1 hover:bg-muted"
+                  className="rounded-sm p-1 hover:bg-muted"
                   onClick={() => {
                     onDeleteFeed(feed)
                   }}

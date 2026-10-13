@@ -185,7 +185,9 @@ func TestMemoryRepository_TeamMember_CanUpdateOtherMembersMemories(t *testing.T)
 	mock.ExpectQuery(updateQuery).
 		WithArgs(
 			aliceMemoryID, "Machine learning best practices - Updated by Bob",
-			"active", sqlmock.AnyArg(), "", teamID, now, teamID, 1, sqlmock.AnyArg(), nil,
+			// The timestamp is bound in UTC whatever zone it was built in
+			// (memoryTimestamp): the column has no time zone.
+			"active", sqlmock.AnyArg(), "", teamID, now.UTC(), teamID, 1, sqlmock.AnyArg(), nil,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"updated_at", "version"}).AddRow(now, 2))
 

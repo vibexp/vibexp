@@ -11,6 +11,14 @@ vi.mock('@/components/ui/scroll-area', () => ({
   ),
 }))
 
+// The switcher needs the team context and has its own suite; here it is a
+// stand-in that records which form the sidebar asked for.
+vi.mock('@/components/layout/TeamSwitcher', () => ({
+  TeamSwitcher: ({ variant }: { variant?: string }) => (
+    <div data-testid="team-switcher" data-variant={variant} />
+  ),
+}))
+
 const mockUseShell = vi.hoisted(() => vi.fn())
 vi.mock('@/components/layout/ShellContext', () => ({
   useShell: () => mockUseShell() as unknown,
@@ -184,6 +192,64 @@ describe('Sidebar', () => {
       for (const link of container.querySelectorAll('a')) {
         expect(link.className).not.toContain('=>')
       }
+    })
+  })
+
+  describe('workspace switcher', () => {
+    it('sits directly under the brand, above the navigation', () => {
+      const { container } = renderRail()
+
+      const aside = container.querySelector('[data-testid="app-sidebar"]')
+      const brand = aside?.querySelector('a[href="/"]')
+      const switcher = screen.getByTestId('sidebar-team-switcher')
+      const nav = aside?.querySelector('nav')
+      expect(brand?.nextElementSibling).toBe(switcher)
+      expect(
+        switcher.compareDocumentPosition(nav as Node) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+    })
+
+    it('is the initial-only rail form while the sidebar is collapsed', () => {
+      mockUseShell.mockReturnValue({ navExpanded: false, isDesktop: true })
+      render(
+        <MemoryRouter>
+          <Sidebar />
+        </MemoryRouter>
+      )
+
+      expect(screen.getByTestId('team-switcher')).toHaveAttribute(
+        'data-variant',
+        'rail'
+      )
+    })
+
+    it('is the rail form below lg even when the stored preference is expanded', () => {
+      mockUseShell.mockReturnValue({ navExpanded: true, isDesktop: false })
+      render(
+        <MemoryRouter>
+          <Sidebar />
+        </MemoryRouter>
+      )
+
+      expect(screen.getByTestId('team-switcher')).toHaveAttribute(
+        'data-variant',
+        'rail'
+      )
+    })
+
+    it('shows the full name in the expanded sidebar', () => {
+      mockUseShell.mockReturnValue({ navExpanded: true, isDesktop: true })
+      render(
+        <MemoryRouter>
+          <Sidebar />
+        </MemoryRouter>
+      )
+
+      expect(screen.getByTestId('team-switcher')).toHaveAttribute(
+        'data-variant',
+        'full'
+      )
     })
   })
 })

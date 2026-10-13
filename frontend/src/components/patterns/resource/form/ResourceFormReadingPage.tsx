@@ -167,13 +167,21 @@ function saveActionLabel(
  * lands on a heading that says what is being edited. The live input is the
  * editable copy and would re-announce on every keystroke.
  */
+/** The resource's name as it was loaded, or `''` when it has none (create). */
+function loadedName(
+  descriptor: ResourceDescriptor,
+  initialValues: ResourceFormValues | undefined
+): string {
+  const nameKey = fieldOfRole(descriptor, 'name')?.key
+  return nameKey ? valueOf(initialValues, nameKey).trim() : ''
+}
+
 function headingText(
   title: string,
   descriptor: ResourceDescriptor,
   initialValues: ResourceFormValues | undefined
 ) {
-  const nameKey = fieldOfRole(descriptor, 'name')?.key
-  const name = nameKey ? valueOf(initialValues, nameKey).trim() : ''
+  const name = loadedName(descriptor, initialValues)
   return name ? `${title}: ${name}` : title
 }
 
@@ -526,6 +534,11 @@ export function ResourceFormReadingPage({
       <ReadingPage
         presentation="editing"
         title={title}
+        // The loaded name, not the live input: the crumb says which resource
+        // this is, and must not rewrite itself on every keystroke.
+        breadcrumb={
+          mode === 'edit' ? loadedName(descriptor, initialValues) : undefined
+        }
         heading={heading}
         description={headerDescription}
         actions={actions}

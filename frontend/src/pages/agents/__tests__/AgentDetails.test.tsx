@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mock } from 'vitest'
 
+import { openMoreActions } from '@/components/patterns/reading-page/testing'
 import type { Agent, AgentCard } from '@/services/agentService'
 
 // recharts' ResponsiveContainer measures its parent, which has no layout in
@@ -228,9 +229,12 @@ describe('AgentDetails page', () => {
   it('carries Back, Chat, Conversations and Edit as reading actions', async () => {
     renderAgentDetails()
 
-    const details = await screen.findByTestId('details-column')
+    // In the reading toolbar beside the title — no longer a grid in the rail.
+    const toolbar = await screen.findByRole('toolbar', {
+      name: 'Document actions',
+    })
     for (const label of ['Back', 'Chat', 'Conversations', 'Edit']) {
-      expect(within(details).getByRole('button', { name: label })).toBeVisible()
+      expect(within(toolbar).getByRole('button', { name: label })).toBeVisible()
     }
   })
 
@@ -268,23 +272,25 @@ describe('AgentDetails page', () => {
     renderAgentDetails()
 
     await screen.findByTestId('details-column')
+    // Opened first: Delete missing from a closed menu would prove nothing.
+    await openMoreActions()
     expect(
-      screen.queryByRole('button', { name: 'Delete' })
+      screen.queryByRole('menuitem', { name: 'Delete' })
     ).not.toBeInTheDocument()
   })
 
-  it('offers Delete as an outlined destructive action and confirms first', async () => {
+  it('offers Delete as the destructive item of the More menu and confirms first', async () => {
     setTeamPermissions(['resource.delete.any'])
     const user = userEvent.setup()
     renderAgentDetails()
 
-    const deleteButton = await screen.findByTestId('delete-agent-button')
-    // The reading rail's outlined treatment (#890), not the solid red button
-    // this page used to render. Compare whole class tokens: the outlined
-    // variant carries `hover:bg-destructive/10`, so a substring check for
-    // `bg-destructive` passes either way and proves nothing.
+    await screen.findByTestId('details-column')
+    await openMoreActions()
+    const deleteButton = screen.getByTestId('delete-agent-button')
+    // A menu item in the destructive colour — never a solid red button, and
+    // no longer the most prominent control on the page.
+    expect(deleteButton).toHaveAttribute('role', 'menuitem')
     const classes = deleteButton.className.split(' ')
-    expect(classes).toContain('border-destructive')
     expect(classes).toContain('text-destructive')
     expect(classes).not.toContain('bg-destructive')
 

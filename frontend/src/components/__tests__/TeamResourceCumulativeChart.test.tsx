@@ -1,6 +1,8 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 
+import { emptyBySource, writesBySource } from '@/lib/testing/creationMetrics'
+
 import type {
   TeamCreationCountByDate,
   TeamResourceCreationMetricsResponse,
@@ -71,6 +73,8 @@ function buildMetrics(
     data: {
       total_created: counts.reduce((s, c) => s + c.total, 0),
       range: '30d',
+      by_source: emptyBySource(),
+      writes_by_source: writesBySource(),
       counts,
     },
   }

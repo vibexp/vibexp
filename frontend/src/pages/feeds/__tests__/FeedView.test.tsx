@@ -11,6 +11,13 @@ import type {
 } from '@/services/feedService'
 import type { TeamMember } from '@/services/teamService'
 
+// The real renderer needs the full `marked` build, which the suite stubs.
+vi.mock('@/components/MarkdownRenderer', () => ({
+  MarkdownRenderer: ({ content }: { content: string }) => (
+    <div className="markdown-renderer">{content}</div>
+  ),
+}))
+
 const mockNavigate = vi.hoisted(() => vi.fn())
 vi.mock('react-router', async () => ({
   ...(await vi.importActual<typeof import('react-router')>('react-router')),

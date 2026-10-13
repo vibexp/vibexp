@@ -21,8 +21,6 @@ function setup(overrides: Partial<Options> = {}) {
     fetchPlaceholders,
     renderPrompt,
     isLoadingPlaceholders: false,
-    placeholderValues: {},
-    placeholderCount: 0,
     ...overrides,
   }
   const view = renderHook(
@@ -43,23 +41,6 @@ async function flushFetch() {
   await act(async () => {
     await Promise.resolve()
   })
-}
-
-/**
- * Takes a hook past its first load with one placeholder on screen, so the
- * debounce effect is the only thing left that can call `renderPrompt`.
- *
- * The 500 ms is not padding: the placeholder values arriving count as a
- * change, so a first load is followed by one debounced render of its own.
- */
-async function setupLoaded() {
-  const hook = setup({ placeholderValues: { name: '' }, placeholderCount: 1 })
-  await flushFetch()
-  act(() => {
-    vi.advanceTimersByTime(500)
-  })
-  hook.renderPrompt.mockClear()
-  return hook
 }
 
 describe('usePromptRenderedTab', () => {
@@ -90,7 +71,11 @@ describe('usePromptRenderedTab', () => {
       act(() => {
         vi.advanceTimersByTime(1)
       })
-      expect(renderPrompt).toHaveBeenCalledExactlyOnceWith('greeting', 'team-1')
+      expect(renderPrompt).toHaveBeenCalledExactlyOnceWith(
+        'greeting',
+        'team-1',
+        {}
+      )
     })
 
     it.each<[string, Partial<Options>]>([
@@ -140,7 +125,11 @@ describe('usePromptRenderedTab', () => {
       rerender({ tab: 'rendered' })
 
       expect(fetchPlaceholders).toHaveBeenCalledTimes(1)
-      expect(renderPrompt).toHaveBeenCalledExactlyOnceWith('greeting', 'team-1')
+      expect(renderPrompt).toHaveBeenCalledExactlyOnceWith(
+        'greeting',
+        'team-1',
+        {}
+      )
     })
 
     it('waits for the placeholders to finish loading', () => {
@@ -150,137 +139,32 @@ describe('usePromptRenderedTab', () => {
       expect(renderPrompt).not.toHaveBeenCalled()
 
       rerender({ isLoadingPlaceholders: false })
-      expect(renderPrompt).toHaveBeenCalledExactlyOnceWith('greeting', 'team-1')
+      expect(renderPrompt).toHaveBeenCalledExactlyOnceWith(
+        'greeting',
+        'team-1',
+        {}
+      )
     })
   })
 
   describe('placeholder values', () => {
-    it('renders once more, 500 ms in, when the first values arrive', async () => {
-      const { renderPrompt } = setup({
-        placeholderValues: { name: '' },
-        placeholderCount: 1,
-      })
+    it('always asks the server to render with no values', async () => {
+      // The page substitutes values into the rendered body itself, so an
+      // unfilled placeholder stays visible as a chip. A value sent to the
+      // server (even an empty one) would erase it, so none ever is; and the
+      // hook does not take the values at all, so typing one cannot re-render.
+      const { renderPrompt, rerender } = setup()
       await flushFetch()
-
       act(() => {
         vi.advanceTimersByTime(100)
       })
-      expect(renderPrompt).toHaveBeenCalledTimes(1)
-
-      act(() => {
-        vi.advanceTimersByTime(400)
-      })
-      expect(renderPrompt).toHaveBeenCalledTimes(2)
-    })
-
-    it('re-renders 500 ms after a value changes', async () => {
-      const { renderPrompt, rerender } = await setupLoaded()
-
-      rerender({ placeholderValues: { name: 'Ada' } })
-      act(() => {
-        vi.advanceTimersByTime(499)
-      })
-      expect(renderPrompt).not.toHaveBeenCalled()
-
-      act(() => {
-        vi.advanceTimersByTime(1)
-      })
-      expect(renderPrompt).toHaveBeenCalledExactlyOnceWith('greeting', 'team-1')
-    })
-
-    it('debounces: a second change restarts the 500 ms wait', async () => {
-      const { renderPrompt, rerender } = await setupLoaded()
-
-      rerender({ placeholderValues: { name: 'A' } })
-      act(() => {
-        vi.advanceTimersByTime(400)
-      })
-      rerender({ placeholderValues: { name: 'Ad' } })
-      act(() => {
-        vi.advanceTimersByTime(400)
-      })
-      expect(renderPrompt).not.toHaveBeenCalled()
-
-      act(() => {
-        vi.advanceTimersByTime(100)
-      })
-      expect(renderPrompt).toHaveBeenCalledTimes(1)
-    })
-
-    it('cancels the pending render on unmount', async () => {
-      const { renderPrompt, rerender, unmount } = await setupLoaded()
-
-      rerender({ placeholderValues: { name: 'Ada' } })
-      unmount()
-      act(() => {
-        vi.advanceTimersByTime(1000)
-      })
-
-      expect(renderPrompt).not.toHaveBeenCalled()
-    })
-
-    it('does not re-render when the values are a new object with the same contents', async () => {
-      const { renderPrompt, rerender } = await setupLoaded()
-
-      rerender({ placeholderValues: { name: '' } })
-      act(() => {
-        vi.advanceTimersByTime(1000)
-      })
-
-      expect(renderPrompt).not.toHaveBeenCalled()
-    })
-
-    it('does not re-render on the Raw tab, and treats that value as seen', async () => {
-      const { renderPrompt, rerender } = await setupLoaded()
-
       rerender({ tab: 'raw' })
-      rerender({ placeholderValues: { name: 'Ada' } })
-      act(() => {
-        vi.advanceTimersByTime(1000)
-      })
-      expect(renderPrompt).not.toHaveBeenCalled()
-
-      // Back on Rendered the first effect renders once, immediately; the
-      // debounce has nothing new to add because the value was recorded.
       rerender({ tab: 'rendered' })
-      expect(renderPrompt).toHaveBeenCalledTimes(1)
-      act(() => {
-        vi.advanceTimersByTime(1000)
-      })
-      expect(renderPrompt).toHaveBeenCalledTimes(1)
-    })
 
-    it.each<[string, Partial<Options>]>([
-      ['the placeholders are still loading', { isLoadingPlaceholders: true }],
-      ['the prompt has no placeholders', { placeholderCount: 0 }],
-      ['no team is selected', { currentTeam: null }],
-      ['the prompt is gone', { slug: undefined }],
-    ])('does not re-render while %s', async (_name, overrides) => {
-      const { renderPrompt, rerender } = await setupLoaded()
-
-      rerender({ ...overrides, placeholderValues: { name: 'Ada' } })
-      act(() => {
-        vi.advanceTimersByTime(1000)
-      })
-
-      expect(renderPrompt).not.toHaveBeenCalled()
-    })
-
-    it('does not re-render for a prompt whose first load has not started', () => {
-      // On Raw the first-load effect never ran, so no slug is recorded as
-      // loaded; a value change must not render ahead of that first load.
-      const { renderPrompt, rerender } = setup({
-        tab: 'raw',
-        placeholderValues: { name: '' },
-        placeholderCount: 1,
-      })
-
-      rerender({ placeholderValues: { name: 'Ada' } })
-      act(() => {
-        vi.advanceTimersByTime(1000)
-      })
-
-      expect(renderPrompt).not.toHaveBeenCalled()
+      expect(renderPrompt).toHaveBeenCalledTimes(2)
+      for (const call of renderPrompt.mock.calls) {
+        expect(call[2]).toEqual({})
+      }
     })
   })
 })

@@ -10,6 +10,7 @@ import {
   useCopyAction,
 } from '@/components/patterns/reading-page'
 import {
+  resourceKindLabel,
   ResourceMetadataSection,
   resourceRegistry,
   ResourceTaxonomySection,
@@ -57,6 +58,7 @@ export function ArtifactView() {
     id: 'back',
     label: 'Back',
     icon: ArrowLeft,
+    placement: 'toolbar',
     onClick: () => {
       void navigate('/artifacts')
     },
@@ -218,18 +220,21 @@ export function ArtifactView() {
 
   const base = artifactBase(artifact)
 
+  // Edit and Copy are what a reader reaches for; the rest live in the
+  // toolbar's More menu. No Back: the breadcrumb and the browser have it.
   const actions: ReadingAction[] = [
-    backAction,
-    copyAction,
     {
       id: 'edit',
       label: 'Edit',
       icon: Pencil,
+      emphasis: 'primary',
+      placement: 'toolbar',
       testId: 'edit-artifact-button',
       onClick: () => {
         void navigate(`${base}/edit`)
       },
     },
+    copyAction,
   ]
   actions.push(...resourceLock.actions)
   // A locked artifact cannot be deleted; Delete returns after unlock.
@@ -254,7 +259,8 @@ export function ArtifactView() {
           value: statusOptions.labelOf(artifact.status),
           tone: statusOptions.toneOf(artifact.status),
         }}
-        address={{ value: artifact.slug }}
+        kindLabel={resourceKindLabel(resourceRegistry.artifact, artifact)}
+        versionHistory={versionHistory}
         updatedAt={artifact.updated_at}
         summary={artifact.description}
         actions={actions}
@@ -271,6 +277,7 @@ export function ArtifactView() {
               resource={artifact}
               versionHistory={versionHistory}
               statusLabel={statusOptions.labelOf}
+              hideStatus
               lock={artifact.lock}
               project={artifact.project}
               projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
@@ -282,7 +289,7 @@ export function ArtifactView() {
           </div>
         }
       >
-        <ResourceBody content={artifact.content ?? ''} />
+        <ResourceBody content={artifact.content ?? ''} title={artifact.title} />
       </ResourceReadingPage>
 
       {resourceLock.dialog}

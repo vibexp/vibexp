@@ -306,6 +306,11 @@ describe('Prompts page', () => {
 
   describe('search filter', () => {
     it('re-fetches with the debounced search term', async () => {
+      // The filter row only exists once the list holds something (it is
+      // dropped on a blank slate), so the first load returns a row.
+      ;(promptService.getPrompts as Mock).mockResolvedValueOnce(
+        buildListResponse([buildPrompt()])
+      )
       renderPrompts()
 
       await waitFor(() => {
@@ -622,6 +627,11 @@ describe('Prompts page — URL-synced filters (#906)', () => {
   })
 
   it('writes the debounced search term to the URL in a single request', async () => {
+    // The filter row only exists once the list holds something (it is
+    // dropped on a blank slate), so the first load returns a row.
+    ;(promptService.getPrompts as Mock).mockResolvedValueOnce(
+      buildListResponse([buildPrompt()])
+    )
     renderPrompts()
     await waitFor(() => {
       expect(promptService.getPrompts).toHaveBeenCalled()
@@ -695,10 +705,16 @@ describe('Prompts page — Clear filters and the two-branch empty state (#906)',
     expect(
       screen.queryByRole('button', { name: 'Clear filters' })
     ).not.toBeInTheDocument()
-    // Header button plus the empty-state action.
+    // The empty-state action alone: the header button steps aside on a
+    // blank slate.
     expect(screen.getAllByRole('button', { name: /New prompt/ })).toHaveLength(
-      2
+      1
     )
+    // Nothing to filter, so no filter row either.
+    expect(
+      screen.queryByPlaceholderText('Search prompts…')
+    ).not.toBeInTheDocument()
+    expect(screen.queryByTestId('prompt-shared-filter')).not.toBeInTheDocument()
   })
 
   it('a selected project alone is NOT a page filter', async () => {
@@ -742,6 +758,11 @@ describe('Prompts page — Clear filters and the two-branch empty state (#906)',
     await screen.findByText('No prompts match your filters')
 
     const user = userEvent.setup()
+    // Unfiltered, the list has a row: a blank slate would drop the filter row
+    // this test goes on to read.
+    ;(promptService.getPrompts as Mock).mockResolvedValue(
+      buildListResponse([buildPrompt()])
+    )
     const [clear] = screen.getAllByRole('button', { name: 'Clear filters' })
     await user.click(clear)
 
@@ -753,7 +774,6 @@ describe('Prompts page — Clear filters and the two-branch empty state (#906)',
     expect(lastQuery().page).toBe(1)
     expect(currentSearch).toBe('')
     expect(screen.getByPlaceholderText('Search prompts…')).toHaveValue('')
-    await screen.findByText('No prompts yet')
   })
 })
 
@@ -794,6 +814,11 @@ describe('Prompts page — taxonomy (labels) filter (#908)', () => {
   })
 
   it('picking a label writes the URL and refetches from page 1', async () => {
+    // The filter row only exists once the list holds something (it is
+    // dropped on a blank slate), so the first load returns a row.
+    ;(promptService.getPrompts as Mock).mockResolvedValueOnce(
+      buildListResponse([buildPrompt()])
+    )
     renderPrompts('/prompts?page=4')
     await waitFor(() => {
       expect(lastQuery().page).toBe(4)
@@ -833,6 +858,11 @@ describe('Prompts page — taxonomy (labels) filter (#908)', () => {
   })
 
   it('fetches the label catalog only once the popover opens', async () => {
+    // The filter row only exists once the list holds something (it is
+    // dropped on a blank slate), so the first load returns a row.
+    ;(promptService.getPrompts as Mock).mockResolvedValueOnce(
+      buildListResponse([buildPrompt()])
+    )
     renderPrompts()
     await waitFor(() => {
       expect(promptService.getPrompts).toHaveBeenCalled()

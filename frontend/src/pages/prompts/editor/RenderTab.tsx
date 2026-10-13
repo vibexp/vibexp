@@ -27,7 +27,7 @@ export function RenderTab({
     <Card>
       <CardContent className="space-y-4 p-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium">Render preview</h3>
+          <h3 className="text-sm font-medium">Resolved preview</h3>
           {isRendering && (
             <span className="text-muted-foreground text-sm">Rendering…</span>
           )}
@@ -70,6 +70,7 @@ export function RenderTab({
               renderedBody ||
               'Enter placeholder values above to see the rendered prompt…'
             }
+            placeholders={placeholderValues}
             enableCodeCopy={true}
             enableMermaid={true}
           />

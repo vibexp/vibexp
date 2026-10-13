@@ -3,9 +3,9 @@ import { type ReactNode, useCallback, useEffect, useState } from 'react'
 
 import { EmptyState } from '@/components/EmptyState'
 import { PageHeader } from '@/components/PageHeader'
+import { RelativeTime } from '@/components/RelativeTime'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import {
   Collapsible,
   CollapsibleContent,
@@ -20,7 +20,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useAlerts } from '@/hooks'
-import { formatDateTime, formatRelativeTime } from '@/lib/time'
+import { formatDateTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import type {
   Activity as ActivityType,
@@ -138,109 +138,109 @@ export function Activities() {
         description="Monitor account activity and platform events."
       />
 
-      <Card>
-        <CardContent className="space-y-4 p-4">
-          <div className="relative max-w-sm">
-            <Search className="text-muted-foreground absolute left-2.5 top-1/2 size-4 -translate-y-1/2" />
-            <Input
-              value={searchInput}
-              onChange={e => {
-                setSearchInput(e.target.value)
-              }}
-              placeholder="Search activities…"
-              className="pl-8"
-            />
-          </div>
+      {/* One border for the whole list: the search sits above it unboxed and
+          the rows are split by dividers, not boxed one by one. */}
+      <div className="space-y-4">
+        <div className="relative max-w-sm">
+          <Search className="text-muted-foreground absolute left-2.5 top-1/2 size-4 -translate-y-1/2" />
+          <Input
+            value={searchInput}
+            onChange={e => {
+              setSearchInput(e.target.value)
+            }}
+            placeholder="Search activities…"
+            className="pl-8"
+          />
+        </div>
 
-          {listStateContent ?? (
-            <TooltipProvider>
-              <div className="space-y-2">
-                {state.activities.map(activity => (
-                  <Collapsible
-                    key={activity.id}
-                    open={expanded[activity.id] ?? false}
-                    onOpenChange={open => {
-                      setExpanded(prev => ({ ...prev, [activity.id]: open }))
-                    }}
-                  >
-                    <CollapsibleTrigger className="hover:bg-muted/40 flex w-full items-center gap-3 rounded-md border p-3 text-left transition-colors">
-                      <ActivityIcon className="text-muted-foreground size-4 shrink-0" />
-                      <div className="flex-1 min-w-0 space-y-0.5">
-                        <p className="truncate text-sm font-medium">
-                          {activity.description}
-                        </p>
-                        <p className="text-muted-foreground text-xs">
-                          {activity.activity_type}
-                          {activity.entity_type && ` · ${activity.entity_type}`}
-                        </p>
-                      </div>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="text-muted-foreground shrink-0 text-xs">
-                            {formatRelativeTime(activity.created_at)}
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{formatDateTime(activity.created_at)}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                      <ChevronDown
-                        className={cn(
-                          'text-muted-foreground size-4 shrink-0 transition-transform',
-                          expanded[activity.id] && 'rotate-180'
-                        )}
-                      />
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <div className="bg-muted/30 mt-1 rounded-md border p-3 text-xs">
-                        <pre className="overflow-x-auto font-mono">
-                          {JSON.stringify(activity, null, 2)}
-                        </pre>
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-                ))}
-              </div>
-            </TooltipProvider>
-          )}
-
-          {state.totalPages > 1 && (
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-muted-foreground text-sm">
-                Page {state.currentPage} of {state.totalPages}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={state.currentPage <= 1}
-                  onClick={() => {
-                    setFilters(prev => ({
-                      ...prev,
-                      page: state.currentPage - 1,
-                    }))
+        {listStateContent ?? (
+          <TooltipProvider>
+            <div className="divide-y overflow-hidden rounded-lg border">
+              {state.activities.map(activity => (
+                <Collapsible
+                  key={activity.id}
+                  open={expanded[activity.id] ?? false}
+                  onOpenChange={open => {
+                    setExpanded(prev => ({ ...prev, [activity.id]: open }))
                   }}
                 >
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={state.currentPage >= state.totalPages}
-                  onClick={() => {
-                    setFilters(prev => ({
-                      ...prev,
-                      page: state.currentPage + 1,
-                    }))
-                  }}
-                >
-                  Next
-                </Button>
-              </div>
+                  <CollapsibleTrigger className="hover:bg-muted/40 flex w-full items-center gap-3 px-4 py-3 text-left transition-colors">
+                    <ActivityIcon className="text-muted-foreground size-4 shrink-0" />
+                    <div className="flex-1 min-w-0 space-y-0.5">
+                      <p className="truncate text-sm font-medium">
+                        {activity.description}
+                      </p>
+                      <p className="text-muted-foreground text-xs">
+                        {activity.activity_type}
+                        {activity.entity_type && ` · ${activity.entity_type}`}
+                      </p>
+                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-muted-foreground shrink-0 text-xs">
+                          <RelativeTime value={activity.created_at} />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{formatDateTime(activity.created_at)}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <ChevronDown
+                      className={cn(
+                        'text-muted-foreground size-4 shrink-0 transition-transform',
+                        expanded[activity.id] && 'rotate-180'
+                      )}
+                    />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="bg-muted/30 border-t px-4 py-3 text-xs">
+                      <pre className="overflow-x-auto font-mono">
+                        {JSON.stringify(activity, null, 2)}
+                      </pre>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </TooltipProvider>
+        )}
+
+        {state.totalPages > 1 && (
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-muted-foreground text-sm">
+              Page {state.currentPage} of {state.totalPages}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={state.currentPage <= 1}
+                onClick={() => {
+                  setFilters(prev => ({
+                    ...prev,
+                    page: state.currentPage - 1,
+                  }))
+                }}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={state.currentPage >= state.totalPages}
+                onClick={() => {
+                  setFilters(prev => ({
+                    ...prev,
+                    page: state.currentPage + 1,
+                  }))
+                }}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

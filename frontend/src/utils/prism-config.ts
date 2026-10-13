@@ -2,8 +2,9 @@
 // The core library MUST be imported before any language components
 import Prism from 'prismjs'
 
-// Theme
-import 'prismjs/themes/prism-tomorrow.css'
+// No Prism theme is imported on purpose: the code-block surface and the token
+// colours are design tokens in styles/index.css (`.code-block`, `.token`), so
+// code follows the app's light and dark themes instead of one fixed palette.
 // Language components - these extend Prism.languages
 import 'prismjs/components/prism-javascript'
 import 'prismjs/components/prism-typescript'

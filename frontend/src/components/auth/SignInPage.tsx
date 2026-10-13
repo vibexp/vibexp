@@ -1,4 +1,4 @@
-import { KeyRound, Moon, Shield, Sun, Users, Zap } from 'lucide-react'
+import { BookOpen, KeyRound, Moon, Save, Sun, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
@@ -111,23 +111,25 @@ function ThemeToggle() {
   )
 }
 
+// The loop, in order: read, write back, compound for the team.
 const PITCH_BULLETS = [
   {
-    icon: Zap,
-    title: 'Reusable prompts',
-    description: 'Template library with variables and MCP exposure.',
+    icon: BookOpen,
+    title: 'Read before every task',
+    description:
+      "Your AI tools pull the team's prompts, rules and memory before they start.",
   },
   {
-    icon: Shield,
-    title: 'Your data, your control',
+    icon: Save,
+    title: 'Written back as it works',
     description:
-      'Free and open source. Self-host it on your own infrastructure.',
+      'Lessons, memory and artifacts are saved by the AI, not by hand.',
   },
   {
     icon: Users,
-    title: 'Teams & agents',
+    title: 'One workspace for the whole team',
     description:
-      "One workspace your whole team's AI reads from and writes back to.",
+      'Every session makes the next one richer, for everyone. Free, open source, self-hostable.',
   },
 ] as const
 
@@ -228,7 +230,7 @@ function PitchPanel() {
   return (
     <div
       data-testid="sign-in-pitch"
-      className="bg-muted relative hidden flex-col justify-between overflow-hidden border-r p-10 lg:flex lg:p-14"
+      className="bg-muted relative hidden flex-col overflow-hidden border-r p-10 lg:flex lg:p-14"
     >
       {/* Subtle dot grid backdrop */}
       <div
@@ -245,11 +247,19 @@ function PitchPanel() {
         }}
       />
 
-      <div className="relative z-10 max-w-md">
-        {/* The pitch below is VibeXP's own, so on a branded instance the
-            company leads from the card and the product is credited here. */}
+      {/* The pitch below is VibeXP's own, so on a branded instance the
+          company leads from the card and the product is credited here. */}
+      <div className="relative z-10">
         {hasCompanyBranding ? <PoweredBy /> : <Brand />}
-        <h2 className="mt-6 text-3xl leading-tight font-bold tracking-tight">
+      </div>
+
+      {/* The pitch sits in the middle of the room between the lockup and the
+          footer; its padding keeps it clear of both on a short window. */}
+      <div
+        data-testid="sign-in-pitch-body"
+        className="relative z-10 flex max-w-md flex-1 flex-col justify-center py-8"
+      >
+        <h2 className="text-3xl leading-tight font-bold tracking-tight">
           One shared brain for all your AI.
         </h2>
         <p className="text-muted-foreground mt-3 max-w-sm text-sm leading-relaxed">
@@ -398,7 +408,7 @@ export function SignInPage() {
           />
 
           <div className="relative z-10 w-full max-w-sm">
-            <div className="bg-card border-border rounded-2xl border p-8 shadow-sm">
+            <div className="bg-card border-border rounded-lg border p-8">
               {/* A company's lockup leads the card at every size. VibeXP's own
                 is here only on small screens: the pitch panel carries it on
                 large ones. */}
@@ -478,7 +488,7 @@ export function SignInPage() {
                 <div className="bg-border h-px flex-1" />
               </div>
 
-              <DevLogin returnTo={returnTo} onError={setError} />
+              <DevLogin returnTo={returnTo} />
 
               <LegalLine />
             </div>

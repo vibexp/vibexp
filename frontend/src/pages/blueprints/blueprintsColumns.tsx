@@ -47,7 +47,6 @@ export function buildBlueprintsColumns({
       field: fieldOfRole(descriptor, 'name'),
       value: blueprint => blueprint.title,
       to: detailPath,
-      navigate,
       summary: blueprint => blueprint.description,
       // Each renders nothing by itself: the badge when the resource is fresh,
       // the icon when it is unlocked, so a plain row pays no layout for either.

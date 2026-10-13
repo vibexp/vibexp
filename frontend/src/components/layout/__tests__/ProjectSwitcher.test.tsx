@@ -128,22 +128,33 @@ describe('ProjectSwitcher', () => {
     expect(setCurrentProject).toHaveBeenCalledWith(null)
   })
 
-  it('is visible but inactive on a non-project page', () => {
+  // Hidden, not greyed out: a disabled filter on a page it cannot affect is a
+  // control that only raises the question of why it is there.
+  it.each([
+    ['/', 'the dashboard'],
+    ['/search', 'the search page (its own URL-driven filter)'],
+    ['/settings/team', 'settings'],
+    ['/teams', 'teams'],
+    ['/agents', 'agents'],
+  ])('is not rendered on %s — %s', path => {
     setProject(alpha)
-    renderAt('/settings/team')
+    const { container } = renderAt(path)
 
-    const trigger = screen.getByTestId('project-switcher')
-    expect(trigger).toBeDisabled()
-    // Selection is still shown so users can see the global state
-    expect(trigger).toHaveTextContent('Alpha Project')
+    expect(screen.queryByTestId('project-switcher')).not.toBeInTheDocument()
+    expect(container).toBeEmptyDOMElement()
   })
 
-  it('is inactive on the search page (URL-driven filter overrides)', () => {
-    setProject(null)
-    renderAt('/search')
+  it.each([['/prompts'], ['/artifacts/p1/doc'], ['/memories'], ['/feeds']])(
+    'is shown, enabled, where the page filters by project: %s',
+    path => {
+      setProject(alpha)
+      renderAt(path)
 
-    expect(screen.getByTestId('project-switcher')).toBeDisabled()
-  })
+      const trigger = screen.getByTestId('project-switcher')
+      expect(trigger).toBeEnabled()
+      expect(trigger).toHaveTextContent('Alpha Project')
+    }
+  )
 
   it('renders a loading state while the selection is restoring', () => {
     setProject(null, true)

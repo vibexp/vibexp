@@ -287,8 +287,7 @@ describe('CommentsPanel', () => {
       renderPanel()
       expect(screen.getByTestId('comments-panel')).toHaveClass(
         'rounded-lg',
-        'border',
-        'shadow-sm'
+        'border'
       )
     })
   })

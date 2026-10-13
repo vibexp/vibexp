@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mock } from 'vitest'
 
+import { openMoreActions } from '@/components/patterns/reading-page/testing'
 import type { Blueprint } from '@/services/blueprintService'
 import { storage } from '@/utils/storage'
 
@@ -158,7 +159,7 @@ describe('BlueprintView', () => {
   })
 
   describe('when TeamContext finishes loading with a team', () => {
-    it('shows a custom status by its display name, in the header and the Metadata row (#1263)', async () => {
+    it('shows a custom status by its display name, once, in the header (#1263)', async () => {
       statusCatalog.statuses = [
         { slug: 'in-review', name: 'In review', is_system: false },
       ]
@@ -177,8 +178,8 @@ describe('BlueprintView', () => {
 
       const header = await screen.findByTestId('resource-header-meta')
       expect(within(header).getByText('In review')).toHaveClass('bg-muted')
-      // The header badge and the descriptor-generated Status row.
-      expect(screen.getAllByText('In review')).toHaveLength(2)
+      // Once: the rail's details no longer repeat what the header shows.
+      expect(screen.getAllByText('In review')).toHaveLength(1)
       expect(screen.queryByText('in-review')).not.toBeInTheDocument()
     })
 
@@ -198,10 +199,10 @@ describe('BlueprintView', () => {
 
       const header = await screen.findByTestId('resource-header-meta')
       expect(within(header).getByText('in-review')).toHaveClass('bg-muted')
-      expect(screen.getAllByText('in-review')).toHaveLength(2)
+      expect(screen.getAllByText('in-review')).toHaveLength(1)
     })
 
-    it('renders the standard header: status, slug chip and updated time (#902)', async () => {
+    it('renders the standard header: status and updated time, with the slug left to the rail (#902)', async () => {
       mockUseTeam.mockReturnValue({
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
@@ -217,11 +218,16 @@ describe('BlueprintView', () => {
       // Scoped to the header: the descriptor-generated Metadata section
       // carries its own Status and Slug rows (#903).
       expect(within(header).getByText('Active')).toBeInTheDocument()
+      // The slug is a detail: it lives in the rail, not twice on the page.
       expect(
-        within(header).getByRole('button', { name: 'Copy slug: my-blueprint' })
-      ).toBeInTheDocument()
+        within(header).queryByRole('button', { name: /Copy slug/ })
+      ).not.toBeInTheDocument()
+      expect(screen.getAllByText('my-blueprint')).toHaveLength(1)
       expect(within(header).getByText('Updated')).toBeInTheDocument()
-      expect(within(header).getByText('A test blueprint')).toBeInTheDocument()
+      // The description is the lead paragraph beneath the meta line.
+      expect(screen.getByTestId('resource-header-summary')).toHaveTextContent(
+        'A test blueprint'
+      )
     })
 
     it('loads and renders the blueprint after team resolves', async () => {
@@ -458,7 +464,7 @@ describe('BlueprintView', () => {
         '# Blueprint content'
       )
 
-      await user.click(within(body).getByRole('tab', { name: 'Raw' }))
+      await user.click(screen.getByRole('tab', { name: 'Raw' }))
 
       expect(screen.getByTestId('resource-body-raw')).toHaveTextContent(
         '# Blueprint content'
@@ -482,7 +488,7 @@ describe('BlueprintView', () => {
       ;(blueprintService.getBlueprint as Mock).mockResolvedValue(mockBlueprint)
     })
 
-    it('renders the version-history link with the total-version count chip', async () => {
+    it('links the version row to the history, naming the version count', async () => {
       ;(blueprintService.getBlueprintVersions as Mock).mockResolvedValue({
         versions: [
           { id: 'v2', version_number: 2 },
@@ -493,8 +499,10 @@ describe('BlueprintView', () => {
       renderBlueprintView()
 
       const link = await screen.findByTestId('metadata-version-history-link')
-      expect(link).toHaveTextContent('View version history')
-      expect(link).toHaveTextContent('2')
+      // In the rail the version row itself is the link to the history: one
+      // row, named for where it goes and how many versions are there.
+      expect(link).toHaveAccessibleName('View version history, 2 versions')
+      expect(link).toHaveTextContent(/^v\d+/)
       expect(link).toHaveAttribute(
         'href',
         '/blueprints/my-project/my-blueprint/versions'
@@ -611,6 +619,7 @@ describe('BlueprintView', () => {
       renderBlueprintView()
 
       await screen.findByTestId('resource-body')
+      await openMoreActions()
       expect(screen.getByTestId('lock-blueprint-button')).toBeInTheDocument()
       expect(screen.getByTestId('delete-blueprint-button')).toBeInTheDocument()
       expect(
@@ -631,6 +640,9 @@ describe('BlueprintView', () => {
         'Ada Lovelace'
       )
       expect(screen.getByText('Locked by')).toBeInTheDocument()
+      // The menu is opened first: an action missing from a closed menu proves
+      // nothing. (No menu at all means no such action either.)
+      await openMoreActions()
       expect(
         screen.queryByTestId('lock-blueprint-button')
       ).not.toBeInTheDocument()
@@ -648,9 +660,9 @@ describe('BlueprintView', () => {
 
       renderBlueprintView()
 
-      expect(
-        await screen.findByTestId('unlock-blueprint-button')
-      ).toBeInTheDocument()
+      await screen.findByTestId('locked-by')
+      await openMoreActions()
+      expect(screen.getByTestId('unlock-blueprint-button')).toBeInTheDocument()
       expect(
         screen.queryByTestId('delete-blueprint-button')
       ).not.toBeInTheDocument()
@@ -662,9 +674,9 @@ describe('BlueprintView', () => {
 
       renderBlueprintView()
 
-      expect(
-        await screen.findByTestId('unlock-blueprint-button')
-      ).toBeInTheDocument()
+      await screen.findByTestId('locked-by')
+      await openMoreActions()
+      expect(screen.getByTestId('unlock-blueprint-button')).toBeInTheDocument()
       // Not even resource.delete.any deletes a locked blueprint.
       expect(
         screen.queryByTestId('delete-blueprint-button')
@@ -685,7 +697,9 @@ describe('BlueprintView', () => {
 
       renderBlueprintView()
 
-      await user.click(await screen.findByTestId('lock-blueprint-button'))
+      await screen.findByTestId('resource-body')
+      await openMoreActions()
+      await user.click(screen.getByTestId('lock-blueprint-button'))
       // The dialog does not submit without a comment.
       expect(screen.getByTestId('confirm-lock-button')).toBeDisabled()
       await user.type(
@@ -703,6 +717,7 @@ describe('BlueprintView', () => {
         'my-blueprint',
         'Used by the nightly release agent'
       )
+      await openMoreActions()
       expect(
         screen.queryByTestId('delete-blueprint-button')
       ).not.toBeInTheDocument()
@@ -713,9 +728,11 @@ describe('BlueprintView', () => {
 
       await user.click(screen.getByTestId('unlock-blueprint-button'))
 
-      expect(
-        await screen.findByTestId('delete-blueprint-button')
-      ).toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.queryByTestId('locked-by')).not.toBeInTheDocument()
+      })
+      await openMoreActions()
+      expect(screen.getByTestId('delete-blueprint-button')).toBeInTheDocument()
       expect(blueprintService.unlockBlueprint).toHaveBeenCalledWith(
         'team-1',
         'my-project',

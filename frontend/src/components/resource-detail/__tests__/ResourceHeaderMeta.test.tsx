@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router'
 
 import { ResourceHeaderMeta } from '../ResourceHeaderMeta'
 
@@ -97,5 +98,37 @@ describe('ResourceHeaderMeta', () => {
     await user.click(screen.getByRole('button', { name: /Copy slug/ }))
 
     await expect(navigator.clipboard.readText()).resolves.toBe('copy-me')
+  })
+
+  describe('type and version', () => {
+    const renderMeta = (count: number) =>
+      render(
+        <MemoryRouter>
+          <ResourceHeaderMeta
+            kindLabel="Claude Code"
+            version={{ current: 3, count, to: '/blueprints/p1/doc/versions' }}
+          />
+        </MemoryRouter>
+      )
+
+    it('shows the type where the kind has one', () => {
+      renderMeta(1)
+
+      expect(screen.getByText('Claude Code')).toBeInTheDocument()
+    })
+
+    it('shows a version chip linking to the history once there is more than one version', () => {
+      renderMeta(3)
+
+      expect(
+        screen.getByRole('link', { name: 'Version 3, view version history' })
+      ).toHaveAttribute('href', '/blueprints/p1/doc/versions')
+    })
+
+    it('shows no version chip for a resource with a single version', () => {
+      renderMeta(1)
+
+      expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    })
   })
 })

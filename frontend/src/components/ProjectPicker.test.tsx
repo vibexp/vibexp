@@ -247,4 +247,23 @@ describe('ProjectPicker', () => {
       expect(within(list).getByText(/no projects found/i)).toBeInTheDocument()
     })
   })
+
+  it('names a preselected project the loaded page does not hold', async () => {
+    const gamma = baseProject('p3', 'Gamma Project', 'gamma-project')
+    const mockedGetProject = projectService.getProject as MockedFunction<
+      typeof projectService.getProject
+    >
+    mockedGetProject.mockResolvedValue(gamma)
+    render(<ProjectPicker value="p3" onChange={vi.fn()} />)
+
+    expect(await screen.findByText('Gamma Project')).toBeInTheDocument()
+    expect(mockedGetProject).toHaveBeenCalledWith('team-1', 'p3')
+  })
+
+  it('does not look up a project the loaded page already names', async () => {
+    render(<ProjectPicker value="p1" onChange={vi.fn()} />)
+
+    expect(await screen.findByText('Alpha Project')).toBeInTheDocument()
+    expect(projectService.getProject).not.toHaveBeenCalled()
+  })
 })

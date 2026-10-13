@@ -7,7 +7,8 @@ import { devLogin } from '../../fixtures/auth'
  * assembled combined stack across two frontend surfaces:
  *  - the sidebar CommentsPanel widget + all-comments popup on a resource detail
  *    page (add, in-place edit, pagination, permission-gated action visibility),
- *  - the homepage "Recent comments" activity card (click-through + cascade).
+ *  - the dashboard's "What changed" block, Comments view (click-through +
+ *    cascade).
  *
  * Modelled on the multi-user invitation-accept spec: raw Playwright test with a
  * dedicated browser context per user, team/resource setup via the API (that's
@@ -281,16 +282,18 @@ test.describe.serial('Resource comments happy path', () => {
     ).toHaveCount(0, { timeout: WIDGET_TIMEOUT })
   })
 
-  test('homepage "Recent comments" card links to the resource detail page', async () => {
+  test('dashboard "What changed" comments link to the resource detail page', async () => {
     await ownerPage.goto('/')
     await ownerPage.waitForLoadState('networkidle')
-    // CardTitle renders a div, not a heading — match by text.
-    await expect(
-      ownerPage.getByText('Recent comments', { exact: true })
-    ).toBeVisible({ timeout: 20000 })
+    // Recent comments are one view of the "What changed" block.
+    const commentsTab = ownerPage
+      .getByRole('region', { name: 'What changed' })
+      .getByRole('tab', { name: 'Comments' })
+    await expect(commentsTab).toBeVisible({ timeout: 20000 })
+    await commentsTab.click()
 
     // Scope to a recent-comments row (the "commented on" phrase is unique to
-    // this card) for our artifact — the title also appears in other Home cards.
+    // this view) for our artifact — the title also appears in other blocks.
     const row = ownerPage
       .getByRole('link')
       .filter({ hasText: artifactTitle })
@@ -317,8 +320,15 @@ test.describe.serial('Resource comments happy path', () => {
     await ownerPage.goto('/')
     await ownerPage.waitForLoadState('networkidle')
     await expect(
-      ownerPage.getByText('Recent comments', { exact: true })
+      ownerPage.getByRole('heading', { level: 1, name: /Welcome back/ })
     ).toBeVisible({ timeout: 20000 })
+    // Deleting the team's only resource can leave the workspace empty, where
+    // the dashboard shows its getting-started block and no "What changed" at
+    // all — so the Comments view is opened only when it is there.
+    const commentsTab = ownerPage
+      .getByRole('region', { name: 'What changed' })
+      .getByRole('tab', { name: 'Comments' })
+    if (await commentsTab.isVisible()) await commentsTab.click()
     // No orphan recent-comment rows for the now-deleted artifact (cascade).
     await expect(
       ownerPage

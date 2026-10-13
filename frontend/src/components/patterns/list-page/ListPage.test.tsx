@@ -125,6 +125,14 @@ describe('<ListPage.Footer>', () => {
       expect(screen.getByText(/Showing 5 of 10 prompts/)).toBeInTheDocument()
     })
 
+    it('hides count line when the list is empty', () => {
+      render(
+        <ListPage.Footer count={{ visible: 0, total: 0, noun: 'agent' }} />
+      )
+
+      expect(screen.queryByText(/Showing/)).not.toBeInTheDocument()
+    })
+
     it('hides count line when hideCount is true', () => {
       render(
         <ListPage.Footer
@@ -259,5 +267,47 @@ describe('<ListPage> compound', () => {
     expect(ListPage.Filters).toBeDefined()
     expect(ListPage.Body).toBeDefined()
     expect(ListPage.Footer).toBeDefined()
+  })
+})
+
+describe('one separation device per level', () => {
+  it('frames the ready list with the only border on the page', () => {
+    render(
+      <ListPage.Container>
+        <ListPage.Filters>
+          <span data-testid="toolbar">filters</span>
+        </ListPage.Filters>
+        <ListPage.Body status="ready">
+          <span data-testid="rows">rows</span>
+        </ListPage.Body>
+        <ListPage.Footer count={{ visible: 1, total: 1, noun: 'prompt' }} />
+      </ListPage.Container>
+    )
+
+    const frame = screen.getByTestId('list-page-frame')
+    expect(frame).toHaveClass('rounded-lg', 'border')
+    expect(frame).toContainElement(screen.getByTestId('rows'))
+    // The toolbar above and the count below sit outside it, unboxed.
+    expect(frame).not.toContainElement(screen.getByTestId('toolbar'))
+    expect(frame).not.toContainElement(screen.getByText(/Showing 1 of 1/))
+    const boxed = [...document.querySelectorAll('[class*="border"]')]
+    expect(boxed).toEqual([frame])
+  })
+
+  it('leaves the empty state and unframed content unboxed', () => {
+    const { rerender } = render(
+      <ListPage.Body status="empty" empty={<span>nothing</span>}>
+        <span>rows</span>
+      </ListPage.Body>
+    )
+    expect(screen.queryByTestId('list-page-frame')).not.toBeInTheDocument()
+
+    rerender(
+      <ListPage.Body status="ready" framed={false}>
+        <span>cards</span>
+      </ListPage.Body>
+    )
+    expect(screen.queryByTestId('list-page-frame')).not.toBeInTheDocument()
+    expect(screen.getByText('cards')).toBeInTheDocument()
   })
 })

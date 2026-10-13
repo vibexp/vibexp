@@ -8,17 +8,11 @@ import { storage } from '@/utils/storage'
 import { Header } from '../Header'
 import { ShellProvider, useReadingShell, useShell } from '../ShellContext'
 
-vi.mock('@/components/layout/TeamSwitcher', () => ({
-  TeamSwitcher: () => <div data-testid="team-switcher" />,
-}))
 vi.mock('@/components/layout/ProjectSwitcher', () => ({
   ProjectSwitcher: () => <div data-testid="project-switcher" />,
 }))
-vi.mock('@/components/layout/SearchModal', () => ({
-  SearchModal: () => <button type="button">Search</button>,
-}))
-vi.mock('@/components/layout/ThemeToggle', () => ({
-  ThemeToggle: () => <button type="button">Toggle theme</button>,
+vi.mock('@/components/layout/CommandPalette', () => ({
+  CommandPalette: () => <button type="button">Search</button>,
 }))
 vi.mock('@/components/layout/NotificationBell', () => ({
   NotificationBell: () => <button type="button">Notifications</button>,
@@ -72,14 +66,23 @@ describe('Header', () => {
   })
 
   describe('desktop (≥ 1024px)', () => {
-    it('shows the nav toggle, the switchers, and no hamburger', () => {
+    it('shows the nav toggle, the project filter and search, and no hamburger', () => {
       renderHeader()
       expect(screen.getByTestId('nav-toggle')).toBeInTheDocument()
-      expect(screen.getByTestId('team-switcher')).toBeInTheDocument()
       expect(screen.getByTestId('project-switcher')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument()
       expect(
         screen.queryByRole('button', { name: 'Open navigation' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('holds neither the workspace switcher nor a theme button', () => {
+      // The workspace is global scope and lives in the sidebar; the theme is
+      // a personal preference and lives in the user menu.
+      renderHeader()
+      expect(screen.queryByTestId('team-switcher')).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /theme/i })
       ).not.toBeInTheDocument()
     })
 
@@ -129,10 +132,10 @@ describe('Header', () => {
   })
 
   describe('tablet (768–1024px)', () => {
-    it('keeps the switchers in the bar but has no nav button (fixed icon rail)', () => {
+    it('keeps the project filter in the bar but has no nav button (fixed icon rail)', () => {
       viewport.setWidth(900)
       renderHeader()
-      expect(screen.getByTestId('team-switcher')).toBeInTheDocument()
+      expect(screen.getByTestId('project-switcher')).toBeInTheDocument()
       expect(screen.queryByTestId('nav-toggle')).not.toBeInTheDocument()
       expect(
         screen.queryByRole('button', { name: 'Open navigation' })
@@ -161,13 +164,9 @@ describe('Header', () => {
       expect(
         screen.getByRole('button', { name: 'Open navigation' })
       ).toBeInTheDocument()
-      expect(screen.queryByTestId('team-switcher')).not.toBeInTheDocument()
       expect(screen.queryByTestId('project-switcher')).not.toBeInTheDocument()
       expect(
         screen.queryByRole('button', { name: 'Search' })
-      ).not.toBeInTheDocument()
-      expect(
-        screen.queryByRole('button', { name: 'Toggle theme' })
       ).not.toBeInTheDocument()
       expect(
         screen.getByRole('button', { name: 'Notifications' })

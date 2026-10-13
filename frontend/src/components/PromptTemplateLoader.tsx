@@ -96,7 +96,7 @@ export function PromptTemplateLoader({
         aria-label="Close modal"
       ></button>
       <div
-        className={`relative bg-card rounded-xl shadow-xl w-full max-w-4xl mx-4 max-h-[80vh] overflow-hidden ${className}`}
+        className={`relative bg-card rounded-lg shadow-xl w-full max-w-4xl mx-4 max-h-[80vh] overflow-hidden ${className}`}
       >
         {/* Header */}
         <div className="border-b border-border p-6">

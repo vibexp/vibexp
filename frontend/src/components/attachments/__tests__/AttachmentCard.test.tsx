@@ -188,8 +188,7 @@ describe('AttachmentCard', () => {
       renderCard({ attachments: [makeAttachment()] })
       expect(screen.getByTestId('attachment-card')).toHaveClass(
         'rounded-lg',
-        'border',
-        'shadow-sm'
+        'border'
       )
     })
   })

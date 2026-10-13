@@ -1,6 +1,7 @@
 import type { Row } from '@tanstack/react-table'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import { MemoryRouter } from 'react-router'
 
 import type { Artifact } from '@/services/artifactService'
 
@@ -67,7 +68,8 @@ function renderTitleCell(artifact: Partial<Artifact>) {
       ...artifact,
     },
   } as Row<Artifact>
-  return render(<>{cell({ row })}</>)
+  // In a router: the title is a real link (react-router Link).
+  return render(<MemoryRouter>{cell({ row })}</MemoryRouter>)
 }
 
 describe('artifactsColumns — stale badge (#738)', () => {
@@ -99,7 +101,7 @@ describe('artifactsColumns — stale badge (#738)', () => {
         reason: 'rule_run',
       },
     })
-    expect(screen.getByRole('button', { name: 'Runbook' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Runbook' })).toBeInTheDocument()
   })
 })
 
@@ -135,7 +137,7 @@ describe('artifactsColumns — lock icon (#1292)', () => {
     expect(screen.getByTestId('freshness-badge')).toBeInTheDocument()
     expect(screen.getByTestId('lock-indicator')).toBeInTheDocument()
     // The name is still the row's link.
-    expect(screen.getByRole('button', { name: 'Runbook' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Runbook' })).toBeInTheDocument()
   })
 })
 

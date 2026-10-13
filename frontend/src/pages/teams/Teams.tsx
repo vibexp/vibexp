@@ -81,22 +81,14 @@ function buildColumns(onRowClick: (team: Team) => void): ColumnDef<Team>[] {
     {
       accessorKey: 'member_count',
       header: 'Members',
-      cell: ({ row }) => {
-        if (row.original.is_personal) {
-          return (
-            <div className="text-muted-foreground flex items-center gap-2 text-sm">
-              <Users className="size-4" />
-              <span>-</span>
-            </div>
-          )
-        }
-        return (
-          <div className="text-muted-foreground flex items-center gap-2 text-sm">
-            <Users className="size-4" />
-            <span>{row.original.member_count}</span>
-          </div>
-        )
-      },
+      // The list response counts members for every team, the personal
+      // workspace included (always its one owner), so the cell shows it as is.
+      cell: ({ row }) => (
+        <div className="text-muted-foreground flex items-center gap-2 text-sm">
+          <Users className="size-4" />
+          <span>{row.original.member_count}</span>
+        </div>
+      ),
     },
     {
       accessorKey: 'created_at',
@@ -267,15 +259,11 @@ export function Teams() {
                 }
               />
             ) : (
-              <Card>
-                <CardContent className="p-4">
-                  <DataTable
-                    columns={columns}
-                    data={teams}
-                    rowTestId={() => 'team-row'}
-                  />
-                </CardContent>
-              </Card>
+              <DataTable
+                columns={columns}
+                data={teams}
+                rowTestId={() => 'team-row'}
+              />
             )}
           </section>
         </>

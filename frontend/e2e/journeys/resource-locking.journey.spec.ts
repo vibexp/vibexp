@@ -9,6 +9,7 @@ import {
 } from '@playwright/test'
 
 import { devLogin } from '../fixtures/auth'
+import { closeMoreActions, openMoreActions } from '../helpers/readingPage'
 
 /**
  * Resource locking, end to end (issue #1294, the ship gate for epic #1285).
@@ -239,6 +240,8 @@ async function openDetail(page: Page, kind: Kind, slug: string): Promise<void> {
 
 /** Lock the resource on the open detail page through the lock dialog. */
 async function lockFromDetailPage(page: Page, kind: Kind): Promise<void> {
+  // Lock is an item of the reading toolbar's More menu.
+  await openMoreActions(page)
   await page.getByTestId(`lock-${kind}-button`).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toContainText(`Lock ${kind}?`)
@@ -404,8 +407,10 @@ test.describe.serial('Resource locking journey', () => {
         .getByText('Locked by', { exact: true })
     ).toBeVisible({ timeout: UI_TIMEOUT })
     await expect(lockedBy).toHaveText(LOCKER_NAME)
+    await openMoreActions(lockerPage)
     await expect(lockerPage.getByTestId('lock-artifact-button')).toHaveCount(0)
     await expect(lockerPage.getByTestId('unlock-artifact-button')).toBeVisible()
+    await closeMoreActions(lockerPage)
 
     // What the page shows is what the API stores.
     const lock = await storedLock(lockerPage, 'artifact', ARTIFACT_SLUG)
@@ -468,6 +473,7 @@ test.describe.serial('Resource locking journey', () => {
     // The control first: on an unlocked artifact B created, both actions are
     // on the page. That is what makes their absence below mean something.
     await openDetail(memberPage, 'artifact', CONTROL_SLUG)
+    await openMoreActions(memberPage)
     await expect(memberPage.getByTestId('lock-artifact-button')).toBeVisible()
     await expect(memberPage.getByTestId('delete-artifact-button')).toBeVisible()
 
@@ -475,6 +481,9 @@ test.describe.serial('Resource locking journey', () => {
     await expect(memberPage.getByTestId('locked-by')).toHaveText(LOCKER_NAME, {
       timeout: UI_TIMEOUT,
     })
+    // Opened first (when there is one): an item missing from a closed menu
+    // would prove nothing. With no menu at all there is no such action.
+    await openMoreActions(memberPage)
     await expect(memberPage.getByTestId('unlock-artifact-button')).toHaveCount(
       0
     )
@@ -611,6 +620,7 @@ test.describe.serial('Resource locking journey', () => {
       timeout: UI_TIMEOUT,
     })
     // Locked: even the owner, who may delete anything, is not offered Delete.
+    await openMoreActions(ownerPage)
     await expect(ownerPage.getByTestId('delete-artifact-button')).toHaveCount(0)
 
     // The owner did not place this lock; `resource.unlock.any` is what puts
@@ -619,7 +629,9 @@ test.describe.serial('Resource locking journey', () => {
     await expect(ownerPage.getByTestId('locked-by')).toHaveCount(0, {
       timeout: UI_TIMEOUT,
     })
+    await openMoreActions(ownerPage)
     await expect(ownerPage.getByTestId('lock-artifact-button')).toBeVisible()
+    await closeMoreActions(ownerPage)
     expect(await storedLock(ownerPage, 'artifact', ARTIFACT_SLUG)).toBeNull()
 
     // The history, newest first: the owner's unlock, then A's lock with its
@@ -648,6 +660,7 @@ test.describe.serial('Resource locking journey', () => {
     })
 
     // Delete is back, and it deletes.
+    await openMoreActions(ownerPage)
     await ownerPage.getByTestId('delete-artifact-button').click()
     const confirm = ownerPage.getByRole('alertdialog')
     await expect(confirm).toContainText('Delete artifact?')
@@ -689,11 +702,14 @@ test.describe.serial('Resource locking journey', () => {
       expect(refused.metadata).toMatchObject({ resource_type: kind })
       await api(ownerPage, 'GET', resourceUrl)
 
+      await openMoreActions(lockerPage)
       await lockerPage.getByTestId(`unlock-${kind}-button`).click()
       await expect(lockerPage.getByTestId('locked-by')).toHaveCount(0, {
         timeout: UI_TIMEOUT,
       })
+      await openMoreActions(lockerPage)
       await expect(lockerPage.getByTestId(`lock-${kind}-button`)).toBeVisible()
+      await closeMoreActions(lockerPage)
       expect(await storedLock(ownerPage, kind, slug)).toBeNull()
 
       // The same request that was refused a moment ago.

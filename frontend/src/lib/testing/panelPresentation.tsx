@@ -20,7 +20,7 @@ export function FlatSurface({ children }: Readonly<{ children: ReactNode }>) {
  * column is already a bordered, padded surface, so a card in it is a second
  * border around the same content.
  */
-const CARD_CHROME_CLASSES = ['bg-card', 'rounded-lg', 'shadow-sm'] as const
+const CARD_CHROME_CLASSES = ['bg-card', 'rounded-lg'] as const
 
 /**
  * Asserts no element in `root` carries card chrome. Deliberately not "no

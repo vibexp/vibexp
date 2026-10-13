@@ -98,7 +98,7 @@ export function buildProjectsColumns({
       accessorKey: 'slug',
       header: 'Slug',
       cell: ({ row }) => (
-        <code className="bg-muted rounded px-2 py-0.5 font-mono text-xs">
+        <code className="bg-muted rounded-sm px-2 py-0.5 font-mono text-xs">
           {row.original.slug}
         </code>
       ),

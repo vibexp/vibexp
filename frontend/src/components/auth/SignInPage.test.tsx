@@ -518,6 +518,36 @@ describe('SignInPage — logo, credit and small-screen footer (#1359)', () => {
     expect(screen.queryByRole('img')).toBeNull()
   })
 
+  it('centres the pitch between the lockup and the footer, which stay outside it', async () => {
+    renderSignInPage()
+    await screen.findByRole('button', { name: /continue with google/i })
+
+    const { pitch, inPitch } = footers()
+    const body = within(pitch).getByTestId('sign-in-pitch-body')
+    expect(body).toHaveClass('flex-1', 'justify-center')
+    expect(
+      within(body).getByRole('heading', {
+        name: 'One shared brain for all your AI.',
+      })
+    ).toBeInTheDocument()
+    expect(body).not.toContainElement(within(pitch).getByTestId('vibexp-mark'))
+    expect(body).not.toContainElement(inPitch)
+  })
+
+  it('pitches the loop: read, write back, one workspace for the team', async () => {
+    renderSignInPage()
+    await screen.findByRole('button', { name: /continue with google/i })
+
+    const body = screen.getByTestId('sign-in-pitch-body')
+    for (const title of [
+      'Read before every task',
+      'Written back as it works',
+      'One workspace for the whole team',
+    ]) {
+      expect(within(body).getByText(title)).toBeInTheDocument()
+    }
+  })
+
   it('renders the footer row under the card for screens without the pitch panel', async () => {
     renderBranded({ company_email: 'hello@acme.test' })
     await cardBrand()

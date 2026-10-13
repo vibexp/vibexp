@@ -24,6 +24,14 @@ export interface ReadingAction {
    * spanning Save would strand Cancel in a half-width cell on the next row.
    */
   span?: 'full'
+  /**
+   * Where a reading page's toolbar shows the action. `toolbar` is a labelled
+   * button beside the title, for the one or two things a reader does all the
+   * time (Edit, Copy content); everything else is an item of the "More" menu,
+   * which is the default — a new action should have to earn a place on the
+   * bar. Ignored by the edit page, whose actions stay a grid in the rail.
+   */
+  placement?: 'toolbar' | 'menu'
   disabled?: boolean
   /** Forwarded as `data-testid`; the same id follows the action across layouts. */
   testId?: string

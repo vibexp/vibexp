@@ -1,13 +1,8 @@
-import { act, render, renderHook, screen } from '@testing-library/react'
+import { render, renderHook, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createRef, forwardRef, useState } from 'react'
 
-import {
-  RAW_BODY_CLASS,
-  useBodyViewMode,
-} from '@/components/patterns/reading-page'
-import { STORAGE_KEYS } from '@/constants/storageKeys'
-import { storage } from '@/utils/storage'
+import { useBodyViewMode } from '@/components/patterns/reading-page'
 
 import type { BodyEditorView } from '../ResourceBodyEditor'
 import {
@@ -60,6 +55,10 @@ vi.mock('@/components/PromptMentionTextarea', () => ({
       'aria-invalid'?: boolean
       excludeCurrentPrompt?: string
       frameless?: boolean
+      onKeyDown?: React.KeyboardEventHandler<HTMLTextAreaElement>
+      spellCheck?: boolean
+      autoCorrect?: string
+      autoCapitalize?: string
     }
   >(function PromptMentionTextarea(props, ref) {
     const {
@@ -77,6 +76,10 @@ vi.mock('@/components/PromptMentionTextarea', () => ({
       'aria-invalid': invalid,
       excludeCurrentPrompt,
       frameless,
+      onKeyDown,
+      spellCheck,
+      autoCorrect,
+      autoCapitalize,
     } = props
     return (
       <div>
@@ -95,6 +98,10 @@ vi.mock('@/components/PromptMentionTextarea', () => ({
           disabled={disabled}
           value={value}
           onBlur={onBlur}
+          onKeyDown={onKeyDown}
+          spellCheck={spellCheck}
+          autoCorrect={autoCorrect}
+          autoCapitalize={autoCapitalize}
           onChange={event => {
             onChange(event.target.value)
           }}
@@ -111,12 +118,13 @@ function writeArea() {
   return screen.getByRole('textbox')
 }
 
-function storedMode() {
+/** The mode a reading page would open in right now. */
+function readingMode() {
   return renderHook(() => useBodyViewMode()).result.current[0]
 }
 
 beforeEach(() => {
-  storage.remove(STORAGE_KEYS.BODY_VIEW_RAW)
+  globalThis.localStorage.clear()
 })
 
 describe('ResourceBodyEditor', () => {
@@ -131,7 +139,7 @@ describe('ResourceBodyEditor', () => {
       )
       expect(screen.getByRole('tab', { name: 'Rendered' })).toBeInTheDocument()
       expect(
-        screen.queryByRole('tab', { name: 'Render' })
+        screen.queryByRole('tab', { name: 'Resolved' })
       ).not.toBeInTheDocument()
       expect(
         screen.queryByRole('button', { name: /Load template/ })
@@ -190,11 +198,10 @@ describe('ResourceBodyEditor', () => {
       )
 
       expect(screen.getByText('Body is required')).toBeInTheDocument()
-      // There is no border left to colour, so the invalid state is a ring —
-      // one that keeps its colour while the field is focused.
+      // The invalid state colours the field's border, and its focus ring
+      // keeps that colour while the field is focused.
       expect(writeArea()).toHaveClass(
-        'ring-2',
-        'ring-destructive',
+        'border-destructive',
         'focus-visible:ring-destructive'
       )
     })
@@ -213,7 +220,11 @@ describe('ResourceBodyEditor', () => {
 
       const textarea = screen.getByLabelText('Content')
       expect(textarea).toHaveAttribute('id', 'body-field')
-      expect(textarea).toHaveAttribute('aria-describedby', 'body-description')
+      // The form's own description first, then the Tab-key hint.
+      expect(textarea.getAttribute('aria-describedby')).toMatch(
+        /^body-description \S+$/
+      )
+      expect(textarea).toHaveAccessibleDescription(/Escape, then Tab/)
       expect(textarea).toHaveAttribute('aria-invalid', 'true')
     })
   })
@@ -270,9 +281,13 @@ describe('ResourceBodyEditor', () => {
       const textarea = writeArea()
       expect(textarea).toHaveAttribute('data-mention-textarea', 'true')
       expect(textarea).toHaveAttribute('data-exclude', 'my-prompt')
+      // The hint is a line under the field, and is announced with it.
+      const hint = screen.getByText('Type @ to reference prompts')
       expect(
-        screen.getByText(/Type @ to reference prompts/)
-      ).toBeInTheDocument()
+        textarea.compareDocumentPosition(hint) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(textarea.getAttribute('aria-describedby')).toContain(hint.id)
     })
 
     it('gives the mention textarea the same sizing contract', () => {
@@ -351,7 +366,11 @@ describe('ResourceBodyEditor', () => {
 
         const textarea = screen.getByLabelText('Content')
         expect(textarea).toHaveAttribute('id', 'body-field')
-        expect(textarea).toHaveAttribute('aria-describedby', 'body-description')
+        // The form's description first, then the editor's own hints: the
+        // Tab-key one, and before it the @ one where mentions are on.
+        expect(textarea.getAttribute('aria-describedby')).toMatch(
+          extensions ? /^body-description \S+ \S+$/ : /^body-description \S+$/
+        )
         expect(textarea).toHaveAttribute('aria-invalid', 'true')
       }
     )
@@ -374,6 +393,8 @@ describe('ResourceBodyEditor', () => {
         )
 
         await user.click(writeArea())
+        // Tab indents inside the field; Escape hands it back for one press.
+        await user.keyboard('{Escape}')
         await user.tab()
 
         expect(onBlur.mock.calls).toHaveLength(1)
@@ -417,7 +438,7 @@ describe('ResourceBodyEditor', () => {
         />
       )
 
-      await user.click(screen.getByRole('tab', { name: 'Render' }))
+      await user.click(screen.getByRole('tab', { name: 'Resolved' }))
 
       expect(screen.getByText('rendered output')).toBeInTheDocument()
     })
@@ -435,7 +456,12 @@ describe('ResourceBodyEditor', () => {
         />
       )
 
-      const option = screen.getByRole('tab', { name: 'Render' })
+      const option = screen.getByRole('tab', { name: 'Resolved' })
+      // The label alone does not say what is resolved; the hover text does.
+      expect(option).toHaveAttribute(
+        'title',
+        'With @references expanded, as an AI tool receives it'
+      )
       expect(option).toBeDisabled()
       expect(option).toHaveAttribute('aria-disabled', 'true')
       await user.click(option)
@@ -526,7 +552,7 @@ describe('ResourceBodyEditor', () => {
       ['plain', undefined],
       ['mentions', { mentions: {} }],
     ] as const)(
-      'gives the %s Raw pane the Raw block surface and no border',
+      'gives the %s Raw pane the normal input surface',
       (_case, extensions) => {
         render(
           <ResourceBodyEditor
@@ -537,13 +563,20 @@ describe('ResourceBodyEditor', () => {
         )
 
         const textarea = writeArea()
-        expect(textarea).toHaveClass(...RAW_BODY_CLASS.split(' '), 'border-0')
+        // An ordinary input surface: the grey fill it once shared with the
+        // Raw `<pre>` read as a disabled field.
+        expect(textarea).toHaveClass(
+          'bg-background',
+          'border',
+          'border-input',
+          'rounded-md',
+          'focus-visible:ring-2'
+        )
+        expect(textarea).not.toHaveClass('bg-muted')
+        expect(textarea).not.toHaveClass('border-0')
         // Textarea's own `text-base md:text-sm` must not win the type size back.
         expect(textarea).not.toHaveClass('text-base')
-        expect(textarea).not.toHaveClass('bg-background')
-        // The text is already muted; the placeholder must not look typed.
-        expect(textarea).toHaveClass('placeholder:text-muted-foreground/60')
-        expect(textarea).not.toHaveClass('placeholder:text-muted-foreground')
+        expect(textarea).toHaveClass('font-mono', 'text-sm', '[tab-size:2]')
       }
     )
 
@@ -583,13 +616,11 @@ describe('ResourceBodyEditor', () => {
       expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
       await user.click(screen.getByRole('tab', { name: 'Rendered' }))
       expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
-      await user.click(screen.getByRole('tab', { name: 'Render' }))
+      await user.click(screen.getByRole('tab', { name: 'Resolved' }))
       expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
     })
 
-    it('opens on Raw even when the stored preference is Rendered', () => {
-      expect(storedMode()).toBe('rendered')
-
+    it('opens on Raw', () => {
       render(<ResourceBodyEditor value={BODY} onChange={vi.fn()} />)
 
       expect(screen.getByRole('tab', { name: 'Raw' })).toHaveAttribute(
@@ -599,54 +630,19 @@ describe('ResourceBodyEditor', () => {
       expect(writeArea()).toHaveValue(BODY)
     })
 
-    it('writes Rendered and Raw through to the shared reading preference', async () => {
+    it('keeps its view to itself: a reading page still opens on Rendered', async () => {
       const user = userEvent.setup()
       render(<ResourceBodyEditor value={BODY} onChange={vi.fn()} />)
 
-      await user.click(screen.getByRole('tab', { name: 'Raw' }))
-      expect(storedMode()).toBe('raw')
-
       await user.click(screen.getByRole('tab', { name: 'Rendered' }))
-      expect(storedMode()).toBe('rendered')
-    })
-
-    it('writes the preference through for a controlled caller too', async () => {
-      const user = userEvent.setup()
-      const onViewChange = vi.fn()
-      render(
-        <ResourceBodyEditor
-          value={BODY}
-          onChange={vi.fn()}
-          view="preview"
-          onViewChange={onViewChange}
-        />
-      )
-
       await user.click(screen.getByRole('tab', { name: 'Raw' }))
 
-      expect(onViewChange).toHaveBeenCalledWith('write')
-      expect(storedMode()).toBe('raw')
+      // Nothing is stored, and a reading body mounted afterwards is unaffected.
+      expect(globalThis.localStorage).toHaveLength(0)
+      expect(readingMode()).toBe('rendered')
     })
 
-    it('never stores Render', async () => {
-      const user = userEvent.setup()
-      act(() => {
-        storage.set(STORAGE_KEYS.BODY_VIEW_RAW, 'true')
-      })
-      render(
-        <ResourceBodyEditor
-          value={BODY}
-          onChange={vi.fn()}
-          extensions={{ render: { content: <p>out</p> } }}
-        />
-      )
-
-      await user.click(screen.getByRole('tab', { name: 'Render' }))
-
-      expect(storedMode()).toBe('raw')
-    })
-
-    it('puts the shortcut badge and template button left of the switch', () => {
+    it('puts the template button left of the switch, and the hint with the field', () => {
       render(
         <ResourceBodyEditor
           value={BODY}
@@ -655,19 +651,113 @@ describe('ResourceBodyEditor', () => {
         />
       )
 
-      const badge = screen.getByText('Type @ to reference prompts')
+      const hint = screen.getByText('Type @ to reference prompts')
       const button = screen.getByRole('button', { name: /Load template/ })
       const toggle = screen.getByRole('tablist', { name: 'Body view' })
-      // One row, in reading order: badge, template button, then the switch.
-      expect(badge.parentElement).toBe(toggle.parentElement)
+      // One row, in reading order: the template button, then the switch.
       expect(button.parentElement).toBe(toggle.parentElement)
-      expect(
-        badge.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING
-      ).toBeTruthy()
+      // The hint is not a control: it is inside the body panel, not the row.
+      expect(hint.parentElement).not.toBe(toggle.parentElement)
+      expect(screen.getByRole('tabpanel')).toContainElement(hint)
       expect(
         button.compareDocumentPosition(toggle) &
           Node.DOCUMENT_POSITION_FOLLOWING
       ).toBeTruthy()
+    })
+  })
+
+  describe('editing basics', () => {
+    it.each([
+      ['plain', undefined],
+      ['mentions', { mentions: {} }],
+    ] as const)(
+      'turns spellcheck, autocorrect and autocapitalize off on the %s Raw field',
+      (_case, extensions) => {
+        render(
+          <ResourceBodyEditor
+            value={BODY}
+            onChange={vi.fn()}
+            extensions={extensions}
+          />
+        )
+
+        const textarea = writeArea()
+        expect(textarea).toHaveAttribute('spellcheck', 'false')
+        expect(textarea).toHaveAttribute('autocorrect', 'off')
+        expect(textarea).toHaveAttribute('autocapitalize', 'off')
+      }
+    )
+
+    it('has no resize handle and no inner scrollbar', () => {
+      render(<ResourceBodyEditor value={BODY} onChange={vi.fn()} />)
+      expect(writeArea()).toHaveClass('resize-none', 'overflow-hidden')
+    })
+
+    it('indents the current line on Tab instead of leaving the field', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<ResourceBodyEditor value={'one\ntwo'} onChange={onChange} />)
+
+      const textarea = writeArea() as HTMLTextAreaElement
+      await user.click(textarea)
+      textarea.setSelectionRange(5, 5)
+      await user.keyboard('{Tab}')
+
+      expect(onChange).toHaveBeenLastCalledWith('one\n  two')
+      expect(textarea).toHaveFocus()
+    })
+
+    it('outdents on Shift+Tab', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<ResourceBodyEditor value={'one\n  two'} onChange={onChange} />)
+
+      const textarea = writeArea() as HTMLTextAreaElement
+      await user.click(textarea)
+      textarea.setSelectionRange(7, 7)
+      await user.keyboard('{Shift>}{Tab}{/Shift}')
+
+      expect(onChange).toHaveBeenLastCalledWith('one\ntwo')
+      expect(textarea).toHaveFocus()
+    })
+
+    it('lets Escape then Tab leave the field, so the keyboard is not trapped', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(
+        <>
+          <ResourceBodyEditor value="one" onChange={onChange} />
+          <button type="button">after</button>
+        </>
+      )
+
+      const textarea = writeArea()
+      await user.click(textarea)
+      await user.keyboard('{Escape}')
+      await user.tab()
+
+      expect(onChange).not.toHaveBeenCalled()
+      expect(textarea).not.toHaveFocus()
+    })
+
+    it('re-arms indentation once another key is pressed after Escape', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<ResourceBodyEditor value="one" onChange={onChange} />)
+
+      const textarea = writeArea()
+      await user.click(textarea)
+      await user.keyboard('{Escape}{ArrowLeft}{Tab}')
+
+      expect(onChange).toHaveBeenLastCalledWith('  one')
+      expect(textarea).toHaveFocus()
+    })
+
+    it('says how to leave the field in a description tied to it', () => {
+      render(<ResourceBodyEditor value="" onChange={vi.fn()} />)
+      expect(writeArea()).toHaveAccessibleDescription(
+        /Tab indents.*Escape, then Tab, to leave/
+      )
     })
   })
 })

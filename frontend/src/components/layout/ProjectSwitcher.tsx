@@ -6,9 +6,9 @@ import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
 
 // Route sections whose list pages filter by the globally selected project.
-// Everywhere else the selector stays visible but inactive, so it never looks
-// like it is filtering a page it cannot affect (Agents, Settings, Search's
-// URL-driven filter, …).
+// Everywhere else the selector is not shown at all: a greyed-out filter on a
+// page it cannot affect (the dashboard, Search, Settings, Teams, …) is a
+// control that only raises the question of why it is there.
 const PROJECT_SCOPED_PREFIXES = [
   '/prompts',
   '/artifacts',
@@ -46,14 +46,10 @@ export function ProjectSwitcher() {
     return null
   }
 
-  const active = isProjectScopedPath(pathname)
+  if (!isProjectScopedPath(pathname)) return null
 
   return (
-    <span
-      title={
-        active ? undefined : 'The project filter does not apply to this page'
-      }
-    >
+    <span>
       <ProjectPicker
         value={currentProject?.id ?? null}
         selectedProject={currentProject}
@@ -62,7 +58,6 @@ export function ProjectSwitcher() {
         }}
         includeAllOption
         allOptionLabel="All projects"
-        disabled={!active}
         triggerClassName="h-8 w-auto max-w-[220px]"
         data-testid="project-switcher"
         aria-label="Filter by project"

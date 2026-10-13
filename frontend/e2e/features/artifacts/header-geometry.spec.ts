@@ -9,6 +9,9 @@ import { createArtifactWithContent } from '../../helpers/artifacts'
  * View → Edit must not move the header: the title, the badge row and the
  * description start at the same x / y on `/artifacts/:p/:s` and on
  * `/artifacts/:p/:s/edit`, where the title and description are now inputs.
+ * Both pages take the title type and the meta row's height from
+ * `reading-page/readingHeader.ts`, which is what keeps the reading page's
+ * toolbar (it shares the meta row) from pushing anything out of line.
  *
  * An inline input keeps its TEXT on the view's x by pairing a negative margin
  * with matching padding, so for an input the text origin is its box plus its
@@ -44,8 +47,14 @@ function expectSamePoint(actual: Point, expected: Point): void {
   expect(Math.abs(actual.y - expected.y)).toBeLessThanOrEqual(1)
 }
 
+/**
+ * The article. On the reading page the `<header>` is the sticky title bar
+ * (title, meta line, toolbar) and the description sits just below it; on the
+ * edit page all three are inside the header. Scoping to the article finds
+ * each on both.
+ */
 function header(page: Page): Locator {
-  return page.getByTestId('reading-page').locator('article header')
+  return page.getByTestId('reading-page').locator('article')
 }
 
 test.describe('Edit header geometry', () => {

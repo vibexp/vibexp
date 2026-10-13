@@ -1,32 +1,27 @@
-import { ArrowLeft, FileQuestion } from 'lucide-react'
-import { useNavigate } from 'react-router'
+import { ArrowLeft } from 'lucide-react'
+import { Link } from 'react-router'
 
-import { EmptyState } from '@/components/EmptyState'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 
+/**
+ * The 404 page: one message and one way out. It says "not found" once — in the
+ * page heading — with a line of explanation under it, not a second time inside
+ * a boxed empty state.
+ */
 export function NotFound() {
-  const navigate = useNavigate()
-
   return (
-    <div className="space-y-6">
-      <PageHeader title="Page not found" />
-      <EmptyState
-        icon={FileQuestion}
-        title="404 — page not found"
-        description="The page you're looking for doesn't exist. It may have been moved, deleted, or you entered the wrong URL."
-        actions={
-          <Button
-            variant="outline"
-            onClick={() => {
-              void navigate('/')
-            }}
-          >
-            <ArrowLeft className="mr-2 size-4" />
-            Back to dashboard
-          </Button>
-        }
+    <div>
+      <PageHeader
+        title="Page not found"
+        description="This page doesn’t exist. It may have been moved or deleted, or the address may be mistyped."
       />
+      <Button variant="outline" asChild>
+        <Link to="/">
+          <ArrowLeft className="mr-2 size-4" />
+          Back to dashboard
+        </Link>
+      </Button>
     </div>
   )
 }

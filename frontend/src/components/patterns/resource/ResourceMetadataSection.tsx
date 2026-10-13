@@ -75,6 +75,12 @@ export interface ResourceMetadataSectionProps {
    * that cannot be locked (memories) and by the edit page.
    */
   lock?: ResourceLock | null
+  /**
+   * Leaves the Status row out. A reading page shows the status once, in its
+   * header, so repeating it here is noise; the edit page keeps its status
+   * control.
+   */
+  hideStatus?: boolean
   className?: string
 }
 
@@ -182,6 +188,24 @@ function metaRows(
   return rows
 }
 
+/**
+ * The display label of a resource's type ("Claude Code", "General"), or
+ * `undefined` for a kind with no type field or a resource with no type set.
+ * The same label the Type row shows, for the reading page's header meta line.
+ */
+export function resourceKindLabel(
+  descriptor: ResourceDescriptor,
+  resource: Record<string, unknown>
+): string | undefined {
+  for (const field of partition(descriptor).type) {
+    const value = valueOf(resource, field.key)
+    if (typeof value === 'string' && value.length > 0) {
+      return fieldLabel(field, value)
+    }
+  }
+  return undefined
+}
+
 /** The Project row, or none when the kind has no project or it cannot link. */
 function projectRows(
   hasProject: boolean,
@@ -212,6 +236,7 @@ export function ResourceMetadataSection({
   controls: controlNodes,
   statusLabel,
   lock,
+  hideStatus = false,
   className,
 }: Readonly<ResourceMetadataSectionProps>) {
   const fields = partition(descriptor)
@@ -225,13 +250,18 @@ export function ResourceMetadataSection({
         <Badge variant="secondary">{fieldLabel(field, value)}</Badge>
       </MetaRow>
     )),
-    ...stringFieldRows(fields.status, resource, controls, (field, value) => (
-      <MetaRow key={`status:${field.key}`} label={field.label}>
-        <StatusBadge tone={fieldTone(field, value)}>
-          {statusLabel ? statusLabel(value) : fieldLabel(field, value)}
-        </StatusBadge>
-      </MetaRow>
-    )),
+    ...stringFieldRows(
+      hideStatus ? [] : fields.status,
+      resource,
+      controls,
+      (field, value) => (
+        <MetaRow key={`status:${field.key}`} label={field.label}>
+          <StatusBadge tone={fieldTone(field, value)}>
+            {statusLabel ? statusLabel(value) : fieldLabel(field, value)}
+          </StatusBadge>
+        </MetaRow>
+      )
+    ),
     ...stringFieldRows(fields.address, resource, controls, (field, value) => (
       <MetaSlugRow
         key={`address:${field.key}`}

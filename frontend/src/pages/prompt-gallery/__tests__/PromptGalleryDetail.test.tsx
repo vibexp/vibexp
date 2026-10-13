@@ -161,9 +161,9 @@ describe('PromptGalleryDetail page', () => {
     // A gallery template has no team-scoped status or slug, so the shared
     // header renders only its updated time and summary.
     expect(within(header).getByText('Updated')).toBeInTheDocument()
-    expect(
-      within(header).getByText('Request a thorough code review')
-    ).toBeInTheDocument()
+    expect(screen.getByTestId('resource-header-summary')).toHaveTextContent(
+      'Request a thorough code review'
+    )
     expect(within(header).queryByRole('button')).not.toBeInTheDocument()
   })
 
@@ -304,7 +304,7 @@ describe('PromptGalleryDetail page', () => {
         'Please review the following code'
       )
 
-      await user.click(within(body).getByRole('tab', { name: 'Raw' }))
+      await user.click(screen.getByRole('tab', { name: 'Raw' }))
 
       expect(screen.getByTestId('resource-body-raw')).toHaveTextContent(
         'Please review the following code'

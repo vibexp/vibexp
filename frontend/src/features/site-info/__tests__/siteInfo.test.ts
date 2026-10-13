@@ -7,6 +7,7 @@ import {
   readInlinedSiteInfo,
   SITE_INFO_SAVED_EVENT,
   type SiteInfo,
+  siteTitleSuffix,
   toSiteInfo,
 } from '../siteInfo'
 
@@ -169,4 +170,22 @@ describe('notifySiteInfoSaved', () => {
     expect(listener).toHaveBeenCalledTimes(1)
     window.removeEventListener(SITE_INFO_SAVED_EVENT, listener)
   })
+})
+
+describe('siteTitleSuffix', () => {
+  it('is the product alone when no company name is configured', () => {
+    expect(siteTitleSuffix(null)).toBe('VibeXP')
+    expect(siteTitleSuffix('   ')).toBe('VibeXP')
+  })
+
+  it('names the company and always the product', () => {
+    expect(siteTitleSuffix('Acme Inc.')).toBe('Acme Inc. · VibeXP')
+  })
+
+  it.each(['VibeXP', 'vibexp', '  VIBEXP  '])(
+    'does not name the product twice for a company called %j',
+    name => {
+      expect(siteTitleSuffix(name)).toBe('VibeXP')
+    }
+  )
 })

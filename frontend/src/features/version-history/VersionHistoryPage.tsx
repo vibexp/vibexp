@@ -4,6 +4,7 @@ import { ArrowLeft, CircleAlert } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 
+import { useBreadcrumbLeaf } from '@/components/layout/ShellContext'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { PageHeader } from '@/components/PageHeader'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -43,6 +44,8 @@ export function VersionHistoryPage({
   const { handleError } = useErrorHandler()
 
   const [data, setData] = useState<VersionTimelineData | null>(null)
+  // "VibeXP / Artifacts / <title>": the resource whose history this is.
+  useBreadcrumbLeaf(data?.resourceName)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 

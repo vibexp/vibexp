@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router'
 
 import { EmptyState } from '@/components/EmptyState'
 import { PageHeader } from '@/components/PageHeader'
+import { RelativeTime } from '@/components/RelativeTime'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,8 +15,6 @@ import { toast } from '@/lib/toast'
 import type { Agent, ConversationSummary } from '@/services/agentService'
 import { agentService } from '@/services/agentService'
 import { getErrorMessage } from '@/utils/errorHandling'
-
-import { formatRelativeTime } from './helpers'
 
 interface ConversationsState {
   conversations: ConversationSummary[]
@@ -276,11 +275,11 @@ export function AgentConversations() {
                   </span>
                   <span className="flex items-center gap-1">
                     <Clock className="size-4" />
-                    Started {formatRelativeTime(conversation.started_at)}
+                    Started <RelativeTime value={conversation.started_at} />
                   </span>
                   <span>
                     Last activity{' '}
-                    {formatRelativeTime(conversation.last_activity_at)}
+                    <RelativeTime value={conversation.last_activity_at} />
                   </span>
                 </div>
 

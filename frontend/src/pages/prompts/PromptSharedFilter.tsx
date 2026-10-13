@@ -41,7 +41,7 @@ export function PromptSharedFilter({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="all">All</SelectItem>
+        <SelectItem value="all">Shared and private</SelectItem>
         <SelectItem value="shared">Shared</SelectItem>
         <SelectItem value="not_shared">Not shared</SelectItem>
       </SelectContent>

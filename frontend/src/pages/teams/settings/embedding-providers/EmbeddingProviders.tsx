@@ -69,7 +69,7 @@ function buildProviderColumns(
       header: 'Base URL',
       cell: ({ row }) =>
         row.original.base_url ? (
-          <code className="bg-muted rounded px-2 py-0.5 font-mono text-xs">
+          <code className="bg-muted rounded-sm px-2 py-0.5 font-mono text-xs">
             {row.original.base_url}
           </code>
         ) : (

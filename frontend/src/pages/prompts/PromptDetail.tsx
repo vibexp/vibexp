@@ -44,7 +44,8 @@ import { usePromptRenderedTab } from './usePromptRenderedTab'
 
 /**
  * The prompt's rendered-mode-only affordances — the placeholder inputs whose
- * values drive the server render, and the render error when one comes back.
+ * values are substituted into the body, and the render error when one comes
+ * back.
  * Slotted into `ResourceBody`'s `renderedExtra`, which is what keeps that
  * shared component domain-free (#901).
  */
@@ -146,9 +147,9 @@ export function PromptDetail() {
     useState<PromptDependenciesResponse | null>(null)
   const [loadingDependencies, setLoadingDependencies] = useState(false)
   // Owned here rather than by `ResourceBody` because the render and
-  // placeholder effects in `usePromptRenderedTab` key off it; persisted under
-  // the same shared key so the choice follows the reader across resources
-  // (#901).
+  // placeholder effects in `usePromptRenderedTab` key off it. Same rule as
+  // every reading page: opens on Rendered, and Raw lasts for this page view
+  // only.
   const [tab, setTab] = useBodyViewMode()
 
   const {
@@ -222,8 +223,6 @@ export function PromptDetail() {
     fetchPlaceholders,
     renderPrompt,
     isLoadingPlaceholders,
-    placeholderValues,
-    placeholderCount: allPlaceholders.length,
   })
 
   // Lock / Unlock, the lock dialog and the lock history (epic #1285).
@@ -268,6 +267,7 @@ export function PromptDetail() {
     id: 'back',
     label: 'Back',
     icon: ArrowLeft,
+    placement: 'toolbar',
     onClick: () => {
       void navigate('/prompts')
     },
@@ -297,19 +297,22 @@ export function PromptDetail() {
     )
   }
 
+  // Edit and Copy are what a reader reaches for; the rest live in the
+  // toolbar's More menu. No Back: the breadcrumb and the browser have it.
   const actions: ReadingAction[] = [
-    backAction,
-    copyAction,
     {
       id: 'edit',
       label: 'Edit',
       icon: Pencil,
+      emphasis: 'primary',
+      placement: 'toolbar',
       testId: 'edit-prompt-button',
       onClick: () => {
         // Editor still lives in v1 until Slice 5b
         void navigate(`/prompts/${prompt.slug}/edit`)
       },
     },
+    copyAction,
   ]
   actions.push(...resourceLock.actions)
   // A locked prompt cannot be deleted; Delete returns after unlock.
@@ -334,7 +337,7 @@ export function PromptDetail() {
           value: statusOptions.labelOf(prompt.status),
           tone: statusOptions.toneOf(prompt.status),
         }}
-        address={{ label: 'Slug', value: prompt.slug }}
+        versionHistory={versionHistory}
         updatedAt={prompt.updated_at}
         summary={prompt.description}
         headerExtra={prompt.is_shared && <SharedBadge />}
@@ -359,7 +362,9 @@ export function PromptDetail() {
       >
         <ResourceBody
           content={renderedBody !== '' ? renderedBody : prompt.body}
+          title={prompt.name}
           rawContent={prompt.body}
+          placeholders={placeholderValues}
           mode={tab}
           onModeChange={setTab}
           isLoading={isRendering || isLoadingPlaceholders}

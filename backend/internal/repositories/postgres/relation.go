@@ -116,10 +116,10 @@ func (r *RelationRepository) GetByID(ctx context.Context, teamID, id string) (*m
 // relatedResourceQuery lists the edges touching a resource on either endpoint
 // and resolves, per row, the OTHER endpoint's title and link fields via a
 // per-type LEFT JOIN (the same title expressions search.go / recentCommentsQuery
-// use: artifact/blueprint -> title, prompt -> name, memory -> LEFT(text,100)).
+// use: artifact/blueprint -> title, prompt -> name, memory -> memoryDisplayNameExpr).
 // The CTE folds each edge to its "other" side and its direction relative to the
 // queried resource. $2/$3 are the queried resource's (type, id).
-const relatedResourceQuery = `
+var relatedResourceQuery = `
 	WITH edges AS (
 		SELECT
 			rr.id, rr.relation_type, rr.origin, rr.status, rr.created_at,
@@ -135,7 +135,7 @@ const relatedResourceQuery = `
 	)
 	SELECT
 		e.id, e.relation_type, e.direction, e.origin, e.status, e.other_type, e.other_id, e.created_at,
-		COALESCE(a.title, b.title, p.name, LEFT(m.text, 100), '') AS title,
+		COALESCE(a.title, b.title, p.name, ` + memoryDisplayNameExpr("m") + `, '') AS title,
 		COALESCE(a.project_id, b.project_id, p.project_id, m.project_id) AS project_id,
 		COALESCE(a.slug, b.slug, p.slug) AS slug
 	FROM edges e

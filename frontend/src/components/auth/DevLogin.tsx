@@ -1,5 +1,5 @@
 import { ChevronRight, Code2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import { Button } from '@/components/ui/button'
@@ -19,7 +19,6 @@ import { hardRedirect } from '../../utils/navigation'
 import { sanitizeReturnTo } from '../../utils/returnTo'
 
 interface DevLoginProps {
-  onError?: (error: string) => void
   /**
    * Same-origin path to land on after a successful dev login (e.g. an OAuth
    * consent page). Validated; defaults to "/".
@@ -27,11 +26,19 @@ interface DevLoginProps {
   returnTo?: string
 }
 
-export function DevLogin({ onError, returnTo }: Readonly<DevLoginProps>) {
+export function DevLogin({ returnTo }: Readonly<DevLoginProps>) {
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  // Shown under the email field, where the person is looking: the page-level
+  // alert sits above the fold of this collapsed section and went unseen.
+  const [error, setError] = useState('')
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const emailRef = useRef<HTMLInputElement>(null)
+  // Set by a toggle the person made, so the section mounting does not take
+  // focus on its own.
+  const moveFocus = useRef(false)
   const [searchParams] = useSearchParams()
   const [shouldShow, setShouldShow] = useState(false)
 
@@ -50,6 +57,15 @@ export function DevLogin({ onError, returnTo }: Readonly<DevLoginProps>) {
     }
   }, [searchParams])
 
+  // Opening leads straight to the first field; closing hands focus back to the
+  // toggle, since the field that held it is gone.
+  useEffect(() => {
+    if (!moveFocus.current) return
+    moveFocus.current = false
+    if (open) emailRef.current?.focus()
+    else triggerRef.current?.focus()
+  }, [open])
+
   if (!shouldShow) {
     return null
   }
@@ -58,10 +74,11 @@ export function DevLogin({ onError, returnTo }: Readonly<DevLoginProps>) {
     e.preventDefault()
 
     if (!email) {
-      onError?.('Email is required')
+      setError('Email is required')
       return
     }
 
+    setError('')
     setIsLoading(true)
 
     try {
@@ -71,15 +88,22 @@ export function DevLogin({ onError, returnTo }: Readonly<DevLoginProps>) {
       // requested return path (e.g. back on the OAuth consent page) or "/".
       hardRedirect(sanitizeReturnTo(returnTo))
     } catch (err) {
-      onError?.(mapSignInError(err, 'Dev login failed'))
+      setError(mapSignInError(err, 'Dev login failed'))
       setIsLoading(false)
     }
   }
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
+    <Collapsible
+      open={open}
+      onOpenChange={next => {
+        moveFocus.current = true
+        setOpen(next)
+      }}
+    >
       <CollapsibleTrigger asChild>
         <button
+          ref={triggerRef}
           type="button"
           className="border-border text-muted-foreground hover:bg-muted hover:text-foreground flex w-full items-center justify-between rounded-md border border-dashed px-3 py-2 text-xs transition-colors"
         >
@@ -107,16 +131,36 @@ export function DevLogin({ onError, returnTo }: Readonly<DevLoginProps>) {
               Email
             </Label>
             <Input
+              ref={emailRef}
               id="dev-email"
               type="email"
               value={email}
               onChange={e => {
                 setEmail(e.target.value)
+                setError('')
               }}
-              placeholder="dev@example.com"
+              // No address is special: any one signs in unless this instance
+              // has an access allowlist, in which case only a listed one does.
+              placeholder="you@example.com"
               disabled={isLoading}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? 'dev-email-error' : 'dev-email-hint'}
               className="h-9"
             />
+            {error ? (
+              <p
+                id="dev-email-error"
+                role="alert"
+                className="text-destructive text-xs"
+              >
+                {error}
+              </p>
+            ) : (
+              <p id="dev-email-hint" className="text-muted-foreground text-xs">
+                Any address works, unless this instance limits sign-in to an
+                allowlist.
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">

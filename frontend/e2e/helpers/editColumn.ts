@@ -11,9 +11,13 @@ async function columnHeadings(page: Page): Promise<string[]> {
 
 /**
  * From a resource's reading page (#1180): opens Edit, checks the edit column
- * carries the view column's sections — the same headings in the same order, up
- * to where the edit column stops (Attachments) — then attaches `filePath` and
- * removes it again without leaving the edit page.
+ * carries the view column's sections — every heading it has is one the reading
+ * page has, in the same order — then attaches `filePath` and removes it again
+ * without leaving the edit page.
+ *
+ * The edit column is a subset: Relations and Comments are not edited there, so
+ * the reading page has them between Metadata and Attachments and the edit page
+ * does not.
  *
  * Attachments are not form state: they persist the moment they upload, which
  * is exactly why they can be managed here at all.
@@ -40,7 +44,11 @@ export async function attachWhileEditing(
   const shared = (headings: string[]) =>
     headings.filter(heading => heading !== TAXONOMY_HEADING)
   const editShared = shared(editHeadings)
-  expect(editShared).toEqual(shared(viewHeadings).slice(0, editShared.length))
+  const viewShared = shared(viewHeadings)
+  expect(viewShared).toEqual(expect.arrayContaining(editShared))
+  expect(viewShared.filter(heading => editShared.includes(heading))).toEqual(
+    editShared
+  )
 
   const card = page.getByTestId('attachment-card')
   await expect(card.getByText('No attachments yet.')).toBeVisible({

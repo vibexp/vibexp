@@ -3,157 +3,36 @@
 @import '@vibexp/design-system/tokens.css';
 @import '@vibexp/design-system/typography.css';
 @import '@vibexp/design-system/scrollbar.css';
+@import '@vibexp/design-system/prose.css';
+@import '@vibexp/design-system/markdown.css';
 @plugin '@tailwindcss/typography';
 
 /* -------------------------------------------------------------------------- */
-/* Prose overrides — scoped to .v2-root, bound to shadcn design tokens        */
-/* --foreground / --muted-foreground etc. flip automatically when .dark is    */
-/* active on the .v2-root ancestor, so dark mode requires no extra class.     */
+/* Prose — the rules come from `@vibexp/design-system/prose.css`, imported at */
+/* the top of this file (headings, paragraphs, links, inline code, quotes,    */
+/* tables, lists). They bind to the design tokens, so dark mode needs no      */
+/* extra class. Fenced code blocks (the frame, the copy button, the syntax    */
+/* colours) and the GFM task-list checkbox come from `markdown.css`. What     */
+/* follows is app-only: just what the package does not provide.               */
 /* -------------------------------------------------------------------------- */
 .v2-root .prose {
-  --tw-prose-body: var(--foreground);
-  --tw-prose-headings: var(--foreground);
-  --tw-prose-lead: var(--muted-foreground);
-  --tw-prose-links: var(--primary);
-  --tw-prose-bold: var(--foreground);
-  --tw-prose-counters: var(--muted-foreground);
-  --tw-prose-bullets: var(--muted-foreground);
-  --tw-prose-hr: var(--border);
-  --tw-prose-quotes: var(--muted-foreground);
-  --tw-prose-quote-borders: var(--border);
-  --tw-prose-captions: var(--muted-foreground);
   --tw-prose-kbd: var(--foreground);
-  --tw-prose-code: var(--foreground);
-  --tw-prose-th-borders: var(--border);
-  --tw-prose-td-borders: var(--border);
-  font-size: 0.875rem;
-  line-height: 1.75;
-  max-width: none;
-  color: var(--tw-prose-body);
 }
 
-.v2-root .prose :where(h1) {
-  font-size: 1.5rem;
-  font-weight: 700;
-  line-height: 2rem;
-  margin-top: 1.5rem;
-  margin-bottom: 0.75rem;
-  color: var(--tw-prose-headings);
-}
-
-.v2-root .prose :where(h2) {
-  font-size: 1.25rem;
-  font-weight: 600;
-  line-height: 1.75rem;
-  margin-top: 1.25rem;
-  margin-bottom: 0.5rem;
-  color: var(--tw-prose-headings);
-}
-
-.v2-root .prose :where(h3) {
-  font-size: 1.125rem;
-  font-weight: 600;
-  line-height: 1.5rem;
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
-  color: var(--tw-prose-headings);
-}
-
-.v2-root .prose :where(h4) {
-  font-size: 1.125rem;
-  font-weight: 600;
-  line-height: 1.5rem;
-  margin-top: 1.25rem;
-  margin-bottom: 0.5rem;
-  color: var(--tw-prose-headings);
-}
-
-.v2-root .prose :where(h5) {
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1.5rem;
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
-  color: var(--tw-prose-headings);
-}
-
-.v2-root .prose :where(h6) {
-  font-size: 0.875rem;
-  font-weight: 600;
-  line-height: 1.25rem;
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
-  color: var(--tw-prose-headings);
-}
-
-.v2-root .prose :where(p) {
-  margin-top: 1rem;
-  margin-bottom: 1rem;
-  color: var(--tw-prose-body);
-}
-
-.v2-root .prose :where(a) {
-  color: var(--tw-prose-links);
-  text-decoration: underline;
-}
-
-.v2-root .prose :where(code):not(:where(pre *)) {
-  background-color: var(--muted);
-  color: var(--tw-prose-code);
-  padding: 0.125rem 0.25rem;
-  border-radius: 0.25rem;
-  font-size: 0.875em;
-  font-weight: 600;
-}
-
-.v2-root .prose :where(code)::before,
-.v2-root .prose :where(code)::after {
-  content: '';
-}
-
+/* A bare `<pre>` (raw HTML in a body). The package leaves its surface to a
+   syntax-highlight theme; the app has none outside `.code-block`, which owns
+   the surface of a fenced block instead. */
 .v2-root .prose :where(pre) {
-  /* background-color and color are intentionally omitted — owned by Prism's
-     prism-tomorrow.css theme so token colours stay readable */
-  padding: 1rem;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  overflow-x: auto;
-  margin-top: 1.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.v2-root .prose :where(pre code) {
-  background-color: transparent;
-  padding: 0;
-  border-radius: 0;
-  font-size: inherit;
-  font-weight: inherit;
-  color: inherit;
-}
-
-.v2-root .prose :where(blockquote) {
-  border-left: 4px solid var(--tw-prose-quote-borders);
-  padding-left: 1rem;
-  font-style: italic;
-  margin-top: 1.5rem;
-  margin-bottom: 1.5rem;
-  color: var(--tw-prose-quotes);
-}
-
-.v2-root .prose :where(table) {
-  width: 100%;
-  margin-top: 1.5rem;
-  margin-bottom: 1.5rem;
-  font-size: 0.875rem;
+  background-color: var(--muted);
+  color: var(--foreground);
 }
 
 /* Scroll container MarkdownRenderer wraps every rendered table in (#884).
-   `width: 100%` above does not cap an auto-layout table, so a wide one used to
-   escape its card and paint over the metadata sidebar; the wrapper confines the
-   overflow to its own horizontal scrollbar. Narrow tables are unaffected — the
-   table still fills the wrapper at 100%. Kept here beside the other `prose`
-   table rules so a table's layout is described in one place.
+   The package's `width: 100%` does not cap an auto-layout table, so a wide one
+   used to escape its card and paint over the metadata sidebar; the wrapper
+   confines the overflow to its own horizontal scrollbar. Narrow tables are
+   unaffected — the table still fills the wrapper at 100%. The wrapper belongs
+   to MarkdownRenderer, so its rules stay in the app.
 
    The vertical rhythm MOVES from the table to the wrapper. `overflow-x: auto`
    makes the wrapper a block formatting context, which stops the table's own
@@ -170,46 +49,24 @@
 }
 
 .v2-root .prose .markdown-table-wrapper :where(table) {
+  /* Columns keep a readable width and the WRAPPER scrolls: without this a
+     table squeezed into a phone-width column wraps every cell into a tall,
+     narrow strip. `max-content` sizes columns to what they hold (cells are
+     capped below, so prose in a cell still wraps); `min-width` keeps a small
+     table filling its container. */
+  width: max-content;
+  min-width: 100%;
   margin-top: 0;
   margin-bottom: 0;
 }
 
-.v2-root .prose :where(th) {
-  background-color: var(--muted);
-  font-weight: 600;
-  padding: 0.75rem;
-  text-align: left;
-  border-bottom: 1px solid var(--tw-prose-th-borders);
-  color: var(--tw-prose-headings);
+.v2-root .prose .markdown-table-wrapper :where(th) {
+  white-space: nowrap;
 }
 
-.v2-root .prose :where(td) {
-  padding: 0.75rem;
-  border-bottom: 1px solid var(--tw-prose-td-borders);
-  color: var(--tw-prose-body);
-}
-
-.v2-root .prose :where(ul) {
-  margin-top: 1rem;
-  margin-bottom: 1rem;
-  padding-left: 1.5rem;
-}
-
-.v2-root .prose :where(ol) {
-  margin-top: 1rem;
-  margin-bottom: 1rem;
-  padding-left: 1.5rem;
-}
-
-.v2-root .prose :where(li) {
-  margin-top: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.v2-root .prose :where(hr) {
-  border-color: var(--tw-prose-hr);
-  margin-top: 1.5rem;
-  margin-bottom: 1.5rem;
+.v2-root .prose .markdown-table-wrapper :where(td) {
+  max-width: 26rem;
+  vertical-align: top;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -223,67 +80,106 @@
 /* exactly the space a folded rail or a wide window frees and zero when the   */
 /* column is no wider than the article.                                       */
 /* -------------------------------------------------------------------------- */
-.v2-root .reading-article {
-  /* The article's max-width, gutters included. The default is the wide
-     column — GitHub-README line lengths, the shape most AI-written bodies
-     (code, tables, lists of identifiers) are read in. */
-  --reading-measure: 64rem;
-  /* How far a wide block may extend past the article on EACH side. */
-  --reading-bleed: clamp(0px, (100cqw - var(--reading-measure)) / 2, 12rem);
-}
-
-/* Long-form reading gets body type at 1rem; the 0.875rem `.prose` default
-   stays for every other surface (feed items, cards, previews outside the
-   article). */
+/* Long-form reading gets body type at 17px with open leading; the 0.875rem
+   `.prose` default stays for every other surface (feed items, cards, previews
+   outside the article). */
 .v2-root .reading-article .prose {
-  font-size: 1rem;
+  font-size: var(--text-reading);
+  line-height: var(--text-reading-lh);
 }
 
-/* The rendered body is widened by the bleed on both sides, and every block
-   is pushed back in by the same amount — no visible change for prose. Wide
-   blocks instead centre themselves in the widened box: at least as wide as
-   the prose column, at most the whole box, and in between exactly as wide
-   as their content wants. `margin-inline` longhands only, so the vertical
-   rhythm the `.prose` rules set is untouched. */
-.v2-root .reading-body {
-  margin-inline: calc(-1 * var(--reading-bleed));
+/* Headings step clearly (about 1.75 / 1.4 / 1.2 / 1.05 of body) at one
+   weight, with more space above than below, so a long document reads as
+   sections rather than one flat run. Margins are in the heading's own em. */
+.v2-root .reading-article .prose :where(h1, h2, h3, h4) {
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
 }
 
+.v2-root .reading-article .prose :where(h1) {
+  font-size: 1.75em;
+  line-height: 1.2;
+  margin-top: 1.3em;
+  margin-bottom: 0.45em;
+}
+
+.v2-root .reading-article .prose :where(h2) {
+  font-size: 1.4em;
+  line-height: 1.3;
+  margin-top: 1.6em;
+  margin-bottom: 0.45em;
+}
+
+.v2-root .reading-article .prose :where(h3) {
+  font-size: 1.2em;
+  line-height: 1.35;
+  margin-top: 1.5em;
+  margin-bottom: 0.4em;
+}
+
+.v2-root .reading-article .prose :where(h4) {
+  font-size: 1.05em;
+  line-height: 1.4;
+  margin-top: 1.5em;
+  margin-bottom: 0.35em;
+}
+
+.v2-root .reading-body > :first-child {
+  margin-top: 0;
+}
+
+/* One constant left edge. Everything in the body starts at the article's left
+   edge, where the page header starts too. Prose stops at the prose measure;
+   a wide block is as wide as its content wants — at least the prose column,
+   at most the article — and so extends to the RIGHT of the prose, never out
+   on both sides. */
 .v2-root .reading-body > * {
-  margin-inline: var(--reading-bleed);
+  max-width: var(--measure-prose);
 }
 
 .v2-root
   .reading-body
-  > :is(pre, .markdown-table-wrapper, p:has(> img:only-child)) {
-  margin-inline: auto;
+  > :is(.code-block, pre, .markdown-table-wrapper, p:has(> img:only-child)) {
   width: fit-content;
-  min-width: calc(100% - 2 * var(--reading-bleed));
+  min-width: min(100%, var(--measure-prose));
   max-width: 100%;
 }
 
-/* A mermaid diagram is an SVG at `width: 100%` with its natural width as an
-   inline `max-width`, so `fit-content` cannot see how wide it wants to be.
-   The placeholder takes the whole widened box instead and the SVG centres
-   itself in it, capped by its own natural width. */
+/* A mermaid diagram is a wide block too, but it cannot use `fit-content`: its
+   SVG is sized from its container, so the container needs a definite width.
+   `MermaidDiagram` publishes the diagram's natural width as a custom property
+   on the placeholder, and the block is that wide — at least the prose column,
+   at most the article. */
 .v2-root .reading-body > [data-mermaid-id] {
-  margin-inline: 0;
+  width: var(--mermaid-natural-width, auto);
+  min-width: min(100%, var(--measure-prose));
+  max-width: 100%;
 }
 
-.v2-root .reading-body > [data-mermaid-id] svg {
+/* Controls that belong to the prose column (the Rendered / Raw switch) end at
+   its right edge rather than at the article's. */
+.v2-root .reading-article .reading-prose-width {
+  max-width: var(--measure-prose);
+}
+
+/* Everywhere, the diagram is drawn at its natural size while it fits (never
+   upscaled), scaled down with its container to a floor that keeps node text
+   readable, and below that held at the floor and scrolled inside its own
+   container — it never pushes the page. Where the natural width is unknown
+   the declaration is invalid and mermaid's own `width: 100%` stands. */
+.markdown-renderer .mermaid-container {
+  --mermaid-min-scale: 0.7;
+  overflow-x: auto;
+}
+
+.markdown-renderer .mermaid-container svg {
   display: block;
   margin-inline: auto;
-}
-
-/* -------------------------------------------------------------------------- */
-/* Scrollbars come from @vibexp/design-system/scrollbar.css (imported at the  */
-/* top). The one local override: Prism's tomorrow theme paints code blocks    */
-/* dark in BOTH themes, so their thumb is a white mix rather than the          */
-/* theme-following --foreground mix the tokens default to.                     */
-/* -------------------------------------------------------------------------- */
-.v2-root .prose pre {
-  --scrollbar-thumb: rgb(255 255 255 / 22%);
-  --scrollbar-thumb-hover: rgb(255 255 255 / 45%);
+  width: clamp(
+    var(--mermaid-natural-width) * var(--mermaid-min-scale),
+    100%,
+    var(--mermaid-natural-width)
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -311,6 +207,12 @@
   --container-rail-collapsed: var(--rail-collapsed);
   --container-rail-expanded: var(--rail-expanded);
   --container-details-column: var(--details-column);
+  --container-measure-prose: var(--measure-prose);
+  --container-measure-article: var(--measure-article);
+  --spacing-header: var(--header-height);
+  /* The height of the reading page's bottom sheets (contents, details) on a
+     phone: most of the screen, with the page still visible above. */
+  --spacing-reading-sheet: 78dvh;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -493,4 +395,85 @@ body {
   width: 22px;
   height: 1px;
   background: var(--border);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Prompt {{placeholders}} in rendered markdown (see markdownPlaceholders.ts). */
+/* One without a value is a monospace chip naming the variable; one with a     */
+/* value keeps the prose's own type and is only tinted, so substituted text    */
+/* reads as part of the sentence while staying distinguishable from it.        */
+/* -------------------------------------------------------------------------- */
+.markdown-renderer .prompt-placeholder {
+  border: 1px dashed color-mix(in oklab, var(--info) 55%, transparent);
+  border-radius: var(--radius-sm);
+  background-color: var(--info-subtle);
+  padding: 0.05em 0.35em;
+  color: var(--info);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.875em;
+  font-weight: 500;
+  font-style: normal;
+  white-space: nowrap;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.markdown-renderer .prompt-placeholder-filled {
+  border-color: transparent;
+  padding-inline: 0.2em;
+  color: inherit;
+  font: inherit;
+  white-space: pre-wrap;
+}
+
+/* An anchor (an outline entry, a URL hash) must not land under the app header
+   and the reading page's sticky title bar. */
+.v2-root .reading-body :is(h1, h2, h3, h4, h5, h6) {
+  /* The header, plus the 4rem title bar (`TITLE_BAR_HEIGHT_PX`). */
+  scroll-margin-top: calc(var(--header-height) + 4rem);
+}
+
+/* Focus mode: with both side panels gone, centre the PROSE column in the
+   viewport rather than the (wider) article, which would leave the text on the
+   left of a mostly empty page. The article keeps its width from that point, so
+   a wide block still extends to the right of the prose. 3rem is the article's
+   own inline padding at the widths focus mode is offered. */
+.v2-root [data-focus='true'] > .reading-article {
+  width: auto;
+  margin-inline-start: max(0px, calc(50% - var(--measure-prose) / 2 - 3rem));
+  margin-inline-end: auto;
+}
+
+/*
+ * A feed card shows the top of its post and offers the rest. The post is
+ * rendered markdown, so it is clamped by height rather than by line count, and
+ * fades out instead of ending mid-line. `CLAMPED_BODY_HEIGHT` in
+ * `FeedItemCard.tsx` mirrors the height.
+ */
+.feed-body-clamped {
+  max-height: 9rem;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent);
+  mask-image: linear-gradient(to bottom, #000 70%, transparent);
+}
+
+/* Card scale: the reading page's heading sizes are too loud inside a card. */
+.feed-item-body .markdown-renderer :is(h1, h2, h3, h4) {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  margin-top: 0.75em;
+  margin-bottom: 0.25em;
+}
+
+.feed-item-body .markdown-renderer > :first-child {
+  margin-top: 0;
+}
+
+/*
+ * The body editor's opening height, for both its Raw and Rendered panes
+ * (`BODY_EDITOR_MIN_HEIGHT`). A share of the viewport, so the field is a page
+ * to write on; it grows past this with its content.
+ */
+@utility min-h-editor {
+  min-height: 60vh;
 }

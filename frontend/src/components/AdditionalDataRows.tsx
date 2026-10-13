@@ -53,7 +53,7 @@ function MetaValue({ value }: Readonly<{ value: unknown }>) {
     serialized = '[unserializable]'
   }
   return (
-    <code className="bg-muted text-muted-foreground block overflow-x-auto rounded px-1 font-mono text-xs break-all">
+    <code className="bg-muted text-muted-foreground block overflow-x-auto rounded-sm px-1 font-mono text-xs break-all">
       {serialized}
     </code>
   )

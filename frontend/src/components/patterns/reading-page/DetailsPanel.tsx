@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 import { PanelPresentationProvider } from '@/components/ui/panel'
 import { Separator } from '@/components/ui/separator'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -15,6 +17,13 @@ interface DetailsColumnProps {
   sections: readonly ReadingSection[]
   /** Hide the action grid (phones render actions as chips under the title). */
   showActions?: boolean
+  /**
+   * Pinned above the sections — the reading page's outline. It stays in view
+   * while the sections scroll beneath it, and scrolls within itself once it is
+   * taller than about 40% of the viewport, so a long outline can never push
+   * the details off the screen.
+   */
+  lead?: ReactNode
   className?: string
 }
 
@@ -33,14 +42,22 @@ export function DetailsColumn({
   actions,
   sections,
   showActions = true,
+  lead,
   className,
 }: Readonly<DetailsColumnProps>) {
   return (
     <PanelPresentationProvider value="flat">
       <div
-        className={cn('flex flex-col gap-5 p-5', className)}
+        // Sections are told apart by spacing and their own labels, not by a
+        // rule between each: the column is already one bordered surface.
+        className={cn('flex flex-col gap-7 p-5', className)}
         data-testid="details-column"
       >
+        {lead && (
+          <div className="scrollbar-hover bg-background sticky top-0 z-10 -mx-5 -mt-5 max-h-[40dvh] overflow-y-auto px-5 pt-5 pb-3">
+            {lead}
+          </div>
+        )}
         {showActions && actions.length > 0 && (
           <ReadingActions
             actions={actions}

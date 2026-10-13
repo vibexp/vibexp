@@ -187,6 +187,7 @@ export function FeedItemView() {
   const backAction: ReadingAction = useMemo(
     () => ({
       id: 'back',
+      placement: 'toolbar',
       label: 'Back',
       icon: ArrowLeft,
       onClick: () => {
@@ -228,6 +229,7 @@ export function FeedItemView() {
     isArchived
       ? {
           id: 'archive',
+          placement: 'toolbar',
           label: archiving ? 'Restoring…' : 'Unarchive',
           icon: ArchiveRestore,
           disabled: archiving,
@@ -237,6 +239,7 @@ export function FeedItemView() {
         }
       : {
           id: 'archive',
+          placement: 'toolbar',
           label: archiving ? 'Archiving…' : 'Archive',
           icon: Archive,
           disabled: archiving,
@@ -344,7 +347,7 @@ export function FeedItemView() {
         }
         extraSections={extraSections}
       >
-        <ResourceBody content={item.content} />
+        <ResourceBody content={item.content} title={item.title} />
       </ResourceReadingPage>
 
       <ConfirmDialog

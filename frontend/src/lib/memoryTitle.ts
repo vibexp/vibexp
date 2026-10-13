@@ -1,8 +1,8 @@
 /**
- * Memories are the one resource with no `title` field — `text` is both the name
- * and the body (#900). Until the API grows a real title (epic #899 decision D,
- * backend half), derive a readable one client-side so a memory is identifiable
- * in a tab, a heading and a search result instead of reading "Memory #<uuid>".
+ * A memory's title is optional (#911): one written without it has only its
+ * `text`. So that such a memory is still identifiable in a list, a heading and
+ * a picker, a readable name is derived from the body — and every surface asks
+ * {@link memoryDisplayName} for it, so the same memory never goes by two names.
  *
  * The markdown stripping itself lives in `markdownExcerpt.ts` (#909), shared
  * with the memory list's Content cell; only the heading logic is here.
@@ -10,8 +10,13 @@
 
 import { contentLines, markdownToExcerpt } from '@/lib/markdownExcerpt'
 
-/** Longest excerpt used when the body carries no heading. */
-const MAX_EXCERPT_LENGTH = 60
+/**
+ * Longest excerpt used when the body carries no heading. One length for every
+ * surface (and the same as the backend's `memoryDisplayNameExpr`), so an
+ * untitled memory reads the same in a list, a heading and a picker; a surface
+ * short on room truncates it with CSS rather than deriving a shorter one.
+ */
+const MAX_EXCERPT_LENGTH = 120
 
 /** Shown for an empty or whitespace-only memory. */
 const FALLBACK_TITLE = 'Untitled memory'
@@ -67,4 +72,35 @@ export function deriveMemoryTitle(text: string): string {
   if (heading !== undefined && heading !== '') return heading
 
   return markdownToExcerpt(text, MAX_EXCERPT_LENGTH) || FALLBACK_TITLE
+}
+
+export interface MemoryDisplayName {
+  name: string
+  /**
+   * True when the memory has no title and `name` was derived from its body —
+   * a surface with room for it shows such a name subdued, so a stand-in is
+   * not mistaken for a title someone chose.
+   */
+  isFallback: boolean
+}
+
+/**
+ * The one name a memory goes by anywhere in the app: its title when it has
+ * one, otherwise {@link deriveMemoryTitle} of its body.
+ *
+ * Blank-checked rather than null-checked. The schema puts no `minLength` on
+ * `title` (`backend/schemas/memories.yaml`), so a memory written through the
+ * API or MCP can carry `""` — and treating only `null` as absent would render
+ * an empty name, which is the #909 failure over again.
+ */
+export function memoryDisplayName(memory: {
+  title?: string | null
+  text: string
+}): MemoryDisplayName {
+  const title = memory.title?.trim() ?? ''
+  if (title !== '') return { name: title, isFallback: false }
+  return {
+    name: deriveMemoryTitle(memory.text),
+    isFallback: true,
+  }
 }

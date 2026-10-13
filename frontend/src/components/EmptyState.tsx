@@ -22,7 +22,9 @@ export function EmptyState({
     <div
       data-testid="empty-state"
       className={cn(
-        'flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center',
+        // Unboxed: the message and its action sit directly in the area they
+        // describe, which already has (or deliberately lacks) its own frame.
+        'flex flex-col items-center justify-center p-12 text-center',
         className
       )}
     >

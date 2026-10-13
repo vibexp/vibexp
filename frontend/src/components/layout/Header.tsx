@@ -2,14 +2,12 @@ import { Info, Menu, PanelLeft, PanelRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router'
 
+import { CommandPalette } from '@/components/layout/CommandPalette'
 import { HeaderBreadcrumb } from '@/components/layout/HeaderBreadcrumb'
 import { MobileSidebar } from '@/components/layout/MobileSidebar'
 import { NotificationBell } from '@/components/layout/NotificationBell'
 import { ProjectSwitcher } from '@/components/layout/ProjectSwitcher'
-import { SearchModal } from '@/components/layout/SearchModal'
 import { useShell } from '@/components/layout/ShellContext'
-import { TeamSwitcher } from '@/components/layout/TeamSwitcher'
-import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { UserMenu } from '@/components/layout/UserMenu'
 import { Button } from '@/components/ui/button'
 import {
@@ -23,18 +21,25 @@ import {
  * Top bar (#886).
  *
  * - `< md`: a hamburger opens the navigation drawer, which also hosts the
- *   team/project switchers, search and the theme toggle. The bar keeps only
- *   the breadcrumb, notifications and the user menu.
+ *   team/project switchers and search. The bar keeps only the breadcrumb,
+ *   notifications and the user menu.
+ * - The bar holds page-level controls only: the project filter (where the page
+ *   filters by project), search, notifications and the user menu. The
+ *   workspace switcher is in the sidebar — it is global scope, not a filter —
+ *   and the theme choice is in the user menu.
  * - `md–lg`: the navigation is a fixed icon rail, so there is no nav button.
  * - `lg+`: a nav button folds the sidebar between expanded and rail.
  * - A details toggle appears only while a reading page has registered a
- *   details panel: it folds the details column at `lg+` and opens the details
- *   sheet below that.
+ *   details panel: it folds the details column where there is one (`xl+` on a
+ *   reading page, `lg+` on an edit page) and opens the details drawer below
+ *   that.
  */
 export function Header() {
   const {
     isTablet,
     isDesktop,
+    detailsInline,
+    focusMode,
     navExpanded,
     toggleNav,
     detailsRegistered,
@@ -51,11 +56,13 @@ export function Header() {
     setDrawerOpen(false)
   }, [pathname])
 
-  const showDetailsToggle = detailsRegistered
-  const detailsPressed = isDesktop ? detailsOpen : undefined
-  const DetailsIcon = isDesktop ? PanelRight : Info
+  // In focus mode both side panels are hidden, and so are their toggles: the
+  // reading toolbar's focus control (or Escape) is the way back.
+  const showDetailsToggle = detailsRegistered && !focusMode
+  const detailsPressed = detailsInline ? detailsOpen : undefined
+  const DetailsIcon = detailsInline ? PanelRight : Info
   let detailsLabel: string
-  if (!isDesktop) {
+  if (!detailsInline) {
     detailsLabel = 'Open details'
   } else if (detailsOpen) {
     detailsLabel = 'Collapse details'
@@ -64,7 +71,7 @@ export function Header() {
   }
 
   return (
-    <header className="bg-background sticky top-0 z-30 flex h-14 items-center gap-2 border-b px-4 md:px-6">
+    <header className="bg-background sticky top-0 z-30 flex h-header items-center gap-2 border-b px-4 md:px-6">
       {!isTablet && (
         <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
           <SheetTrigger asChild>
@@ -79,7 +86,7 @@ export function Header() {
         </Sheet>
       )}
 
-      {isDesktop && (
+      {isDesktop && !focusMode && (
         <Button
           variant="ghost"
           size="icon"
@@ -97,10 +104,8 @@ export function Header() {
       <div className="ml-auto flex min-w-0 items-center gap-1.5">
         {isTablet && (
           <>
-            <TeamSwitcher />
             <ProjectSwitcher />
-            <SearchModal />
-            <ThemeToggle />
+            <CommandPalette />
           </>
         )}
         <NotificationBell />
@@ -113,7 +118,7 @@ export function Header() {
             aria-pressed={detailsPressed}
             data-testid="details-toggle"
             onClick={() => {
-              if (isDesktop) toggleDetails()
+              if (detailsInline) toggleDetails()
               else setDetailsSheetOpen(true)
             }}
           >

@@ -1,4 +1,4 @@
-import { deriveMemoryTitle } from '../memoryTitle'
+import { deriveMemoryTitle, memoryDisplayName } from '../memoryTitle'
 
 describe('deriveMemoryTitle', () => {
   it('uses the first markdown heading when there is one', () => {
@@ -84,23 +84,22 @@ describe('deriveMemoryTitle', () => {
 
   it('truncates a long body on a word boundary with an ellipsis', () => {
     const title = deriveMemoryTitle(
-      'The quick brown fox jumps over the lazy dog and then keeps running for miles'
+      `${'The quick brown fox jumps over the lazy dog. '.repeat(2)}And then keeps running for miles and miles`
     )
     expect(title).toBe(
-      'The quick brown fox jumps over the lazy dog and then keeps…'
+      `${'The quick brown fox jumps over the lazy dog. '.repeat(2)}And then keeps running for…`
     )
-    // 60 characters of body at most, plus the ellipsis — and never a half word.
-    expect(title.length).toBeLessThanOrEqual(61)
-    expect(title.endsWith('s…')).toBe(true)
+    // 120 characters of body at most, plus the ellipsis — and never a half word.
+    expect(title.length).toBeLessThanOrEqual(121)
   })
 
   it('hard-cuts a single word longer than the limit', () => {
-    const title = deriveMemoryTitle('x'.repeat(120))
-    expect(title).toBe(`${'x'.repeat(60)}…`)
+    const title = deriveMemoryTitle('x'.repeat(240))
+    expect(title).toBe(`${'x'.repeat(120)}…`)
   })
 
   it('keeps a body exactly at the limit intact', () => {
-    const exact = 'y'.repeat(60)
+    const exact = 'y'.repeat(120)
     expect(deriveMemoryTitle(exact)).toBe(exact)
   })
 
@@ -136,5 +135,35 @@ describe('deriveMemoryTitle', () => {
 
   it('skips an empty heading and uses the body instead', () => {
     expect(deriveMemoryTitle('#\nActual content')).toBe('Actual content')
+  })
+})
+
+describe('memoryDisplayName', () => {
+  it('is the title when the memory has one', () => {
+    expect(
+      memoryDisplayName({ title: 'Deploy checklist', text: '# Other\n\nBody' })
+    ).toEqual({ name: 'Deploy checklist', isFallback: false })
+  })
+
+  it.each([[null], [undefined], [''], ['   ']])(
+    'derives the name from the body for a title of %j, flagged as a fallback',
+    title => {
+      expect(
+        memoryDisplayName({ title, text: 'Drain the node first.' })
+      ).toEqual({ name: 'Drain the node first.', isFallback: true })
+    }
+  )
+
+  it('prefers the body\u2019s first heading over an excerpt', () => {
+    expect(
+      memoryDisplayName({ text: '## Runbook\n\nDrain the node first.' }).name
+    ).toBe('Runbook')
+  })
+
+  it('names a blank memory "Untitled memory"', () => {
+    expect(memoryDisplayName({ text: '  \n ' })).toEqual({
+      name: 'Untitled memory',
+      isFallback: true,
+    })
   })
 })

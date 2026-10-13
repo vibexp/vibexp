@@ -372,6 +372,11 @@ describe('Agents page', () => {
 
   describe('search filter', () => {
     it('re-fetches with the debounced search term', async () => {
+      // The filter row only exists once the list holds something (it is
+      // dropped on a blank slate), so the first load returns a row.
+      ;(agentService.getAgents as Mock).mockResolvedValueOnce(
+        buildListResponse([buildAgent()])
+      )
       renderAgents()
 
       await waitFor(() => {
@@ -398,6 +403,11 @@ describe('Agents page', () => {
 
   describe('status filter', () => {
     it('re-fetches with the picked status and clears it on All statuses', async () => {
+      // The filter row only exists once the list holds something (it is
+      // dropped on a blank slate), so the first load returns a row.
+      ;(agentService.getAgents as Mock).mockResolvedValueOnce(
+        buildListResponse([buildAgent()])
+      )
       renderAgents()
 
       await waitFor(() => {
@@ -468,9 +478,9 @@ describe('Agents page', () => {
 
       const user = userEvent.setup()
       const addButtons = screen.getAllByRole('button', { name: /Add agent/ })
-      expect(addButtons).toHaveLength(2)
+      expect(addButtons).toHaveLength(1)
       // The second one lives in the empty state.
-      await user.click(addButtons[1])
+      await user.click(addButtons[0])
 
       expect(screen.getByTestId('editor-probe')).toBeInTheDocument()
     })
@@ -716,6 +726,11 @@ describe('Agents page — URL-synced filters (#906)', () => {
   })
 
   it('writes a picked status to the URL and resets the page', async () => {
+    // The filter row only exists once the list holds something (it is
+    // dropped on a blank slate), so the first load returns a row.
+    ;(agentService.getAgents as Mock).mockResolvedValueOnce(
+      buildListResponse([buildAgent()])
+    )
     renderAgents('/agents?page=4')
     await waitFor(() => {
       expect(lastQuery().page).toBe(4)
@@ -732,6 +747,11 @@ describe('Agents page — URL-synced filters (#906)', () => {
   })
 
   it('writes the debounced search term to the URL', async () => {
+    // The filter row only exists once the list holds something (it is
+    // dropped on a blank slate), so the first load returns a row.
+    ;(agentService.getAgents as Mock).mockResolvedValueOnce(
+      buildListResponse([buildAgent()])
+    )
     renderAgents()
     await waitFor(() => {
       expect(agentService.getAgents).toHaveBeenCalled()
@@ -784,8 +804,9 @@ describe('Agents page — Clear filters and the two-branch empty state (#906)', 
     expect(
       screen.queryByRole('button', { name: 'Clear filters' })
     ).not.toBeInTheDocument()
-    // Header button plus the empty-state action.
-    expect(screen.getAllByRole('button', { name: /Add agent/ })).toHaveLength(2)
+    // The empty-state action alone: the header button steps aside on a
+    // blank slate.
+    expect(screen.getAllByRole('button', { name: /Add agent/ })).toHaveLength(1)
   })
 
   it('the status filter alone flips the empty state to the filtered branch', async () => {
@@ -806,6 +827,11 @@ describe('Agents page — Clear filters and the two-branch empty state (#906)', 
     await screen.findByText('No agents match your filters')
 
     const user = userEvent.setup()
+    // Unfiltered, the list has a row: a blank slate would drop the filter row
+    // this test goes on to read.
+    ;(agentService.getAgents as Mock).mockResolvedValue(
+      buildListResponse([buildAgent()])
+    )
     const [clear] = screen.getAllByRole('button', { name: 'Clear filters' })
     await user.click(clear)
 
@@ -818,6 +844,5 @@ describe('Agents page — Clear filters and the two-branch empty state (#906)', 
     expect(
       screen.getByPlaceholderText('Search agents by name or description…')
     ).toHaveValue('')
-    await screen.findByText('No agents yet')
   })
 })

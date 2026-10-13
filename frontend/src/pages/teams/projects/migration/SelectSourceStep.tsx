@@ -129,7 +129,7 @@ export function SelectSourceStep({
                             )}
                           />
                           <span className="truncate">{project.name}</span>
-                          <code className="bg-muted ml-2 rounded px-1.5 py-0.5 font-mono text-xs">
+                          <code className="bg-muted ml-2 rounded-sm px-1.5 py-0.5 font-mono text-xs">
                             {project.slug}
                           </code>
                         </CommandItem>

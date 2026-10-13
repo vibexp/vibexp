@@ -8,6 +8,13 @@ import type {
 } from '@/services/feedService'
 
 // Mock Radix UI components that cause infinite loops in JSDOM
+// The real renderer needs the full `marked` build, which the suite stubs.
+vi.mock('@/components/MarkdownRenderer', () => ({
+  MarkdownRenderer: ({ content }: { content: string }) => (
+    <div className="markdown-renderer">{content}</div>
+  ),
+}))
+
 vi.mock('@/components/ui/tabs', () => ({
   Tabs: ({
     children,

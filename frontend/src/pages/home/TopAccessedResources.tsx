@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
+import { CHANNEL_LABEL, CHANNEL_ORDER } from '@/components/channelSeries'
 import {
   SegmentedControl,
   type SegmentedOption,
@@ -17,13 +18,13 @@ import { Skeleton } from '@/components/ui/skeleton'
 import type { TopAccessedResource } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
 
-/** Access-channel filter shown on every list (matches the design). */
+/** Access-channel filter shown on every list, in the shared channel order. */
 const CHANNELS: readonly SegmentedOption[] = [
   { value: 'all', label: 'All' },
-  { value: 'web', label: 'WEB' },
-  { value: 'cli', label: 'CLI' },
-  { value: 'mcp', label: 'MCP' },
-  { value: 'api', label: 'API' },
+  ...CHANNEL_ORDER.map(channel => ({
+    value: channel,
+    label: CHANNEL_LABEL[channel],
+  })),
 ]
 
 /** The four resource types that get their own ranked list, in design order. */

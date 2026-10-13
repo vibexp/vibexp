@@ -29,7 +29,7 @@ function StatCard({
   return (
     <div className="bg-muted/50 rounded-lg p-5">
       <div className="flex items-center gap-3">
-        <div className="bg-background text-foreground flex size-10 shrink-0 items-center justify-center rounded-lg shadow-sm">
+        <div className="bg-background text-foreground flex size-10 shrink-0 items-center justify-center rounded-lg border">
           <Icon className="size-5" />
         </div>
         <div className="space-y-0.5 min-w-0">

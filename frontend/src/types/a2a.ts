@@ -77,8 +77,7 @@ export interface A2AArtifactUpdateEventData {
  * Generic A2A Stream Event Data
  */
 export type A2AStreamEventData =
-  | A2AArtifactUpdateEventData
-  | Record<string, unknown>
+  A2AArtifactUpdateEventData | Record<string, unknown>
 
 /**
  * A2A Stream Event

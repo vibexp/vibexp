@@ -423,8 +423,7 @@ describe('MetadataPanel flat presentation', () => {
     )
     expect(screen.getByTestId('metadata-panel')).toHaveClass(
       'rounded-lg',
-      'border',
-      'shadow-sm'
+      'border'
     )
     expect(screen.getByText('Type').closest('li')).toHaveClass('px-5')
   })

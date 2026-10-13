@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { LoadingSpinner } from '@/components/LoadingSpinner'
@@ -11,6 +11,7 @@ import {
 } from '@/components/patterns/resource'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
+import { useDefaultProject } from '@/hooks/useDefaultProject'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import {
   RESERVED_METADATA_KEYS,
@@ -18,55 +19,28 @@ import {
 } from '@/pages/memories/memoryRequest'
 import { MemoryTagsField } from '@/pages/memories/MemoryTagsField'
 import { memoryService } from '@/services/memoryService'
-import type { Project } from '@/services/projectService'
-import { projectService } from '@/services/projectService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
 const descriptor = getResourceDescriptor('memory')
 
 export function MemoryCreate() {
   const navigate = useNavigate()
-  const { currentTeam, isLoading: isLoadingTeam } = useTeam()
+  const { currentTeam } = useTeam()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
   const { trackEvent } = useAnalytics()
 
-  const [projects, setProjects] = useState<Project[]>([])
-  const [loadingProjects, setLoadingProjects] = useState(true)
   const [creating, setCreating] = useState(false)
   const [tags, setTags] = useState<string[]>([])
 
-  const fetchProjects = useCallback(async () => {
-    if (isLoadingTeam) return
-    if (!currentTeam) {
-      setLoadingProjects(false)
-      return
-    }
-    try {
-      setLoadingProjects(true)
-      const res = await projectService.getProjects(currentTeam.id, {
-        limit: 100,
-      })
-      setProjects(res.projects)
-    } catch (error) {
-      console.error('Failed to fetch projects:', error)
-      setProjects([])
-    } finally {
-      setLoadingProjects(false)
-    }
-  }, [currentTeam, isLoadingTeam])
-
-  useEffect(() => {
-    void fetchProjects()
-  }, [fetchProjects])
-
-  // The one kind whose create page still fetches projects itself: it preselects
-  // the first one, which `ProjectPicker` deliberately does not do (#1790). That
-  // default is the reason `e2e/memories.spec.ts` can create a memory without
-  // touching the picker, so it is behaviour rather than convenience.
+  // The shared create-form default: the header's project filter, or the
+  // workspace's only project. `e2e/memories.spec.ts` creates a memory without
+  // touching the picker, which the single-project e2e workspace still allows.
+  const defaultProject = useDefaultProject()
+  const defaultProjectId = defaultProject.project?.id
   const initialValues = useMemo<ResourceFormValues | undefined>(
-    () => (projects.length > 0 ? { project_id: projects[0].id } : undefined),
-    [projects]
+    () => (defaultProjectId ? { project_id: defaultProjectId } : undefined),
+    [defaultProjectId]
   )
 
   const handleSubmit = async (values: ResourceFormValues) => {
@@ -105,7 +79,7 @@ export function MemoryCreate() {
 
   // The skeleton renders in the reading shell too, so the layout is in place
   // before the projects resolve rather than arriving with the form.
-  if (loadingProjects) {
+  if (defaultProject.loading) {
     return (
       <ReadingPage
         title={formHeading(descriptor, 'create')}
@@ -128,7 +102,7 @@ export function MemoryCreate() {
       isLoading={creating}
       // A memory must belong to a project; with none to pick, Create could
       // only ever fail validation.
-      saveDisabled={projects.length === 0}
+      saveDisabled={!defaultProject.hasProjects}
       // The tags are page state, invisible to react-hook-form: without this,
       // adding one and hitting Cancel discards it with no prompt.
       extraDirty={tags.length > 0}

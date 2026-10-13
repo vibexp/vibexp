@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { PendingInvitationsBanner } from '@/components/invitations/PendingInvitationsBanner'
+import { useDocumentTitle } from '@/components/layout/documentTitle'
 import { Header } from '@/components/layout/Header'
 import { ShellProvider, useShell } from '@/components/layout/ShellContext'
 import { Sidebar } from '@/components/layout/Sidebar'
@@ -34,17 +35,34 @@ export function Layout({ children }: Readonly<{ children: ReactNode }>) {
   )
 }
 
+/** The id of the main region — the skip link's target. */
+const MAIN_CONTENT_ID = 'main-content'
+
 function ShellFrame({ children }: Readonly<{ children: ReactNode }>) {
-  const { contentMode } = useShell()
+  const { contentMode, focusMode } = useShell()
+  useDocumentTitle()
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar />
+      {/* The first focusable element on the page: a keyboard user's way past
+          the navigation and the header, straight to the content. Off screen
+          until it has focus. */}
+      <a
+        href={`#${MAIN_CONTENT_ID}`}
+        className="bg-background text-foreground focus-visible:ring-ring sr-only z-50 rounded-md border px-3 py-2 text-sm font-medium focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus-visible:ring-2 focus-visible:outline-none"
+      >
+        Skip to content
+      </a>
+      {/* Focus mode hides the navigation outright; it comes back as it was. */}
+      {!focusMode && <Sidebar />}
       <div className="flex min-w-0 flex-1 flex-col">
         <Header />
         {contentMode === 'reading' ? (
           <main
-            className="flex min-w-0 flex-1 flex-col"
+            id={MAIN_CONTENT_ID}
+            // Focusable so the skip link can land on it; not a tab stop.
+            tabIndex={-1}
+            className="flex min-w-0 flex-1 flex-col outline-none"
             data-content-mode="reading"
           >
             {/* The banner renders nothing when there is nothing pending, so the
@@ -64,7 +82,12 @@ function ShellFrame({ children }: Readonly<{ children: ReactNode }>) {
             </div>
           </main>
         ) : (
-          <main className="flex-1 overflow-auto" data-content-mode="contained">
+          <main
+            id={MAIN_CONTENT_ID}
+            tabIndex={-1}
+            className="flex-1 overflow-auto outline-none"
+            data-content-mode="contained"
+          >
             <div className="mx-auto w-full max-w-screen-xl px-4 py-6 md:px-6 lg:px-8">
               <PendingInvitationsBanner />
               {children}

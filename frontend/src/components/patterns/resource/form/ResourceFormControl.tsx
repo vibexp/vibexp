@@ -28,6 +28,8 @@ export interface BodySlotProps extends SlotProps {
   disabled: boolean
   placeholder?: string
   label: string
+  /** The resource's title as the form holds it, for the Rendered preview. */
+  title?: string
   'data-testid'?: string
 }
 
@@ -81,6 +83,11 @@ export interface ResourceFormControlProps extends SlotProps {
   metadataReservedKeys?: string[]
   /** Replaces the shared `ResourceBodyEditor` (#914). */
   renderBody?: (props: BodySlotProps) => ReactNode
+  /**
+   * The value of the form's name field, handed to the `body` control so its
+   * Rendered preview can leave out a leading heading that repeats it.
+   */
+  resourceTitle?: string
   /** Defaults to `block`. */
   variant?: ResourceFormControlVariant
 }
@@ -272,6 +279,7 @@ export function ResourceFormControl({
   metadataRequiredKeys,
   metadataReservedKeys,
   renderBody,
+  resourceTitle,
   variant = 'block',
   ...slot
 }: Readonly<ResourceFormControlProps>) {
@@ -315,6 +323,7 @@ export function ResourceFormControl({
         disabled,
         placeholder: spec.placeholder,
         label,
+        title: resourceTitle,
         'data-testid': spec.testId,
       }
       if (renderBody) return renderBody(bodyProps)
@@ -325,6 +334,7 @@ export function ResourceFormControl({
         <ResourceBodyEditor
           {...slot}
           value={bodyProps.value}
+          title={resourceTitle}
           disabled={disabled}
           placeholder={spec.placeholder}
           data-testid={spec.testId}

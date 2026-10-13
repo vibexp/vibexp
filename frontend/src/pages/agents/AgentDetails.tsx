@@ -119,6 +119,7 @@ export function AgentDetails() {
   const backAction: ReadingAction = useMemo(
     () => ({
       id: 'back',
+      placement: 'toolbar',
       label: 'Back',
       icon: ArrowLeft,
       onClick: () => {
@@ -163,6 +164,7 @@ export function AgentDetails() {
     backAction,
     {
       id: 'chat',
+      placement: 'toolbar',
       label: 'Chat',
       icon: Bot,
       testId: 'chat-agent-button',
@@ -172,6 +174,7 @@ export function AgentDetails() {
     },
     {
       id: 'conversations',
+      placement: 'toolbar',
       label: 'Conversations',
       icon: MessageSquare,
       testId: 'agent-conversations-button',
@@ -183,6 +186,7 @@ export function AgentDetails() {
     },
     {
       id: 'edit',
+      placement: 'toolbar',
       label: 'Edit',
       icon: Pencil,
       testId: 'edit-agent-button',

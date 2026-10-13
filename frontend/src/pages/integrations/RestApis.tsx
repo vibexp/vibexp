@@ -70,7 +70,7 @@ export function RestApis() {
   const origin = getBackendOrigin()
 
   return (
-    <div className="mx-auto max-w-[1080px]">
+    <div>
       <header className="mb-8">
         <h1 className="flex items-center gap-3 text-3xl font-bold tracking-tight">
           <span className="bg-primary text-primary-foreground grid size-[38px] place-items-center rounded-md">

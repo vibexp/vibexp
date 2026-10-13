@@ -6,17 +6,18 @@ import { createArtifactWithContent } from '../../helpers/artifacts'
 /**
  * Feature Test: reading-page body geometry (#1176)
  *
- * The Raw view must sit in the same column as the title and the rendered
- * prose, so toggling Rendered ↔ Raw moves nothing. It used to bleed past the
- * column by `--reading-bleed` on each side (up to 12rem at wide windows),
- * while wide blocks inside the RENDERED body keep that bleed on purpose.
+ * One constant left edge: the title, the rendered prose, wide blocks and the
+ * Raw view all start at the same x, so toggling Rendered ↔ Raw moves nothing
+ * sideways. Prose stops at the prose measure; a wide block (code, a table)
+ * extends to the RIGHT of it, up to the article's width, and never out on
+ * both sides as it used to.
  *
  * This is geometry, so only a real layout engine can see it: jsdom returns
  * 0×0 for every box, and the unit suite cannot catch a regression here.
  */
 
 // Word-separated, so the raw `whitespace-pre-wrap` view wraps it, while the
-// rendered code block keeps it on one line and wants the whole bleed.
+// rendered code block keeps it on one line and wants all the width it can get.
 const LONG_LINE = Array.from(
   { length: 40 },
   (_, i) => `token${String(i)}`
@@ -51,7 +52,7 @@ async function expectNoPageOverflow(page: Page): Promise<void> {
 }
 
 test.describe('Reading body geometry', () => {
-  test('Raw sits in the reading column; rendered wide blocks still bleed', async ({
+  test('one left edge: prose stops at its measure, wide blocks extend right', async ({
     authenticatedPage: page,
   }) => {
     await page.setViewportSize({ width: 1920, height: 1080 })
@@ -63,14 +64,19 @@ test.describe('Reading body geometry', () => {
     await bodyView.getByRole('tab', { name: 'Rendered' }).click()
     const column = await box(title)
     const prose = await box(page.locator('.reading-body > p').first())
-    const codeBlock = await box(page.locator('.reading-body > pre').first())
+    const codeBlock = await box(
+      page.locator('.reading-body > .code-block').first()
+    )
 
-    // Rendered prose is pushed back into the column…
+    // Rendered prose starts at the column's left edge and stops short of its
+    // right one: at this width the article is wider than the prose measure.
     expect(Math.abs(prose.x - column.x)).toBeLessThanOrEqual(1)
-    expect(Math.abs(prose.width - column.width)).toBeLessThanOrEqual(1)
-    // …while a wide block still takes the bleed on both sides.
-    expect(codeBlock.x).toBeLessThan(column.x - 1)
-    expect(codeBlock.width).toBeGreaterThan(column.width + 2)
+    expect(prose.width).toBeLessThan(column.width - 2)
+    // A wide block starts at the SAME left edge and extends to the right of
+    // the prose, never past the article.
+    expect(Math.abs(codeBlock.x - column.x)).toBeLessThanOrEqual(1)
+    expect(codeBlock.width).toBeGreaterThan(prose.width + 2)
+    expect(codeBlock.width).toBeLessThanOrEqual(column.width + 1)
 
     await bodyView.getByRole('tab', { name: 'Raw' }).click()
     const raw = await box(page.getByTestId('resource-body-raw'))

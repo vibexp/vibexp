@@ -145,6 +145,17 @@ vi.mock('@/components/attachments/ResourceAttachments', () => ({
   ),
 }))
 
+const mockCurrentProject = vi.hoisted(() => ({
+  value: null as { id: string; name: string } | null,
+}))
+vi.mock('@/contexts/ProjectContext', () => ({
+  useProject: () => ({
+    currentProject: mockCurrentProject.value,
+    setCurrentProject: vi.fn(),
+    isLoading: false,
+  }),
+}))
+
 vi.mock('@/services/projectService', () => ({
   projectService: {
     getProjects: vi.fn(),
@@ -651,7 +662,7 @@ describe('PromptEditor — edit mode', () => {
       expect(screen.getByTestId('prompt-name-input')).toHaveValue('My Prompt')
     })
 
-    await user.click(screen.getByRole('tab', { name: 'Render' }))
+    await user.click(screen.getByRole('tab', { name: 'Resolved' }))
 
     await waitFor(() => {
       expect(promptService.getPromptPlaceholders).toHaveBeenCalledWith(

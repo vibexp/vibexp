@@ -18,7 +18,6 @@ function makeInputs(overrides: Partial<OverviewInputs> = {}): OverviewInputs {
   return {
     teamStats: makeStats(),
     totalAgents: 9,
-    mcpToolsCount: 19,
     weekly: {
       prompts: 2,
       artifacts: 96,
@@ -26,68 +25,51 @@ function makeInputs(overrides: Partial<OverviewInputs> = {}): OverviewInputs {
       memories: 7,
       feed: 214,
     },
-    isEmptyWorkspace: false,
     ...overrides,
   }
 }
 
 describe('buildOverviewStats', () => {
-  it('produces the seven design cards in order with the right values', () => {
+  it('produces the six workspace totals in order with the right values', () => {
     const stats = buildOverviewStats(makeInputs())
 
-    expect(stats.map(s => s.label)).toEqual([
-      'Total Prompts',
-      'Total Artifacts',
-      'Total Memories',
-      'Total Blueprints',
-      'Total Agents',
-      'AI Feed updates',
-      'MCP Tools',
+    expect(stats.map(s => [s.label, s.value])).toEqual([
+      ['Prompts', 4],
+      ['Artifacts', 110],
+      ['Memories', 51],
+      ['Blueprints', 24],
+      ['Agents', 9],
+      ['Feed updates', 1862],
     ])
-    expect(stats.map(s => s.value)).toEqual([4, 110, 51, 24, 9, 1862, 19])
   })
 
-  it('derives up-trend badges and "this week" subtitles from weekly deltas', () => {
-    const stats = buildOverviewStats(makeInputs())
-    const artifacts = stats.find(s => s.label === 'Total Artifacts')
-    expect(artifacts?.trend).toEqual({ label: '+96', tone: 'up' })
-    expect(artifacts?.subtitle).toBe('+96 this week')
+  it('has no MCP tools entry: a product constant is not a workspace total', () => {
+    const labels = buildOverviewStats(makeInputs()).map(s => s.label)
 
-    const feed = stats.find(s => s.label === 'AI Feed updates')
-    expect(feed?.trend).toEqual({ label: '+214', tone: 'up' })
-    expect(feed?.subtitle).toBe('+214 this week')
+    expect(labels.some(label => /mcp/i.test(label))).toBe(false)
   })
 
-  it('omits trend badges for Agents and MCP Tools (no weekly source)', () => {
-    const stats = buildOverviewStats(makeInputs())
-    expect(stats.find(s => s.label === 'Total Agents')?.trend).toBeNull()
-    expect(stats.find(s => s.label === 'MCP Tools')?.trend).toBeNull()
-  })
-
-  it('suppresses every trend badge and subtitle for an empty workspace', () => {
-    const stats = buildOverviewStats(
-      makeInputs({
-        isEmptyWorkspace: true,
-        teamStats: makeStats({
-          total_prompts: 0,
-          total_artifacts: 0,
-          total_blueprints: 0,
-          total_memories: 0,
-          total_feed_items: 0,
-        }),
-      })
+  it('carries the weekly delta of each resource type', () => {
+    const byLabel = Object.fromEntries(
+      buildOverviewStats(makeInputs()).map(s => [s.label, s.weeklyDelta])
     )
-    expect(stats.every(s => s.trend === null)).toBe(true)
-    expect(stats.every(s => s.subtitle === undefined)).toBe(true)
+
+    expect(byLabel).toEqual({
+      Prompts: 2,
+      Artifacts: 96,
+      Memories: 7,
+      Blueprints: 5,
+      Agents: undefined,
+      'Feed updates': 214,
+    })
   })
 
-  it('falls back to zeros when stats / weekly data are missing', () => {
+  it('falls back to zero values and no deltas before anything has loaded', () => {
     const stats = buildOverviewStats(
-      makeInputs({ teamStats: null, weekly: null })
+      makeInputs({ teamStats: null, totalAgents: 0, weekly: null })
     )
-    expect(stats.find(s => s.label === 'Total Prompts')?.value).toBe(0)
-    expect(stats.find(s => s.label === 'Total Prompts')?.trend).toBeNull()
-    // MCP Tools comes from a static count, not team stats.
-    expect(stats.find(s => s.label === 'MCP Tools')?.value).toBe(19)
+
+    expect(stats.every(s => s.value === 0)).toBe(true)
+    expect(stats.every(s => s.weeklyDelta === undefined)).toBe(true)
   })
 })

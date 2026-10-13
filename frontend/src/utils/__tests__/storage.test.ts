@@ -7,6 +7,17 @@ import { storageUtils } from '../storage'
 const rawLocal = globalThis.localStorage
 
 describe('storageUtils.migrateStorageKeys', () => {
+  it.each([['vx_body_view_raw'], ['vx_reading_measured']])(
+    'removes the retired %s preference',
+    key => {
+      globalThis.localStorage.setItem(key, 'true')
+
+      storageUtils.migrateStorageKeys()
+
+      expect(globalThis.localStorage.getItem(key)).toBeNull()
+    }
+  )
+
   beforeEach(() => {
     globalThis.localStorage.clear()
     globalThis.sessionStorage.clear()

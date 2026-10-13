@@ -175,7 +175,7 @@ export function FeedPostComposer({
         handleCollapse()
       }}
       aria-busy={isSubmitting}
-      className="rounded-xl border bg-card p-4 shadow-sm transition-shadow focus-within:border-ring/60 focus-within:ring-2 focus-within:ring-ring/20"
+      className="rounded-lg border bg-card p-4 transition-shadow focus-within:border-ring/60 focus-within:ring-2 focus-within:ring-ring/20"
     >
       <div className="flex gap-3">
         {/* Avatar */}

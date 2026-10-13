@@ -16,6 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { formatDateTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
 
 import { Diffstat, VersionAuthorChip } from './atoms'
@@ -253,7 +254,9 @@ export function VersionCompareView({
             <span className="vcmp-mv">Version {base.versionNumber}</span>
             <span className="vcmp-msub">
               <VersionAuthorChip entry={base} small /> ·{' '}
-              {formatRelative(base.createdAt)}
+              <span title={formatDateTime(base.createdAt)}>
+                {formatRelative(base.createdAt)}
+              </span>
             </span>
           </span>
         </div>
@@ -266,7 +269,9 @@ export function VersionCompareView({
             </span>
             <span className="vcmp-msub">
               <VersionAuthorChip entry={compare} small /> ·{' '}
-              {formatRelative(compare.createdAt)}
+              <span title={formatDateTime(compare.createdAt)}>
+                {formatRelative(compare.createdAt)}
+              </span>
             </span>
           </span>
           <span className="vcmp-mright">

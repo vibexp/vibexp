@@ -137,7 +137,7 @@ describe('MemoryView', () => {
   })
 
   describe('when TeamContext finishes loading with a team', () => {
-    it('shows a custom status by its display name, in the header and the Metadata row (#1263)', async () => {
+    it('shows a custom status by its display name, once, in the header (#1263)', async () => {
       statusCatalog.statuses = [
         { slug: 'in-review', name: 'In review', is_system: false },
       ]
@@ -156,8 +156,8 @@ describe('MemoryView', () => {
 
       const header = await screen.findByTestId('resource-header-meta')
       expect(within(header).getByText('In review')).toHaveClass('bg-muted')
-      // The header badge and the descriptor-generated Status row.
-      expect(screen.getAllByText('In review')).toHaveLength(2)
+      // Once: the rail's details no longer repeat what the header shows.
+      expect(screen.getAllByText('In review')).toHaveLength(1)
       expect(screen.queryByText('in-review')).not.toBeInTheDocument()
     })
 
@@ -177,7 +177,7 @@ describe('MemoryView', () => {
 
       const header = await screen.findByTestId('resource-header-meta')
       expect(within(header).getByText('in-review')).toHaveClass('bg-muted')
-      expect(screen.getAllByText('in-review')).toHaveLength(2)
+      expect(screen.getAllByText('in-review')).toHaveLength(1)
     })
 
     it('loads and renders the memory text via MarkdownRenderer', async () => {
@@ -296,6 +296,36 @@ describe('MemoryView', () => {
           screen.getByRole('heading', { level: 1, name: 'Deployment runbook' })
         ).toBeInTheDocument()
       })
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'Deployment runbook' })
+      ).toHaveClass('text-muted-foreground')
+    })
+
+    it('shows the memory\u2019s own title, not a body-derived one, when it has one', async () => {
+      mockUseTeam.mockReturnValue({
+        currentTeam: { id: 'team-1', name: 'Test Team' },
+        teams: [{ id: 'team-1', name: 'Test Team' }],
+        isLoading: false,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
+      })
+      ;(memoryService.getMemory as Mock).mockResolvedValue({
+        ...mockMemory,
+        title: 'chi path params',
+        text: '# Deployment runbook\n\nDrain the node first.',
+      })
+
+      renderMemoryView()
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('heading', { level: 1, name: 'chi path params' })
+        ).toBeInTheDocument()
+      })
+      // A chosen title is drawn at full strength; a stand-in is subdued.
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'chi path params' })
+      ).not.toHaveClass('text-muted-foreground')
     })
 
     it('links the Project row from the payload summary without listing projects (#956)', async () => {
@@ -472,7 +502,7 @@ describe('MemoryView', () => {
         'This is memory text content'
       )
 
-      await user.click(within(body).getByRole('tab', { name: 'Raw' }))
+      await user.click(screen.getByRole('tab', { name: 'Raw' }))
 
       expect(screen.getByTestId('resource-body-raw')).toHaveTextContent(
         'This is memory text content'
@@ -496,7 +526,7 @@ describe('MemoryView', () => {
       ;(memoryService.getMemory as Mock).mockResolvedValue(mockMemory)
     })
 
-    it('renders the version-history link with the total-version count chip', async () => {
+    it('links the version row to the history, naming the version count', async () => {
       ;(memoryService.getMemoryVersions as Mock).mockResolvedValue({
         versions: [
           { id: 'v2', version_number: 2 },
@@ -507,8 +537,10 @@ describe('MemoryView', () => {
       renderMemoryView()
 
       const link = await screen.findByTestId('metadata-version-history-link')
-      expect(link).toHaveTextContent('View version history')
-      expect(link).toHaveTextContent('2')
+      // In the rail the version row itself is the link to the history: one
+      // row, named for where it goes and how many versions are there.
+      expect(link).toHaveAccessibleName('View version history, 2 versions')
+      expect(link).toHaveTextContent(/^v\d+/)
       expect(link).toHaveAttribute('href', '/memories/memory-1/versions')
       expect(memoryService.getMemoryVersions).toHaveBeenCalledWith(
         'team-1',

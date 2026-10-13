@@ -1,6 +1,4 @@
-import { BookOpen, Server, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
 import {
@@ -8,22 +6,18 @@ import {
   type SegmentedOption,
 } from '@/components/SegmentedControl'
 import { TeamFeedCreationChart } from '@/components/TeamFeedCreationChart'
-import { TeamResourceAccessChart } from '@/components/TeamResourceAccessChart'
 import { TeamResourceCreationChart } from '@/components/TeamResourceCreationChart'
 import { TeamResourceCumulativeChart } from '@/components/TeamResourceCumulativeChart'
+import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAuth } from '@/contexts/useAuth'
-import { AnalyticsEmptyState } from '@/pages/home/AnalyticsEmptyState'
 import { buildOverviewStats } from '@/pages/home/buildOverviewStats'
-import { OverviewCard } from '@/pages/home/OverviewCard'
-import { type QuickAction, QuickActionCard } from '@/pages/home/QuickActionCard'
-import {
-  RecentActivityList,
-  RecentCommentsList,
-  RecentFeedList,
-} from '@/pages/home/RecentLists'
-import { TopAccessedResources } from '@/pages/home/TopAccessedResources'
-import { mcpTools } from '@/pages/mcp/mcp-tools'
+import { DashboardSection } from '@/pages/home/DashboardSection'
+import { GettingStarted } from '@/pages/home/GettingStarted'
+import { KnowledgeUsage } from '@/pages/home/KnowledgeUsage'
+import { NeedsAttention } from '@/pages/home/NeedsAttention'
+import { WhatChanged } from '@/pages/home/WhatChanged'
+import { WorkspaceTotals } from '@/pages/home/WorkspaceTotals'
 import type { Activity as ActivityType } from '@/services/activityService'
 import { activityService } from '@/services/activityService'
 import { agentService } from '@/services/agentService'
@@ -36,8 +30,8 @@ import { teamService } from '@/services/teamService'
 
 const DEFAULT_RANGE = '30d'
 
-/** Short range labels matching the design's segmented control. Values map to the
- * shared TIME_SERIES_RANGE_OPTIONS / backend ranges. */
+/** Short range labels, also read aloud in sentences ("in the last 30 days").
+ * Values map to the shared TIME_SERIES_RANGE_OPTIONS / backend ranges. */
 const RANGE_TABS: readonly SegmentedOption[] = [
   { value: '7d', label: '7 days' },
   { value: '14d', label: '14 days' },
@@ -45,30 +39,6 @@ const RANGE_TABS: readonly SegmentedOption[] = [
   { value: '60d', label: '2 months' },
   { value: '90d', label: '3 months' },
   { value: '180d', label: '6 months' },
-]
-
-const QUICK_ACTIONS: QuickAction[] = [
-  {
-    title: 'Create Prompt',
-    description: 'Write and organize reusable prompts for your team.',
-    icon: Sparkles,
-    to: '/prompts/new',
-    buttonText: 'Create',
-  },
-  {
-    title: 'Setup MCP Server',
-    description: 'Connect VibeXP to Claude and your tools over MCP.',
-    icon: Server,
-    to: '/mcp-servers/vibexp-mcp',
-    buttonText: 'Configure',
-  },
-  {
-    title: 'Manage Blueprints',
-    description: 'Build and reuse structured blueprints for new work.',
-    icon: BookOpen,
-    to: '/blueprints',
-    buttonText: 'Open',
-  },
 ]
 
 /** Sums a numeric field across time-series count rows. */
@@ -87,8 +57,9 @@ interface WeeklyDeltas {
 export function Home() {
   const { user } = useAuth()
   const { currentTeam } = useTeam()
-  const navigate = useNavigate()
+  const { currentProject } = useProject()
   const teamId = currentTeam?.id
+  const projectId = currentProject?.id
 
   const [range, setRange] = useState(DEFAULT_RANGE)
   const [teamStats, setTeamStats] = useState<TeamStats | null>(null)
@@ -132,7 +103,7 @@ export function Home() {
     void fetchRecentActivities()
   }, [])
 
-  // Overview metrics: pulled together so the eight cards settle as one unit.
+  // Workspace totals: pulled together so the row settles as one unit.
   // allSettled keeps a single failing source (e.g. agents) from blanking the
   // rest of the row; the finally guards against a hung skeleton.
   useEffect(() => {
@@ -183,6 +154,7 @@ export function Home() {
           limit: 10,
           archived: 'false',
           page: 1,
+          project_id: projectId,
         })
         setFeedItems(response.items)
       } catch (error) {
@@ -193,7 +165,7 @@ export function Home() {
       }
     }
     void fetchRecentFeedItems()
-  }, [teamId])
+  }, [teamId, projectId])
 
   useEffect(() => {
     if (!teamId) return
@@ -227,121 +199,99 @@ export function Home() {
     void fetchRecentComments()
   }, [teamId])
 
+  // Resources only: every team has a default project, so counting projects
+  // would mean no workspace is ever empty.
   const totalResources = teamStats
     ? teamStats.total_prompts +
       teamStats.total_artifacts +
       teamStats.total_blueprints +
-      teamStats.total_memories +
-      teamStats.total_projects
+      teamStats.total_memories
     : 0
   const isEmptyWorkspace =
     !statsLoading && teamStats != null && totalResources === 0
 
-  const overviewStats = buildOverviewStats({
-    teamStats,
-    totalAgents,
-    mcpToolsCount: mcpTools.length,
-    weekly,
-    isEmptyWorkspace,
-  })
+  const overviewStats = buildOverviewStats({ teamStats, totalAgents, weekly })
+
+  const rangeLabel = RANGE_TABS.find(tab => tab.value === range)?.label ?? range
+  const rangeControl = (
+    <SegmentedControl
+      size="sm"
+      options={RANGE_TABS}
+      value={range}
+      onChange={setRange}
+      aria-label="Select analytics time range"
+    />
+  )
+
+  const totals = (
+    <DashboardSection
+      title="Workspace totals"
+      description={projectId ? 'Counts across the whole workspace.' : undefined}
+    >
+      <WorkspaceTotals stats={overviewStats} loading={statsLoading} />
+    </DashboardSection>
+  )
+
+  if (isEmptyWorkspace || !teamId) {
+    return (
+      <div className="space-y-8">
+        <PageHeader title={greeting} className="pb-0" />
+        {teamId && <GettingStarted />}
+        {teamId && totals}
+      </div>
+    )
+  }
 
   return (
-    <div className="space-y-10">
-      <PageHeader
-        title={greeting}
-        description="Your shared brain is ready. Every session makes the next one smarter."
+    <div className="space-y-8">
+      <PageHeader title={greeting} className="pb-0" />
+
+      <NeedsAttention
+        teamId={teamId}
+        projectId={projectId}
+        feedItems={feedItems}
+        feedLoading={feedLoading}
+        feedError={feedError !== null}
       />
 
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold">Overview</h2>
-          <p className="text-muted-foreground text-sm">
-            Everything in your workspace at a glance.
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {overviewStats.map(stat => (
-            <OverviewCard key={stat.label} stat={stat} loading={statsLoading} />
-          ))}
-        </div>
-      </section>
+      <WhatChanged
+        teamId={teamId}
+        projectId={projectId}
+        members={commentMembers}
+        feed={{ items: feedItems, loading: feedLoading, error: feedError }}
+        comments={{
+          items: recentComments,
+          loading: commentsLoading,
+          error: commentsError,
+        }}
+        activities={{
+          items: activities,
+          loading: activitiesLoading,
+          error: activitiesError,
+        }}
+      />
 
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Quick actions</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {QUICK_ACTIONS.map(action => (
-            <QuickActionCard key={action.title} action={action} />
-          ))}
-        </div>
-      </section>
+      <KnowledgeUsage
+        teamId={teamId}
+        range={range}
+        rangeLabel={rangeLabel}
+        rangeControl={rangeControl}
+        projectSelected={projectId !== undefined}
+      />
 
-      <section className="space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold">Analytics</h2>
-            <p className="text-muted-foreground text-sm">
-              Access, creation and growth across every resource type.
-            </p>
-          </div>
-          {!isEmptyWorkspace && teamId && (
-            <SegmentedControl
-              options={RANGE_TABS}
-              value={range}
-              onChange={setRange}
-              aria-label="Select analytics time range"
-            />
-          )}
-        </div>
-        {isEmptyWorkspace || !teamId ? (
-          <AnalyticsEmptyState />
-        ) : (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <TeamResourceAccessChart teamId={teamId} range={range} />
-            <TeamResourceCreationChart teamId={teamId} range={range} />
-            <TeamResourceCumulativeChart teamId={teamId} range={range} />
-            <TeamFeedCreationChart teamId={teamId} range={range} />
-          </div>
-        )}
-      </section>
+      {totals}
 
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold">Top accessed resources</h2>
-          <p className="text-muted-foreground text-sm">
-            Most-opened resources in the selected range. Filter by how they were
-            accessed.
-          </p>
+      <DashboardSection
+        title="Growth"
+        description={`What was created in the last ${rangeLabel}, and the running total.`}
+        aside={rangeControl}
+      >
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <TeamResourceCreationChart teamId={teamId} range={range} />
+          <TeamResourceCumulativeChart teamId={teamId} range={range} />
+          <TeamFeedCreationChart teamId={teamId} range={range} />
         </div>
-        {teamId ? <TopAccessedResources teamId={teamId} range={range} /> : null}
-      </section>
-
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Activity</h2>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <RecentFeedList
-            items={feedItems}
-            loading={feedLoading}
-            error={feedError}
-            onViewAll={() => {
-              void navigate('/feeds')
-            }}
-          />
-          <RecentActivityList
-            activities={activities}
-            loading={activitiesLoading}
-            error={activitiesError}
-            onViewAll={() => {
-              void navigate('/settings/activities')
-            }}
-          />
-          <RecentCommentsList
-            comments={recentComments}
-            members={commentMembers}
-            loading={commentsLoading}
-            error={commentsError}
-          />
-        </div>
-      </section>
+      </DashboardSection>
     </div>
   )
 }

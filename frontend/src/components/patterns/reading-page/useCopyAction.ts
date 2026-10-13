@@ -27,6 +27,8 @@ export function useCopyAction(
       id,
       label: copied ? 'Copied!' : label,
       icon: copied ? Check : Copy,
+      // Something a reader does all the time: a labelled toolbar button.
+      placement: 'toolbar',
       onClick: () => {
         copy(value)
       },

@@ -95,7 +95,7 @@ function buildColumns(onDelete: (apiKey: APIKey) => void): ColumnDef<APIKey>[] {
       cell: ({ row }) => (
         <code
           data-testid="masked-api-key"
-          className="bg-muted rounded px-2 py-0.5 font-mono text-xs"
+          className="bg-muted rounded-sm px-2 py-0.5 font-mono text-xs"
         >
           {row.original.key_prefix}***
         </code>
@@ -259,15 +259,11 @@ export function APIKeys() {
         }
       />
     ) : (
-      <Card>
-        <CardContent className="p-4">
-          <DataTable
-            columns={columns}
-            data={apiKeys}
-            rowTestId={() => 'api-key-item'}
-          />
-        </CardContent>
-      </Card>
+      <DataTable
+        columns={columns}
+        data={apiKeys}
+        rowTestId={() => 'api-key-item'}
+      />
     )
 
   return (

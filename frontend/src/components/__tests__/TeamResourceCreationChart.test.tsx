@@ -1,6 +1,8 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 
+import { emptyBySource, writesBySource } from '@/lib/testing/creationMetrics'
+
 import type { TeamResourceCreationMetricsResponse } from '../../services/teamService'
 
 const mockGetTeamResourceCreationMetrics = vi.hoisted(() => vi.fn())
@@ -35,6 +37,8 @@ function buildResponse(
     data: {
       total_created: 7,
       range: '30d',
+      by_source: emptyBySource(),
+      writes_by_source: writesBySource(),
       counts: [
         {
           date: '2026-05-01',

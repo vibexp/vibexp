@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { useForm } from 'react-hook-form'
 
+import { READING_TITLE_CLASS } from '@/components/patterns/reading-page'
 import {
   FormControl,
   FormDescription,
@@ -110,8 +111,8 @@ export interface ResourceFormSlots {
 const INLINE_FIELD_CLASS =
   'block -mx-2 w-[calc(100%+1rem)] resize-none overflow-hidden rounded-md border-0 bg-transparent px-2 py-0 field-sizing-content outline-none transition-colors placeholder:text-muted-foreground/60 hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring aria-invalid:ring-2 aria-invalid:ring-destructive disabled:cursor-not-allowed disabled:opacity-50'
 
-/** The reading page's `<h1>` typography. */
-const INLINE_TITLE_CLASS = 'text-2xl font-semibold tracking-tight'
+/** The reading page's `<h1>` typography — the same constant, so they cannot drift. */
+const INLINE_TITLE_CLASS = READING_TITLE_CLASS
 
 /** The reading page's lead typography, at the same prose measure (+1rem, as above). */
 const INLINE_SUMMARY_CLASS =
@@ -314,6 +315,9 @@ export function useResourceForm({
                 metadataReservedKeys={metadataReservedKeys}
                 onMetadataValidityChange={setMetadataValid}
                 renderBody={renderBody}
+                resourceTitle={
+                  typeof nameValue === 'string' ? nameValue : undefined
+                }
                 onChange={next => {
                   if (spec === slugSpec) slugManuallyEdited.current = true
                   field.onChange(next)

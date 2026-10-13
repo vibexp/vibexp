@@ -418,6 +418,11 @@ describe('Blueprints page', () => {
 
   describe('filters', () => {
     it('re-fetches with the debounced search term and shows the filtered empty state', async () => {
+      // The filter row only exists once the list holds something (it is
+      // dropped on a blank slate), so the first load returns a row.
+      ;(blueprintService.getBlueprints as Mock).mockResolvedValueOnce(
+        buildListResponse([buildBlueprint()])
+      )
       renderBlueprints()
 
       await waitFor(() => {
@@ -445,6 +450,11 @@ describe('Blueprints page', () => {
     })
 
     it('re-fetches with the picked type and clears it on All types', async () => {
+      // The filter row only exists once the list holds something (it is
+      // dropped on a blank slate), so the first load returns a row.
+      ;(blueprintService.getBlueprints as Mock).mockResolvedValueOnce(
+        buildListResponse([buildBlueprint()])
+      )
       renderBlueprints()
 
       await waitFor(() => {
@@ -551,6 +561,11 @@ describe('Blueprints page', () => {
     })
 
     it('committing a metadata chip sends the JSON param and resets to page 1', async () => {
+      // The filter row only exists once the list holds something (it is
+      // dropped on a blank slate), so the first load returns a row.
+      ;(blueprintService.getBlueprints as Mock).mockResolvedValueOnce(
+        buildListResponse([buildBlueprint()])
+      )
       renderBlueprints('/blueprints?page=4')
       await waitFor(() => {
         expect(lastQuery().page).toBe(4)
@@ -592,6 +607,11 @@ describe('Blueprints page', () => {
     })
 
     it('debounces the search box into a single request and one URL write', async () => {
+      // The filter row only exists once the list holds something (it is
+      // dropped on a blank slate), so the first load returns a row.
+      ;(blueprintService.getBlueprints as Mock).mockResolvedValueOnce(
+        buildListResponse([buildBlueprint()])
+      )
       renderBlueprints()
       await waitFor(() => {
         expect(blueprintService.getBlueprints).toHaveBeenCalled()
@@ -677,6 +697,11 @@ describe('Blueprints page', () => {
       await screen.findByText('No blueprints match your filters')
 
       const user = userEvent.setup()
+      // Unfiltered, the list has a row: a blank slate would drop the filter row
+      // this test goes on to read.
+      ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
+        buildListResponse([buildBlueprint()])
+      )
       const [clear] = screen.getAllByRole('button', { name: 'Clear filters' })
       await user.click(clear)
 
@@ -793,9 +818,9 @@ describe('Blueprints page', () => {
       const newButtons = screen.getAllByRole('button', {
         name: /New blueprint/,
       })
-      expect(newButtons).toHaveLength(2)
+      expect(newButtons).toHaveLength(1)
       // The second one lives in the empty state.
-      await user.click(newButtons[1])
+      await user.click(newButtons[0])
 
       expect(screen.getByTestId('new-probe')).toBeInTheDocument()
     })
@@ -1106,6 +1131,11 @@ describe('Blueprints page — status filter (#908)', () => {
   })
 
   it('picking a status writes the URL and refetches from page 1', async () => {
+    // The filter row only exists once the list holds something (it is
+    // dropped on a blank slate), so the first load returns a row.
+    ;(blueprintService.getBlueprints as Mock).mockResolvedValueOnce(
+      buildListResponse([buildBlueprint()])
+    )
     renderBlueprints('/blueprints?page=3')
     await waitFor(() => {
       expect(lastQuery().page).toBe(3)
@@ -1343,6 +1373,11 @@ describe('Blueprints page — lock state (#1292)', () => {
   })
 
   it('picking "Locked only" writes the URL and refetches from page 1', async () => {
+    // The filter row only exists once the list holds something (it is
+    // dropped on a blank slate), so the first load returns a row.
+    ;(blueprintService.getBlueprints as Mock).mockResolvedValueOnce(
+      buildListResponse([buildBlueprint()])
+    )
     renderBlueprints('/blueprints?page=3')
     await waitFor(() => {
       expect(lastQuery().page).toBe(3)

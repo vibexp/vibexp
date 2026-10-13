@@ -1,12 +1,23 @@
 import DOMPurify from 'dompurify'
 import { AlertTriangle } from 'lucide-react'
-import { marked, Renderer } from 'marked'
+import { Marked, marked, Renderer } from 'marked'
 import mermaid from 'mermaid'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Root } from 'react-dom/client'
 
 import { cn } from '@/lib/utils'
 import Prism from '@/utils/prism-config'
+
+import {
+  promptPlaceholderExtension,
+  substituteFilledPlaceholders,
+} from './markdownPlaceholders'
+import {
+  addHeadingIds,
+  markTaskListItems,
+  stripLeadingTitleHeading,
+} from './markdownTransforms'
+import { readMermaidTheme } from './mermaidTheme'
 
 /**
  * Escapes HTML special characters in a string to prevent attribute breakage
@@ -20,14 +31,52 @@ const escHtml = (s: string): string =>
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
 
+// The same outline glyphs every other copy control uses (lucide's `Copy` and
+// `Check`), as strings because code blocks are injected HTML, not React.
+const ICON_ATTRS =
+  'class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
+const COPY_ICON = `<svg ${ICON_ATTRS}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>`
+const COPIED_ICON = `<svg ${ICON_ATTRS}><path d="M20 6 9 17l-5-5"></path></svg>`
+
 /**
- * Builds the copy-to-clipboard button markup injected into highlighted code
- * blocks. The code text is stored URI-encoded in a data attribute so a single
- * delegated click listener can recover it without DOM mutation.
+ * Builds the copy-to-clipboard button markup for a code block. The code text
+ * is stored URI-encoded in a data attribute so a single delegated click
+ * listener can recover it without DOM mutation.
  */
-function buildCopyButtonHtml(codeContent: string, copyId: string): string {
-  const encodedCode = encodeURIComponent(codeContent.replace(/<[^<>]*>/g, ''))
-  return `<button class="copy-button absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-muted-foreground/80 text-background rounded text-xs hover:bg-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" title="Copy code" data-copy-id="${copyId}" data-code="${encodedCode}"><svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"></path><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2h-1v1a1 1 0 01-1 1H7a1 1 0 01-1-1V3H6z"></path></svg></button>`
+function buildCopyButtonHtml(plainCode: string, copyId: string): string {
+  return `<button type="button" class="copy-button" title="Copy code" aria-label="Copy code" data-copy-id="${copyId}" data-code="${encodeURIComponent(plainCode)}">${COPY_ICON}</button>`
+}
+
+/** The text of an HTML-escaped code body, with its entities decoded. */
+function decodeCodeText(escapedCode: string): string {
+  const scratch = document.createElement('div')
+  scratch.innerHTML = escapedCode
+  return scratch.textContent ?? ''
+}
+
+/**
+ * A fenced code block as rendered: a bar carrying the language (when the fence
+ * names one) and the copy button, above the `<pre>`. The bar is always
+ * visible — a control that only appears on hover does not exist on a touch
+ * screen. The surface and the syntax colours come from the stylesheet
+ * (`.code-block` in index.css), which follows the theme.
+ */
+function buildCodeBlockHtml({
+  className,
+  language,
+  highlightedCode,
+  copyButton,
+}: {
+  className: string
+  language: string | undefined
+  highlightedCode: string
+  copyButton: string
+}): string {
+  const label = language
+    ? `<span class="code-block-language">${escHtml(language)}</span>`
+    : '<span></span>'
+  const codeClass = className ? ` class="${className}"` : ''
+  return `<div class="code-block"><div class="code-block-bar">${label}${copyButton}</div><pre class="scrollbar-hover"><code${codeClass}>${highlightedCode}</code></pre></div>`
 }
 
 /**
@@ -74,6 +123,21 @@ export interface MarkdownRendererProps {
    * intentionally out of scope.
    */
   linkTarget?: '_blank' | '_self'
+  /**
+   * Opts the content into prompt `{{placeholder}}` treatment: a placeholder
+   * with no (or an empty) value here renders as a chip naming the variable, one
+   * with a value renders as that value, lightly marked. Pass `{}` to show every
+   * placeholder as a chip. Left out, `{{…}}` is ordinary text. Keep the object
+   * referentially stable — a new one re-renders the markdown.
+   */
+  placeholders?: Record<string, string>
+  /**
+   * The title the page already shows for this content. A leading `# Heading`
+   * that only repeats it is left out of the rendering, so the title is not
+   * read twice in a row (see `stripLeadingTitleHeading`). The content itself
+   * is never changed.
+   */
+  hideLeadingTitle?: string
   onError?: (error: Error, context: string) => void
 }
 
@@ -84,10 +148,57 @@ interface MermaidDiagramProps {
   onError?: (error: Error) => void
 }
 
+/**
+ * Scrolling is the only way to reach the off-screen part of a diagram wider
+ * than its container, so that container must be reachable by keyboard (WCAG
+ * 2.1.1, the table wrapper's contract, #884) — but only then: a diagram that
+ * fits should not add a tab stop.
+ */
+function syncScrollFocus(container: HTMLElement): void {
+  if (container.scrollWidth > container.clientWidth) container.tabIndex = 0
+  else container.removeAttribute('tabindex')
+}
+
 const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
-  const elementRef = useRef<HTMLDivElement>(null)
+  const elementRef = useRef<HTMLElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  // Bumped when the colour tokens change under a rendered diagram (a theme
+  // switch), which re-runs the render effect. The diagram's colours are baked
+  // into the SVG, so nothing short of drawing it again can follow the theme.
+  const [themeVersion, setThemeVersion] = useState(0)
+  const renderedThemeRef = useRef('')
+
+  useEffect(() => {
+    const element = elementRef.current
+    if (!element) return
+
+    const observer = new MutationObserver(() => {
+      const current = JSON.stringify(readMermaidTheme(element))
+      if (current !== renderedThemeRef.current) {
+        setThemeVersion(version => version + 1)
+      }
+    })
+    // The theme is a class on the app root (and on <html> for some embeds).
+    // This component lives in its own React root, out of reach of the theme
+    // context, so the class is watched directly.
+    const targets = new Set<Element>([document.documentElement])
+    const appRoot = element.closest('.v2-root')
+    if (appRoot) targets.add(appRoot)
+    targets.forEach(target => {
+      observer.observe(target, { attributes: true, attributeFilter: ['class'] })
+    })
+    // The container resizes with the window and with either sidebar, and
+    // whether the diagram overflows it changes with it.
+    const resizeObserver = new ResizeObserver(() => {
+      syncScrollFocus(element)
+    })
+    resizeObserver.observe(element)
+    return () => {
+      observer.disconnect()
+      resizeObserver.disconnect()
+    }
+  }, [])
 
   useEffect(() => {
     const renderDiagram = async () => {
@@ -95,8 +206,13 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
       if (!element) return
 
       try {
-        setIsLoading(true)
+        // A diagram that is being redrawn for a theme switch stays on screen
+        // until its replacement is ready, instead of flashing the spinner.
+        setIsLoading(element.childElementCount === 0)
         setError(null)
+
+        const theme = readMermaidTheme(element)
+        renderedThemeRef.current = JSON.stringify(theme)
 
         // Initialize mermaid.
         //
@@ -111,9 +227,15 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
         // For the same reason, diagram labels are kept in the SVG namespace
         // DELIBERATELY (`htmlLabels: false`, see below): the sanitize profile
         // below stays SVG-only and needs no widening.
+        //
+        // `base` is the one theme that honours `themeVariables`; they are read
+        // from the app's colour tokens so the diagram matches the active theme
+        // (see `mermaidTheme.ts`).
         mermaid.initialize({
           startOnLoad: false,
-          theme: 'default',
+          theme: 'base',
+          darkMode: theme.darkMode,
+          themeVariables: theme.themeVariables,
           securityLevel: 'strict',
           fontFamily: 'inherit',
           // Emit labels as native SVG `<text>` instead of HTML inside a
@@ -137,6 +259,19 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
         element.innerHTML = DOMPurify.sanitize(svg, {
           USE_PROFILES: { svg: true, svgFilters: true },
         })
+
+        // Mermaid emits `width: 100%` capped by an inline `max-width` holding
+        // the diagram's natural width. That width is handed to CSS as a custom
+        // property on the placeholder, which sizes both the wide block and the
+        // SVG from it (see `.mermaid-container` in index.css): natural size
+        // while it fits, scaled down to a floor, scrolled below that. Sizing in
+        // CSS is what lets the fit follow the container without a redraw.
+        const natural = element.querySelector('svg')?.style.maxWidth
+        const placeholder = element.closest<HTMLElement>('[data-mermaid-id]')
+        if (natural && placeholder) {
+          placeholder.style.setProperty('--mermaid-natural-width', natural)
+        }
+        syncScrollFocus(element)
       } catch (err) {
         const error = err as Error
         console.error('Mermaid rendering error:', error)
@@ -148,7 +283,7 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
     }
 
     void renderDiagram()
-  }, [code, onError])
+  }, [code, onError, themeVersion])
 
   // The container MUST stay mounted in every state. It used to be returned only
   // in the success branch, which deadlocked the component: the render effect
@@ -176,7 +311,11 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
         </div>
       )}
 
-      <div ref={elementRef} className="mermaid-container" />
+      <section
+        ref={elementRef}
+        className="mermaid-container scrollbar-hover"
+        aria-label="Diagram"
+      />
     </>
   )
 }
@@ -194,6 +333,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   enableMermaid = true,
   enableCodeCopy = true,
   linkTarget = '_blank',
+  placeholders,
+  hideLeadingTitle,
   onError,
 }) => {
   const [renderedContent, setRenderedContent] = useState('')
@@ -273,7 +414,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         // (`-->` becomes `--&gt;`), so a fence-matching regex applied to
         // marked's OUTPUT can never match. Running it there meant no diagram
         // ever rendered — every one silently degraded to a code block (#744).
-        let source = content
+        let source = stripLeadingTitleHeading(content, hideLeadingTitle)
         if (enableMermaid) {
           const mermaidRegex = /```(?:mermaid|mmd)\r?\n([\s\S]*?)```/g
           const diagrams: { id: string; code: string }[] = []
@@ -283,7 +424,12 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
             (_match: string, code: string) => {
               const randomStr = Math.random().toString(36).substring(2, 11)
               const id = `mermaid-${String(Date.now())}-${randomStr}`
-              diagrams.push({ id, code: code.trim() })
+              diagrams.push({
+                id,
+                code: placeholders
+                  ? substituteFilledPlaceholders(code.trim(), placeholders)
+                  : code.trim(),
+              })
               // Surrounding blank lines keep this a top-level HTML block, so
               // marked emits it verbatim instead of wrapping it in a <p>.
               return `\n\n<div data-mermaid-id="${id}"></div>\n\n`
@@ -293,54 +439,71 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           setMermaidDiagrams(diagrams)
         }
 
-        let html = await marked(source, options)
+        // A private instance, so the placeholder extension never leaks into
+        // the shared `marked` every other markdown surface renders with.
+        let html = placeholders
+          ? await new Marked(promptPlaceholderExtension(placeholders)).parse(
+              source,
+              options
+            )
+          : await marked(source, options)
 
-        // Apply syntax highlighting and add copy buttons to code blocks in the HTML string
+        // Task-list items lose their bullet and get a themed, read-only box.
+        html = markTaskListItems(html)
+        // Anchors for the reading page's outline and for linking to a section.
+        html = addHeadingIds(html)
+
+        // Apply syntax highlighting, and give every fenced block its bar: the
+        // language label and the copy button. A fence with no language has no
+        // class attribute at all, and gets the bar too.
         let copyButtonCounter = 0
         html = html.replace(
-          /<pre><code class="([^"]*)">([\s\S]*?)<\/code><\/pre>/g,
-          (_match: string, className: string, codeContent: string) => {
+          /<pre><code(?: class="([^"]*)")?>([\s\S]*?)<\/code><\/pre>/g,
+          (
+            _match: string,
+            className: string | undefined,
+            codeContent: string
+          ) => {
             // Extract language from className (e.g., "language-javascript" -> "javascript")
-            const match = /language-(\w+)/.exec(className)
+            const language = /language-([\w+#-]+)/.exec(className ?? '')?.[1]
+            // The code as text: what is highlighted, and what is copied. (The
+            // escaped HTML used to be what was copied, so `a < b` reached the
+            // clipboard as `a &lt; b`.)
+            const plainText = decodeCodeText(codeContent)
             let highlightedCode = codeContent
 
             // Apply Prism syntax highlighting if language is supported
-            if (match) {
-              const lang = match[1]
-              // Safely check if language grammar exists and get it
-              if (Object.hasOwn(Prism.languages, lang)) {
-                try {
-                  // Decode HTML entities before highlighting
-                  const tempDiv = document.createElement('div')
-                  tempDiv.innerHTML = codeContent
-                  const plainText = tempDiv.textContent ?? ''
-
-                  // Apply Prism highlighting - lang is validated above
-                  const languageGrammar =
-                    Prism.languages[lang as keyof typeof Prism.languages]
-                  highlightedCode = Prism.highlight(
-                    plainText,
-                    languageGrammar,
-                    lang
-                  )
-                } catch (error) {
-                  console.warn('Syntax highlighting failed:', error)
-                  // Keep original codeContent if highlighting fails
-                }
+            if (language && Object.hasOwn(Prism.languages, language)) {
+              try {
+                // Apply Prism highlighting - language is validated above
+                const languageGrammar =
+                  Prism.languages[language as keyof typeof Prism.languages]
+                highlightedCode = Prism.highlight(
+                  plainText,
+                  languageGrammar,
+                  language
+                )
+              } catch (error) {
+                console.warn('Syntax highlighting failed:', error)
+                // Keep original codeContent if highlighting fails
               }
             }
 
-            // Build the final HTML with highlighting and optional copy button.
             // Use a stable data-copy-id to allow event delegation without mutating
             // the DOM (avoids the replaceChild conflict with React's virtual DOM).
             const copyButton = enableCodeCopy
               ? buildCopyButtonHtml(
-                  codeContent,
+                  plainText,
                   `copy-${String(copyButtonCounter++)}`
                 )
               : ''
 
-            return `<pre class="relative group overflow-x-auto"><code class="${className}">${highlightedCode}</code>${copyButton}</pre>`
+            return buildCodeBlockHtml({
+              className: className ?? '',
+              language,
+              highlightedCode,
+              copyButton,
+            })
           }
         )
 
@@ -372,7 +535,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           .replace(
             /<table(\s[^>]*)?>/g,
             (_match: string, attrs?: string) =>
-              `<div class="markdown-table-wrapper" tabindex="0" role="region" aria-label="Table"><table${attrs ?? ''}>`
+              `<div class="markdown-table-wrapper scrollbar-hover" tabindex="0" role="region" aria-label="Table"><table${attrs ?? ''}>`
           )
           .replaceAll('</table>', '</table></div>')
 
@@ -396,7 +559,14 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     }
     // onError intentionally omitted from deps - we use onErrorRef to avoid
     // re-render loops when callers pass inline callbacks (VIBEXP-FRONTEND-JS-3).
-  }, [content, configureMarked, enableMermaid, enableCodeCopy])
+  }, [
+    content,
+    configureMarked,
+    enableMermaid,
+    enableCodeCopy,
+    placeholders,
+    hideLeadingTitle,
+  ])
 
   // Attach copy button click listeners via event delegation on the container.
   // This avoids cloneNode/replaceChild which conflicts with React's virtual DOM
@@ -431,11 +601,6 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   useEffect(() => {
     if (!containerRef.current || !enableCodeCopy) return
 
-    const checkSvg =
-      '<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>'
-    const copySvg =
-      '<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"></path><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2h-1v1a1 1 0 01-1 1H7a1 1 0 01-1-1V3H6z"></path></svg>'
-
     const buttons =
       containerRef.current.querySelectorAll<HTMLButtonElement>('.copy-button')
     buttons.forEach(button => {
@@ -445,7 +610,9 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       // targeting elements inside dangerouslySetInnerHTML (not React-managed
       // component trees), and we are only mutating SVG icon content, not
       // structural nodes that React tracks.
-      button.innerHTML = copiedIds.has(copyId) ? checkSvg : copySvg
+      const copied = copiedIds.has(copyId)
+      button.innerHTML = copied ? COPIED_ICON : COPY_ICON
+      button.setAttribute('aria-label', copied ? 'Copied' : 'Copy code')
     })
   }, [copiedIds, enableCodeCopy])
 

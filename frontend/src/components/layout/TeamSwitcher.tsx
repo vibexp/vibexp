@@ -16,6 +16,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { useTeam } from '@/contexts/TeamContext'
 import { cn } from '@/lib/utils'
 
@@ -49,8 +54,22 @@ function pinnedTeamId(pathname: string): string | null {
   return /^\/teams\/([^/]+)/.exec(pathname)?.[1] ?? null
 }
 
+interface TeamSwitcherProps {
+  /**
+   * - `full`: the team's name on a full-width trigger — the expanded sidebar
+   *   and the mobile drawer.
+   * - `rail`: the team's initial on an icon-sized trigger, named by a tooltip
+   *   — the collapsed sidebar, where there is no room for a name.
+   */
+  variant?: 'full' | 'rail'
+}
+
 /**
- * Header team selector.
+ * The workspace (team) selector, at the top of the sidebar under the brand.
+ *
+ * It lives in the navigation, not in the header beside the project filter,
+ * because it is not a filter: the team is the global scope everything on the
+ * page belongs to.
  *
  * Three states (#544):
  *  - **Interactive** - anywhere team-scoped, which is most of the app.
@@ -62,23 +81,32 @@ function pinnedTeamId(pathname: string): string | null {
  * The two disabled states share a look but never a tooltip: conflating "does
  * not apply" with "the URL already chose" makes the second read like a bug.
  */
-export function TeamSwitcher() {
+export function TeamSwitcher({
+  variant = 'full',
+}: Readonly<TeamSwitcherProps>) {
   const { teams, currentTeam, setCurrentTeam, isLoading } = useTeam()
   const { pathname } = useLocation()
   const [open, setOpen] = useState(false)
+  const rail = variant === 'rail'
 
   const pinned = pinnedTeamId(pathname)
 
   // `TeamScopeLayout` (#539) syncs the ambient team to `:id`, but its effect
-  // runs after this header has already rendered. Showing "Loading..." until the
-  // two agree is what stops the previous team flashing in the header under a
-  // URL that names a different one.
+  // runs after this component has already rendered. Showing a loading state
+  // until the two agree is what stops the previous team flashing under a URL
+  // that names a different one.
   const awaitingScopeSync = pinned !== null && currentTeam?.id !== pinned
 
   if (isLoading || awaitingScopeSync) {
     return (
-      <Button variant="outline" size="sm" disabled className="h-8">
-        Loading…
+      <Button
+        variant="outline"
+        size="sm"
+        disabled
+        className={rail ? 'size-9 p-0' : 'h-9 w-full justify-start'}
+        aria-label="Loading workspace"
+      >
+        {rail ? '…' : 'Loading…'}
       </Button>
     )
   }
@@ -89,34 +117,72 @@ export function TeamSwitcher() {
 
   const personal = isPersonalPath(pathname)
   const disabled = personal || pinned !== null
+  const name = currentTeam?.name ?? 'Select team'
 
-  let tooltip: string | undefined
+  let note: string | undefined
   if (personal) {
-    tooltip = 'Your team does not apply to this page'
+    note = 'Your team does not apply to this page'
   } else if (pinned !== null) {
-    tooltip = `This page is scoped to ${currentTeam?.name ?? 'this team'}`
+    note = `This page is scoped to ${currentTeam?.name ?? 'this team'}`
   }
 
-  return (
-    <span title={tooltip}>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            role="combobox"
-            aria-expanded={open}
-            disabled={disabled}
-            className="h-8 max-w-[220px] justify-between"
-            data-testid="team-switcher"
-          >
+  const trigger = (
+    <PopoverTrigger asChild>
+      {/* A real button in both forms: the popover (and, on the rail, the
+          tooltip) anchors on its box (#891). */}
+      <Button
+        variant="outline"
+        size="sm"
+        role="combobox"
+        aria-expanded={open}
+        aria-label={rail ? `Workspace: ${name}` : undefined}
+        disabled={disabled}
+        className={
+          rail
+            ? 'size-9 p-0 font-semibold'
+            : 'h-9 w-full min-w-0 justify-between'
+        }
+        data-testid="team-switcher"
+      >
+        {rail ? (
+          <>
+            <span aria-hidden="true">
+              {Array.from(name.trim())[0]?.toUpperCase() ?? '?'}
+            </span>
+            <span className="sr-only" data-testid="current-team-name">
+              {name}
+            </span>
+          </>
+        ) : (
+          <>
             <span className="truncate" data-testid="current-team-name">
-              {currentTeam?.name ?? 'Select team'}
+              {name}
             </span>
             <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[240px] p-0" align="start">
+          </>
+        )}
+      </Button>
+    </PopoverTrigger>
+  )
+
+  return (
+    // The wrapper carries the "why is this disabled" note: a disabled button
+    // fires no pointer events, so it cannot show a tooltip of its own.
+    <span title={note} className={rail ? 'inline-flex' : 'flex w-full min-w-0'}>
+      <Popover open={open} onOpenChange={setOpen}>
+        {rail ? (
+          <Tooltip>
+            <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+            <TooltipContent side="right">{name}</TooltipContent>
+          </Tooltip>
+        ) : (
+          trigger
+        )}
+        <PopoverContent
+          className="w-60 p-0"
+          align="start"
+          side={rail ? 'right' : 'bottom'}
+        >
           <Command>
             <CommandInput placeholder="Search team…" className="h-9" />
             <CommandList>

@@ -13,6 +13,20 @@
 /** The product's own name: shown when no company name is configured. */
 export const PRODUCT_NAME = 'VibeXP'
 
+/**
+ * How every browser tab title ends: "{company name} · VibeXP", or "VibeXP"
+ * when no company name is configured (#1360). The product is always named —
+ * a company name never replaces it — and a company that is itself called
+ * VibeXP is not named twice.
+ */
+export function siteTitleSuffix(companyName: string | null): string {
+  const company = companyName?.trim() ?? ''
+  if (company === '' || company.toLowerCase() === PRODUCT_NAME.toLowerCase()) {
+    return PRODUCT_NAME
+  }
+  return `${company} · ${PRODUCT_NAME}`
+}
+
 /** Where "Powered by VibeXP" and the VibeXP mark link. */
 export const PRODUCT_URL = 'https://vibexp.io'
 

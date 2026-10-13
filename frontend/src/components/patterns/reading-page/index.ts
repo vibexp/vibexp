@@ -1,5 +1,6 @@
 export { DetailsColumn, DetailsRail } from './DetailsPanel'
 export { ReadingActions } from './ReadingActions'
+export { READING_META_ROW_CLASS, READING_TITLE_CLASS } from './readingHeader'
 export {
   ReadingPage,
   type ReadingPageProps,

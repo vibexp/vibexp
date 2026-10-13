@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 
+import { Card } from '../card'
 import {
   Panel,
   PanelAction,
@@ -21,7 +22,7 @@ function flat(ui: ReactNode) {
   )
 }
 
-const CARD_CHROME = ['rounded-lg', 'border', 'shadow-sm', 'bg-card'] as const
+const CARD_CHROME = ['rounded-lg', 'border', 'bg-card'] as const
 
 describe('panel presentation', () => {
   it('defaults to card when no surface declares one', () => {
@@ -180,5 +181,23 @@ describe('PanelRow', () => {
       </ul>
     )
     expect(screen.getByTestId('r').tagName).toBe('LI')
+  })
+})
+
+describe('static surfaces carry no shadow', () => {
+  // Shadows are for things that float (menus, popovers, dialogs, toasts). A
+  // card's 1px border is its only edge, so neither shared box may bring one.
+  it('Panel paints none', () => {
+    render(<Panel data-testid="shadowless-panel">x</Panel>)
+    expect(screen.getByTestId('shadowless-panel').className).not.toMatch(
+      /\bshadow/
+    )
+  })
+
+  it('Card paints none', () => {
+    render(<Card data-testid="shadowless-card">x</Card>)
+    expect(screen.getByTestId('shadowless-card').className).not.toMatch(
+      /\bshadow/
+    )
   })
 })

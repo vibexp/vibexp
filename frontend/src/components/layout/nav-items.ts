@@ -1,17 +1,14 @@
 import {
   BookOpen,
-  Boxes,
-  Braces,
   FileText,
   HardDrive,
   Home,
   type LucideIcon,
   Package,
+  Plug,
   Rss,
   Search as SearchIcon,
-  Server,
   Settings as SettingsIcon,
-  Terminal,
   Users,
   UsersRound,
 } from 'lucide-react'
@@ -62,17 +59,12 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'Integrations',
-    items: [
-      { label: 'MCP Server', href: '/mcp-servers/vibexp-mcp', icon: Server },
-      { label: 'CLI', href: '/integrations/cli', icon: Terminal },
-      { label: 'REST APIs', href: '/integrations/rest-apis', icon: Braces },
-      { label: 'API Client', href: '/integrations/api-client', icon: Boxes },
-    ],
-  },
-  {
     label: 'System',
     items: [
+      // One entry for every way of connecting a tool (MCP, CLI, REST API, API
+      // client): setup pages visited once, which used to take four rows of
+      // their own. The tabs live on the page.
+      { label: 'Connect', href: '/connect', icon: Plug },
       // `UsersRound`, not `Users`: the Agents entry above already uses `Users`,
       // and the collapsed icon rail (md-lg) shows icons only - two identical
       // glyphs would be indistinguishable there.
@@ -88,3 +80,17 @@ export const NAV_GROUPS: NavGroup[] = [
  * backwards compatibility with components that don't care about grouping.
  */
 export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap(g => g.items)
+
+/**
+ * Pages that sit under a section (or under none) at a fixed address and have
+ * no data to name them with — the breadcrumb's last crumb for each. A page
+ * about one thing (a resource, a team) names itself with `useBreadcrumbLeaf`
+ * instead.
+ */
+export const STATIC_PAGE_LEAVES: ReadonlyMap<string, string> = new Map([
+  ['/notifications', 'Notifications'],
+  ['/settings/activities', 'Activities'],
+  ['/settings/notifications', 'Notification preferences'],
+  ['/settings/api-keys', 'API keys'],
+  ['/prompt-gallery', 'Prompt Gallery'],
+])

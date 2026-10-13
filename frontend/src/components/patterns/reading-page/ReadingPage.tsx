@@ -1,13 +1,12 @@
-import {
-  type ReactNode,
-  type TransitionEvent,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react'
+import { List, Maximize2, Minimize2 } from 'lucide-react'
+import { type ReactNode, useMemo, useRef, useState } from 'react'
 
-import { useReadingShell, useShell } from '@/components/layout/ShellContext'
+import {
+  useBreadcrumbLeaf,
+  useReadingShell,
+  useShell,
+} from '@/components/layout/ShellContext'
+import { Button } from '@/components/ui/button'
 import {
   Sheet,
   SheetContent,
@@ -15,26 +14,33 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
-import { DetailsColumn, DetailsRail } from './DetailsPanel'
+import { DetailsColumn } from './DetailsPanel'
 import { ReadingActions } from './ReadingActions'
+import { type BodyViewHandle, ReadingChromeContext } from './readingChrome'
+import { READING_META_ROW_CLASS, READING_TITLE_CLASS } from './readingHeader'
+import { ReadingOutline } from './ReadingOutline'
+import { ReadingRail } from './ReadingRail'
+import { ReadingTitleBar } from './ReadingTitleBar'
 import type { ReadingAction, ReadingSection } from './types'
+import { FOCUS_MODE_KEY, useFocusMode } from './useFocusMode'
+import { useReadingOutline } from './useReadingOutline'
 
 /**
  * The article's reading measure. Fixed (not "whatever is left") so folding
  * either side column never stretches lines. The value itself
- * (`--reading-measure`) lives in `styles/index.css` beside the bleed it is
+ * (`--measure-article`) is a design-system token, shared with the bleed it is
  * computed against, so the column and the wide-block breakout can never
  * disagree about where the column ends.
  */
-const READING_MEASURE = 'max-w-(--reading-measure)'
-
-/**
- * How long to wait for the column's width transition before scrolling to a
- * section anyway (reduced motion, jsdom, or a transition that never fires).
- */
-const EXPAND_SCROLL_FALLBACK_MS = 300
+const READING_MEASURE = 'max-w-measure-article'
 
 /**
  * How the article is being consumed. `editing` is the same shell — same
@@ -51,13 +57,32 @@ export interface ReadingPageProps {
    */
   title: string
   /**
+   * Draws the `<h1>` subdued: the title is a stand-in (an untitled memory's
+   * body excerpt), not a name someone chose.
+   */
+  titleSubdued?: boolean
+  /**
    * Replaces the `<h1>` — an edit page's inline title input (#1179). The node
    * owns its own heading semantics.
    */
   heading?: ReactNode
-  /** Lead paragraph or a row of badges under the title. */
+  /**
+   * The meta line under the title (status, type, updated time). A reading
+   * page's toolbar shares its row.
+   */
+  meta?: ReactNode
+  /** Lead paragraph under the meta line. */
   description?: ReactNode
-  /** Document actions — buttons in the column, icons on the rail, chips on phones. */
+  /**
+   * The breadcrumb's last crumb — what this page is about ("VibeXP / Artifacts
+   * / <title>"). Omit while the page has nothing to name (loading, not found).
+   */
+  breadcrumb?: string
+  /**
+   * Document actions. A reading page shows them in the toolbar beside the
+   * title (see `ReadingAction.placement`); an edit page keeps them as a grid
+   * in the rail and chips on narrow screens.
+   */
   actions?: readonly ReadingAction[]
   /** Details sections. Entries whose `content` is null/false are dropped. */
   sections?: readonly ReadingSection[]
@@ -73,16 +98,21 @@ export interface ReadingPageProps {
  *
  * - Registers `reading` mode with the shell (which owns the content row) and,
  *   when there is anything to show, a details panel (header toggle).
- * - `lg+`: article column with a fixed 72ch measure + a sticky details
+ * - A reading page's `<header>` is a sticky title bar carrying the toolbar
+ *   (Edit, Copy, the Rendered / Raw switch, a "More" menu, focus mode).
+ * - Wide (`xl+` reading, `lg+` editing): article column + a sticky details
  *   column that folds to a 48px icon rail. Rail icons reopen the column and
- *   scroll to their section.
+ *   scroll to their section. The reading page's column opens with the body's
+ *   outline, pinned above the sections.
  * - The details column is pinned to the right edge of the content area (the
  *   shell's reading row is full width) and the article centers itself with
  *   `mx-auto` in whatever is left beside it — the design's model, and the
  *   reason the article's auto margins are unconditional (#890).
- * - `md–lg`: the details open as a right-side sheet from the header toggle.
- * - `< md`: actions render as chips under the title; the details open as a
- *   bottom sheet.
+ * - Below that the details are an overlay drawer from the header toggle (a
+ *   right-side sheet; a bottom sheet under `md`), closed by default and
+ *   leaving the stored column preference untouched. The outline is reachable
+ *   from a "Contents" button in the toolbar.
+ * - Focus mode hides the navigation and the details and leaves the text.
  * - `presentation="editing"` is the identical layout hosting an edit form
  *   (#916). It changes nothing structural — the whole point is that leaving
  *   edit mode is not a visual jump — and only keeps the details panel
@@ -94,8 +124,11 @@ export interface ReadingPageProps {
  */
 export function ReadingPage({
   title,
+  titleSubdued = false,
   heading,
+  meta,
   description,
+  breadcrumb,
   actions = [],
   sections = [],
   children,
@@ -105,174 +138,446 @@ export function ReadingPage({
   const visibleSections = sections.filter(
     s => s.content !== null && s.content !== undefined && s.content !== false
   )
-  // An edit page paints the shell before its resource resolves, so it has no
-  // sections and no Save/Cancel yet. Registering the panel anyway keeps the
-  // header toggle and the column present across that fetch instead of having
-  // them pop in — the detail pages have nothing to load into the shell, so
-  // this only applies while editing.
-  const hasDetails =
-    visibleSections.length > 0 ||
-    actions.length > 0 ||
-    presentation === 'editing'
+  // A page handed a `heading` node (the edit page's inline title input) owns
+  // its header; everything else gets the title bar and its toolbar.
+  const reading = presentation === 'reading' && heading === undefined
+  // A reading page's actions are in its toolbar, so only sections make a
+  // panel. An edit page paints the shell before its resource resolves, so it
+  // has no sections and no Save/Cancel yet; registering the panel anyway keeps
+  // the header toggle and the column present across that fetch.
+  const hasDetails = reading ? visibleSections.length > 0 : true
 
-  useReadingShell({ details: hasDetails })
+  useReadingShell({ details: hasDetails, wideRail: reading })
+  useBreadcrumbLeaf(breadcrumb)
 
+  const { isTablet, isDesktop, detailsInline } = useShell()
+
+  // The body hands its Rendered / Raw state up so the toolbar can draw the
+  // switch (see `readingChrome`).
+  const [bodyView, setBodyView] = useState<BodyViewHandle | null>(null)
+  // An edit page's header draws the editor's controls in its meta row, where
+  // the reading page's toolbar is, so the body starts at the same place on
+  // both. A phone's header has no room: there the editor keeps them.
+  const [controlsSlot, setControlsSlot] = useState<HTMLElement | null>(null)
+  const chrome = useMemo(() => ({ setBodyView, controlsSlot }), [controlsSlot])
+
+  const articleRef = useRef<HTMLElement>(null)
+  const outline = useReadingOutline(articleRef, reading)
+  const { focusMode, toggleFocusMode } = useFocusMode(reading)
+  const [contentsOpen, setContentsOpen] = useState(false)
+
+  const railRendered = hasDetails && detailsInline && !focusMode
+  // The outline lives in the column. Where there is no column on screen (a
+  // drawer, a phone, focus mode) the toolbar offers it as a sheet; a column
+  // the reader folded is their choice, and gets no button.
+  const showContentsButton = outline.entries.length > 0 && !railRendered
+
+  // A form's Save is not a convenience: where there is no rail, the chips
+  // cover it. A reading page has no chip row — its toolbar is in the header at
+  // every width.
+  const actionsAsChips = !reading && !isDesktop
+
+  return (
+    <>
+      <div
+        // `@container` makes the column a size container, for descendants that
+        // size themselves from the room the folded rail or a wide window frees.
+        className={cn('@container min-w-0 flex-1', className)}
+        data-testid="reading-page"
+        data-presentation={presentation}
+        data-focus={focusMode ? 'true' : undefined}
+      >
+        <article
+          ref={articleRef}
+          className={cn(
+            'reading-article mx-auto w-full px-4 py-6 md:px-8 lg:px-12 lg:py-10',
+            READING_MEASURE
+          )}
+        >
+          {reading ? (
+            <ReadingHead
+              title={title}
+              titleSubdued={titleSubdued}
+              meta={meta}
+              description={description}
+              actions={actions}
+              bodyView={bodyView}
+              compact={!isTablet}
+              showContents={showContentsButton}
+              onOpenContents={() => {
+                setContentsOpen(true)
+              }}
+              // Hiding two side panels means nothing where there are none:
+              // focus mode is offered from `lg`, where the navigation is a
+              // column.
+              showFocus={isDesktop}
+              focusMode={focusMode}
+              onToggleFocus={toggleFocusMode}
+            />
+          ) : (
+            <PlainHeader
+              title={title}
+              heading={heading}
+              meta={meta}
+              description={description}
+              chips={actionsAsChips ? actions : undefined}
+              controlsSlotRef={isTablet ? setControlsSlot : undefined}
+            />
+          )}
+          <ReadingChromeContext.Provider value={chrome}>
+            {children}
+          </ReadingChromeContext.Provider>
+        </article>
+      </div>
+
+      <ReadingDetails
+        presentation={presentation}
+        title={title}
+        // A reading page's actions are in its toolbar, not in the panel.
+        actions={reading ? [] : actions}
+        sections={visibleSections}
+        outline={outline}
+        asRail={railRendered}
+        asSheet={hasDetails && !detailsInline}
+        actionsAsChips={actionsAsChips}
+      />
+
+      {reading && (
+        <ContentsSheet
+          open={contentsOpen}
+          onOpenChange={setContentsOpen}
+          side={isTablet ? 'right' : 'bottom'}
+          title={title}
+          outline={outline}
+        />
+      )}
+    </>
+  )
+}
+
+interface ReadingHeadProps extends ToolbarExtrasProps {
+  title: string
+  titleSubdued: boolean
+  meta: ReactNode
+  description: ReactNode
+  actions: readonly ReadingAction[]
+  bodyView: BodyViewHandle | null
+  /** Phone layout for the toolbar. */
+  compact: boolean
+}
+
+/**
+ * The top of a reading page: the sticky title bar with its toolbar, the lead
+ * paragraph, and the space before the body.
+ */
+function ReadingHead({
+  title,
+  titleSubdued,
+  meta,
+  description,
+  actions,
+  bodyView,
+  compact,
+  ...extras
+}: Readonly<ReadingHeadProps>) {
+  return (
+    <>
+      <ReadingTitleBar
+        title={title}
+        titleSubdued={titleSubdued}
+        meta={meta}
+        actions={actions}
+        bodyView={bodyView}
+        compact={compact}
+        trailing={<ToolbarExtras {...extras} />}
+      />
+      {description && (
+        // A lead paragraph is prose: capped at a prose measure even in the
+        // wide column, so a long summary does not run 150 characters per line
+        // at 14px.
+        <div className="text-muted-foreground mt-2 max-w-3xl text-sm">
+          {description}
+        </div>
+      )}
+      <div className="h-8" aria-hidden="true" />
+    </>
+  )
+}
+
+/**
+ * The details panel in whichever form the width allows: the column beside the
+ * article (with the outline at its head), or an overlay drawer where there is
+ * no room for a column. Neither when the page has no details or hides them.
+ */
+function ReadingDetails({
+  presentation,
+  title,
+  actions,
+  sections,
+  outline,
+  asRail,
+  asSheet,
+  actionsAsChips,
+}: Readonly<{
+  presentation: ReadingPresentation
+  title: string
+  actions: readonly ReadingAction[]
+  sections: readonly ReadingSection[]
+  outline: ReturnType<typeof useReadingOutline>
+  asRail: boolean
+  asSheet: boolean
+  /** The page already shows the actions as a chip row under its title. */
+  actionsAsChips: boolean
+}>) {
   const {
     isTablet,
-    isDesktop,
     detailsOpen,
     setDetailsOpen,
     detailsSheetOpen,
     setDetailsSheetOpen,
   } = useShell()
 
-  // Whether the sticky details rail is rendered — it only exists at lg+;
-  // below that the details are a sheet.
-  const railRendered = hasDetails && isDesktop
-
-  // Reading actions are a convenience, so below `md` they become chips and in
-  // between they live in the sheet. A form's Save is not a convenience: at
-  // 768–1023px there is no rail and no chip row, which would leave the primary
-  // action reachable only by first opening the details sheet. So while editing,
-  // the chips cover every width the rail does not.
-  const actionsAsChips = presentation === 'editing' ? !isDesktop : !isTablet
-
-  const asideRef = useRef<HTMLElement>(null)
-  const [pendingSection, setPendingSection] = useState<string | null>(null)
-
-  const scrollToSection = useCallback((sectionId: string) => {
-    const target = asideRef.current?.querySelector<HTMLElement>(
-      `[data-section="${sectionId}"]`
+  if (asRail) {
+    return (
+      <ReadingRail
+        presentation={presentation}
+        open={detailsOpen}
+        onOpen={() => {
+          setDetailsOpen(true)
+        }}
+        actions={actions}
+        sections={sections}
+        lead={
+          outline.entries.length > 0 ? (
+            <ReadingOutline outline={outline} />
+          ) : undefined
+        }
+      />
     )
-    if (target && typeof target.scrollIntoView === 'function') {
-      target.scrollIntoView({ block: 'start', behavior: 'smooth' })
-    }
-  }, [])
-
-  const expandTo = useCallback(
-    (sectionId: string) => {
-      setDetailsOpen(true)
-      setPendingSection(sectionId)
-    },
-    [setDetailsOpen]
-  )
-
-  // Scroll once the column has finished widening; the transitionend handler
-  // below does it early, this timer guarantees it happens at all.
-  useEffect(() => {
-    if (!pendingSection || !detailsOpen) return
-    const timer = setTimeout(() => {
-      scrollToSection(pendingSection)
-      setPendingSection(null)
-    }, EXPAND_SCROLL_FALLBACK_MS)
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [pendingSection, detailsOpen, scrollToSection])
-
-  const handleTransitionEnd = (event: TransitionEvent<HTMLElement>) => {
-    if (event.propertyName !== 'width' || !pendingSection) return
-    scrollToSection(pendingSection)
-    setPendingSection(null)
   }
+  if (!asSheet) return null
+  return (
+    <DetailsSheet
+      open={detailsSheetOpen}
+      onOpenChange={setDetailsSheetOpen}
+      side={isTablet ? 'right' : 'bottom'}
+      presentation={presentation}
+      title={title}
+    >
+      <DetailsColumn
+        actions={actions}
+        sections={sections}
+        // Never twice: the grid exists for the widths the chip row does not
+        // cover, and while editing that row reaches up to `lg`.
+        showActions={isTablet && !actionsAsChips}
+      />
+    </DetailsSheet>
+  )
+}
 
+/**
+ * The outline as a sheet, for the widths and modes where the column that
+ * usually holds it is not on screen. A jump closes it.
+ */
+function ContentsSheet({
+  open,
+  onOpenChange,
+  side,
+  title,
+  outline,
+}: Readonly<{
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  side: 'right' | 'bottom'
+  title: string
+  outline: ReturnType<typeof useReadingOutline>
+}>) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side={side}
+        className={cn(
+          'overflow-y-auto p-5',
+          side === 'right'
+            ? 'w-details-column sm:max-w-sm'
+            : 'max-h-reading-sheet rounded-t-xl'
+        )}
+        data-testid="reading-contents-sheet"
+      >
+        <SheetHeader className="sr-only">
+          <SheetTitle>Contents</SheetTitle>
+          <SheetDescription>{`Sections of ${title}`}</SheetDescription>
+        </SheetHeader>
+        <ReadingOutline
+          outline={outline}
+          onNavigate={() => {
+            onOpenChange(false)
+          }}
+        />
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+interface ToolbarExtrasProps {
+  showContents: boolean
+  onOpenContents: () => void
+  showFocus: boolean
+  focusMode: boolean
+  onToggleFocus: () => void
+}
+
+/**
+ * What the reading page adds to the end of its toolbar: the "Contents" button
+ * (wherever the outline is not on screen) and the focus-mode toggle.
+ */
+function ToolbarExtras({
+  showContents,
+  onOpenContents,
+  showFocus,
+  focusMode,
+  onToggleFocus,
+}: Readonly<ToolbarExtrasProps>) {
+  const focusLabel = focusMode ? 'Exit focus mode' : 'Focus mode'
+  const FocusIcon = focusMode ? Minimize2 : Maximize2
   return (
     <>
-      <div
-        // `@container` makes the column a size container: the bleed a wide
-        // block may take beside the article is computed from the column's
-        // inline size (see `--reading-bleed`), so it is exactly the room the
-        // folded rail or a wide window frees, and zero when there is none.
-        className={cn('@container min-w-0 flex-1', className)}
-        data-testid="reading-page"
-        data-presentation={presentation}
-      >
-        <article
-          className={cn(
-            'reading-article mx-auto w-full px-4 py-6 md:px-8 lg:px-12 lg:py-10',
-            READING_MEASURE
-          )}
+      {showContents && (
+        <Button
+          type="button"
+          size="action"
+          variant="outline"
+          onClick={onOpenContents}
+          data-testid="reading-contents-button"
         >
-          <header className="mb-8">
-            {heading ?? (
-              <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-            )}
-            {description && (
-              // A lead paragraph is prose: capped at a prose measure even in
-              // the wide column, so a long summary does not run 150 characters
-              // per line at 14px.
-              <div className="text-muted-foreground mt-2 max-w-3xl text-sm">
-                {description}
-              </div>
-            )}
-            {actionsAsChips && (
-              <ReadingActions
-                actions={actions}
-                layout="chips"
-                className="mt-4"
-              />
-            )}
-          </header>
-          {children}
-        </article>
-      </div>
-
-      {railRendered && (
-        <aside
-          ref={asideRef}
-          aria-label="Details"
-          data-testid="reading-details"
-          data-presentation={presentation}
-          data-state={detailsOpen ? 'open' : 'collapsed'}
-          onTransitionEnd={handleTransitionEnd}
-          className={cn(
-            'scrollbar-hover bg-background sticky top-14 h-[calc(100dvh-3.5rem)] shrink-0 overflow-y-auto overflow-x-hidden border-l transition-[width] duration-200',
-            detailsOpen ? 'w-details-column' : 'w-12'
-          )}
-        >
-          {detailsOpen ? (
-            <DetailsColumn actions={actions} sections={visibleSections} />
-          ) : (
-            <DetailsRail
-              actions={actions}
-              sections={visibleSections}
-              onExpandTo={expandTo}
-            />
-          )}
-        </aside>
+          <List className="size-4" aria-hidden />
+          Contents
+        </Button>
       )}
-
-      {hasDetails && !isDesktop && (
-        <Sheet open={detailsSheetOpen} onOpenChange={setDetailsSheetOpen}>
-          <SheetContent
-            side={isTablet ? 'right' : 'bottom'}
-            className={cn(
-              'overflow-y-auto p-0',
-              isTablet
-                ? 'w-details-column sm:max-w-sm'
-                : 'h-[78dvh] rounded-t-xl'
-            )}
-            data-testid="reading-details-sheet"
-            data-presentation={presentation}
-          >
-            <SheetHeader className="border-b px-5 py-4 text-left">
-              <SheetTitle>Details</SheetTitle>
-              <SheetDescription className="sr-only">
-                {presentation === 'editing'
-                  ? `Fields and actions for ${title}`
-                  : `Metadata and activity for ${title}`}
-              </SheetDescription>
-            </SheetHeader>
-            <DetailsColumn
-              actions={actions}
-              sections={visibleSections}
-              // Never twice: the grid exists for the widths the chip row does
-              // not cover, and while editing that row now reaches up to `lg`.
-              showActions={isTablet && !actionsAsChips}
-            />
-          </SheetContent>
-        </Sheet>
+      {showFocus && (
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {/* A real button: the tooltip anchors on its box (#891). */}
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                className="size-8"
+                aria-label={focusLabel}
+                aria-pressed={focusMode}
+                aria-keyshortcuts={FOCUS_MODE_KEY}
+                data-testid="reading-focus-toggle"
+                onClick={onToggleFocus}
+              >
+                <FocusIcon className="size-4" aria-hidden />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {focusLabel}
+              <kbd className="bg-muted text-muted-foreground ml-2 rounded-sm px-1 font-mono text-xs">
+                {focusMode ? 'Esc' : FOCUS_MODE_KEY}
+              </kbd>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )}
     </>
+  )
+}
+
+/** The header of a page that is not a reading view: the edit page's form. */
+function PlainHeader({
+  title,
+  heading,
+  meta,
+  description,
+  chips,
+  controlsSlotRef,
+}: Readonly<{
+  title: string
+  heading: ReactNode
+  meta: ReactNode
+  description: ReactNode
+  /** Save / Cancel as a chip row, on the widths with no rail to hold them. */
+  chips: readonly ReadingAction[] | undefined
+  /**
+   * Receives the element at the end of the meta row that the body editor
+   * draws its controls into — the place of the reading page's toolbar.
+   */
+  controlsSlotRef: ((element: HTMLElement | null) => void) | undefined
+}>) {
+  return (
+    // `flow-root` so the floated controls can never hang out of the header.
+    <header className="mb-8 flow-root">
+      {heading ?? <h1 className={READING_TITLE_CLASS}>{title}</h1>}
+      {/* Floated, not a row of its own: the line under the title (status,
+          slug, updated) may come from `meta` or lead the `description`, and
+          the controls sit at the end of that line whichever it is — as the
+          toolbar does on a reading page — without moving it. Where the two
+          would meet, the line narrows and wraps instead of overlapping. */}
+      {controlsSlotRef && (
+        <div
+          ref={controlsSlotRef}
+          data-testid="reading-header-controls"
+          className={cn(
+            READING_META_ROW_CLASS,
+            'float-right mt-2 ml-4 justify-end'
+          )}
+        />
+      )}
+      {meta && <div className="mt-2">{meta}</div>}
+      {description && (
+        <div className="text-muted-foreground mt-2 max-w-3xl text-sm">
+          {description}
+        </div>
+      )}
+      {chips && (
+        <ReadingActions actions={chips} layout="chips" className="mt-4" />
+      )}
+    </header>
+  )
+}
+
+/** The details as an overlay drawer, for the widths with no column. */
+function DetailsSheet({
+  open,
+  onOpenChange,
+  side,
+  presentation,
+  title,
+  children,
+}: Readonly<{
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  side: 'right' | 'bottom'
+  presentation: ReadingPresentation
+  title: string
+  children: ReactNode
+}>) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side={side}
+        className={cn(
+          'overflow-y-auto p-0',
+          side === 'right'
+            ? 'w-details-column sm:max-w-sm'
+            : 'h-reading-sheet rounded-t-xl'
+        )}
+        data-testid="reading-details-sheet"
+        data-presentation={presentation}
+      >
+        <SheetHeader className="border-b px-5 py-4 text-left">
+          <SheetTitle>Details</SheetTitle>
+          <SheetDescription className="sr-only">
+            {presentation === 'editing'
+              ? `Fields and actions for ${title}`
+              : `Metadata and activity for ${title}`}
+          </SheetDescription>
+        </SheetHeader>
+        {children}
+      </SheetContent>
+    </Sheet>
   )
 }

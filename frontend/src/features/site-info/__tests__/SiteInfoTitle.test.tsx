@@ -35,6 +35,14 @@ describe('SiteInfoTitle', () => {
     })
   })
 
+  it('does not name the product twice when the company is called VibeXP', async () => {
+    render(tree({ company_name: 'VIBEXP' }))
+
+    await waitFor(() => {
+      expect(document.title).toBe('VibeXP')
+    })
+  })
+
   it('is not changed by a logo alone', async () => {
     render(tree({ logo_url: 'https://cdn.acme.test/logo.svg' }))
 

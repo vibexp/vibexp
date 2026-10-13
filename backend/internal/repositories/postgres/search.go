@@ -33,13 +33,27 @@ func NewSearchRepository(db *database.DB) repositories.SearchRepository {
 // carries a NOT NULL project_id, so the project id and name are derived uniformly
 // (src.project_id + a LEFT JOIN to projects) rather than per type.
 type entitySource struct {
-	table     string
+	table string
+	// titleExpr is the title the keyword passes MATCH against. The FTS and
+	// trgm indexes mirror it byte-for-byte, so changing one means a migration.
 	titleExpr string
-	bodyExpr  string
+	// displayTitleExpr is the title a result is LABELLED with, when that
+	// differs from what is matched; empty means titleExpr. Projection only —
+	// it never appears in a predicate, so no index depends on it.
+	displayTitleExpr string
+	bodyExpr         string
 	// slugExpr yields the resource's own slug, or the literal '' when it has none.
 	slugExpr string
 	// statusFilter is empty when the entity has no status column.
 	statusFilter string
+}
+
+// projectedTitle is the expression a branch projects AS title.
+func (s entitySource) projectedTitle() string {
+	if s.displayTitleExpr != "" {
+		return s.displayTitleExpr
+	}
+	return s.titleExpr
 }
 
 // SQL fragments shared across the search branch builders. Every branch aliases
@@ -118,11 +132,14 @@ var entitySources = map[string]entitySource{
 		statusFilter: srcLiveStatusFilter(models.StatusResourceTypeBlueprint),
 	},
 	"memory": {
-		table:        "memories",
-		titleExpr:    "LEFT(src.text, 100)",
-		bodyExpr:     "src.text",
-		slugExpr:     "''",
-		statusFilter: srcLiveStatusFilter(models.StatusResourceTypeMemory),
+		table:     "memories",
+		titleExpr: "LEFT(src.text, 100)",
+		// A memory's title is optional, so it is labelled by the shared
+		// title-else-excerpt rule rather than by the matched expression.
+		displayTitleExpr: memoryDisplayNameExpr("src"),
+		bodyExpr:         "src.text",
+		slugExpr:         "''",
+		statusFilter:     srcLiveStatusFilter(models.StatusResourceTypeMemory),
 	},
 }
 
@@ -170,7 +187,7 @@ func projectFilterArg(projectID string) interface{} {
 func buildBranch(entityType string, src entitySource) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "SELECT '%s' AS entity_type, e.entity_id AS entity_id, e.id AS chunk_id, ", entityType)
-	fmt.Fprintf(&b, "%s AS title, %s AS slug, ", src.titleExpr, src.slugExpr)
+	fmt.Fprintf(&b, "%s AS title, %s AS slug, ", src.projectedTitle(), src.slugExpr)
 	b.WriteString(searchProjectProjection)
 	fmt.Fprintf(&b, "e.content AS chunk_content, %s AS source_body, ", src.bodyExpr)
 	b.WriteString(searchTimestampProjection)
@@ -447,7 +464,7 @@ func buildKeywordBranch(entityType string, src entitySource, tsquery string) str
 	tsv := ftsExpr(src)
 	var b strings.Builder
 	fmt.Fprintf(&b, "SELECT '%s' AS entity_type, src.id AS entity_id, src.id AS chunk_id, ", entityType)
-	fmt.Fprintf(&b, "%s AS title, %s AS slug, ", src.titleExpr, src.slugExpr)
+	fmt.Fprintf(&b, "%s AS title, %s AS slug, ", src.projectedTitle(), src.slugExpr)
 	b.WriteString(searchProjectProjection)
 	fmt.Fprintf(&b, "'' AS chunk_content, %s AS source_body, ", src.bodyExpr)
 	b.WriteString(searchTimestampProjection)
@@ -517,7 +534,7 @@ func buildKeywordTrgmBranch(entityType string, src entitySource) string {
 	title := trgmTitleExpr(src)
 	var b strings.Builder
 	fmt.Fprintf(&b, "SELECT '%s' AS entity_type, src.id AS entity_id, src.id AS chunk_id, ", entityType)
-	fmt.Fprintf(&b, "%s AS title, %s AS slug, ", src.titleExpr, src.slugExpr)
+	fmt.Fprintf(&b, "%s AS title, %s AS slug, ", src.projectedTitle(), src.slugExpr)
 	b.WriteString(searchProjectProjection)
 	fmt.Fprintf(&b, "'' AS chunk_content, %s AS source_body, ", src.bodyExpr)
 	b.WriteString(searchTimestampProjection)

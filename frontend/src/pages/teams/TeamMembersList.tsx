@@ -322,7 +322,7 @@ export function TeamMembersList({
 
   if (!members || members.length === 0) {
     return (
-      <Card className="bg-transparent shadow-none">
+      <Card className="bg-transparent">
         <CardContent className="py-8 text-center">
           <p className="text-muted-foreground text-sm">No members found</p>
         </CardContent>

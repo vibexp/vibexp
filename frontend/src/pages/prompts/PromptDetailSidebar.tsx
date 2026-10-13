@@ -53,6 +53,7 @@ export function PromptMetadata({
         project={project}
         projectHref={projectHref}
         statusLabel={labelOf}
+        hideStatus
         lock={prompt.lock}
       />
 

@@ -22,7 +22,7 @@ import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceVersions } from '@/hooks/useResourceVersions'
-import { deriveMemoryTitle } from '@/lib/memoryTitle'
+import { memoryDisplayName } from '@/lib/memoryTitle'
 import {
   buildProjectEditUrl,
   buildResourceVersionsUrl,
@@ -52,6 +52,7 @@ export function MemoryView() {
     id: 'back',
     label: 'Back',
     icon: ArrowLeft,
+    placement: 'toolbar',
     onClick: () => {
       void navigate('/memories')
     },
@@ -99,12 +100,12 @@ export function MemoryView() {
     void fetchMemory()
   }, [id, currentTeam, isLoadingTeam, handleError, trackEvent])
 
-  // Memories carry no title, so it is derived from the body — memoised because
-  // that scans the whole (unbounded) text and this page re-renders on dialog
-  // and view-mode state.
-  const title = useMemo(
-    () => deriveMemoryTitle(memory?.text ?? ''),
-    [memory?.text]
+  // The memory's title, or a name derived from its body when it has none —
+  // memoised because deriving scans the whole (unbounded) text and this page
+  // re-renders on dialog and view-mode state.
+  const { name: title, isFallback: titleIsFallback } = useMemo(
+    () => memoryDisplayName({ title: memory?.title, text: memory?.text ?? '' }),
+    [memory?.title, memory?.text]
   )
 
   // Version history powers the Metadata panel's footer link + count chip.
@@ -162,18 +163,21 @@ export function MemoryView() {
     )
   }
 
+  // Edit and Copy are what a reader reaches for; the rest live in the
+  // toolbar's More menu. No Back: the breadcrumb and the browser have it.
   const actions: ReadingAction[] = [
-    backAction,
-    copyAction,
     {
       id: 'edit',
       label: 'Edit',
       icon: Pencil,
+      emphasis: 'primary',
+      placement: 'toolbar',
       testId: 'edit-memory-button',
       onClick: () => {
         void navigate(`/memories/${memory.id}/edit`)
       },
     },
+    copyAction,
   ]
   if (canDeleteResource(memory.user_id)) {
     actions.push({
@@ -192,11 +196,13 @@ export function MemoryView() {
     <>
       <ResourceReadingPage
         title={title}
+        titleSubdued={titleIsFallback}
         status={{
           value: statusOptions.labelOf(memory.status),
           tone: statusOptions.toneOf(memory.status),
         }}
         updatedAt={memory.updated_at}
+        versionHistory={versionHistory}
         actions={actions}
         resource={
           currentTeam
@@ -215,6 +221,7 @@ export function MemoryView() {
               resource={memory}
               versionHistory={versionHistory}
               statusLabel={statusOptions.labelOf}
+              hideStatus
               project={memory.project}
               projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
             />
@@ -226,7 +233,7 @@ export function MemoryView() {
           </div>
         }
       >
-        <ResourceBody content={memory.text} />
+        <ResourceBody content={memory.text} title={title} />
       </ResourceReadingPage>
 
       <ConfirmDialog

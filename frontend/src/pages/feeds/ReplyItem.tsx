@@ -1,6 +1,6 @@
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
+import { RelativeTime } from '@/components/RelativeTime'
 import { Badge } from '@/components/ui/badge'
-import { formatRelativeTime } from '@/lib/time'
 import { FeedActorAvatar, resolveFeedActor } from '@/pages/feeds/feedActor'
 import type { FeedItemReply } from '@/services/feedService'
 import type { TeamMember } from '@/services/teamService'
@@ -31,7 +31,7 @@ export function ReplyItem({ reply, member }: Readonly<ReplyItemProps>) {
             ·
           </span>
           <span className="text-muted-foreground">
-            {formatRelativeTime(reply.posted_at)}
+            <RelativeTime value={reply.posted_at} />
           </span>
         </div>
         <MarkdownRenderer
