@@ -189,7 +189,6 @@ export function CommandPalette() {
               value={value}
               onValueChange={setValue}
               placeholder="Search, or jump to a page…"
-              aria-label="Search query"
             />
             <CommandList className="max-h-[min(60dvh,26rem)]">
               {query.length < MIN_QUERY_LENGTH ? (

@@ -281,9 +281,13 @@ describe('ResourceBodyEditor', () => {
       const textarea = writeArea()
       expect(textarea).toHaveAttribute('data-mention-textarea', 'true')
       expect(textarea).toHaveAttribute('data-exclude', 'my-prompt')
+      // The hint is a line under the field, and is announced with it.
+      const hint = screen.getByText('Type @ to reference prompts')
       expect(
-        screen.getByText(/Type @ to reference prompts/)
-      ).toBeInTheDocument()
+        textarea.compareDocumentPosition(hint) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(textarea.getAttribute('aria-describedby')).toContain(hint.id)
     })
 
     it('gives the mention textarea the same sizing contract', () => {
@@ -362,8 +366,10 @@ describe('ResourceBodyEditor', () => {
 
         const textarea = screen.getByLabelText('Content')
         expect(textarea).toHaveAttribute('id', 'body-field')
+        // The form's description first, then the editor's own hints: the
+        // Tab-key one, and before it the @ one where mentions are on.
         expect(textarea.getAttribute('aria-describedby')).toMatch(
-          /^body-description \S+$/
+          extensions ? /^body-description \S+ \S+$/ : /^body-description \S+$/
         )
         expect(textarea).toHaveAttribute('aria-invalid', 'true')
       }
@@ -636,7 +642,7 @@ describe('ResourceBodyEditor', () => {
       expect(readingMode()).toBe('rendered')
     })
 
-    it('puts the shortcut badge and template button left of the switch', () => {
+    it('puts the template button left of the switch, and the hint with the field', () => {
       render(
         <ResourceBodyEditor
           value={BODY}
@@ -645,15 +651,14 @@ describe('ResourceBodyEditor', () => {
         />
       )
 
-      const badge = screen.getByText('Type @ to reference prompts')
+      const hint = screen.getByText('Type @ to reference prompts')
       const button = screen.getByRole('button', { name: /Load template/ })
       const toggle = screen.getByRole('tablist', { name: 'Body view' })
-      // One row, in reading order: badge, template button, then the switch.
-      expect(badge.parentElement).toBe(toggle.parentElement)
+      // One row, in reading order: the template button, then the switch.
       expect(button.parentElement).toBe(toggle.parentElement)
-      expect(
-        badge.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING
-      ).toBeTruthy()
+      // The hint is not a control: it is inside the body panel, not the row.
+      expect(hint.parentElement).not.toBe(toggle.parentElement)
+      expect(screen.getByRole('tabpanel')).toContainElement(hint)
       expect(
         button.compareDocumentPosition(toggle) &
           Node.DOCUMENT_POSITION_FOLLOWING

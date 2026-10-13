@@ -1,4 +1,4 @@
-import { AlertCircle, Download, Wand2 } from 'lucide-react'
+import { AlertCircle, Download } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { RefObject } from 'react'
 import { forwardRef, useId, useLayoutEffect, useRef, useState } from 'react'
@@ -10,7 +10,6 @@ import { useBodyControlsSlot } from '@/components/patterns/reading-page/readingC
 import { PromptMentionTextarea } from '@/components/PromptMentionTextarea'
 import type { SegmentedOption } from '@/components/SegmentedControl'
 import { SegmentedControl } from '@/components/SegmentedControl'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -259,6 +258,8 @@ export const ResourceBodyEditor = forwardRef<
 
   const keys = useRawEditorKeys(onChange)
   const tabHintId = useId()
+  const mentionHintId = useId()
+  const showMentionHint = Boolean(extensions?.mentions)
   const handleBlur = () => {
     keys.onBlur()
     onBlur?.()
@@ -266,27 +267,29 @@ export const ResourceBodyEditor = forwardRef<
 
   const slot = {
     id,
-    // The Tab hint is announced with the field, after any form message.
-    'aria-describedby': describedBy ? `${describedBy} ${tabHintId}` : tabHintId,
+    // The hints are announced with the field, after any form message.
+    'aria-describedby': [
+      describedBy,
+      showMentionHint ? mentionHintId : undefined,
+      tabHintId,
+    ]
+      .filter(Boolean)
+      .join(' '),
     'aria-invalid': invalid,
   }
 
   const controls = (
     <>
-      {extensions?.mentions && activeView !== 'render' && (
-        <Badge variant="outline" className="gap-1">
-          <Wand2 className="size-3" />
-          Type @ to reference prompts
-        </Badge>
-      )}
       {extensions?.templates && (
+        // The compact button, at the switch's height, so the row has one.
         <Button
           variant="outline"
-          size="sm"
+          size="chip"
+          className="h-7"
           type="button"
           onClick={extensions.templates}
         >
-          <Download className="mr-2 size-3.5" />
+          <Download className="size-3.5" aria-hidden />
           Load template
         </Button>
       )}
@@ -385,6 +388,13 @@ export const ResourceBodyEditor = forwardRef<
               )}
             </>
           ))}
+        {activeView === 'write' && showMentionHint && (
+          // Guidance about the field, so it sits with the field — under it,
+          // where it cannot move the body box — and is read out with it.
+          <p id={mentionHintId} className="text-muted-foreground mt-2 text-xs">
+            Type @ to reference prompts
+          </p>
+        )}
 
         {activeView === 'preview' && (
           <div className={BODY_EDITOR_MIN_HEIGHT}>
