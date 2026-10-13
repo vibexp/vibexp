@@ -1300,3 +1300,27 @@ func TestAuthService_SignIn_NewUserEmailVerifiedAt(t *testing.T) {
 		assert.Equal(t, verified, created.EmailVerifiedAt != nil, "claims verified=%v", verified)
 	}
 }
+
+func TestAuthService_RevokeUserSessions(t *testing.T) {
+	t.Run("returns the new epoch", func(t *testing.T) {
+		mockRepo := &repo_mocks.MockUserRepository{}
+		service := createTestAuthServiceNew(mockRepo, &idpmocks.MockIdentityProvider{}, nil)
+		mockRepo.On("BumpSessionEpoch", mock.Anything, "user-1").Return(int64(3), nil)
+
+		epoch, err := service.RevokeUserSessions(context.Background(), "user-1")
+
+		assert.NoError(t, err)
+		assert.Equal(t, int64(3), epoch)
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("an unknown user stays distinguishable", func(t *testing.T) {
+		mockRepo := &repo_mocks.MockUserRepository{}
+		service := createTestAuthServiceNew(mockRepo, &idpmocks.MockIdentityProvider{}, nil)
+		mockRepo.On("BumpSessionEpoch", mock.Anything, "ghost").Return(int64(0), repositories.ErrUserNotFound)
+
+		_, err := service.RevokeUserSessions(context.Background(), "ghost")
+
+		assert.ErrorIs(t, err, repositories.ErrUserNotFound)
+	})
+}

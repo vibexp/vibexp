@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/vibexp/vibexp/internal/auth/authkit"
 	sesslib "github.com/vibexp/vibexp/internal/auth/session"
@@ -67,9 +68,20 @@ const authTypeCookie = "cookie"
 // keys (UserID, AuthType) and a logger enriched with the auth metadata plus
 // any extra fields. Every auth path sets up its success context through this
 // helper so the context shape cannot drift between paths.
-func authenticatedContext(ctx context.Context, userID, authType string, extra []any) context.Context {
+//
+// sess is the caller's cookie session, nil for every other auth type. Its
+// sign-in method and time are recorded for the rules that depend on them (a
+// recent sign-in, the lockout guard); they stay absent for an API key and a
+// bearer token, which were never signed in interactively.
+func authenticatedContext(
+	ctx context.Context, userID, authType string, extra []any, sess *sesslib.Session,
+) context.Context {
 	ctx = context.WithValue(ctx, contextkeys.UserID, userID)
 	ctx = context.WithValue(ctx, contextkeys.AuthType, authType)
+	if sess != nil {
+		ctx = context.WithValue(ctx, contextkeys.AuthMethod, sess.AuthMethod)
+		ctx = context.WithValue(ctx, contextkeys.AuthenticatedAt, sess.AuthenticatedAt)
+	}
 
 	fields := make([]any, 0, 4+len(extra))
 	fields = append(fields, "auth_type", authType, "user_id", userID)
@@ -199,7 +211,7 @@ func (s *Server) authenticateWithAPIKey(w http.ResponseWriter, r *http.Request, 
 
 	// Set user context from API key
 	ctx := context.WithValue(r.Context(), contextkeys.APIKeyID, apiKey.ID)
-	ctx, err = s.authenticateUser(ctx, apiKey.UserID, "api_key", []any{"api_key_id", apiKey.ID})
+	ctx, err = s.authenticateUser(ctx, apiKey.UserID, "api_key", []any{"api_key_id", apiKey.ID}, nil)
 	if err != nil {
 		s.logSuspendedRejection(r.Context(), "authenticateWithAPIKey", "api_key", apiKey.UserID, err)
 		s.writeSuspensionAuthError(w, r, err)
@@ -243,7 +255,7 @@ func (s *Server) authenticateWithOAuthJWT(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	ctx, err := s.authenticateUser(r.Context(), info.UserID, "oauth", nil)
+	ctx, err := s.authenticateUser(r.Context(), info.UserID, "oauth", nil, nil)
 	if err != nil {
 		s.logSuspendedRejection(r.Context(), "authenticateWithOAuthJWT", "oauth", info.UserID, err)
 		s.writeSuspensionAuthError(w, r, err)
@@ -256,7 +268,9 @@ func (s *Server) authenticateWithOAuthJWT(w http.ResponseWriter, r *http.Request
 
 // authenticateWithSession reads the vx_session cookie, decrypts it, checks
 // expiry (with automatic refresh when a refresh token is present), and sets
-// the user context.
+// the user context. A session with no refresh token is never refreshed: it
+// expires SlidingLifetime after it was last issued and is extended by use
+// (slideSession).
 //
 //nolint:funlen // Session auth must handle cookie read, expiry check, refresh, and context setup
 func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request, next http.Handler) {
@@ -317,15 +331,34 @@ func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request,
 
 	// Set user context from session. A suspended account is rejected HERE rather
 	// than at sign-in, which is what makes an already-issued cookie stop working.
-	ctx, err := s.authenticateUser(r.Context(), sess.UserID, authTypeCookie, nil)
+	ctx, err := s.authenticateUser(r.Context(), sess.UserID, authTypeCookie, nil, sess)
 	if err != nil {
 		s.logSuspendedRejection(r.Context(), "authenticateWithSession", authTypeCookie, sess.UserID, err)
 		s.writeSuspensionAuthError(w, r, err)
 		return
 	}
 
+	s.slideSession(w, sess, contextkeys.GetLoggerFromContext(ctx))
+
 	contextkeys.GetLoggerFromContext(ctx).Debug("Cookie session authentication successful")
 	next.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// slideSession extends an authenticated sliding session (one with no refresh
+// token) and re-issues its cookie, at most once a day per session (#1428). It
+// runs only after authenticateUser accepted the session, so a revoked or
+// suspended session is never extended, and the re-issued cookie carries the
+// epoch that was just checked.
+//
+// A failed write is logged and the request continues: the session in hand is
+// still valid, and the next request tries again.
+func (s *Server) slideSession(w http.ResponseWriter, sess *sesslib.Session, logger *slog.Logger) {
+	if !sess.Slide(time.Now()) {
+		return
+	}
+	if err := s.sessionManager.Write(w, sess); err != nil {
+		logger.With("error", err).Warn("Failed to re-issue sliding session cookie")
+	}
 }
 
 // refreshSession runs the provider's refresh-token rotation and rewrites the
@@ -445,7 +478,7 @@ func (s *Server) optionalAPIKeyContext(r *http.Request, token string) (context.C
 		return nil, false
 	}
 	ctx := context.WithValue(r.Context(), contextkeys.APIKeyID, apiKey.ID)
-	ctx, err = s.authenticateUser(ctx, apiKey.UserID, "api_key", []any{"api_key_id", apiKey.ID})
+	ctx, err = s.authenticateUser(ctx, apiKey.UserID, "api_key", []any{"api_key_id", apiKey.ID}, nil)
 	if err != nil {
 		// Suspended (or unverifiable) accounts proceed ANONYMOUS here, which is
 		// what makes instanceAdminMiddleware 404 a suspended admin off the admin
@@ -466,7 +499,7 @@ func (s *Server) optionalSessionContext(r *http.Request) (context.Context, bool)
 	if err != nil || sess.IsExpired() {
 		return nil, false
 	}
-	ctx, err := s.authenticateUser(r.Context(), sess.UserID, authTypeCookie, nil)
+	ctx, err := s.authenticateUser(r.Context(), sess.UserID, authTypeCookie, nil, sess)
 	if err != nil {
 		s.logSuspendedRejection(r.Context(), "optionalAuthMiddleware", authTypeCookie, sess.UserID, err)
 		return nil, false
@@ -482,7 +515,7 @@ func (s *Server) optionalSessionContext(r *http.Request) (context.Context, bool)
 func (s *Server) optionalOAuthJWTContext(r *http.Request, token string) (context.Context, bool) {
 	info, err := s.apiTokenVerifier.Verify(r.Context(), token)
 	if err == nil {
-		ctx, authErr := s.authenticateUser(r.Context(), info.UserID, "oauth", nil)
+		ctx, authErr := s.authenticateUser(r.Context(), info.UserID, "oauth", nil, nil)
 		if authErr != nil {
 			s.logSuspendedRejection(r.Context(), "optionalAuthMiddleware", "oauth", info.UserID, authErr)
 			return nil, false

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 )
 
 // Real-Postgres coverage for UserRepository's read path (#652).
@@ -129,4 +130,68 @@ func TestIntegrationUser_UpdateRoundTrip(t *testing.T) {
 	assert.Equal(t, "After Update", reloaded.Name)
 	assert.Equal(t, user.Email, reloaded.Email)
 	assert.Equal(t, user.Version, reloaded.Version)
+}
+
+// TestIntegrationUser_SessionEpoch runs the session revocation counter (#1428)
+// against the real column: a new user starts at 0, the same value a cookie
+// minted before the column existed decodes to, and each bump is visible to the
+// very read the authentication chokepoint performs.
+func TestIntegrationUser_SessionEpoch(t *testing.T) {
+	resetIntegrationTables(t)
+	repo := NewUserRepository(integrationDB)
+	ctx := context.Background()
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	provider, subject := "corp-sso", "sub-"+uuid.New().String()
+	user := &models.User{
+		Email: uuid.New().String() + "@integration.test", Name: "Epoch User", CreatedAt: now, UpdatedAt: now,
+		IDPProvider: &provider, IDPSubject: &subject,
+	}
+	require.NoError(t, repo.Create(ctx, user))
+	other := &models.User{
+		Email: uuid.New().String() + "@integration.test", Name: "Bystander", CreatedAt: now, UpdatedAt: now,
+	}
+	require.NoError(t, repo.Create(ctx, other))
+
+	before, err := repo.GetByID(ctx, user.ID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), before.SessionEpoch, "a new user starts at the column default")
+
+	first, err := repo.BumpSessionEpoch(ctx, user.ID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), first)
+	second, err := repo.BumpSessionEpoch(ctx, user.ID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), second)
+
+	after, err := repo.GetByID(ctx, user.ID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), after.SessionEpoch)
+	assert.Equal(t, before.Version, after.Version, "revoking sessions is not an edit of the user")
+	assert.True(t, before.UpdatedAt.Equal(after.UpdatedAt))
+
+	// The sign-in lookup selects through its own, table-qualified column list.
+	// It is the read that mints a session, so it must carry the epoch too: a
+	// cookie minted from a row read without it would be revoked at birth.
+	bySubject, err := repo.GetByIDPSubject(ctx, provider, subject)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), bySubject.SessionEpoch)
+	byEmail, err := repo.GetByEmail(ctx, user.Email)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), byEmail.SessionEpoch)
+
+	bystander, err := repo.GetByID(ctx, other.ID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), bystander.SessionEpoch, "one user's revocation must not touch another's sessions")
+
+	// An unrelated update must not reset the counter: Update's RETURNING list
+	// does not include it, and the SET list must not either.
+	after.Name = "Renamed"
+	require.NoError(t, repo.Update(ctx, after))
+	renamed, err := repo.GetByID(ctx, user.ID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), renamed.SessionEpoch)
+
+	_, err = repo.BumpSessionEpoch(ctx, uuid.New().String())
+	require.ErrorIs(t, err, repositories.ErrUserNotFound)
 }

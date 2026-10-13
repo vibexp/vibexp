@@ -56,11 +56,11 @@ func TestUserRepository_GetByID(t *testing.T) {
 				rows := sqlmock.NewRows([]string{
 					"id", "google_id", "idp_provider", "idp_subject", "email", "email_verified_at", "name", "avatar_url",
 					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
-					"created_at", "updated_at", "version",
+					"created_at", "updated_at", "version", "session_epoch",
 				}).AddRow(
 					"user-123", "google-123", nil, nil, "user@example.com", nil, "Test User", &avatarURL,
 					&defaultTeamID, "active", false, nil,
-					now, now, 1,
+					now, now, 1, 0,
 				)
 
 				mock.ExpectQuery(`SELECT .+ FROM users WHERE id`).
@@ -83,11 +83,11 @@ func TestUserRepository_GetByID(t *testing.T) {
 				rows := sqlmock.NewRows([]string{
 					"id", "google_id", "idp_provider", "idp_subject", "email", "email_verified_at", "name", "avatar_url",
 					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
-					"created_at", "updated_at", "version",
+					"created_at", "updated_at", "version", "session_epoch",
 				}).AddRow(
 					"user-456", "google-456", nil, nil, "minimal@example.com", nil, "Minimal User", nil,
 					nil, "active", false, nil,
-					now, now, 1,
+					now, now, 1, 0,
 				)
 
 				mock.ExpectQuery(`SELECT .+ FROM users WHERE id`).
@@ -170,11 +170,11 @@ func TestUserRepository_GetByEmail(t *testing.T) {
 				rows := sqlmock.NewRows([]string{
 					"id", "google_id", "idp_provider", "idp_subject", "email", "email_verified_at", "name", "avatar_url",
 					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
-					"created_at", "updated_at", "version",
+					"created_at", "updated_at", "version", "session_epoch",
 				}).AddRow(
 					"user-123", "google-123", nil, nil, "user@example.com", nil, "Test User", nil,
 					nil, "active", false, nil,
-					now, now, 1,
+					now, now, 1, 0,
 				)
 
 				mock.ExpectQuery(`SELECT .+ FROM users WHERE email`).
@@ -249,11 +249,11 @@ func TestUserRepository_GetByIDPSubject(t *testing.T) {
 		rows := sqlmock.NewRows([]string{
 			"id", "google_id", "idp_provider", "idp_subject", "email", "email_verified_at", "name", "avatar_url",
 			"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
-			"created_at", "updated_at", "version",
+			"created_at", "updated_at", "version", "session_epoch",
 		}).AddRow(
 			"user-123", nil, "corp-sso", "sub-1", "user@example.com", now, "Test User", nil,
 			nil, "active", false, nil,
-			now, now, 1,
+			now, now, 1, 0,
 		)
 		mock.ExpectQuery(lookup).WithArgs("corp-sso", "sub-1").WillReturnRows(rows)
 
@@ -815,6 +815,66 @@ func TestUserRepository_NormalizesEmail(t *testing.T) {
 		user := &models.User{ID: "user-1", Email: "Alice@Example.COM", Name: "Alice", Version: 1, EmailVerifiedAt: &now}
 		require.NoError(t, repo.Update(ctx, user))
 		assert.Equal(t, "alice@example.com", user.Email)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestUserRepository_BumpSessionEpoch(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("returns the incremented epoch", func(t *testing.T) {
+		repo, mock, mockDB := setupUserTest(t)
+		defer func() {
+			if closeErr := mockDB.Close(); closeErr != nil {
+				t.Logf("Failed to close mock DB: %v", closeErr)
+			}
+		}()
+
+		mock.ExpectQuery(`UPDATE users\s+SET session_epoch = session_epoch \+ 1\s+WHERE id = \$1\s+RETURNING session_epoch`).
+			WithArgs("user-123").
+			WillReturnRows(sqlmock.NewRows([]string{"session_epoch"}).AddRow(int64(4)))
+
+		epoch, err := repo.BumpSessionEpoch(ctx, "user-123")
+
+		require.NoError(t, err)
+		assert.Equal(t, int64(4), epoch)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("unknown user is ErrUserNotFound", func(t *testing.T) {
+		repo, mock, mockDB := setupUserTest(t)
+		defer func() {
+			if closeErr := mockDB.Close(); closeErr != nil {
+				t.Logf("Failed to close mock DB: %v", closeErr)
+			}
+		}()
+
+		mock.ExpectQuery(`UPDATE users\s+SET session_epoch`).
+			WithArgs("user-missing").
+			WillReturnError(sql.ErrNoRows)
+
+		_, err := repo.BumpSessionEpoch(ctx, "user-missing")
+
+		require.ErrorIs(t, err, repositories.ErrUserNotFound)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("database failure is not reported as not found", func(t *testing.T) {
+		repo, mock, mockDB := setupUserTest(t)
+		defer func() {
+			if closeErr := mockDB.Close(); closeErr != nil {
+				t.Logf("Failed to close mock DB: %v", closeErr)
+			}
+		}()
+
+		mock.ExpectQuery(`UPDATE users\s+SET session_epoch`).
+			WithArgs("user-123").
+			WillReturnError(sql.ErrConnDone)
+
+		_, err := repo.BumpSessionEpoch(ctx, "user-123")
+
+		require.Error(t, err)
+		assert.NotErrorIs(t, err, repositories.ErrUserNotFound)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }

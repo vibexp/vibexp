@@ -268,6 +268,19 @@ func (as *AuthService) RefreshTokens(
 	return p.Refresh(ctx, refreshToken)
 }
 
+// RevokeUserSessions ends every cookie session of the user by bumping their
+// session epoch, and returns the new epoch (#1428). A session cookie carries the
+// epoch it was minted under and the authentication chokepoint rejects one that
+// no longer matches, so the bump takes effect on each session's next request.
+func (as *AuthService) RevokeUserSessions(ctx context.Context, userID string) (int64, error) {
+	epoch, err := as.userRepo.BumpSessionEpoch(ctx, userID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to revoke sessions of user %q: %w", userID, err)
+	}
+	as.logger.With("user_id", userID, "session_epoch", epoch).Info("Revoked the user's cookie sessions")
+	return epoch, nil
+}
+
 // ProvisionFromClaims resolves or creates the VibeXP user for the given upstream
 // IdP claims, reusing the same create-on-first-login logic as the web callback.
 // The embedded OAuth Authorization Server (issue #31) uses it after exchanging

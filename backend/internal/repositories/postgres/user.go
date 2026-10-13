@@ -15,12 +15,12 @@ import (
 // Keep in sync with scanUser below.
 const userColumns = `id, google_id, idp_provider, idp_subject, email, email_verified_at, name, avatar_url,
 		default_team_id, status, onboarding_completed,
-		onboarding_completed_at, created_at, updated_at, version`
+		onboarding_completed_at, created_at, updated_at, version, session_epoch`
 
 // userColumnsQualified is userColumns for a query that joins users as u.
 const userColumnsQualified = `u.id, u.google_id, u.idp_provider, u.idp_subject, u.email, u.email_verified_at,
 		u.name, u.avatar_url, u.default_team_id, u.status, u.onboarding_completed,
-		u.onboarding_completed_at, u.created_at, u.updated_at, u.version`
+		u.onboarding_completed_at, u.created_at, u.updated_at, u.version, u.session_epoch`
 
 // usersEmailUniqueConstraint is the unique constraint on users.email. Create
 // writes to user_identities in the same statement, so a unique violation is a
@@ -51,7 +51,7 @@ func scanUser(row rowScanner) (*models.User, error) {
 		&user.Email, &user.EmailVerifiedAt, &user.Name, &user.AvatarURL,
 		&user.DefaultTeamID, &user.Status,
 		&user.OnboardingCompleted, &user.OnboardingCompletedAt,
-		&user.CreatedAt, &user.UpdatedAt, &user.Version,
+		&user.CreatedAt, &user.UpdatedAt, &user.Version, &user.SessionEpoch,
 	)
 	if err != nil {
 		return nil, err
@@ -204,6 +204,26 @@ func (r *UserRepository) UpdateDefaultTeamID(ctx context.Context, userID, teamID
 	}
 
 	return nil
+}
+
+// BumpSessionEpoch increments the user's session revocation counter and returns
+// the new value (#1428). Every cookie session minted under an earlier epoch
+// stops authenticating on its next request. The row's version and updated_at
+// are left alone: this is not an edit of the user, and bumping version would
+// fail a concurrent optimistic update for no reason.
+func (r *UserRepository) BumpSessionEpoch(ctx context.Context, userID string) (int64, error) {
+	query := `
+		UPDATE users
+		SET session_epoch = session_epoch + 1
+		WHERE id = $1
+		RETURNING session_epoch
+	`
+
+	var epoch int64
+	if err := r.db.QueryRowContext(ctx, query, userID).Scan(&epoch); err != nil {
+		return 0, mapNoRows(fmt.Errorf("failed to bump session epoch: %w", err), repositories.ErrUserNotFound)
+	}
+	return epoch, nil
 }
 
 // MarkOnboardingCompleted marks the user's onboarding as completed

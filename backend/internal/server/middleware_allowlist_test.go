@@ -136,7 +136,7 @@ func TestAuthenticateUser_AllowlistGate(t *testing.T) {
 
 	t.Run("with no allowlist stored everyone authenticates", func(t *testing.T) {
 		f := newAllowlistFixture(t, allowlistGuest())
-		got, err := f.srv.authenticateUser(ctx, allowlistUserID, "cookie", nil)
+		got, err := f.srv.authenticateUser(ctx, allowlistUserID, "cookie", nil, &sesslib.Session{})
 		require.NoError(t, err)
 		assert.Equal(t, allowlistUserID, got.Value(contextkeys.UserID))
 	})
@@ -145,11 +145,11 @@ func TestAuthenticateUser_AllowlistGate(t *testing.T) {
 		f := newAllowlistFixture(t, allowlistGuest(), member)
 		f.tighten()
 
-		got, err := f.srv.authenticateUser(ctx, member.ID, "cookie", nil)
+		got, err := f.srv.authenticateUser(ctx, member.ID, "cookie", nil, &sesslib.Session{})
 		require.NoError(t, err)
 		assert.Equal(t, member.ID, got.Value(contextkeys.UserID))
 
-		got, err = f.srv.authenticateUser(ctx, allowlistUserID, "cookie", nil)
+		got, err = f.srv.authenticateUser(ctx, allowlistUserID, "cookie", nil, &sesslib.Session{})
 		require.ErrorIs(t, err, errUserNotOnAllowlist)
 		assert.Nil(t, got, "no authenticated context may be built on rejection")
 	})
@@ -157,7 +157,7 @@ func TestAuthenticateUser_AllowlistGate(t *testing.T) {
 	t.Run("a suspended account is reported as suspended, not as off the allowlist", func(t *testing.T) {
 		f := newAllowlistFixture(t, suspended)
 		f.tighten()
-		_, err := f.srv.authenticateUser(ctx, suspended.ID, "cookie", nil)
+		_, err := f.srv.authenticateUser(ctx, suspended.ID, "cookie", nil, &sesslib.Session{})
 		require.ErrorIs(t, err, errUserSuspended)
 	})
 
@@ -171,25 +171,25 @@ func TestAuthenticateUser_AllowlistGate(t *testing.T) {
 		require.True(t, isAdmin, "the delegate really is an instance admin")
 		f.tighten()
 
-		got, err := f.srv.authenticateUser(ctx, root.ID, "cookie", nil)
+		got, err := f.srv.authenticateUser(ctx, root.ID, "cookie", nil, &sesslib.Session{})
 		require.NoError(t, err, "an allowlist mistake must not lock out the trust root")
 		assert.Equal(t, root.ID, got.Value(contextkeys.UserID))
 		assert.Equal(t, 1, countLogs(f.logs,
 			"Root instance admin is exempt from the access allowlist their email does not match"))
 
-		_, err = f.srv.authenticateUser(ctx, delegate.ID, "cookie", nil)
+		_, err = f.srv.authenticateUser(ctx, delegate.ID, "cookie", nil, &sesslib.Session{})
 		require.ErrorIs(t, err, errUserNotOnAllowlist)
 	})
 
 	t.Run("an unreadable allowlist fails CLOSED while one is known to be active", func(t *testing.T) {
 		f := newAllowlistFixture(t, member)
 		f.tighten()
-		_, err := f.srv.authenticateUser(ctx, member.ID, "cookie", nil)
+		_, err := f.srv.authenticateUser(ctx, member.ID, "cookie", nil, &sesslib.Session{})
 		require.NoError(t, err)
 
 		dbDown := errors.New("db down")
 		f.store.fail(dbDown)
-		got, err := f.srv.authenticateUser(ctx, member.ID, "cookie", nil)
+		got, err := f.srv.authenticateUser(ctx, member.ID, "cookie", nil, &sesslib.Session{})
 		require.ErrorIs(t, err, dbDown)
 		assert.NotErrorIs(t, err, errUserNotOnAllowlist,
 			"an infrastructure failure must not masquerade as an allowlist rejection")
@@ -198,11 +198,11 @@ func TestAuthenticateUser_AllowlistGate(t *testing.T) {
 
 	t.Run("an unreadable allowlist fails OPEN while none is known to be active", func(t *testing.T) {
 		f := newAllowlistFixture(t, allowlistGuest())
-		_, err := f.srv.authenticateUser(ctx, allowlistUserID, "cookie", nil)
+		_, err := f.srv.authenticateUser(ctx, allowlistUserID, "cookie", nil, &sesslib.Session{})
 		require.NoError(t, err)
 
 		f.store.fail(errors.New("db down"))
-		got, err := f.srv.authenticateUser(ctx, allowlistUserID, "cookie", nil)
+		got, err := f.srv.authenticateUser(ctx, allowlistUserID, "cookie", nil, &sesslib.Session{})
 		require.NoError(t, err, "an open instance must not refuse everyone over a database error")
 		assert.NotNil(t, got)
 	})
@@ -210,7 +210,7 @@ func TestAuthenticateUser_AllowlistGate(t *testing.T) {
 	t.Run("a missing resolver fails closed", func(t *testing.T) {
 		f := newAllowlistFixture(t, allowlistGuest())
 		f.srv.container = allowlistContainer{BaseMockContainer: &BaseMockContainer{}, users: f.users}
-		got, err := f.srv.authenticateUser(ctx, allowlistUserID, "cookie", nil)
+		got, err := f.srv.authenticateUser(ctx, allowlistUserID, "cookie", nil, &sesslib.Session{})
 		require.Error(t, err)
 		assert.NotErrorIs(t, err, errUserNotOnAllowlist)
 		assert.Nil(t, got)

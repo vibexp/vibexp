@@ -50,6 +50,10 @@ type User struct {
 	CreatedAt             time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt             time.Time  `json:"updated_at" db:"updated_at"`
 	Version               int64      `json:"version" db:"version"`
+	// SessionEpoch is the per-user session revocation counter (#1428). A cookie
+	// session is valid only while the epoch it was minted under equals this
+	// value. It is server-side state and is never serialized.
+	SessionEpoch int64 `json:"-" db:"session_epoch"`
 }
 
 // CurrentUserResponse is the GET /api/v1/auth/me payload: the authenticated

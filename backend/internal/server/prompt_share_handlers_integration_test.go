@@ -86,6 +86,11 @@ func (m *mockUserRepository) MarkOnboardingCompleted(ctx context.Context, userID
 	return nil
 }
 
+// BumpSessionEpoch satisfies the interface; these tests never revoke sessions.
+func (m *mockUserRepository) BumpSessionEpoch(_ context.Context, _ string) (int64, error) {
+	return 0, nil
+}
+
 func (m *mockUserRepository) GetNamesByIDs(_ context.Context, _ []string) (map[string]string, error) {
 	return map[string]string{}, nil
 }

@@ -488,6 +488,11 @@ type UserRepository interface {
 	Update(ctx context.Context, user *models.User) error
 	UpdateDefaultTeamID(ctx context.Context, userID, teamID string) error
 	MarkOnboardingCompleted(ctx context.Context, userID string) error
+	// BumpSessionEpoch increments the user's session revocation counter and
+	// returns the new value (#1428): every cookie session minted under an
+	// earlier epoch stops authenticating. Returns ErrUserNotFound when no row
+	// matches. API keys and MCP/OAuth tokens are not affected.
+	BumpSessionEpoch(ctx context.Context, userID string) (int64, error)
 	// GetNamesByIDs returns a map of userID → display name (or email when name is blank)
 	// for the given set of IDs. Unknown IDs are silently omitted from the result.
 	GetNamesByIDs(ctx context.Context, ids []string) (map[string]string, error)
