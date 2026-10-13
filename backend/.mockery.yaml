@@ -26,6 +26,7 @@ packages:
       AgentInvocationServiceInterface:
       AgentServiceInterface:
       APIKeyServiceInterface:
+      AccountServiceInterface:
       ArtifactServiceInterface:
       AttachmentOwnerAuthorizer:
       AttachmentServiceInterface:
@@ -168,6 +169,7 @@ packages:
       ResourceLockEventRepository:
       ScheduleRepository:
       SearchRepository:
+      SignInMethodRepository:
       TeamEmailProviderRepository:
       TeamInvitationRepository:
       TeamFreshnessSettingsRepository:

@@ -43,6 +43,26 @@ const (
 	// they carry. It is a 423, and names the resources in its metadata.
 	CodeHasLockedResources = "HAS_LOCKED_RESOURCES"
 
+	// Self-service account (#1437). Lower case by contract, like
+	// CodeAccessRestricted: clients branch on these exact values.
+	//
+	// CodeReauthenticationRequired: the operation needs a sign-in within the
+	// last few minutes and this session is older. The client asks the user to
+	// sign in again and repeats the request.
+	CodeReauthenticationRequired = "reauthentication_required"
+	// CodeCookieSessionRequired: the operation changes how the account signs in
+	// and is only open to a browser session, not an API key or a bearer token.
+	CodeCookieSessionRequired = "cookie_session_required"
+	// CodeLastSignInMethod: removing this password or identity would leave the
+	// account with no usable way to sign in.
+	CodeLastSignInMethod = "last_sign_in_method"
+	// CodeLocalSignInDisabled: password sign-in is switched off on this
+	// instance, so a password cannot be set or changed.
+	CodeLocalSignInDisabled = "password_login_disabled"
+	// CodeTooManyAttempts: too many wrong passwords; the account's password is
+	// temporarily locked. The response carries Retry-After.
+	CodeTooManyAttempts = "too_many_attempts"
+
 	// Rate limiting and quotas
 	CodeRateLimitExceeded     = "RATE_LIMIT_EXCEEDED"
 	CodeResourceLimitExceeded = "RESOURCE_LIMIT_EXCEEDED"
@@ -139,6 +159,11 @@ var errorTitles = map[string]string{
 	CodeResourceExists:                    "Resource Already Exists",
 	CodeResourceConflict:                  "Resource Conflict",
 	CodeDuplicateMembers:                  "Duplicate Team Members",
+	CodeReauthenticationRequired:          "Sign In Again To Continue",
+	CodeCookieSessionRequired:             "Browser Session Required",
+	CodeLastSignInMethod:                  "Last Sign-In Method",
+	CodeLocalSignInDisabled:               "Password Sign-In Is Off",
+	CodeTooManyAttempts:                   "Too Many Attempts",
 	CodeRateLimitExceeded:                 "Rate Limit Exceeded",
 	CodeResourceLimitExceeded:             "Resource Limit Exceeded",
 	CodeQuotaExceeded:                     "Quota Exceeded",

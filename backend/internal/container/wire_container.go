@@ -150,6 +150,8 @@ type WireContainer struct {
 	authPolicyResolver services.AuthPolicyResolver
 	// Email and password sign-in (#1431)
 	passwordAuthService services.PasswordAuthServiceInterface
+	// Self-service account (#1437)
+	accountService services.AccountServiceInterface
 	// First-run authentication setup mode (#1236)
 	setupModeService services.SetupModeService
 
@@ -308,6 +310,11 @@ func (c *WireContainer) AccessAllowlistResolver() services.AccessAllowlistResolv
 // AuthPolicyResolver returns the authentication policy resolver (#1429).
 func (c *WireContainer) AuthPolicyResolver() services.AuthPolicyResolver {
 	return c.authPolicyResolver
+}
+
+// AccountService returns the self-service account service (#1437).
+func (c *WireContainer) AccountService() services.AccountServiceInterface {
+	return c.accountService
 }
 
 // PasswordAuthService returns the email and password sign-in service (#1431).

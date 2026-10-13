@@ -1,0 +1,17 @@
+# oapi-codegen configuration for the Account domain (#1437): the signed-in
+# user's own account, password and sign-in methods.
+#
+# Its own package under internal/server/gen/account, like every other
+# spec-first domain (see oapi-codegen-types.yaml for the rationale).
+#
+# Regenerate with: make backend-generate-openapi-server
+# CI fails the PR if this output is stale relative to the spec.
+package: accountgen
+output: internal/server/gen/account/account.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  include-tags:
+    - Account

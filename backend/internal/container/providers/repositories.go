@@ -28,6 +28,12 @@ func ProvideAPIAccessRepository(db *database.DB) repositories.APIAccessRepositor
 	return postgres.NewAPIAccessRepository(db)
 }
 
+// ProvideSignInMethodRepository creates the repository that removes sign-in
+// methods, never the last usable one (#1437).
+func ProvideSignInMethodRepository(db *database.DB) repositories.SignInMethodRepository {
+	return postgres.NewSignInMethodRepository(db)
+}
+
 // ProvideAPIKeyRepository creates a new APIKeyRepository
 func ProvideAPIKeyRepository(db *database.DB) repositories.APIKeyRepository {
 	return postgres.NewAPIKeyRepository(db)

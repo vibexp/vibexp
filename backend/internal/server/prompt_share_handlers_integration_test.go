@@ -86,6 +86,9 @@ func (m *mockUserRepository) MarkOnboardingCompleted(ctx context.Context, userID
 	return nil
 }
 
+// UpdateName satisfies the interface; these tests never rename a user.
+func (m *mockUserRepository) UpdateName(_ context.Context, _, _ string) error { return nil }
+
 // BumpSessionEpoch satisfies the interface; these tests never revoke sessions.
 func (m *mockUserRepository) BumpSessionEpoch(_ context.Context, _ string) (int64, error) {
 	return 0, nil

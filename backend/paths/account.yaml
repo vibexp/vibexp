@@ -1,0 +1,316 @@
+# Self-service account (#1437, epic #1426).
+
+api-v1-account:
+  get:
+    summary: Get my account
+    description: |
+      Returns the signed-in user's own account: name, email, whether it has a
+      password and when that last changed, the identity providers it can sign in
+      with, and whether this browser session counts as a recent sign-in.
+
+      Accepts any authentication. For an API key or a bearer token
+      `recent_sign_in` is false.
+    operationId: getAccount
+    tags:
+      - Account
+    security:
+      - CookieAuth: []
+      - BearerAuth: []
+      - ApiKeyAuth: []
+    responses:
+      '200':
+        description: The account
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Account'
+      '401':
+        description: Not authenticated
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: The account could not be read
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+  patch:
+    summary: Update my account
+    description: |
+      Changes the signed-in user's display name. A sign-in through an identity
+      provider does not overwrite it afterwards. The email address cannot be
+      changed.
+    operationId: updateAccount
+    tags:
+      - Account
+    security:
+      - CookieAuth: []
+      - BearerAuth: []
+      - ApiKeyAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/AccountUpdateRequest'
+    responses:
+      '200':
+        description: The updated account
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Account'
+      '400':
+        description: Malformed request body, an unknown field, or a name that is blank or longer than 255 characters
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Not authenticated
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: The account could not be updated
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-account-password:
+  put:
+    summary: Set or change my password
+    description: |
+      Sets the signed-in user's password, or changes it.
+
+      - **Changing** a password requires `current_password`. A wrong one
+        answers 400 with a field error on `current_password` and counts toward
+        the account's sign-in throttle, exactly like a failed sign-in: after
+        several wrong attempts password sign-in for the account is locked for a
+        short time that grows to at most 15 minutes, and this operation answers
+        429 `too_many_attempts` with a `Retry-After` header until the lock ends.
+      - **Setting a first** password (the account signs in through an identity
+        provider only) requires a recent sign-in: this browser session must
+        have signed in within the last 10 minutes, otherwise the answer is 403
+        `reauthentication_required`. Sign in again and repeat the request.
+
+      On success every OTHER browser session of the user is ended and this one
+      stays signed in (its session cookie is re-issued). API keys and connected
+      MCP and CLI tools keep working unless `revoke_api_access` is true.
+
+      Only a browser session may call this: an API key or a bearer token is
+      answered 403 `cookie_session_required`. While password sign-in is switched
+      off on the instance the answer is 409 `password_login_disabled`.
+
+      `reauthentication_required`, `cookie_session_required`,
+      `password_login_disabled` and `too_many_attempts` are stable values of
+      `code` that a client can branch on.
+    operationId: setAccountPassword
+    tags:
+      - Account
+    security:
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/AccountPasswordRequest'
+    responses:
+      '204':
+        description: Password set — other browser sessions ended, this session's cookie re-issued
+        headers:
+          Set-Cookie:
+            description: The re-issued session cookie (`vx_session`)
+            schema:
+              type: string
+      '400':
+        description: |
+          Malformed request body or an unknown field; a new password that does
+          not meet the password policy (field errors on `new_password` with code
+          `too_short`, `too_long`, `common` or `matches_email`); a missing or
+          wrong current password (field error on `current_password` with code
+          `invalid_current_password`).
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Not authenticated
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: |
+          `cookie_session_required` — the request was authenticated by an API
+          key or a bearer token. `reauthentication_required` — the account has no
+          password yet and this session signed in more than 10 minutes ago.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: '`password_login_disabled` — password sign-in is switched off on this instance'
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '429':
+        description: '`too_many_attempts` — too many wrong current passwords; password sign-in for the account is temporarily locked'
+        headers:
+          Retry-After:
+            description: Seconds until the lock ends
+            schema:
+              type: integer
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: The password could not be set
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+  delete:
+    summary: Remove my password
+    description: |
+      Removes the signed-in user's password, leaving the account's identity
+      providers as its sign-in methods.
+
+      Requires a recent sign-in (403 `reauthentication_required` otherwise), and
+      is refused with 409 `last_sign_in_method` when the password is the
+      account's only usable sign-in method: an identity whose provider is not
+      currently enabled does not count. Works whether or not password sign-in is
+      switched on for the instance.
+
+      On success every other browser session of the user is ended and this one
+      stays signed in. Only a browser session may call this (403
+      `cookie_session_required` otherwise). `last_sign_in_method` is a stable
+      value of `code`.
+    operationId: deleteAccountPassword
+    tags:
+      - Account
+    security:
+      - CookieAuth: []
+    responses:
+      '204':
+        description: Password removed — other browser sessions ended, this session's cookie re-issued
+        headers:
+          Set-Cookie:
+            description: The re-issued session cookie (`vx_session`)
+            schema:
+              type: string
+      '401':
+        description: Not authenticated
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: '`cookie_session_required` or `reauthentication_required`'
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: The account has no password
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: '`last_sign_in_method` — the password is the only usable sign-in method'
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: The password could not be removed
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-account-identities-id:
+  delete:
+    summary: Disconnect a sign-in identity
+    description: |
+      Disconnects one identity provider from the signed-in user's account. The
+      link is removed, not blocked: a later sign-in through a provider that
+      reports the account's own email address as verified links to the account
+      again. To keep a provider account out for good, it must stop being able
+      to prove that address.
+
+      Requires a recent sign-in (403 `reauthentication_required` otherwise), and
+      is refused with 409 `last_sign_in_method` when no other usable sign-in
+      method would remain. A password counts only while password sign-in is
+      switched on and the password has not been disabled by an administrator;
+      another identity counts only while its provider is enabled.
+
+      On success every other browser session of the user is ended and this one
+      stays signed in, even when it was signed in through the disconnected
+      identity. Only a browser session may call this (403
+      `cookie_session_required` otherwise).
+    operationId: deleteAccountIdentity
+    tags:
+      - Account
+    security:
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: The identity's `id` from `GET /api/v1/account`
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Identity disconnected — other browser sessions ended, this session's cookie re-issued
+        headers:
+          Set-Cookie:
+            description: The re-issued session cookie (`vx_session`)
+            schema:
+              type: string
+      '400':
+        description: The identity id is not a UUID
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Not authenticated
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: '`cookie_session_required` or `reauthentication_required`'
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: The account has no such identity
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: '`last_sign_in_method` — no other usable sign-in method would remain'
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: The identity could not be disconnected
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'

@@ -20,8 +20,11 @@ type UserCredential struct {
 	// DisabledAt is set when an administrator disabled the password without
 	// removing it.
 	DisabledAt *time.Time `json:"disabled_at,omitempty" db:"disabled_at"`
-	CreatedAt  time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt  time.Time  `json:"updated_at" db:"updated_at"`
+	// PasswordChangedAt is when the password was last set or changed (#1437).
+	// Unlike UpdatedAt it is not moved by sign-in attempts or by a rehash.
+	PasswordChangedAt time.Time `json:"password_changed_at" db:"password_changed_at"`
+	CreatedAt         time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // IsDisabled reports whether an administrator disabled the password.

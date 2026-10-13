@@ -881,6 +881,37 @@ func ProvideAuthPolicyResolver(
 	})
 }
 
+// AccountServiceDeps groups the dependencies of ProvideAccountService. Wire
+// fills it via wire.Struct (see the container ProviderSet).
+type AccountServiceDeps struct {
+	Users      repositories.UserRepository
+	Identities repositories.UserIdentityRepository
+	Methods    repositories.SignInMethodRepository
+	Passwords  services.PasswordAuthServiceInterface
+	Policy     services.AuthPolicyResolver
+	Providers  services.IdentityProviderResolver
+	APIAccess  services.APIAccessServiceInterface
+	Logger     *slog.Logger
+}
+
+// ProvideAccountService creates the self-service account service (#1437). It
+// shares the password service, the policy resolver and the provider resolver
+// with sign-in, so "which methods can this account use" is answered from the
+// same sources sign-in itself reads. No notifier is installed yet: the
+// password-changed email is #1433.
+func ProvideAccountService(deps AccountServiceDeps) services.AccountServiceInterface {
+	return services.NewAccountService(services.AccountServiceDeps{
+		Users:      deps.Users,
+		Identities: deps.Identities,
+		Methods:    deps.Methods,
+		Passwords:  deps.Passwords,
+		Policy:     deps.Policy,
+		Providers:  deps.Providers,
+		APIAccess:  deps.APIAccess,
+		Logger:     deps.Logger,
+	})
+}
+
 // ProvidePasswordAuthService creates the email and password sign-in service
 // (#1431) with the production argon2id parameters and lockout schedule. It
 // shares the policy and allowlist resolvers with every other sign-in path, so
