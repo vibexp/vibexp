@@ -12,6 +12,14 @@ export const RAW_EDITOR_TAB_HINT =
  * command, so the change lands on the native undo stack and fires a real
  * `input` event. Returns false where that is unavailable (jsdom, or a browser
  * that has dropped `execCommand`), leaving the caller to set the value itself.
+ *
+ * This is the one place the editor calls `document.execCommand`. It is
+ * deprecated and deliberately still used: nothing else changes a textarea's
+ * text and keeps the browser's undo history. Setting `value` or calling
+ * `setRangeText` makes the same edit but bypasses or clears that history, so
+ * Ctrl+Z after a Tab indent would undo nothing, or the wrong thing. There is
+ * no replacement API for a plain textarea, hence the two suppressions below
+ * (SonarCloud S1874) and the fallback in the caller.
  */
 function replaceThroughBrowser(
   el: HTMLTextAreaElement,
@@ -19,12 +27,11 @@ function replaceThroughBrowser(
   to: number,
   text: string
 ): boolean {
-  if (typeof document.execCommand !== 'function') return false
+  if (typeof document.execCommand !== 'function') return false // NOSONAR
   el.setSelectionRange(from, to)
+  const command = text === '' ? 'delete' : 'insertText'
   try {
-    return text === ''
-      ? document.execCommand('delete')
-      : document.execCommand('insertText', false, text)
+    return document.execCommand(command, false, text) // NOSONAR
   } catch {
     return false
   }
