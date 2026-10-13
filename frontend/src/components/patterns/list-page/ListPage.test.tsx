@@ -125,6 +125,14 @@ describe('<ListPage.Footer>', () => {
       expect(screen.getByText(/Showing 5 of 10 prompts/)).toBeInTheDocument()
     })
 
+    it('hides count line when the list is empty', () => {
+      render(
+        <ListPage.Footer count={{ visible: 0, total: 0, noun: 'agent' }} />
+      )
+
+      expect(screen.queryByText(/Showing/)).not.toBeInTheDocument()
+    })
+
     it('hides count line when hideCount is true', () => {
       render(
         <ListPage.Footer

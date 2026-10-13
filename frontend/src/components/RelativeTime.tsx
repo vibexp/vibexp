@@ -11,7 +11,8 @@ interface RelativeTimeProps {
 /**
  * Renders a compact relative-time label (e.g. "3d ago", or a short date beyond
  * 7 days) and reveals the full date-time (e.g. "June 7, 2026, 09:14 AM") on
- * hover through the native `title`. Reuses the shared formatters in
+ * hover through the native `title`. It is a `<time>` element whose `dateTime`
+ * is the ISO instant, so the exact moment is machine-readable too. Reuses the shared formatters in
  * `@/lib/time` — no new date logic.
  *
  * The full value used to come from a Radix tooltip. #907 needed it on `title`
@@ -26,14 +27,24 @@ export function RelativeTime({
   value,
   className,
 }: Readonly<RelativeTimeProps>) {
-  // No value means both formatters return "Never", and a native bubble that
-  // just repeats the cell is noise — so the attribute is omitted entirely.
+  const date = value ? new Date(value) : null
+  // No usable value means both formatters return a word ("Never"), not a time.
+  // `<time>` must hold one, and a native bubble that just repeats the cell is
+  // noise — so that case stays a plain span with no attributes.
+  if (!value || !date || Number.isNaN(date.getTime())) {
+    return (
+      <span className={cn('cursor-default', className)}>
+        {formatRelativeTime(value)}
+      </span>
+    )
+  }
   return (
-    <span
+    <time
+      dateTime={date.toISOString()}
       className={cn('cursor-default', className)}
-      title={value ? formatDateTime(value) : undefined}
+      title={formatDateTime(value)}
     >
       {formatRelativeTime(value)}
-    </span>
+    </time>
   )
 }

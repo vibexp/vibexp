@@ -49,10 +49,21 @@ describe('RelativeTime', () => {
     )
   })
 
+  it('is a <time> element carrying the machine-readable instant', () => {
+    render(<RelativeTime value="2024-01-15T12:00:00Z" />)
+
+    const label = screen.getByText(/Jan 15, 2024/)
+    expect(label.tagName).toBe('TIME')
+    expect(label).toHaveAttribute('dateTime', '2024-01-15T12:00:00.000Z')
+  })
+
   it('omits `title` when there is no timestamp, rather than repeating "Never"', () => {
     render(<RelativeTime value={null} />)
 
-    expect(screen.getByText('Never')).not.toHaveAttribute('title')
+    const label = screen.getByText('Never')
+    expect(label).not.toHaveAttribute('title')
+    // "Never" is not a time, so it must not claim to be one.
+    expect(label.tagName).toBe('SPAN')
   })
 
   it('applies the provided className to the compact label', () => {

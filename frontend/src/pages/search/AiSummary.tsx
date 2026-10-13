@@ -1,4 +1,4 @@
-import { ChevronDown, RefreshCw, Settings, Sparkles } from 'lucide-react'
+import { ChevronDown, RefreshCw, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useRef } from 'react'
 import { Link, useNavigate } from 'react-router'
 
@@ -87,9 +87,8 @@ export function AiSummary({
         <Sparkles className="size-4 shrink-0" />
         <Link
           to={`/teams/${encodeURIComponent(teamId)}/settings/model-providers`}
-          className="text-primary inline-flex items-center gap-1 font-medium hover:underline"
+          className="text-primary font-medium hover:underline"
         >
-          <Settings className="size-3.5" />
           Configure a model provider to enable AI Summary
         </Link>
       </Card>

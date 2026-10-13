@@ -158,7 +158,11 @@ interface ListPageFooterProps {
   pagination?: ListPagePagination
   /** Optional small note below the count line (e.g. sort scope disclaimer). */
   note?: ReactNode
-  /** Suppress the "Showing X of Y" line (e.g. during loading). */
+  /**
+   * Suppress the "Showing X of Y" line (e.g. during loading). A list with
+   * nothing in it drops the line by itself: the empty state already says so,
+   * and "Showing 0 of 0" under it only repeats it.
+   */
   hideCount?: boolean
 }
 
@@ -174,7 +178,7 @@ function Footer({
   hideCount,
 }: Readonly<ListPageFooterProps>) {
   const noun = count ? countNoun(count) : ''
-  const showCount = count && !hideCount
+  const showCount = count && !hideCount && count.total > 0
   // Pagination controls only render when there's more than one page. Single-page
   // lists shouldn't carry always-disabled Prev/Next buttons.
   const showPagination = pagination !== undefined && pagination.totalPages > 1

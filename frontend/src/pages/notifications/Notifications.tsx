@@ -6,7 +6,6 @@ import { NotificationItem } from '@/components/layout/NotificationItem'
 import { PageHeader } from '@/components/PageHeader'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useNotifications } from '@/hooks/useNotifications'
 
@@ -49,30 +48,7 @@ export function Notifications() {
 
   const unreadCount = notifications.filter(n => !n.read_at).length
 
-  const notificationsContent =
-    notifications.length === 0 ? (
-      <div className="p-6">
-        <EmptyState
-          icon={Bell}
-          title="You're all caught up"
-          description={
-            filter === 'unread'
-              ? 'No unread notifications.'
-              : 'No notifications yet. Activity across your workspace will appear here.'
-          }
-        />
-      </div>
-    ) : (
-      <div className="divide-y">
-        {notifications.map(notification => (
-          <NotificationItem
-            key={notification.id}
-            notification={notification}
-            onRead={handleRead}
-          />
-        ))}
-      </div>
-    )
+  const isEmpty = !loading && notifications.length === 0
 
   return (
     <div className="space-y-6">
@@ -118,11 +94,22 @@ export function Notifications() {
         </Alert>
       )}
 
-      <Card>
-        <CardContent className="p-0">
-          {loading && notifications.length === 0 ? (
-            <div className="space-y-0 divide-y">
-              {Array.from({ length: 5 }).map((_, i) => (
+      {isEmpty ? (
+        // Unboxed, like every other empty state: a frame around "nothing here"
+        // is a box with no list in it.
+        <EmptyState
+          icon={Bell}
+          title="You're all caught up"
+          description={
+            filter === 'unread'
+              ? 'No unread notifications.'
+              : 'No notifications yet. Activity across your workspace will appear here.'
+          }
+        />
+      ) : (
+        <div className="divide-y overflow-hidden rounded-lg border">
+          {notifications.length === 0
+            ? Array.from({ length: 5 }).map((_, i) => (
                 <div
                   key={`skeleton-${String(i)}`}
                   className="flex flex-col gap-2 px-4 py-3"
@@ -130,13 +117,16 @@ export function Notifications() {
                   <Skeleton className="h-4 w-3/4" />
                   <Skeleton className="h-3 w-1/2" />
                 </div>
+              ))
+            : notifications.map(notification => (
+                <NotificationItem
+                  key={notification.id}
+                  notification={notification}
+                  onRead={handleRead}
+                />
               ))}
-            </div>
-          ) : (
-            notificationsContent
-          )}
-        </CardContent>
-      </Card>
+        </div>
+      )}
 
       {hasMore && (
         <div className="flex justify-center">
