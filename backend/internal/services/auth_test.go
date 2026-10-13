@@ -1215,3 +1215,88 @@ func TestAuthService_HandleDevLogin_NormalizesTheSubject(t *testing.T) {
 	require.NoError(t, err)
 	users.AssertExpectations(t)
 }
+
+// email_verified_at is what #1430's account-linking rule trusts, so pin what a
+// whole sign-in writes, not only the helper: a verified sign-in sets it, and an
+// unverified one that changes the address clears it.
+func TestAuthService_SignIn_WritesEmailVerifiedAt(t *testing.T) {
+	ctx := context.Background()
+	verifiedLongAgo := time.Now().Add(-48 * time.Hour)
+
+	tests := []struct {
+		name   string
+		stored models.User
+		claims idp.Claims
+		check  func(*testing.T, *models.User)
+	}{
+		{
+			name:   "a verified sign-in sets it",
+			stored: models.User{ID: "user-1", Email: "u@example.com"},
+			claims: idp.Claims{Subject: "sub-1", Email: "u@example.com", EmailVerified: true},
+			check: func(t *testing.T, u *models.User) {
+				require.NotNil(t, u.EmailVerifiedAt)
+				assert.WithinDuration(t, time.Now(), *u.EmailVerifiedAt, time.Minute)
+			},
+		},
+		{
+			name:   "an unverified sign-in that changes the email clears it",
+			stored: models.User{ID: "user-1", Email: "old@example.com", EmailVerifiedAt: &verifiedLongAgo},
+			claims: idp.Claims{Subject: "sub-1", Email: "new@example.com", EmailVerified: false},
+			check: func(t *testing.T, u *models.User) {
+				assert.Equal(t, "new@example.com", u.Email)
+				assert.Nil(t, u.EmailVerifiedAt, "the new address was never verified")
+			},
+		},
+		{
+			name:   "an unverified sign-in with the same email keeps it",
+			stored: models.User{ID: "user-1", Email: "u@example.com", EmailVerifiedAt: &verifiedLongAgo},
+			claims: idp.Claims{Subject: "sub-1", Email: "u@example.com", EmailVerified: false},
+			check: func(t *testing.T, u *models.User) {
+				require.NotNil(t, u.EmailVerifiedAt)
+				assert.True(t, verifiedLongAgo.Equal(*u.EmailVerifiedAt))
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stored := tt.stored
+			users := &repo_mocks.MockUserRepository{}
+			identities := &repo_mocks.MockUserIdentityRepository{}
+			users.On("GetByIDPSubject", ctx, "corp-sso", "sub-1").Return(&stored, nil)
+			var written *models.User
+			users.On("Update", ctx, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+				written = args.Get(1).(*models.User)
+			})
+			identities.On("Upsert", ctx, "user-1", "corp-sso", "sub-1").Return(nil)
+
+			claims := tt.claims
+			_, _, err := identityAuthService(t, users, identities).
+				createOrUpdateUserFromClaims(ctx, "corp-sso", idp.ProviderOIDC, &claims)
+
+			require.NoError(t, err)
+			require.NotNil(t, written, "the user row must be written")
+			tt.check(t, written)
+		})
+	}
+}
+
+// A new account is verified from its first sign-in only when the provider says so.
+func TestAuthService_SignIn_NewUserEmailVerifiedAt(t *testing.T) {
+	ctx := context.Background()
+	for _, verified := range []bool{true, false} {
+		users := &repo_mocks.MockUserRepository{}
+		users.On("GetByIDPSubject", ctx, "corp-sso", "sub-new").Return(nil, repositories.ErrUserNotFound)
+		var created *models.User
+		users.On("Create", ctx, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+			created = args.Get(1).(*models.User)
+		})
+		claims := &idp.Claims{Subject: "sub-new", Email: "n@example.com", EmailVerified: verified}
+
+		_, _, err := identityAuthService(t, users, &repo_mocks.MockUserIdentityRepository{}).
+			createOrUpdateUserFromClaims(ctx, "corp-sso", idp.ProviderOIDC, claims)
+
+		require.NoError(t, err)
+		require.NotNil(t, created)
+		assert.Equal(t, verified, created.EmailVerifiedAt != nil, "claims verified=%v", verified)
+	}
+}

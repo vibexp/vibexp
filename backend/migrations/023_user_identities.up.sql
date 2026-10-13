@@ -47,7 +47,7 @@ UPDATE users SET email = lower(email) WHERE email <> lower(email);
 ALTER TABLE users
     ADD CONSTRAINT users_email_lowercase CHECK (email = lower(email));
 
--- 3. When a sign-in provider last confirmed the stored address belongs to the
+-- 3. When a sign-in provider first confirmed the stored address belongs to the
 -- user. NULL for every existing account: it was never recorded.
 ALTER TABLE users
     ADD COLUMN email_verified_at timestamptz;
@@ -55,7 +55,7 @@ ALTER TABLE users
 COMMENT ON COLUMN users.email IS
     'Lower case (users_email_lowercase), so users_email_key makes it case-insensitively unique. Written through models.NormalizeEmail.';
 COMMENT ON COLUMN users.email_verified_at IS
-    'When a sign-in provider last reported the stored email as verified. NULL when no provider has.';
+    'When a sign-in provider first reported the stored email as verified; reset when the email changes. NULL when no provider has verified it.';
 
 -- 4. Identities.
 CREATE TABLE user_identities (

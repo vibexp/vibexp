@@ -227,3 +227,31 @@ func TestIntegrationTeamInvitation_GetPendingByEmailIsCaseInsensitive(t *testing
 	require.Len(t, got, 1)
 	assert.Equal(t, "Bob@Example.com", got[0].InviteeEmail, "the stored casing is returned untouched")
 }
+
+// A restricted prompt share granted to an address typed with capitals still
+// admits that account, whose users.email is lower case since migration 023.
+func TestIntegrationPromptShare_HasAccessIsCaseInsensitive(t *testing.T) {
+	resetSearchTables(t)
+	ctx := context.Background()
+	owner := insertTestUser(t)
+	teamID := insertTestTeam(t, owner)
+	promptID := insertTestPrompt(t, owner, teamID, insertTestProject(t, owner, teamID), "Shared", "body", "published")
+	var shareID string
+	require.NoError(t, integrationDB.QueryRowContext(ctx,
+		`INSERT INTO prompt_shares (prompt_id, share_token, share_type, created_by)
+		 VALUES ($1, $2, 'restricted', $3) RETURNING id`,
+		promptID, uuid.New().String(), owner).Scan(&shareID))
+	_, err := integrationDB.ExecContext(ctx,
+		"INSERT INTO prompt_share_access (share_id, email) VALUES ($1, 'Alice@Example.com')", shareID)
+	require.NoError(t, err)
+	repo := NewPromptShareRepository(integrationDB)
+
+	for _, viewer := range []string{"alice@example.com", "Alice@Example.com", "ALICE@EXAMPLE.COM"} {
+		ok, accessErr := repo.HasAccess(ctx, shareID, viewer)
+		require.NoError(t, accessErr)
+		assert.True(t, ok, "viewer %q", viewer)
+	}
+	ok, err := repo.HasAccess(ctx, shareID, "mallory@example.com")
+	require.NoError(t, err)
+	assert.False(t, ok)
+}
