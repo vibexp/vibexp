@@ -66,18 +66,29 @@ func insertTestBlueprintRow(t *testing.T, userID, teamID, projectID string) stri
 	return id
 }
 
+// writeEventSpec names the fields of one write event, so a call site cannot
+// transpose two of its strings.
+type writeEventSpec struct {
+	teamID       string
+	projectID    string
+	resourceType string
+	resourceID   string
+	action       string
+	source       string
+}
+
 // recordWrite stores one write event through the repository under test.
-func recordWrite(t *testing.T, f writeEventFixture, teamID, projectID, resourceType, resourceID, action, source string) {
+func recordWrite(t *testing.T, f writeEventFixture, e writeEventSpec) {
 	t.Helper()
 	require.NoError(t, NewResourceWriteEventRepository(integrationDB).Create(context.Background(),
 		&models.ResourceWriteEvent{
-			TeamID:       teamID,
-			ProjectID:    &projectID,
+			TeamID:       e.teamID,
+			ProjectID:    &e.projectID,
 			UserID:       &f.userID,
-			ResourceType: resourceType,
-			ResourceID:   resourceID,
-			Action:       action,
-			Source:       source,
+			ResourceType: e.resourceType,
+			ResourceID:   e.resourceID,
+			Action:       e.action,
+			Source:       e.source,
 		}))
 }
 
@@ -102,38 +113,77 @@ func seedMixedWrites(t *testing.T, f writeEventFixture) {
 	p1 := insertTestPrompt(t, f.userID, f.teamID, f.projectID, "p1", "body", "published")
 	p2 := insertTestPrompt(t, f.userID, f.teamID, f.projectID, "p2", "body", "published")
 	insertTestPrompt(t, f.userID, f.teamID, f.projectID, "p3-legacy", "body", "published")
-	recordWrite(t, f, f.teamID, f.projectID, "prompt", p1, create, "web")
-	recordWrite(t, f, f.teamID, f.projectID, "prompt", p2, create, "mcp")
+	recordWrite(t, f, writeEventSpec{
+		teamID: f.teamID, projectID: f.projectID,
+		resourceType: "prompt", resourceID: p1, action: create, source: "web",
+	})
+	recordWrite(t, f, writeEventSpec{
+		teamID: f.teamID, projectID: f.projectID,
+		resourceType: "prompt", resourceID: p2, action: create, source: "mcp",
+	})
 	// Updates must never be counted as creations, whatever their channel.
-	recordWrite(t, f, f.teamID, f.projectID, "prompt", p1, update, "mcp")
-	recordWrite(t, f, f.teamID, f.projectID, "prompt", p1, update, "mcp")
-	recordWrite(t, f, f.teamID, f.projectID, "prompt", p2, update, "cli")
+	recordWrite(t, f, writeEventSpec{
+		teamID: f.teamID, projectID: f.projectID,
+		resourceType: "prompt", resourceID: p1, action: update, source: "mcp",
+	})
+	recordWrite(t, f, writeEventSpec{
+		teamID: f.teamID, projectID: f.projectID,
+		resourceType: "prompt", resourceID: p1, action: update, source: "mcp",
+	})
+	recordWrite(t, f, writeEventSpec{
+		teamID: f.teamID, projectID: f.projectID,
+		resourceType: "prompt", resourceID: p2, action: update, source: "cli",
+	})
 
 	a1 := insertTestArtifact(t, f.userID, f.teamID, f.projectID, "a1", "content", "active")
 	legacyArtifact := insertTestArtifact(t, f.userID, f.teamID, f.projectID, "a2-legacy", "content", "active")
-	recordWrite(t, f, f.teamID, f.projectID, "artifact", a1, create, "cli")
+	recordWrite(t, f, writeEventSpec{
+		teamID: f.teamID, projectID: f.projectID,
+		resourceType: "artifact", resourceID: a1, action: create, source: "cli",
+	})
 	// A legacy resource edited after the migration: it has an update event and
 	// still no create event, so its creation stays unknown.
-	recordWrite(t, f, f.teamID, f.projectID, "artifact", legacyArtifact, update, "web")
+	recordWrite(t, f, writeEventSpec{
+		teamID: f.teamID, projectID: f.projectID,
+		resourceType: "artifact", resourceID: legacyArtifact, action: update, source: "web",
+	})
 
 	b1 := insertTestBlueprintRow(t, f.userID, f.teamID, f.projectID)
-	recordWrite(t, f, f.teamID, f.projectID, "blueprint", b1, create, "api")
+	recordWrite(t, f, writeEventSpec{
+		teamID: f.teamID, projectID: f.projectID,
+		resourceType: "blueprint", resourceID: b1, action: create, source: "api",
+	})
 
 	m1 := insertTestMemory(t, f.userID, f.teamID, f.projectID, "m1")
 	m2 := insertTestMemory(t, f.userID, f.teamID, f.projectID, "m2")
 	insertTestMemory(t, f.userID, f.teamID, f.projectID, "m3-legacy")
-	recordWrite(t, f, f.teamID, f.projectID, "memory", m1, create, "mcp")
-	recordWrite(t, f, f.teamID, f.projectID, "memory", m2, create, "mcp")
+	recordWrite(t, f, writeEventSpec{
+		teamID: f.teamID, projectID: f.projectID,
+		resourceType: "memory", resourceID: m1, action: create, source: "mcp",
+	})
+	recordWrite(t, f, writeEventSpec{
+		teamID: f.teamID, projectID: f.projectID,
+		resourceType: "memory", resourceID: m2, action: create, source: "mcp",
+	})
 
 	// Sibling project of the same team.
 	sp := insertTestPrompt(t, f.userID, f.teamID, f.siblingID, "sp", "body", "published")
-	recordWrite(t, f, f.teamID, f.siblingID, "prompt", sp, create, "mcp")
+	recordWrite(t, f, writeEventSpec{
+		teamID: f.teamID, projectID: f.siblingID,
+		resourceType: "prompt", resourceID: sp, action: create, source: "mcp",
+	})
 	insertTestMemory(t, f.userID, f.teamID, f.siblingID, "sm-legacy")
 
 	// Another team entirely: must never leak into this team's numbers.
 	op := insertTestPrompt(t, f.userID, f.otherTeamID, f.otherProject, "op", "body", "published")
-	recordWrite(t, f, f.otherTeamID, f.otherProject, "prompt", op, create, "web")
-	recordWrite(t, f, f.otherTeamID, f.otherProject, "prompt", op, update, "web")
+	recordWrite(t, f, writeEventSpec{
+		teamID: f.otherTeamID, projectID: f.otherProject,
+		resourceType: "prompt", resourceID: op, action: create, source: "web",
+	})
+	recordWrite(t, f, writeEventSpec{
+		teamID: f.otherTeamID, projectID: f.otherProject,
+		resourceType: "prompt", resourceID: op, action: update, source: "web",
+	})
 }
 
 // bySourceMap flattens the repository rows into resource type -> source -> count.
@@ -311,10 +361,16 @@ func TestIntegrationResourceWriteEvents_CreationBySourceHonoursWindow(t *testing
 	oldPrompt := insertTestPrompt(t, f.userID, f.teamID, f.projectID, "old", "body", "published")
 	_, err := integrationDB.ExecContext(ctx, "UPDATE prompts SET created_at = $1 WHERE id = $2", old, oldPrompt)
 	require.NoError(t, err)
-	recordWrite(t, f, f.teamID, f.projectID, "prompt", oldPrompt, models.WriteActionCreate, "web")
+	recordWrite(t, f, writeEventSpec{
+		teamID: f.teamID, projectID: f.projectID,
+		resourceType: "prompt", resourceID: oldPrompt, action: models.WriteActionCreate, source: "web",
+	})
 
 	newPrompt := insertTestPrompt(t, f.userID, f.teamID, f.projectID, "new", "body", "published")
-	recordWrite(t, f, f.teamID, f.projectID, "prompt", newPrompt, models.WriteActionCreate, "mcp")
+	recordWrite(t, f, writeEventSpec{
+		teamID: f.teamID, projectID: f.projectID,
+		resourceType: "prompt", resourceID: newPrompt, action: models.WriteActionCreate, source: "mcp",
+	})
 
 	rows, err := NewResourceWriteEventRepository(integrationDB).
 		GetTeamCreationCountsBySource(ctx, f.teamID, time.Now().UTC().AddDate(0, 0, -30))
@@ -334,7 +390,10 @@ func TestIntegrationResourceWriteEvents_CreationBySourceIgnoresSessionTimezone(t
 	promptID := insertTestPrompt(t, f.userID, f.teamID, f.projectID, "edge", "body", "published")
 	_, err := integrationDB.ExecContext(ctx, "UPDATE prompts SET created_at = $1 WHERE id = $2", edge, promptID)
 	require.NoError(t, err)
-	recordWrite(t, f, f.teamID, f.projectID, "prompt", promptID, models.WriteActionCreate, "web")
+	recordWrite(t, f, writeEventSpec{
+		teamID: f.teamID, projectID: f.projectID,
+		resourceType: "prompt", resourceID: promptID, action: models.WriteActionCreate, source: "web",
+	})
 
 	// INSERTed with an explicit naive value: an UPDATE would fire the memories
 	// trigger, and the column is naive, so it is written as it is stored.
@@ -344,7 +403,10 @@ func TestIntegrationResourceWriteEvents_CreationBySourceIgnoresSessionTimezone(t
 		 VALUES ($1, $2, $3, $4, 'edge', $5::timestamp, $5::timestamp)`,
 		memoryID, f.userID, f.teamID, f.projectID, edge.Format("2006-01-02 15:04:05"))
 	require.NoError(t, err)
-	recordWrite(t, f, f.teamID, f.projectID, "memory", memoryID, models.WriteActionCreate, "mcp")
+	recordWrite(t, f, writeEventSpec{
+		teamID: f.teamID, projectID: f.projectID,
+		resourceType: "memory", resourceID: memoryID, action: models.WriteActionCreate, source: "mcp",
+	})
 
 	// The window starts EXACTLY at the seeded instant: a wider margin would
 	// swallow the session offset and the test would see nothing.

@@ -594,12 +594,14 @@ func (r *ArtifactRepository) Update(ctx context.Context, artifact *models.Artifa
 
 // SetLock locks an artifact. See repositories.ArtifactRepository.
 func (r *ArtifactRepository) SetLock(ctx context.Context, teamID, artifactID, lockerID, comment string) error {
-	return setResourceLock(ctx, r.db, artifactSetLockSQL, r.validateArtifactInTeam, teamID, artifactID, lockerID, comment)
+	stmt := lockStatement{query: artifactSetLockSQL, inTeam: r.validateArtifactInTeam}
+	return setResourceLock(ctx, r.db, stmt, teamID, artifactID, lockerID, comment)
 }
 
 // ClearLock unlocks an artifact. See repositories.ArtifactRepository.
 func (r *ArtifactRepository) ClearLock(ctx context.Context, teamID, artifactID string) error {
-	return clearResourceLock(ctx, r.db, artifactClearLockSQL, r.validateArtifactInTeam, teamID, artifactID)
+	stmt := lockStatement{query: artifactClearLockSQL, inTeam: r.validateArtifactInTeam}
+	return clearResourceLock(ctx, r.db, stmt, teamID, artifactID)
 }
 
 // Delete deletes an artifact

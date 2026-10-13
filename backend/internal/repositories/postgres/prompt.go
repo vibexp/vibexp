@@ -538,12 +538,14 @@ func (r *PromptRepository) Update(ctx context.Context, prompt *models.Prompt) er
 
 // SetLock locks a prompt. See repositories.PromptRepository.
 func (r *PromptRepository) SetLock(ctx context.Context, teamID, promptID, lockerID, comment string) error {
-	return setResourceLock(ctx, r.db, promptSetLockSQL, r.validatePromptInTeam, teamID, promptID, lockerID, comment)
+	stmt := lockStatement{query: promptSetLockSQL, inTeam: r.validatePromptInTeam}
+	return setResourceLock(ctx, r.db, stmt, teamID, promptID, lockerID, comment)
 }
 
 // ClearLock unlocks a prompt. See repositories.PromptRepository.
 func (r *PromptRepository) ClearLock(ctx context.Context, teamID, promptID string) error {
-	return clearResourceLock(ctx, r.db, promptClearLockSQL, r.validatePromptInTeam, teamID, promptID)
+	stmt := lockStatement{query: promptClearLockSQL, inTeam: r.validatePromptInTeam}
+	return clearResourceLock(ctx, r.db, stmt, teamID, promptID)
 }
 
 // Delete deletes a prompt
