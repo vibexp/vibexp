@@ -152,3 +152,24 @@ describe('addHeadingIds', () => {
     )
   })
 })
+
+describe('addHeadingIds — headings that are not closed', () => {
+  it('leaves an unclosed heading alone and still marks the ones after it', () => {
+    expect(addHeadingIds('<h2>Open <h3>Closed</h3>')).toBe(
+      '<h2>Open <h3 id="closed">Closed</h3>'
+    )
+  })
+
+  it('closes a heading at the first matching closing tag', () => {
+    expect(addHeadingIds('<h2>A <h3>B</h2></h3>')).toBe(
+      '<h2 id="a-b">A <h3>B</h2></h3>'
+    )
+  })
+
+  it('stays fast on a long run of opening tags that never close', () => {
+    const html = '<h1>'.repeat(50_000)
+    const started = performance.now()
+    expect(addHeadingIds(html)).toBe(html)
+    expect(performance.now() - started).toBeLessThan(1000)
+  })
+})

@@ -4,6 +4,8 @@
  * (finding the headings, observing them) is `useReadingOutline`.
  */
 
+import { trimChar } from '@/utils/linearText'
+
 export interface OutlineHeading {
   id: string
   /** 2, 3 or 4 — the heading's level in the body. */
@@ -23,11 +25,13 @@ const OUTLINE_H4_BELOW = 4
  * gets a meaningful anchor; everything else separates words.
  */
 export function slugifyHeading(text: string): string {
-  return text
-    .trim()
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, '-')
-    .replace(/^-+|-+$/g, '')
+  return trimChar(
+    text
+      .trim()
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, '-'),
+    '-'
+  )
 }
 
 /**

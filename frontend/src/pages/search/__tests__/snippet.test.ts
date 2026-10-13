@@ -109,3 +109,69 @@ describe('highlightSegments', () => {
     expect(highlightSegments('', 'term')).toEqual([])
   })
 })
+
+describe('stripMarkdown — links and tables, edge cases', () => {
+  it('unwraps inline and reference links and images', () => {
+    expect(stripMarkdown('See [the docs](https://x.test) now')).toBe(
+      'See the docs now'
+    )
+    expect(stripMarkdown('![alt text](a.png) and [ref][1]')).toBe(
+      'alt text and ref'
+    )
+  })
+
+  it('leaves brackets that are not a link', () => {
+    expect(stripMarkdown('[not a link] (really)')).toBe('[not a link] (really)')
+    expect(stripMarkdown('a [half](open')).toBe('a [half](open')
+  })
+
+  it('blanks a table divider row but not a row of text', () => {
+    expect(stripMarkdown('| A | B |\n|---|:--|\n| 1 | 2 |')).toBe('A B 1 2')
+    expect(stripMarkdown('a - b')).toBe('a - b')
+  })
+})
+
+describe('on a long adversarial input', () => {
+  const N = 50_000
+  const fast = (work: () => void) => {
+    const started = performance.now()
+    work()
+    expect(performance.now() - started).toBeLessThan(1000)
+  }
+
+  it('unwraps links in linear time on a run of opening brackets', () => {
+    fast(() => {
+      expect(stripMarkdown('['.repeat(N))).toBe('['.repeat(N))
+    })
+  })
+
+  it('handles brackets that close but are never a link', () => {
+    fast(() => {
+      expect(stripMarkdown(`${'['.repeat(N)}]x`)).toBe(`${'['.repeat(N)}]x`)
+    })
+  })
+
+  it('handles reference-style openings with no closing bracket', () => {
+    fast(() => {
+      const text = `[a]${'['.repeat(N)}`
+      expect(stripMarkdown(text)).toBe(text)
+    })
+  })
+
+  it('checks a long line of dashes and pipes once', () => {
+    fast(() => {
+      expect(stripMarkdown(`${'-|'.repeat(N)}x`)).toContain('x')
+    })
+  })
+
+  it('trims a query term wrapped in a long run of punctuation', () => {
+    fast(() => {
+      expect(queryTerms(`${'"'.repeat(N)}term${'"'.repeat(N)}`)).toEqual([
+        'term',
+      ])
+      expect(queryTerms(`ab${'-'.repeat(N)}cd`)).toEqual([
+        `ab${'-'.repeat(N)}cd`,
+      ])
+    })
+  })
+})

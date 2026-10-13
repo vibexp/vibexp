@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router'
 
 import { NAV_ITEMS, STATIC_PAGE_LEAVES } from '@/components/layout/nav-items'
 import { useShell } from '@/components/layout/ShellContext'
+import { trimEndChar } from '@/utils/linearText'
 
 export interface Crumb {
   href: string
@@ -52,7 +53,7 @@ export function resolveBreadcrumb(
 ): { section: Crumb | null; trail: readonly string[] } {
   const section = currentPageCrumb(pathname)
   if (namedTrail.length > 0) return { section, trail: namedTrail }
-  const staticLeaf = STATIC_PAGE_LEAVES.get(pathname.replace(/\/+$/, ''))
+  const staticLeaf = STATIC_PAGE_LEAVES.get(trimEndChar(pathname, '/'))
   // A sub-page is listed by its own address; the section's own page is not a
   // crumb after itself.
   if (staticLeaf && staticLeaf !== section?.label) {

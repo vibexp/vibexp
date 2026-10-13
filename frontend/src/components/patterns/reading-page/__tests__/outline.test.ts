@@ -187,3 +187,34 @@ describe('createJumpPin', () => {
     expect(pin.current()).toBeNull()
   })
 })
+
+describe('slugifyHeading — on a long adversarial heading', () => {
+  it('stays fast when a long run of separators is not at the end', () => {
+    // One run of punctuation becomes one hyphen; many runs become many.
+    const text = `${'? a '.repeat(25_000)}z`
+    const started = performance.now()
+    expect(slugifyHeading(text).endsWith('a-z')).toBe(true)
+    expect(performance.now() - started).toBeLessThan(1000)
+  })
+})
+
+describe('createSlugger — many repeats', () => {
+  it('numbers each repeat in order', () => {
+    const slug = createSlugger()
+    const ids = Array.from({ length: 5 }, () => slug('Example'))
+    expect(ids).toEqual([
+      'example',
+      'example-2',
+      'example-3',
+      'example-4',
+      'example-5',
+    ])
+  })
+
+  it('skips a number a real heading already took', () => {
+    const slug = createSlugger()
+    expect(slug('Example 2')).toBe('example-2')
+    expect(slug('Example')).toBe('example')
+    expect(slug('Example')).toBe('example-3')
+  })
+})

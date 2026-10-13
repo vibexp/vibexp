@@ -1,11 +1,43 @@
 import type { MarkedExtension, Tokens } from 'marked'
 
+import { forwardFinder } from '@/utils/linearText'
+
 /**
  * Mirrors the backend's `placeholderRegex` (`internal/services/prompt.go`):
  * anything between `{{` and `}}` is a placeholder, and its key is the trimmed
  * inner text.
  */
-const PLACEHOLDER_SOURCE = String.raw`\{\{([^}]+)\}\}`
+const OPEN = '{{'
+
+interface PlaceholderMatch {
+  /** The whole placeholder as written, braces included. */
+  raw: string
+  /** What is between the braces, untrimmed. */
+  inner: string
+}
+
+/**
+ * The placeholder that begins exactly at `start`, if one does: `{{`, one or
+ * more characters that are not `}`, then `}}`. `nextBrace(from)` is the first
+ * `}` at or after `from`.
+ *
+ * A scan rather than `\{\{([^}]+)\}\}`, which rescans to the next `}` from
+ * every `{{` in a body and so slows quadratically on a long run of braces.
+ */
+function placeholderAt(
+  text: string,
+  start: number,
+  nextBrace: (from: number) => number
+): PlaceholderMatch | null {
+  if (!text.startsWith(OPEN, start)) return null
+  const innerStart = start + OPEN.length
+  const close = nextBrace(innerStart)
+  if (close <= innerStart || text[close + 1] !== '}') return null
+  return {
+    raw: text.slice(start, close + 2),
+    inner: text.slice(innerStart, close),
+  }
+}
 
 const TOKEN_TYPE = 'promptPlaceholder'
 
@@ -34,10 +66,26 @@ export function substituteFilledPlaceholders(
   text: string,
   values: Record<string, string>
 ): string {
-  return text.replace(
-    new RegExp(PLACEHOLDER_SOURCE, 'g'),
-    (match: string, inner: string) => valueOf(values, inner.trim()) || match
-  )
+  const nextBrace = forwardFinder(text, '}')
+  let out = ''
+  let copiedTo = 0
+  let from = 0
+  for (;;) {
+    const start = text.indexOf(OPEN, from)
+    if (start === -1) break
+    const found = placeholderAt(text, start, nextBrace)
+    if (found === null) {
+      from = start + 1
+      continue
+    }
+    const end = start + found.raw.length
+    out +=
+      text.slice(copiedTo, start) +
+      (valueOf(values, found.inner.trim()) || found.raw)
+    copiedTo = end
+    from = end
+  }
+  return out + text.slice(copiedTo)
 }
 
 /**
@@ -56,8 +104,6 @@ export function substituteFilledPlaceholders(
 export function promptPlaceholderExtension(
   values: Record<string, string>
 ): MarkedExtension {
-  const leading = new RegExp(`^${PLACEHOLDER_SOURCE}`)
-
   return {
     extensions: [
       {
@@ -68,9 +114,9 @@ export function promptPlaceholderExtension(
           return index === -1 ? undefined : index
         },
         tokenizer: (src: string): PlaceholderToken | undefined => {
-          const match = leading.exec(src)
-          if (!match) return undefined
-          return { type: TOKEN_TYPE, raw: match[0], key: match[1].trim() }
+          const found = placeholderAt(src, 0, from => src.indexOf('}', from))
+          if (!found) return undefined
+          return { type: TOKEN_TYPE, raw: found.raw, key: found.inner.trim() }
         },
         renderer: token => {
           const { key } = token as PlaceholderToken

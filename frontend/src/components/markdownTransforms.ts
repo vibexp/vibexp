@@ -6,6 +6,7 @@
  */
 
 import { createSlugger } from '@/components/patterns/reading-page/outline'
+import { forwardFinder } from '@/utils/linearText'
 
 const normalize = (text: string): string =>
   text.trim().replace(/\s+/g, ' ').toLowerCase()
@@ -84,11 +85,11 @@ export function markTaskListItems(html: string): string {
 
 const decodeEntities = (text: string): string =>
   text
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&')
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#39;', "'")
+    .replaceAll('&amp;', '&')
 
 /**
  * Gives every heading a stable `id` derived from its text, so a section can be
@@ -98,11 +99,39 @@ const decodeEntities = (text: string): string =>
  */
 export function addHeadingIds(html: string): string {
   const slug = createSlugger()
-  return html.replace(
-    /<h([1-6])>([\s\S]*?)<\/h\1>/g,
-    (_match: string, level: string, inner: string) => {
-      const text = decodeEntities(inner.replace(/<[^>]*>/g, ''))
-      return `<h${level} id="${slug(text)}">${inner}</h${level}>`
+  // A scan, not `<h([1-6])>([\s\S]*?)<\/h\1>`: that pattern reads to the end
+  // of the document from every opening tag that is never closed. Here each
+  // level looks for its closing tag with a search that only moves forward.
+  const opening = /<h([1-6])>/g
+  const closers = new Map<string, (from: number) => number>()
+  const closerFor = (level: string) => {
+    let find = closers.get(level)
+    if (!find) {
+      find = forwardFinder(html, `</h${level}>`)
+      closers.set(level, find)
     }
-  )
+    return find
+  }
+
+  let out = ''
+  let copiedTo = 0
+  for (;;) {
+    const open = opening.exec(html)
+    if (open === null) break
+    const level = open[1]
+    const innerStart = open.index + open[0].length
+    const close = closerFor(level)(innerStart)
+    if (close === -1) {
+      // Never closed: not a heading. Look again from the next character.
+      opening.lastIndex = open.index + 1
+      continue
+    }
+    const inner = html.slice(innerStart, close)
+    const text = decodeEntities(inner.replace(/<[^>]*>/g, ''))
+    const end = close + `</h${level}>`.length
+    out += `${html.slice(copiedTo, open.index)}<h${level} id="${slug(text)}">${inner}</h${level}>`
+    copiedTo = end
+    opening.lastIndex = end
+  }
+  return out + html.slice(copiedTo)
 }
