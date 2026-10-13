@@ -230,22 +230,25 @@ func (m *Manager) Read(r *http.Request) (*Session, error) {
 	return &s, nil
 }
 
-// Write encrypts the session and sets the vx_session cookie on the response.
-func (m *Manager) Write(w http.ResponseWriter, s *Session) error {
+// Cookie encrypts the session and returns the vx_session cookie that carries
+// it. Write is the usual way to set it; a handler with no ResponseWriter of its
+// own (a generated strict-server operation returns its headers as data) sends
+// Cookie(...).String() as the Set-Cookie header instead.
+func (m *Manager) Cookie(s *Session) (*http.Cookie, error) {
 	// #nosec G117 - AccessToken is the session payload; it is encrypted with AES-GCM before
 	// being written to the cookie. The token never touches the wire in plaintext.
 	payload, err := json.Marshal(s)
 	if err != nil {
-		return fmt.Errorf("session: marshal session: %w", err)
+		return nil, fmt.Errorf("session: marshal session: %w", err)
 	}
 
 	ciphertext, err := m.encrypt(payload, nil)
 	if err != nil {
-		return fmt.Errorf("session: encrypt session: %w", err)
+		return nil, fmt.Errorf("session: encrypt session: %w", err)
 	}
 
 	if len(ciphertext) > maxCookieValueBytes {
-		return fmt.Errorf("%w: got %d bytes, limit %d", ErrCookieTooLarge, len(ciphertext), maxCookieValueBytes)
+		return nil, fmt.Errorf("%w: got %d bytes, limit %d", ErrCookieTooLarge, len(ciphertext), maxCookieValueBytes)
 	}
 
 	// #nosec G124 -- HttpOnly and SameSite are set below and Secure is set from
@@ -253,7 +256,7 @@ func (m *Manager) Write(w http.ResponseWriter, s *Session) error {
 	// literal `Secure: true` and cannot see through the variable; hard-coding it
 	// would break local dev and the localhost e2e stack. The attributes are
 	// asserted in session_test.go for both the local and production cases.
-	http.SetCookie(w, &http.Cookie{
+	return &http.Cookie{
 		Name:     CookieName,
 		Value:    ciphertext,
 		Path:     cookiePath,
@@ -261,7 +264,16 @@ func (m *Manager) Write(w http.ResponseWriter, s *Session) error {
 		HttpOnly: true,
 		Secure:   m.secure,
 		SameSite: http.SameSiteLaxMode,
-	})
+	}, nil
+}
+
+// Write encrypts the session and sets the vx_session cookie on the response.
+func (m *Manager) Write(w http.ResponseWriter, s *Session) error {
+	cookie, err := m.Cookie(s)
+	if err != nil {
+		return err
+	}
+	http.SetCookie(w, cookie)
 	return nil
 }
 

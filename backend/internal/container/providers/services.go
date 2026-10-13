@@ -3,6 +3,7 @@ package providers
 import (
 	"log/slog"
 
+	"github.com/vibexp/vibexp/internal/auth/password"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -24,12 +25,19 @@ import (
 func ProvideAuthService(
 	userRepo repositories.UserRepository,
 	identityRepo repositories.UserIdentityRepository,
+	credentials repositories.UserCredentialRepository,
+	apiAccess services.APIAccessServiceInterface,
 	resolver services.IdentityProviderResolver,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 	allowlist services.AccessAllowlistResolver,
 ) services.AuthServiceInterface {
-	return services.NewAuthService(userRepo, identityRepo, resolver, eventManager, logger, allowlist)
+	// An unverified account claimed by a verified provider sign-in loses its
+	// password (#1431) and its API access (#1449): whoever set them up need
+	// not be the mailbox's owner.
+	return services.NewAuthService(userRepo, identityRepo, resolver, eventManager, logger, allowlist,
+		services.WithUnverifiedAccountClaimHook(
+			services.NewUnverifiedAccountCleanup(credentials, apiAccess, logger)))
 }
 
 // ProvideAPIAccessService creates a new APIAccessService
@@ -848,6 +856,28 @@ func ProvideAuthPolicyResolver(
 		Versions:       versions,
 		EmailProviders: emailProviders,
 		Logger:         logger,
+	})
+}
+
+// ProvidePasswordAuthService creates the email and password sign-in service
+// (#1431) with the production argon2id parameters and lockout schedule. It
+// shares the policy and allowlist resolvers with every other sign-in path, so
+// they cannot disagree on whether password login is on or who is admitted.
+func ProvidePasswordAuthService(
+	users repositories.UserRepository,
+	credentials repositories.UserCredentialRepository,
+	policy services.AuthPolicyResolver,
+	allowlist services.AccessAllowlistResolver,
+	logger *slog.Logger,
+) services.PasswordAuthServiceInterface {
+	return services.NewPasswordAuthService(services.PasswordAuthDeps{
+		Users:       users,
+		Credentials: credentials,
+		Policy:      policy,
+		Allowlist:   allowlist,
+		Hasher:      password.NewHasher(password.DefaultParams),
+		Lockout:     models.DefaultPasswordLockout,
+		Logger:      logger,
 	})
 }
 

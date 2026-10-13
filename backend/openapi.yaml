@@ -167,6 +167,8 @@ components:
       $ref: "./schemas/auth.yaml#/ProvidersResponse"
     PasswordLogin:
       $ref: "./schemas/auth.yaml#/PasswordLogin"
+    PasswordLoginRequest:
+      $ref: "./schemas/auth.yaml#/PasswordLoginRequest"
     SetupStatusResponse:
       $ref: "./schemas/setup.yaml#/SetupStatusResponse"
     CreateSetupSessionRequest:
@@ -1220,6 +1222,8 @@ paths:
     $ref: "./paths/auth.yaml#/api-v1-auth-logout"
   /api/v1/auth/dev/login:
     $ref: "./paths/auth.yaml#/api-v1-auth-dev-login"
+  /api/v1/auth/password/login:
+    $ref: "./paths/auth.yaml#/api-v1-auth-password-login"
   /api/v1/auth/me:
     $ref: "./paths/auth.yaml#/api-v1-auth-me"
   /api/v1/site-info:
@@ -1756,6 +1760,8 @@ tags:
     description: Per-team resource freshness rules, evaluation settings, analytics and audit log (epic #726)
   - name: SiteInfo
     description: The instance's company branding, readable without authentication. REST-only, no MCP.
+  - name: Password Authentication
+    description: Email and password sign-in and the public account operations around it. Available only while an instance admin has switched password login on. REST-only, no MCP.
   - name: Setup
     description: First-run authentication setup — the public setup status and the setup-token exchange. REST-only, no MCP.
   - name: Admin

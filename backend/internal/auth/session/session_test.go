@@ -3,6 +3,7 @@ package session
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -407,4 +408,41 @@ func TestWrite_CookieMaxAgeFollowsTheSessionKind(t *testing.T) {
 	assert.Equal(t, 30*24*60*60, maxAgeOf(&Session{UserID: "u", ExpiresAt: time.Now().Add(SlidingLifetime)}))
 	assert.Equal(t, 24*60*60,
 		maxAgeOf(&Session{UserID: "u", RefreshToken: "rt", ExpiresAt: time.Now().Add(time.Hour)}))
+}
+
+// Cookie returns exactly the cookie Write sets, so a handler that sends it as a
+// header itself issues the same session.
+func TestCookie_IsWhatWriteSets(t *testing.T) {
+	mgr := newTestManager(t)
+	sess := &Session{UserID: "u-1", AccessToken: "tok", ExpiresAt: time.Now().Add(SlidingLifetime), Epoch: 3}
+
+	cookie, err := mgr.Cookie(sess)
+	require.NoError(t, err)
+	rec := httptest.NewRecorder()
+	require.NoError(t, mgr.Write(rec, sess))
+	written := rec.Result().Cookies()
+	require.Len(t, written, 1)
+
+	assert.Equal(t, CookieName, cookie.Name)
+	assert.Equal(t, written[0].MaxAge, cookie.MaxAge)
+	assert.Equal(t, written[0].Path, cookie.Path)
+	assert.True(t, cookie.HttpOnly)
+	assert.Equal(t, http.SameSiteLaxMode, cookie.SameSite)
+
+	// The header form round-trips through a browser-style request.
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Cookie", CookieName+"="+cookie.Value)
+	got, err := mgr.Read(req)
+	require.NoError(t, err)
+	assert.Equal(t, "u-1", got.UserID)
+	assert.Equal(t, int64(3), got.Epoch)
+}
+
+func TestCookie_RejectsOversizedSession(t *testing.T) {
+	mgr := newTestManager(t)
+
+	cookie, err := mgr.Cookie(&Session{UserID: "u-1", AccessToken: strings.Repeat("a", maxCookieValueBytes)})
+
+	require.ErrorIs(t, err, ErrCookieTooLarge)
+	assert.Nil(t, cookie)
 }

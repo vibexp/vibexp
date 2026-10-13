@@ -115,6 +115,9 @@ type Container interface {
 	// password login switch and the registration mode) and the password reset
 	// channel to the sign-in page and the authentication services (#1429).
 	AuthPolicyResolver() services.AuthPolicyResolver
+	// PasswordAuthService is email and password sign-in and the management of
+	// a user's password credential (#1431).
+	PasswordAuthService() services.PasswordAuthServiceInterface
 	// SetupModeService owns first-run authentication setup: the one-time setup
 	// token and the scoped setup session (#1236).
 	SetupModeService() services.SetupModeService

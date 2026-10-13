@@ -102,29 +102,7 @@ type ProviderInfo struct {
 func (as *AuthService) ensureAccessAllowed(
 	ctx context.Context, email, provider string, emailVerified bool,
 ) error {
-	allowed, active, err := as.allowlist.IsEmailAllowed(ctx, email)
-	if err != nil {
-		as.logger.With("email", email, "provider", provider, "error", err.Error()).
-			Error("Sign-in refused: the access allowlist could not be evaluated")
-		return fmt.Errorf("evaluate access allowlist: %w", err)
-	}
-	if !active || (allowed && emailVerified) {
-		return nil
-	}
-	// Reaching here means the allowlist is ACTIVE and refused this identity.
-	// Report which rule refused it: from the user's side both denials are
-	// identical (?error=access_restricted), so only this log tells the operator
-	// why.
-	reason := "not_on_allowlist"
-	if !emailVerified {
-		reason = "unverified_email"
-	}
-	as.logger.With(
-		"email", email,
-		"provider", provider,
-		"reason", reason,
-	).Info("Sign-in denied by access allowlist")
-	return ErrAccessRestricted
+	return ensureEmailAllowed(ctx, as.allowlist, as.logger, email, provider, emailVerified)
 }
 
 func NewAuthService(

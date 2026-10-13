@@ -340,6 +340,24 @@ var (
 	// expected state (the default policy applies), not a failure.
 	ErrInstanceAuthPolicyNotFound = errors.New("instance auth policy not found")
 
+	// ErrUserCredentialNotFound is returned by UserCredentialRepository when
+	// the user has no password credential. This is an expected state (the user
+	// signs in through a provider), not a failure.
+	ErrUserCredentialNotFound = errors.New("user credential not found")
+
+	// ErrUserCredentialUnavailable is returned by
+	// UserCredentialRepository.BeginAttempt when the credential exists but may
+	// not be used to sign in right now: it is disabled, or locked after failed
+	// attempts. The attempt was not counted.
+	ErrUserCredentialUnavailable = errors.New("user credential is locked or disabled")
+
+	// ErrUserCredentialLocked and ErrUserCredentialDisabled are the two forms
+	// of ErrUserCredentialUnavailable BeginAttempt returns: errors.Is matches
+	// either against ErrUserCredentialUnavailable, and against itself for a
+	// caller that records which it was.
+	ErrUserCredentialLocked   = fmt.Errorf("%w: locked", ErrUserCredentialUnavailable)
+	ErrUserCredentialDisabled = fmt.Errorf("%w: disabled", ErrUserCredentialUnavailable)
+
 	// ErrInstanceAuthSetupNotFound is returned by InstanceAuthSetupRepository.Get
 	// when no setup token was ever issued.
 	ErrInstanceAuthSetupNotFound = errors.New("instance auth setup not found")
@@ -2104,6 +2122,50 @@ type InstanceAuthPolicyRepository interface {
 	UpsertAudited(
 		ctx context.Context, policy *models.InstanceAuthPolicy, actorUserID *string, expectedVersion *int64,
 	) error
+}
+
+// UserCredentialRepository stores users' password credentials (#1431): the
+// argon2id hash and the per-account sign-in throttle. It never sees a password,
+// only hashes made by internal/auth/password.
+type UserCredentialRepository interface {
+	// Get returns the user's credential, or ErrUserCredentialNotFound when the
+	// user has no password.
+	Get(ctx context.Context, userID string) (*models.UserCredential, error)
+	// Upsert sets the user's password hash, creating the credential when there
+	// is none. It is a fresh start for the credential: the failure count, any
+	// lock and a disabled mark are cleared. An unknown user returns
+	// ErrUserNotFound.
+	Upsert(ctx context.Context, userID, passwordHash string) error
+	// UpdateHash replaces the hash, and nothing else, only while the stored
+	// hash still equals currentHash. It is for re-hashing a password that was
+	// just verified against currentHash under newer parameters, so it must not
+	// touch the throttle, and it must not overwrite a password that was changed
+	// in the meantime: it reports false, and writes nothing, when the stored
+	// hash is no longer currentHash or the user has no credential.
+	UpdateHash(ctx context.Context, userID, currentHash, newHash string) (updated bool, err error)
+	// BeginAttempt admits one sign-in attempt and counts it BEFORE the password
+	// is checked. In one statement it refuses a credential that is disabled
+	// (ErrUserCredentialDisabled) or whose lock is still running at now
+	// (ErrUserCredentialLocked); both are ErrUserCredentialUnavailable and write
+	// nothing. Otherwise it increments the failure count, locks the
+	// credential from the lockout's threshold on (until now plus the lock the
+	// schedule gives for the new count) and returns the credential as stored.
+	//
+	// Counting first is what makes the throttle hold under concurrency: of any
+	// number of attempts arriving together, only as many as the schedule allows
+	// are admitted, because each admission is serialized on the row and the
+	// ones after the threshold find the lock already set. A caller whose
+	// password turns out to be correct undoes the count with RecordSuccess.
+	//
+	// A user with no credential returns ErrUserCredentialNotFound.
+	BeginAttempt(
+		ctx context.Context, userID string, now time.Time, lockout models.PasswordLockout,
+	) (*models.UserCredential, error)
+	// RecordSuccess clears the failure count and any lock after a successful
+	// sign-in. A user with no credential is not an error.
+	RecordSuccess(ctx context.Context, userID string) error
+	// Delete removes the user's credential and reports whether there was one.
+	Delete(ctx context.Context, userID string) (deleted bool, err error)
 }
 
 // InstanceAuthSettingsVersionRepository reads the shared change counter every

@@ -213,6 +213,100 @@ api-v1-auth-logout:
     tags:
       - Authentication
 
+api-v1-auth-password-login:
+  post:
+    summary: Sign in with email and password
+    description: |
+      Signs a user in with their email address and password and sets the
+      session cookie, the same `vx_session` a provider sign-in sets.
+
+      Available only while an instance admin has switched password login on
+      (`password.enabled` on `GET /api/v1/auth/providers`); otherwise it
+      returns 404.
+
+      An unknown email, a wrong password, an account with no password, a
+      disabled password and a temporarily locked account all return the same
+      401, so the response does not reveal which accounts exist. After several
+      failed attempts an account is locked for a short time that grows to at
+      most 15 minutes; a successful sign-in resets it. Rate-limited per client
+      IP as well.
+
+      The body must be sent as `application/json`. Any other `Content-Type` is
+      rejected with 400, so an HTML form on another site cannot sign a
+      visitor's browser in.
+    operationId: passwordLogin
+    security: []  # Authenticated by the credentials in the body
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/PasswordLoginRequest'
+    responses:
+      '200':
+        description: Signed in — session cookie set, user object returned
+        headers:
+          Set-Cookie:
+            description: Encrypted, HttpOnly, SameSite=Lax session cookie (`vx_session`)
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/User'
+      '400':
+        description: |
+          Malformed request body, a missing email or password, an email or
+          password longer than the schema allows, or a request whose
+          `Content-Type` is not `application/json`.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: |
+          The email or password is not valid (`AUTH_INVALID`, the same response
+          for every such case, including a temporarily locked account), or the
+          password was correct and the account is suspended.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: |
+          Sign-in denied by the access allowlist. The response `code` is the
+          stable string `access_restricted`.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Password login is not enabled on this instance
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '429':
+        description: Too many sign-in requests from this client
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: The sign-in could not be completed
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '503':
+        description: The authentication policy could not be read
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Password Authentication
+
 api-v1-auth-dev-login:
   post:
     summary: Dev login (development only)

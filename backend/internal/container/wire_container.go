@@ -148,6 +148,8 @@ type WireContainer struct {
 	accessAllowlistResolver services.AccessAllowlistResolver
 	// Instance authentication policy resolved from the database at runtime (#1429)
 	authPolicyResolver services.AuthPolicyResolver
+	// Email and password sign-in (#1431)
+	passwordAuthService services.PasswordAuthServiceInterface
 	// First-run authentication setup mode (#1236)
 	setupModeService services.SetupModeService
 
@@ -306,6 +308,11 @@ func (c *WireContainer) AccessAllowlistResolver() services.AccessAllowlistResolv
 // AuthPolicyResolver returns the authentication policy resolver (#1429).
 func (c *WireContainer) AuthPolicyResolver() services.AuthPolicyResolver {
 	return c.authPolicyResolver
+}
+
+// PasswordAuthService returns the email and password sign-in service (#1431).
+func (c *WireContainer) PasswordAuthService() services.PasswordAuthServiceInterface {
+	return c.passwordAuthService
 }
 
 // SetupModeService returns the authentication setup-mode service (#1236).
