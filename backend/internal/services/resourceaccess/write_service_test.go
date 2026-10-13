@@ -169,6 +169,55 @@ func TestWriteService_GetTeamCreationSources_ZeroFillsAndSums(t *testing.T) {
 		map[string]int{SourceWeb: 31, SourceCLI: 0, SourceMCP: 48, SourceAPI: 0, SourceUnknown: 8}, got.Writes)
 }
 
+// The identity the metrics endpoint promises (#1418): the five write counts sum
+// to every write of the window the database has a record of, which is the
+// write events, the creations with no create event and the content changes
+// with no source.
+func TestWriteService_GetTeamCreationSources_WritesSumToTotal(t *testing.T) {
+	t.Parallel()
+
+	repo := mocks.NewMockResourceWriteEventRepository(t)
+	svc := newWriteServiceWithFake(repo, &syncSubmitter{})
+	since := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+
+	const (
+		webEvents, cliEvents, mcpEvents, apiEvents = 7, 2, 11, 4
+		unknownPrompts, unknownMemories            = 3, 6
+		unsourcedUpdates                           = 5
+	)
+	repo.EXPECT().GetTeamCreationCountsBySource(mock.Anything, "team-1", since).
+		Return([]models.ResourceCreationSourceCount{
+			{ResourceType: "prompts", Source: SourceWeb, Count: 2},
+			{ResourceType: "prompts", Source: SourceUnknown, Count: unknownPrompts},
+			{ResourceType: "memories", Source: SourceMCP, Count: 9},
+			{ResourceType: "memories", Source: SourceUnknown, Count: unknownMemories},
+		}, nil).Once()
+	repo.EXPECT().GetTeamWriteCountsBySource(mock.Anything, "team-1", since).
+		Return([]models.ResourceWriteSourceCount{
+			{Source: SourceWeb, Count: webEvents},
+			{Source: SourceCLI, Count: cliEvents},
+			{Source: SourceMCP, Count: mcpEvents},
+			{Source: SourceAPI, Count: apiEvents},
+		}, nil).Once()
+	repo.EXPECT().GetTeamUnsourcedUpdateCount(mock.Anything, "team-1", since).Return(unsourcedUpdates, nil).Once()
+
+	got, err := svc.GetTeamCreationSources(context.Background(), "team-1", since)
+
+	require.NoError(t, err)
+	require.Len(t, got.Writes, 5)
+	sum := 0
+	for _, count := range got.Writes {
+		sum += count
+	}
+	recorded := webEvents + cliEvents + mcpEvents + apiEvents
+	unrecorded := unknownPrompts + unknownMemories + unsourcedUpdates
+	assert.Equal(t, unrecorded, got.Writes[SourceUnknown])
+	assert.Equal(t, recorded+unrecorded, sum)
+	// A recorded creation is one write, counted once: by its event, and not a
+	// second time through the creation breakdown.
+	assert.Equal(t, got.Created[SourceUnknown].Total+unsourcedUpdates, got.Writes[SourceUnknown])
+}
+
 func TestWriteService_GetTeamCreationSources_EmptyIsZeroFilled(t *testing.T) {
 	t.Parallel()
 

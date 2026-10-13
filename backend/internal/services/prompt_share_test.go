@@ -637,3 +637,35 @@ func TestPromptShareService_GetSharedPrompt_WithholdsTheLock(t *testing.T) {
 	assert.NotContains(t, body, "Ada Lovelace")
 	assert.NotContains(t, body, "used by the release agent")
 }
+
+// #1418: the channel a team writes through, and the name of the assistant it
+// uses, are team-internal for the same reason. Both keys stay, as null, because
+// the Prompt schema requires them.
+func TestPromptShareService_GetSharedPrompt_WithholdsTheLastWrite(t *testing.T) {
+	shareRepo := mocks.NewMockPromptShareRepository(t)
+	promptRepo := mocks.NewMockPromptRepository(t)
+
+	share := createTestPromptShare()
+	shareRepo.On("GetByToken", mock.Anything, "abc123xyz789").Return(share, nil)
+	shareRepo.On("IncrementAccessCount", mock.Anything, share.ID).Return(nil).Maybe()
+	prompt := createTestPromptForSharing()
+	source, assistant := "mcp", "internal-release-agent"
+	prompt.LastWrite = models.LastWrite{LastWriteSource: &source, LastWriteAssistantName: &assistant}
+	promptRepo.On("GetByID", mock.Anything, "", "", "prompt-123").Return(prompt, nil)
+
+	logger, _ := logtest.New()
+	service := NewPromptShareService(shareRepo, promptRepo, createTestPromptService(promptRepo, nil), logger)
+
+	result, err := service.GetSharedPrompt("abc123xyz789", nil)
+
+	require.NoError(t, err)
+	assert.Nil(t, result.Prompt.LastWriteSource)
+	assert.Nil(t, result.Prompt.LastWriteAssistantName)
+
+	raw, err := json.Marshal(result)
+	require.NoError(t, err)
+	body := string(raw)
+	assert.Contains(t, body, `"last_write_source":null`, "the required key stays present")
+	assert.Contains(t, body, `"last_write_assistant_name":null`, "the required key stays present")
+	assert.NotContains(t, body, "internal-release-agent")
+}
