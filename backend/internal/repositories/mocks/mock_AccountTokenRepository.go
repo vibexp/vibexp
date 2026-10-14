@@ -8,6 +8,8 @@ import (
 	mock "github.com/stretchr/testify/mock"
 	models "github.com/vibexp/vibexp/internal/models"
 
+	repositories "github.com/vibexp/vibexp/internal/repositories"
+
 	time "time"
 )
 
@@ -24,29 +26,29 @@ func (_m *MockAccountTokenRepository) EXPECT() *MockAccountTokenRepository_Expec
 	return &MockAccountTokenRepository_Expecter{mock: &_m.Mock}
 }
 
-// Consume provides a mock function with given fields: ctx, tokenHash, now
-func (_m *MockAccountTokenRepository) Consume(ctx context.Context, tokenHash []byte, now time.Time) (*models.AccountToken, error) {
-	ret := _m.Called(ctx, tokenHash, now)
+// ClearForClaim provides a mock function with given fields: ctx, userID
+func (_m *MockAccountTokenRepository) ClearForClaim(ctx context.Context, userID string) (*repositories.ClearedAccountClaim, error) {
+	ret := _m.Called(ctx, userID)
 
 	if len(ret) == 0 {
-		panic("no return value specified for Consume")
+		panic("no return value specified for ClearForClaim")
 	}
 
-	var r0 *models.AccountToken
+	var r0 *repositories.ClearedAccountClaim
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, []byte, time.Time) (*models.AccountToken, error)); ok {
-		return rf(ctx, tokenHash, now)
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*repositories.ClearedAccountClaim, error)); ok {
+		return rf(ctx, userID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, []byte, time.Time) *models.AccountToken); ok {
-		r0 = rf(ctx, tokenHash, now)
+	if rf, ok := ret.Get(0).(func(context.Context, string) *repositories.ClearedAccountClaim); ok {
+		r0 = rf(ctx, userID)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.AccountToken)
+			r0 = ret.Get(0).(*repositories.ClearedAccountClaim)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, []byte, time.Time) error); ok {
-		r1 = rf(ctx, tokenHash, now)
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, userID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -54,32 +56,90 @@ func (_m *MockAccountTokenRepository) Consume(ctx context.Context, tokenHash []b
 	return r0, r1
 }
 
-// MockAccountTokenRepository_Consume_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Consume'
-type MockAccountTokenRepository_Consume_Call struct {
+// MockAccountTokenRepository_ClearForClaim_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClearForClaim'
+type MockAccountTokenRepository_ClearForClaim_Call struct {
 	*mock.Call
 }
 
-// Consume is a helper method to define mock.On call
+// ClearForClaim is a helper method to define mock.On call
 //   - ctx context.Context
-//   - tokenHash []byte
-//   - now time.Time
-func (_e *MockAccountTokenRepository_Expecter) Consume(ctx interface{}, tokenHash interface{}, now interface{}) *MockAccountTokenRepository_Consume_Call {
-	return &MockAccountTokenRepository_Consume_Call{Call: _e.mock.On("Consume", ctx, tokenHash, now)}
+//   - userID string
+func (_e *MockAccountTokenRepository_Expecter) ClearForClaim(ctx interface{}, userID interface{}) *MockAccountTokenRepository_ClearForClaim_Call {
+	return &MockAccountTokenRepository_ClearForClaim_Call{Call: _e.mock.On("ClearForClaim", ctx, userID)}
 }
 
-func (_c *MockAccountTokenRepository_Consume_Call) Run(run func(ctx context.Context, tokenHash []byte, now time.Time)) *MockAccountTokenRepository_Consume_Call {
+func (_c *MockAccountTokenRepository_ClearForClaim_Call) Run(run func(ctx context.Context, userID string)) *MockAccountTokenRepository_ClearForClaim_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].([]byte), args[2].(time.Time))
+		run(args[0].(context.Context), args[1].(string))
 	})
 	return _c
 }
 
-func (_c *MockAccountTokenRepository_Consume_Call) Return(_a0 *models.AccountToken, _a1 error) *MockAccountTokenRepository_Consume_Call {
+func (_c *MockAccountTokenRepository_ClearForClaim_Call) Return(_a0 *repositories.ClearedAccountClaim, _a1 error) *MockAccountTokenRepository_ClearForClaim_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockAccountTokenRepository_Consume_Call) RunAndReturn(run func(context.Context, []byte, time.Time) (*models.AccountToken, error)) *MockAccountTokenRepository_Consume_Call {
+func (_c *MockAccountTokenRepository_ClearForClaim_Call) RunAndReturn(run func(context.Context, string) (*repositories.ClearedAccountClaim, error)) *MockAccountTokenRepository_ClearForClaim_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Complete provides a mock function with given fields: ctx, completion
+func (_m *MockAccountTokenRepository) Complete(ctx context.Context, completion repositories.AccountLinkCompletion) (*repositories.CompletedAccountLink, error) {
+	ret := _m.Called(ctx, completion)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Complete")
+	}
+
+	var r0 *repositories.CompletedAccountLink
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, repositories.AccountLinkCompletion) (*repositories.CompletedAccountLink, error)); ok {
+		return rf(ctx, completion)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, repositories.AccountLinkCompletion) *repositories.CompletedAccountLink); ok {
+		r0 = rf(ctx, completion)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*repositories.CompletedAccountLink)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, repositories.AccountLinkCompletion) error); ok {
+		r1 = rf(ctx, completion)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAccountTokenRepository_Complete_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Complete'
+type MockAccountTokenRepository_Complete_Call struct {
+	*mock.Call
+}
+
+// Complete is a helper method to define mock.On call
+//   - ctx context.Context
+//   - completion repositories.AccountLinkCompletion
+func (_e *MockAccountTokenRepository_Expecter) Complete(ctx interface{}, completion interface{}) *MockAccountTokenRepository_Complete_Call {
+	return &MockAccountTokenRepository_Complete_Call{Call: _e.mock.On("Complete", ctx, completion)}
+}
+
+func (_c *MockAccountTokenRepository_Complete_Call) Run(run func(ctx context.Context, completion repositories.AccountLinkCompletion)) *MockAccountTokenRepository_Complete_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(repositories.AccountLinkCompletion))
+	})
+	return _c
+}
+
+func (_c *MockAccountTokenRepository_Complete_Call) Return(_a0 *repositories.CompletedAccountLink, _a1 error) *MockAccountTokenRepository_Complete_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAccountTokenRepository_Complete_Call) RunAndReturn(run func(context.Context, repositories.AccountLinkCompletion) (*repositories.CompletedAccountLink, error)) *MockAccountTokenRepository_Complete_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -194,63 +254,6 @@ func (_c *MockAccountTokenRepository_DeleteDead_Call) Return(_a0 int64, _a1 erro
 }
 
 func (_c *MockAccountTokenRepository_DeleteDead_Call) RunAndReturn(run func(context.Context, time.Time) (int64, error)) *MockAccountTokenRepository_DeleteDead_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// DeleteForUser provides a mock function with given fields: ctx, userID
-func (_m *MockAccountTokenRepository) DeleteForUser(ctx context.Context, userID string) (int64, error) {
-	ret := _m.Called(ctx, userID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for DeleteForUser")
-	}
-
-	var r0 int64
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (int64, error)); ok {
-		return rf(ctx, userID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) int64); ok {
-		r0 = rf(ctx, userID)
-	} else {
-		r0 = ret.Get(0).(int64)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, userID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockAccountTokenRepository_DeleteForUser_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteForUser'
-type MockAccountTokenRepository_DeleteForUser_Call struct {
-	*mock.Call
-}
-
-// DeleteForUser is a helper method to define mock.On call
-//   - ctx context.Context
-//   - userID string
-func (_e *MockAccountTokenRepository_Expecter) DeleteForUser(ctx interface{}, userID interface{}) *MockAccountTokenRepository_DeleteForUser_Call {
-	return &MockAccountTokenRepository_DeleteForUser_Call{Call: _e.mock.On("DeleteForUser", ctx, userID)}
-}
-
-func (_c *MockAccountTokenRepository_DeleteForUser_Call) Run(run func(ctx context.Context, userID string)) *MockAccountTokenRepository_DeleteForUser_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
-	})
-	return _c
-}
-
-func (_c *MockAccountTokenRepository_DeleteForUser_Call) Return(_a0 int64, _a1 error) *MockAccountTokenRepository_DeleteForUser_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockAccountTokenRepository_DeleteForUser_Call) RunAndReturn(run func(context.Context, string) (int64, error)) *MockAccountTokenRepository_DeleteForUser_Call {
 	_c.Call.Return(run)
 	return _c
 }

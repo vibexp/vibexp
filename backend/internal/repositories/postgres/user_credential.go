@@ -52,24 +52,27 @@ func (r *UserCredentialRepository) Get(ctx context.Context, userID string) (*mod
 	return c, nil
 }
 
+// storeUserHashQuery stores a password hash for a user. It is the one
+// statement that does: Upsert runs it on its own, and the completion of a
+// one-time account link runs it inside its transaction (AccountTokenRepository
+// .Complete), so the two cannot drift apart on what "a new password" resets.
+const storeUserHashQuery = `
+	INSERT INTO user_credentials (user_id, password_hash)
+	VALUES ($1, $2)
+	ON CONFLICT (user_id) DO UPDATE SET
+		password_hash = EXCLUDED.password_hash,
+		failed_attempts = 0,
+		locked_until = NULL,
+		disabled_at = NULL,
+		password_changed_at = CURRENT_TIMESTAMP,
+		updated_at = CURRENT_TIMESTAMP`
+
 // Upsert sets the user's password hash; see the interface. A new password is a
 // fresh start, so the throttle and a disabled mark are cleared with it. It is
 // the one statement that moves password_changed_at (the column default covers
 // the insert): attempts, successes and a rehash leave it alone.
 func (r *UserCredentialRepository) Upsert(ctx context.Context, userID, passwordHash string) error {
-	query := `
-		INSERT INTO user_credentials (user_id, password_hash)
-		VALUES ($1, $2)
-		ON CONFLICT (user_id) DO UPDATE SET
-			password_hash = EXCLUDED.password_hash,
-			failed_attempts = 0,
-			locked_until = NULL,
-			disabled_at = NULL,
-			password_changed_at = CURRENT_TIMESTAMP,
-			updated_at = CURRENT_TIMESTAMP
-	`
-
-	if _, err := r.db.ExecContext(ctx, query, userID, passwordHash); err != nil {
+	if _, err := r.db.ExecContext(ctx, storeUserHashQuery, userID, passwordHash); err != nil {
 		if isFKViolation(err) {
 			return fmt.Errorf("%w: %s", repositories.ErrUserNotFound, userID)
 		}

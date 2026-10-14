@@ -844,7 +844,7 @@
             }
           },
           "500": {
-            "description": "The request failed after the link was used up. The link no longer\nworks and trying again cannot succeed: a new link is needed.\n",
+            "description": "The request failed after the link was used up: the password WAS\nchanged and the account's other sessions were ended, but the\nrequest could not be finished (for a reset, the requested revocation\nof API access did not happen). The link no longer works and trying\nagain cannot succeed. Sign in with the new password.\n",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -955,7 +955,7 @@
             }
           },
           "500": {
-            "description": "The request failed after the link was used up. The link no longer\nworks and trying again cannot succeed: a new link is needed.\n",
+            "description": "The request failed after the link was used up: the password WAS\nchanged and the account's other sessions were ended, but the\nrequest could not be finished (for a reset, the requested revocation\nof API access did not happen). The link no longer works and trying\nagain cannot succeed. Sign in with the new password.\n",
             "content": {
               "application/problem+json": {
                 "schema": {

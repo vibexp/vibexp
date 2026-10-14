@@ -43,7 +43,11 @@ const (
 type memLinks struct {
 	mu   sync.Mutex
 	rows []*models.AccountToken
-	err  error
+	// err fails GetLive; completeErr fails Complete, which then writes nothing.
+	err         error
+	completeErr error
+	// apply stands in for the credential and user writes of a completion.
+	apply func(consumed *models.AccountToken, c repositories.AccountLinkCompletion) *repositories.CompletedAccountLink
 }
 
 func (m *memLinks) Replace(_ context.Context, token *models.AccountToken) error {
@@ -78,18 +82,24 @@ func (m *memLinks) GetLive(_ context.Context, hash []byte, now time.Time) (*mode
 	return nil, repositories.ErrAccountTokenNotFound
 }
 
-func (m *memLinks) Consume(_ context.Context, hash []byte, now time.Time) (*models.AccountToken, error) {
+func (m *memLinks) Complete(
+	_ context.Context, c repositories.AccountLinkCompletion,
+) (*repositories.CompletedAccountLink, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.completeErr != nil {
+		return nil, m.completeErr
+	}
 	var won *models.AccountToken
 	for _, row := range m.rows {
-		if bytes.Equal(row.TokenHash, hash) && row.IsLiveAt(now) {
+		if bytes.Equal(row.TokenHash, c.TokenHash) && row.IsLiveAt(c.Now) {
 			won = row
 		}
 	}
 	if won == nil {
 		return nil, repositories.ErrAccountTokenNotFound
 	}
+	now := c.Now
 	won.ConsumedAt = &now
 	kept := m.rows[:0]
 	for _, row := range m.rows {
@@ -100,12 +110,14 @@ func (m *memLinks) Consume(_ context.Context, hash []byte, now time.Time) (*mode
 	}
 	m.rows = kept
 	consumed := *won
-	return &consumed, nil
+	return m.apply(&consumed, c), nil
+}
+
+func (m *memLinks) ClearForClaim(context.Context, string) (*repositories.ClearedAccountClaim, error) {
+	return &repositories.ClearedAccountClaim{}, nil
 }
 
 func (m *memLinks) Delete(context.Context, []byte) (bool, error) { return false, nil }
-
-func (m *memLinks) DeleteForUser(context.Context, string) (int64, error) { return 0, nil }
 
 func (m *memLinks) DeleteDead(context.Context, time.Time) (int64, error) { return 0, nil }
 
@@ -123,15 +135,19 @@ func (m *memLinks) live() int {
 }
 
 // countingAPIAccess is an APIAccessServiceInterface that records whose API
-// access it was asked to revoke.
+// access it was asked to revoke. err, when set, fails it.
 type countingAPIAccess struct {
 	mu      sync.Mutex
 	revoked []string
+	err     error
 }
 
 func (a *countingAPIAccess) RevokeAPIAccess(_ context.Context, userID string) (*models.APIAccessRevocation, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if a.err != nil {
+		return nil, a.err
+	}
 	a.revoked = append(a.revoked, userID)
 	return &models.APIAccessRevocation{}, nil
 }
@@ -143,8 +159,6 @@ type linkFixture struct {
 	links     *memLinks
 	svc       services.AccountTokenServiceInterface
 	apiAccess *countingAPIAccess
-	// bumpErr, when set, fails the end-of-other-sessions step of a completion.
-	bumpErr error
 }
 
 func newLinkFixture(t *testing.T, opts ...pwLoginOption) *linkFixture {
@@ -153,19 +167,26 @@ func newLinkFixture(t *testing.T, opts ...pwLoginOption) *linkFixture {
 	f.apiAccess = &countingAPIAccess{}
 
 	users := f.container.userRepository
-	users.On("BumpSessionEpoch", mock.Anything, pwLoginUserID).
-		Return(func(context.Context, string) (int64, error) {
-			if f.bumpErr != nil {
-				return 0, f.bumpErr
-			}
-			f.user.SessionEpoch++
-			return f.user.SessionEpoch, nil
-		}).Maybe()
-	users.On("Update", mock.Anything, mock.Anything).
-		Run(func(args mock.Arguments) {
-			saved := args.Get(1).(*models.User)
-			f.user.Name, f.user.EmailVerifiedAt = saved.Name, saved.EmailVerifiedAt
-		}).Return(nil).Maybe()
+	// What the repository's one transaction does: store the hash, end the
+	// earlier sessions, and update the profile.
+	f.links.apply = func(
+		consumed *models.AccountToken, c repositories.AccountLinkCompletion,
+	) *repositories.CompletedAccountLink {
+		require.NoError(t, f.credentials.Upsert(context.Background(), consumed.UserID, c.PasswordHash))
+		f.user.SessionEpoch++
+		f.user.Version++
+		if consumed.ProvesMailbox() && f.user.EmailVerifiedAt == nil {
+			now := c.Now
+			f.user.EmailVerifiedAt = &now
+		}
+		if c.Name != "" {
+			f.user.Name = c.Name
+		}
+		return &repositories.CompletedAccountLink{
+			Token: consumed, SessionEpoch: f.user.SessionEpoch, Name: f.user.Name,
+			EmailVerifiedAt: f.user.EmailVerifiedAt, UpdatedAt: c.Now, Version: f.user.Version,
+		}
+	}
 
 	// The allowlist the options gave the password service applies here too.
 	allowlist := staticAllowlistResolver(nil, nil)
@@ -512,32 +533,56 @@ func TestAccountLink_OffAllowlistAccountIsRefusedAndKeepsTheLink(t *testing.T) {
 	}
 }
 
-// A completion that fails after the link was used up is a 500 that says the
-// link is gone, never the 503 that invites a retry: the same link would only
-// answer 401 from then on.
-func TestAccountLink_FailureAfterTheLinkIsSpentIs500(t *testing.T) {
+// A completion is all or nothing: when it cannot be stored, nothing was
+// written, the link is still live, and the answer is the 503 that invites a
+// retry.
+func TestAccountLink_CompletionThatCannotBeStoredIs503AndKeepsTheLink(t *testing.T) {
 	for path, purpose := range map[string]string{
 		linkSetupPath: models.AccountTokenPurposeSetup,
 		linkResetPath: models.AccountTokenPurposeReset,
 	} {
 		t.Run(path, func(t *testing.T) {
 			f := newLinkFixture(t)
+			f.expectActivity(activities.ActivityTypeAuthLogin)
 			token := f.copied(t, purpose)
-			f.bumpErr = errors.New("pq: connection refused")
+			f.links.completeErr = errors.New("pq: connection refused")
 
 			rec := f.send(t, path, map[string]any{"token": token, "password": linkNewPassword})
 
-			require.Equal(t, http.StatusInternalServerError, rec.Code, rec.Body.String())
-			assert.Contains(t, rec.Body.String(), "can no longer be used")
+			require.Equal(t, http.StatusServiceUnavailable, rec.Code, rec.Body.String())
 			assert.NotContains(t, rec.Body.String(), "connection refused")
 			assert.Nil(t, sessionCookieIn(rec), "nobody is signed in")
-			assert.Equal(t, 0, f.links.live(), "the link is spent")
+			assert.Equal(t, 1, f.links.live(), "the link is still live")
+			assert.Equal(t, f.hash, f.credentials.stored().PasswordHash, "the password is unchanged")
 
-			f.bumpErr = nil
+			f.links.completeErr = nil
 			again := f.send(t, path, map[string]any{"token": token, "password": linkNewPassword})
-			assert.Equal(t, http.StatusUnauthorized, again.Code, "and answers like any dead link afterwards")
+			assert.Equal(t, http.StatusOK, again.Code, "the same link completes on the next try")
 		})
 	}
+}
+
+// The one thing that can fail after a completion is the requested revocation
+// of API access. That is a 500 saying the link is gone, never the 503 that
+// invites a retry: the same link would only answer 401 from then on.
+func TestAccountLink_FailureAfterTheLinkIsSpentIs500(t *testing.T) {
+	f := newLinkFixture(t)
+	token := f.copied(t, models.AccountTokenPurposeReset)
+	f.apiAccess.err = errors.New("pq: connection refused")
+
+	rec := f.send(t, linkResetPath,
+		map[string]any{"token": token, "password": linkNewPassword, "revoke_api_access": true})
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "can no longer be used")
+	assert.Contains(t, rec.Body.String(), "Your password was changed", "the person is told what did happen")
+	assert.NotContains(t, rec.Body.String(), "connection refused")
+	assert.Nil(t, sessionCookieIn(rec), "nobody is signed in")
+	assert.Equal(t, 0, f.links.live(), "the link is spent")
+
+	f.apiAccess.err = nil
+	again := f.send(t, linkResetPath, map[string]any{"token": token, "password": linkNewPassword})
+	assert.Equal(t, http.StatusUnauthorized, again.Code, "and answers like any dead link afterwards")
 }
 
 func TestAccountLink_BadBodiesAre400(t *testing.T) {

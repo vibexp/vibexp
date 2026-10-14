@@ -2231,6 +2231,40 @@ type UserCredentialRepository interface {
 	CountPasswordOnly(ctx context.Context) (int, error)
 }
 
+// AccountLinkCompletion is what completing a one-time account link stores.
+type AccountLinkCompletion struct {
+	// TokenHash identifies the link.
+	TokenHash []byte
+	// Now is the time the link must still be live at, and the time recorded.
+	Now time.Time
+	// PasswordHash is the encoded hash of the new password, made by
+	// internal/auth/password. The repository never sees the password.
+	PasswordHash string
+	// Name is the display name to set; empty leaves the name as it is.
+	Name string
+}
+
+// CompletedAccountLink is the result of AccountTokenRepository.Complete: the
+// consumed link and the user fields the completion changed, as stored.
+type CompletedAccountLink struct {
+	Token           *models.AccountToken
+	SessionEpoch    int64
+	Name            string
+	EmailVerifiedAt *time.Time
+	UpdatedAt       time.Time
+	Version         int64
+}
+
+// ClearedAccountClaim is the result of AccountTokenRepository.ClearForClaim.
+type ClearedAccountClaim struct {
+	// Links is how many one-time links were deleted.
+	Links int64
+	// HadPassword reports whether a password was deleted.
+	HadPassword bool
+	// SessionEpoch is the user's session epoch after the bump.
+	SessionEpoch int64
+}
+
 // AccountTokenRepository stores one-time account links (#1432) by the SHA-256
 // of their token. It never sees a token.
 type AccountTokenRepository interface {
@@ -2245,21 +2279,31 @@ type AccountTokenRepository interface {
 	// completed at now, or ErrAccountTokenNotFound: unknown, expired and
 	// consumed are one answer.
 	GetLive(ctx context.Context, tokenHash []byte, now time.Time) (*models.AccountToken, error)
-	// Consume marks the link with this token hash consumed at now, deletes
-	// every OTHER live link of the same user, whatever its purpose or
-	// delivery, and returns the consumed link, all in one transaction. It
-	// matches only a link still live at now. Of any number of requests
-	// completing links of one user, the same link or different ones, exactly
-	// one gets its link; the rest get ErrAccountTokenNotFound.
-	Consume(ctx context.Context, tokenHash []byte, now time.Time) (*models.AccountToken, error)
+	// Complete completes the link with this token hash in ONE transaction: it
+	// marks the link consumed, deletes every other live link of the same user
+	// (whatever its purpose or delivery), stores the password hash as the
+	// user's credential, ends the user's sessions by bumping the session epoch,
+	// marks the email verified when the link was emailed and it was not
+	// verified yet, and sets the display name when one is given. Either all of
+	// it is stored or none of it.
+	//
+	// It matches only a link still live at Now; anything else, including a
+	// link whose user was deleted, is ErrAccountTokenNotFound and writes
+	// nothing. It holds the user's sign-in method lock throughout, so it cannot
+	// interleave with ClearForClaim, with Replace, or with another completion
+	// for the same user: of any number of requests completing links of one
+	// user, the same link or different ones, exactly one succeeds.
+	Complete(ctx context.Context, completion AccountLinkCompletion) (*CompletedAccountLink, error)
+	// ClearForClaim removes, in one transaction under the same lock, what the
+	// holder of a one-time link could have set up on an account that a verified
+	// sign-in is about to claim: every link of the user, the user's password,
+	// and (by bumping the session epoch) every session. It is idempotent. An
+	// unknown user returns ErrUserNotFound.
+	ClearForClaim(ctx context.Context, userID string) (*ClearedAccountClaim, error)
 	// Delete removes the link with this token hash, live or not, and reports
 	// whether there was one. It is for withdrawing a link that could not be
 	// delivered.
 	Delete(ctx context.Context, tokenHash []byte) (deleted bool, err error)
-	// DeleteForUser removes every link of the user, live or not, and returns
-	// how many it removed. It is for an account whose outstanding links must
-	// stop working at once.
-	DeleteForUser(ctx context.Context, userID string) (int64, error)
 	// DeleteDead deletes every link that is consumed or expired at now and
 	// returns how many it removed.
 	DeleteDead(ctx context.Context, now time.Time) (int64, error)

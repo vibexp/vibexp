@@ -26,10 +26,10 @@ import (
 type AuthServiceDeps struct {
 	UserRepo     repositories.UserRepository
 	IdentityRepo repositories.UserIdentityRepository
-	// AccountTokens, Credentials and APIAccess are what the account-claim
-	// cleanup removes.
+	// AccountTokens and APIAccess are what the account-claim cleanup works
+	// through: the first removes the account's one-time links and its password
+	// in one transaction, the second its API keys and grants.
 	AccountTokens repositories.AccountTokenRepository
-	Credentials   repositories.UserCredentialRepository
 	APIAccess     services.APIAccessServiceInterface
 	Resolver      services.IdentityProviderResolver
 	EventManager  events.EventPublisher
@@ -49,8 +49,7 @@ func ProvideAuthService(deps AuthServiceDeps) services.AuthServiceInterface {
 		deps.UserRepo, deps.IdentityRepo, deps.Resolver, deps.EventManager, deps.Logger, deps.Allowlist,
 		services.WithRegistrationGate(deps.Gate),
 		services.WithUnverifiedAccountClaimHook(
-			services.NewUnverifiedAccountCleanup(
-				deps.AccountTokens, deps.Credentials, deps.APIAccess, deps.Logger)))
+			services.NewUnverifiedAccountCleanup(deps.AccountTokens, deps.APIAccess, deps.Logger)))
 }
 
 // ProvideRegistrationGate creates the gate that enforces the instance's

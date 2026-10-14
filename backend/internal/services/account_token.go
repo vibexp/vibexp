@@ -13,7 +13,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/vibexp/vibexp/internal/auth/password"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
@@ -65,9 +64,9 @@ const (
 	// body costs nothing. It is far above the real token's length.
 	accountTokenMaxLength = 256
 
-	// accountLinkCompletionTimeout bounds the writes that follow the consume of
-	// a link. They run detached from the request (see complete), so they need
-	// a limit of their own.
+	// accountLinkCompletionTimeout bounds the revocation of API access that may
+	// follow a completion. It runs detached from the request (see complete),
+	// so it needs a limit of its own.
 	accountLinkCompletionTimeout = 30 * time.Second
 
 	// maxAccountNameLength bounds the display name a setup may set, in
@@ -84,9 +83,10 @@ var (
 	// ErrAccountTokenInvalid is the one rejection for every link that cannot be
 	// completed; see the comment at the top of this file.
 	ErrAccountTokenInvalid = errors.New("invalid or expired account link")
-	// ErrAccountLinkSpent wraps every failure that happens after a link was
-	// consumed: the link is used up and nothing can be retried with it. The
-	// person needs a new link.
+	// ErrAccountLinkSpent wraps a failure that happens after a link was
+	// completed: the link is used up, the password is the new one and the
+	// earlier sessions are ended, but the requested revocation of API access
+	// did not happen. Nothing can be retried with the link.
 	ErrAccountLinkSpent = errors.New("account link spent without completing")
 	// ErrInvalidAccountTokenRequest is returned by IssueLink and IssueByEmail
 	// for a request that names no user, or a purpose that is not one.
@@ -213,7 +213,8 @@ type AccountTokenServiceInterface interface {
 type AccountTokenDeps struct {
 	Tokens repositories.AccountTokenRepository
 	Users  repositories.UserRepository
-	// Passwords is the one way a password is stored.
+	// Passwords validates and hashes the new password. The hash is stored by
+	// Tokens.Complete, in the completion's transaction.
 	Passwords PasswordAuthServiceInterface
 	APIAccess APIAccessServiceInterface
 	Allowlist AccessAllowlistResolver
@@ -451,15 +452,20 @@ type completion struct {
 //
 // Everything that can be checked is checked BEFORE the link is consumed (the
 // link is live, the account exists and may sign in, the allowlist admits it,
-// the password meets the policy), so a request that fails one of those leaves
-// the link usable. Consuming is the single point of no return: it is one
-// transaction that only one request can win.
+// the password meets the policy), and the password is hashed before it too, so
+// a request that fails any of those leaves the link usable and no slow work is
+// left for afterwards.
 //
-// The writes after it run detached from the request, under their own timeout.
-// Otherwise a browser that disconnects, or a request that times out, in the
-// moment between the consume and the password being stored would leave the
-// link spent and no password set. A failure after the consume is returned
-// wrapped in ErrAccountLinkSpent; the person needs a new link.
+// The completion itself is one transaction in the repository: the link is
+// consumed, the user's other links are deleted, the password is stored, the
+// earlier sessions end and the profile is updated, all or nothing, under the
+// lock an account claim also takes (#1462). If it fails nothing was written
+// and the link is still live, so the request can simply be repeated.
+//
+// The one write after it is the optional revocation of API access. It runs
+// detached from the request, so a browser that disconnects at that moment does
+// not skip it; if it fails the error wraps ErrAccountLinkSpent, because by
+// then the link is used and the password is already the new one.
 func (s *AccountTokenService) complete(
 	ctx context.Context, token, plaintext string, c completion,
 ) (*models.User, error) {
@@ -473,82 +479,46 @@ func (s *AccountTokenService) complete(
 	if err = ensureEmailAllowed(ctx, s.allowlist, s.logger, user.Email, LocalSignInProvider, true); err != nil {
 		return nil, err
 	}
-	if err = password.Validate(plaintext, user.Email); err != nil {
+	// Validates against the policy and hashes; a *password.PolicyError passes
+	// through unchanged.
+	hash, err := s.passwords.HashNewPassword(ctx, plaintext, user.Email)
+	if err != nil {
 		return nil, err
 	}
 
-	consumed, err := s.tokens.Consume(ctx, stored.TokenHash, s.now())
+	done, err := s.tokens.Complete(ctx, repositories.AccountLinkCompletion{
+		TokenHash:    stored.TokenHash,
+		Now:          s.now(),
+		PasswordHash: hash,
+		Name:         c.name,
+	})
 	if errors.Is(err, repositories.ErrAccountTokenNotFound) {
-		// Another request completed this link, or another link of the account,
-		// between the check above and here.
+		// Another request completed this link or another link of the account,
+		// or the account was claimed, between the check above and here.
 		return nil, ErrAccountTokenInvalid
 	}
 	if err != nil {
-		return nil, fmt.Errorf("consume the account link: %w", err)
+		return nil, fmt.Errorf("complete the account link: %w", err)
 	}
-	log := s.logger.With("user_id", user.ID, "purpose", consumed.Purpose, "delivery", consumed.Delivery,
-		"token", redactAccountToken(consumed.TokenHash))
+	user.SessionEpoch = done.SessionEpoch
+	user.Name = done.Name
+	user.EmailVerifiedAt = done.EmailVerifiedAt
+	user.UpdatedAt = done.UpdatedAt
+	user.Version = done.Version
+	log := s.logger.With("user_id", user.ID, "purpose", done.Token.Purpose, "delivery", done.Token.Delivery,
+		"token", redactAccountToken(done.Token.TokenHash))
 
-	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), accountLinkCompletionTimeout)
-	defer cancel()
-	if err = s.applyCompletion(writeCtx, user, consumed, plaintext, c); err != nil {
-		log.With("error", err.Error()).Error("An account link was consumed but could not be completed")
-		return nil, fmt.Errorf("%w: %w", ErrAccountLinkSpent, err)
+	if c.revokeAPIAccess {
+		revokeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), accountLinkCompletionTimeout)
+		defer cancel()
+		if _, err = s.apiAccess.RevokeAPIAccess(revokeCtx, user.ID); err != nil {
+			log.With("error", err.Error()).
+				Error("An account link was completed but the account's API access could not be revoked")
+			return nil, fmt.Errorf("%w: revoke the API access of a completed account link: %w", ErrAccountLinkSpent, err)
+		}
 	}
 	log.Info("Completed an account link")
 	return user, nil
-}
-
-// applyCompletion performs the writes of a consumed link, in an order that
-// fails safe: the new password first, then the end of every earlier session,
-// then the optional revocation, and the profile last. user is updated to what
-// was stored, including the session epoch a new cookie must carry.
-func (s *AccountTokenService) applyCompletion(
-	ctx context.Context, user *models.User, consumed *models.AccountToken, plaintext string, c completion,
-) error {
-	if err := s.passwords.SetPassword(ctx, user.ID, plaintext); err != nil {
-		return fmt.Errorf("set the password of a completed account link: %w", err)
-	}
-	// Whoever knew the old password, or held a session, is signed out. The
-	// caller signs the person in again under the new epoch.
-	epoch, err := s.users.BumpSessionEpoch(ctx, user.ID)
-	if err != nil {
-		return fmt.Errorf("end the sessions of a completed account link: %w", err)
-	}
-	user.SessionEpoch = epoch
-
-	if c.revokeAPIAccess {
-		if _, err := s.apiAccess.RevokeAPIAccess(ctx, user.ID); err != nil {
-			return fmt.Errorf("revoke the API access of a completed account link: %w", err)
-		}
-	}
-	return s.updateProfile(ctx, user, consumed, c.name)
-}
-
-// updateProfile records what completing the link established about the
-// account: its email is verified when the link was emailed to it and it was
-// not verified before, and a setup may set the display name. It writes only
-// when something changed.
-func (s *AccountTokenService) updateProfile(
-	ctx context.Context, user *models.User, consumed *models.AccountToken, name string,
-) error {
-	changed := false
-	if consumed.ProvesMailbox() && user.EmailVerifiedAt == nil {
-		now := s.now()
-		user.EmailVerifiedAt = &now
-		changed = true
-	}
-	if name != "" && name != user.Name {
-		user.Name = name
-		changed = true
-	}
-	if !changed {
-		return nil
-	}
-	if err := s.users.Update(ctx, user); err != nil {
-		return fmt.Errorf("update the account of a completed account link: %w", err)
-	}
-	return nil
 }
 
 // Sweep implements AccountTokenServiceInterface.

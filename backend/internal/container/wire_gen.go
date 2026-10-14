@@ -60,7 +60,6 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	notificationDigestQueueRepository := providers.ProvideNotificationDigestQueueRepository(db)
 	userIdentityRepository := providers.ProvideUserIdentityRepository(db)
 	accountTokenRepository := providers.ProvideAccountTokenRepository(db)
-	userCredentialRepository := providers.ProvideUserCredentialRepository(db)
 	apiAccessRepository := providers.ProvideAPIAccessRepository(db)
 	apiAccessServiceInterface := providers.ProvideAPIAccessService(apiAccessRepository, logger)
 	instanceAuthProviderRepository := providers.ProvideInstanceAuthProviderRepository(db)
@@ -84,7 +83,6 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		UserRepo:      userRepository,
 		IdentityRepo:  userIdentityRepository,
 		AccountTokens: accountTokenRepository,
-		Credentials:   userCredentialRepository,
 		APIAccess:     apiAccessServiceInterface,
 		Resolver:      identityProviderResolver,
 		EventManager:  eventManager,
@@ -329,6 +327,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	scheduler := providers.ProvideScheduler(cfg, scheduleRepository, db, registry, v, logger)
 	instanceSettingsAuditRepository := providers.ProvideInstanceSettingsAuditRepository(db)
 	instanceEmailProviderServiceInterface := providers.ProvideInstanceEmailProviderService(instanceEmailProviderRepository, instanceSettingsAuditRepository, userRepository, encryptionServiceInterface, logger)
+	userCredentialRepository := providers.ProvideUserCredentialRepository(db)
 	passwordAuthServiceInterface := providers.ProvidePasswordAuthService(userRepository, userCredentialRepository, authPolicyResolver, accessAllowlistResolver, logger)
 	signInMethodRepository := providers.ProvideSignInMethodRepository(db)
 	accountServiceDeps := providers.AccountServiceDeps{
