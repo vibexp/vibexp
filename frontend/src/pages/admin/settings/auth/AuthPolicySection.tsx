@@ -16,7 +16,7 @@ import {
 import type { AdminAuthRegistrationMode } from '@/services/authSettingsService'
 
 import { SwitchSettingField } from '../InstanceSettingsFields'
-import { lockoutRiskCopy } from './authSettingsForm'
+import { lockoutRisksCopy } from './authSettingsForm'
 import { useAuthPolicy } from './useAuthPolicy'
 
 const REGISTRATION_MODES: readonly {
@@ -92,6 +92,31 @@ function RegistrationModeField({
 }
 
 /**
+ * The reasons of a lockout risk in the confirmation: one reason is its
+ * explanation alone; several are each named with their explanation. Spans,
+ * because the dialog's description is a paragraph.
+ */
+function LockoutReasons({
+  items,
+}: Readonly<{ items: { title: string; description: string }[] }>) {
+  if (items.length === 1) return <>{items[0].description}</>
+  return (
+    <span className="block space-y-3" data-testid="lockout-reasons">
+      {items.map((item, index) => (
+        // The titles can repeat (two unknown reasons share the generic copy).
+
+        <span key={index} className="block">
+          <span className="text-foreground block font-medium">
+            {item.title}
+          </span>
+          <span className="block">{item.description}</span>
+        </span>
+      ))}
+    </span>
+  )
+}
+
+/**
  * Sign-in policy (#1442): whether password sign-in is offered, and
  * who may get an account. The rules of a save — one version for both
  * settings, never retry a conflict, confirm a lockout risk — are
@@ -124,8 +149,8 @@ export function AuthPolicySection({
 
   const disabled = busy || loading
   const lockout = policy.pendingLockout
-    ? lockoutRiskCopy(
-        policy.pendingLockout.reason,
+    ? lockoutRisksCopy(
+        policy.pendingLockout.reasons,
         policy.pendingLockout.accounts
       )
     : null
@@ -253,7 +278,7 @@ export function AuthPolicySection({
           if (!open) policy.cancelLockout()
         }}
         title={lockout?.title ?? ''}
-        description={lockout?.description}
+        description={lockout && <LockoutReasons items={lockout.items} />}
         confirmLabel="Switch it off anyway"
         variant="destructive"
         loading={busy}

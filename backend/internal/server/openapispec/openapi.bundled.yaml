@@ -15672,7 +15672,8 @@ paths:
         password sign-in is not a working way in (it is off, or no instance admin
         has a password), or the provider the calling admin's session was issued by, is rejected with 409
         `lockout_risk` (the problem's `metadata.reason` is `no_enabled_provider` or
-        `own_provider`) unless the body sets `confirm_lockout_risk: true`.
+        `own_provider`, and `metadata.reasons` is that one reason as a list) unless
+        the body sets `confirm_lockout_risk: true`.
         Instance admin or a first-run setup session; every other request receives 404.
       operationId: updateAdminAuthProvider
       tags:
@@ -15741,7 +15742,8 @@ paths:
         Lockout guard: deleting the last enabled provider while password sign-in
         is not a working way in (it is off, or no instance admin has a password),
         or the provider the calling admin's session was issued by, is rejected with 409 `lockout_risk`
-        unless `confirm_lockout_risk=true` is passed.
+        (the problem's `metadata.reason` names the case, and `metadata.reasons` is
+        that one reason as a list) unless `confirm_lockout_risk=true` is passed.
         Instance admin or a first-run setup session; every other request receives 404.
       operationId: deleteAdminAuthProvider
       tags:
@@ -16011,13 +16013,15 @@ paths:
 
         Switching password sign-in off is rejected with 409 `lockout_risk` unless
         the body sets `confirm_lockout_risk: true`, in three cases. The problem's
-        `metadata.reason` names the first that applies:
+        `metadata.reasons` lists every case that applies, in the order below, and
+        `metadata.reason` names the first of them:
 
         - `no_usable_method`: no identity provider is enabled, so password
           sign-in is the only method that works.
         - `own_method`: the calling admin's session signed in with a password.
         - `password_only_accounts`: accounts exist whose only sign-in method is
-          a password; `metadata.password_only_accounts` is how many.
+          a password; `metadata.password_only_accounts` is how many, present
+          whenever this case is in `metadata.reasons`.
 
         Stored passwords are kept while password sign-in is off, and work again
         when it is switched back on.

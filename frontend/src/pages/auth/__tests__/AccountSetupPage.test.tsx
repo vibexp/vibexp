@@ -118,9 +118,12 @@ describe('AccountSetupPage', () => {
     if (refusal) links.preview.mockRejectedValue(refusal)
     renderAt(url)
 
+    const invalid = await screen.findByTestId('account-setup-invalid')
+    expect(invalid).toHaveTextContent('Ask your administrator for a new one')
     expect(
-      await screen.findByTestId('account-setup-invalid')
-    ).toHaveTextContent('Ask your administrator for a new one')
+      within(invalid).getByRole('link', { name: 'Go to sign in' })
+    ).toHaveAttribute('href', '/login')
+    expect(within(invalid).getByTestId('public-instance-name')).toBeVisible()
   })
 
   it('treats a reset link opened here as not valid', async () => {
@@ -140,6 +143,9 @@ describe('AccountSetupPage', () => {
     expect(
       within(off).getByRole('button', { name: 'Continue with Mock SSO' })
     ).toBeVisible()
+    expect(
+      within(off).getByRole('link', { name: 'Go to sign in' })
+    ).toHaveAttribute('href', '/login')
   })
 
   it('says the password was set when the request failed after setting it, and offers no retry', async () => {
@@ -230,6 +236,9 @@ describe('AccountSetupPage: after review', () => {
 
     const state = await screen.findByTestId('account-setup-restricted')
     expect(state).toHaveTextContent('Access to this instance is restricted.')
+    expect(
+      within(state).getByRole('link', { name: 'Go to sign in' })
+    ).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
   })
 

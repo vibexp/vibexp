@@ -2,7 +2,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertCircle, KeyRound, Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Link } from 'react-router'
 import { z } from 'zod'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -41,6 +40,7 @@ import type { AuthProvider } from '@/services/authService'
 import { ApiError } from '@/types/errors'
 
 import { ProviderChoices } from './ProviderChoices'
+import { GoToSignIn, InstanceName } from './PublicCardParts'
 import { enabledProviders, messageOf, optionalNameField } from './publicForms'
 
 const schema = z
@@ -158,17 +158,24 @@ export function AccountSetupPage({
       >
         <CardContent className="flex flex-col gap-4 p-6">
           <h1 className="sr-only">Set up your account</h1>
+          <InstanceName />
           {view.kind === 'invalid' && (
-            <Notice
-              title="This link is not valid"
-              text="It may have expired or been used already. Ask your administrator for a new one."
-            />
+            <>
+              <Notice
+                title="This link is not valid"
+                text="It may have expired or been used already. Ask your administrator for a new one. If you already set a password, sign in with it."
+              />
+              <GoToSignIn />
+            </>
           )}
           {view.kind === 'restricted' && (
-            <Notice
-              title="This account cannot be used here"
-              text={view.message}
-            />
+            <>
+              <Notice
+                title="This account cannot be used here"
+                text={view.message}
+              />
+              <GoToSignIn />
+            </>
           )}
           {view.kind === 'refused' && (
             <>
@@ -193,6 +200,7 @@ export function AccountSetupPage({
                 text="This instance does not offer password sign-in at the moment. Sign in with one of the providers below, using the email address your account was created for."
               />
               <ProviderChoices providers={view.providers} />
+              <GoToSignIn />
             </>
           )}
           {view.kind === 'set-not-signed-in' && (
@@ -204,9 +212,7 @@ export function AccountSetupPage({
                   the password you just chose.
                 </AlertDescription>
               </Alert>
-              <Button asChild>
-                <Link to="/login">Go to sign in</Link>
-              </Button>
+              <GoToSignIn variant="default" />
             </>
           )}
         </CardContent>

@@ -213,6 +213,13 @@ describe('SignedOutInvitation', () => {
     const invalid = await screen.findByTestId('invitation-invalid')
     expect(invalid).toHaveTextContent('This invitation link is not valid')
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+    // A way on, and where the person is (#1473).
+    expect(
+      within(invalid).getByRole('link', { name: 'Go to sign in' })
+    ).toHaveAttribute('href', '/login')
+    expect(
+      within(invalid).getByTestId('public-instance-name')
+    ).toHaveTextContent('VibeXP')
   })
 
   it('offers to try again when the invitation could not be loaded', async () => {

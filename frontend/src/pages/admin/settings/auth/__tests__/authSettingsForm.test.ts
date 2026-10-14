@@ -7,6 +7,8 @@ import {
   issuerUrlError,
   lockoutRiskCopy,
   lockoutRiskReason,
+  lockoutRiskReasons,
+  lockoutRisksCopy,
   moveProvider,
   nextSortOrder,
   normalizeAllowlistEntries,
@@ -287,6 +289,46 @@ describe('redirectUriFor', () => {
 })
 
 describe('lockout risk', () => {
+  it('lists every reason the server sends, keeping only non-empty strings (#1473)', () => {
+    expect(
+      lockoutRiskReasons(
+        lockoutRisk('own_method', {
+          reasons: ['own_method', '', 3, null, 'password_only_accounts'],
+        })
+      )
+    ).toEqual(['own_method', 'password_only_accounts'])
+  })
+
+  it.each([
+    ['no list', {}],
+    ['an empty list', { reasons: [] }],
+    ['a list of nothing usable', { reasons: [1, null, ''] }],
+    ['not a list', { reasons: 'own_method' }],
+  ])(
+    'falls back to the single reason when the server sends %s',
+    (_case, metadata) => {
+      expect(lockoutRiskReasons(lockoutRisk('own_method', metadata))).toEqual([
+        'own_method',
+      ])
+    }
+  )
+
+  it('is empty for any other error', () => {
+    expect(lockoutRiskReasons(versionConflict())).toEqual([])
+    expect(lockoutRiskReasons(new Error('boom'))).toEqual([])
+  })
+
+  it('titles one reason as that reason, and several as a group', () => {
+    expect(lockoutRisksCopy(['own_method']).title).toBe(
+      'You signed in with a password'
+    )
+    const several = lockoutRisksCopy(['own_method', 'something_new'])
+    expect(several.title).toBe(
+      'This change could lock people out in several ways'
+    )
+    expect(several.items).toHaveLength(2)
+  })
+
   it('reads the reason from the problem metadata', () => {
     expect(lockoutRiskReason(lockoutRisk('own_provider'))).toBe('own_provider')
     expect(lockoutRiskReason(lockoutRisk('no_enabled_provider'))).toBe(

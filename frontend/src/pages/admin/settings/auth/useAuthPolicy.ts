@@ -12,6 +12,7 @@ import { isVersionConflict } from '../instanceSettingsForm'
 import {
   lockoutRiskAccountCount,
   lockoutRiskReason,
+  lockoutRiskReasons,
   messageOf,
 } from './authSettingsForm'
 
@@ -24,6 +25,8 @@ export interface AuthPolicyForm {
 /** A save the server refused as a lockout risk, waiting for the admin. */
 export interface PendingPolicyLockout {
   reason: string
+  /** Every reason that applies, `reason` first (#1473). */
+  reasons: string[]
   /** Accounts whose only sign-in method is a password, when that is the risk. */
   accounts: number | null
 }
@@ -129,7 +132,11 @@ export function useAuthPolicy(onSaved?: () => void) {
     } catch (err) {
       const reason = lockoutRiskReason(err)
       if (reason !== null) {
-        setPendingLockout({ reason, accounts: lockoutRiskAccountCount(err) })
+        setPendingLockout({
+          reason,
+          reasons: lockoutRiskReasons(err),
+          accounts: lockoutRiskAccountCount(err),
+        })
         return
       }
       setPendingLockout(null)

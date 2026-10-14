@@ -41,6 +41,7 @@ import { ApiError } from '@/types/errors'
 import { sessionStore } from '@/utils/storage'
 
 import { ProviderChoices } from '../ProviderChoices'
+import { GoToSignIn, InstanceName } from '../PublicCardParts'
 import { enabledProviders, messageOf, optionalNameField } from '../publicForms'
 
 const schema = z
@@ -140,6 +141,7 @@ export function SignedOutInvitation({
         <Card className="w-full max-w-md" data-testid="invitation-invalid">
           <CardContent className="flex flex-col gap-4 p-6">
             <h1 className="sr-only">Team invitation</h1>
+            <InstanceName />
             <Alert variant="destructive">
               <AlertCircle className="size-4" />
               <AlertTitle>
@@ -161,6 +163,7 @@ export function SignedOutInvitation({
                 Try again
               </Button>
             )}
+            <GoToSignIn />
           </CardContent>
         </Card>
       </PublicCardPage>

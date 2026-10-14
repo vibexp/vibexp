@@ -59,6 +59,24 @@ beforeEach(() => {
 })
 
 describe('ProvidersSection: the list', () => {
+  it('keeps the name and the controls in separate groups, so a narrow row stacks (#1473)', async () => {
+    await renderSection([
+      provider({ slug: 'mock-sso', display_name: 'Mock SSO' }),
+    ])
+
+    const row = rows()[0]
+    const identity = within(row).getByTestId('auth-provider-identity')
+    const actions = within(row).getByTestId('auth-provider-actions')
+    expect(within(identity).getByText('Mock SSO')).toBeVisible()
+    expect(within(identity).getByText(/mock-sso/)).toBeVisible()
+    expect(within(identity).queryByRole('switch')).toBeNull()
+    expect(
+      within(actions).getByRole('switch', { name: 'Mock SSO enabled' })
+    ).toBeVisible()
+    // Stacked by default, one row from `sm` up.
+    expect(identity.parentElement).toHaveClass('flex-col', 'sm:flex-row')
+  })
+
   it('lists type, name, health and enabled state in sign-in order', async () => {
     await renderSection([
       github,
