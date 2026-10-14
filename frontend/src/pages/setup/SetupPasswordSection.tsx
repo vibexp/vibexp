@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { useAuth } from '@/contexts/useAuth'
 import { messageOf } from '@/pages/admin/settings/auth/authSettingsForm'
 import { FieldFrame } from '@/pages/admin/settings/InstanceSettingsFields'
 import {
@@ -20,6 +21,7 @@ import {
 } from '@/pages/admin/settings/instanceSettingsForm'
 import { authService } from '@/services/authService'
 import { authSettingsService } from '@/services/authSettingsService'
+import { ApiError } from '@/types/errors'
 
 type Field = 'email' | 'password' | 'repeat'
 
@@ -75,6 +77,62 @@ function serverErrors(err: unknown): {
 }
 
 /**
+ * Shown when this browser is also signed in to the app (#1473): the signed-in
+ * session takes precedence over the setup session, and only a setup session
+ * may set a root admin's password. Signing out here keeps the setup session
+ * (it has its own cookie), so the page works again after a reload.
+ */
+function SignedInNote({
+  email,
+  onSignedOut,
+}: Readonly<{ email: string | null; onSignedOut: () => void }>) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const signOut = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await authService.logout()
+      onSignedOut()
+    } catch (err) {
+      setError(messageOf(err, 'Signing out did not work'))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Alert data-testid="setup-signed-in-note">
+      <AlertTitle>This browser is signed in</AlertTitle>
+      <AlertDescription className="space-y-2">
+        <p>
+          {email ? `You are signed in as ${email}. ` : 'You are signed in. '}
+          Only the setup session from the setup URL can set a root admin&apos;s
+          password, and your signed-in session is used instead. Sign out here
+          and the page works again, or open the setup URL in a private window.
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={busy}
+          onClick={() => {
+            void signOut()
+          }}
+        >
+          {busy ? 'Signing out…' : 'Sign out here'}
+        </Button>
+        {error && (
+          <p role="alert" className="text-destructive text-sm">
+            {error}
+          </p>
+        )}
+      </AlertDescription>
+    </Alert>
+  )
+}
+
+/**
  * "Use email and password" on the first-run setup page (#1442): makes an
  * instance usable with no identity provider. It gives a root instance admin
  * (an address in the server's `auth.instance_admins`) a password and switches
@@ -88,7 +146,13 @@ export function SetupPasswordSection({
   navigate = url => {
     globalThis.location.assign(url)
   },
-}: Readonly<{ navigate?: (url: string) => void }>) {
+  reload = () => {
+    globalThis.location.reload()
+  },
+}: Readonly<{ navigate?: (url: string) => void; reload?: () => void }>) {
+  const { isAuthenticated, user } = useAuth()
+  // The server refused the bootstrap because this browser is signed in.
+  const [signedInRefusal, setSignedInRefusal] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [repeat, setRepeat] = useState('')
@@ -129,6 +193,13 @@ export function SetupPasswordSection({
         password,
       })
     } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        // Only a setup session may set a root admin's password, and a signed-in
+        // session takes precedence over it in this browser (#1473).
+        setSignedInRefusal(true)
+        setBusy(false)
+        return
+      }
       const split = serverErrors(err)
       if (split) {
         setFromServer(split.fields)
@@ -214,7 +285,10 @@ export function SetupPasswordSection({
           password sign-in on and signs you in, which finishes setup.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        {(isAuthenticated || signedInRefusal) && (
+          <SignedInNote email={user?.email ?? null} onSignedOut={reload} />
+        )}
         <form
           aria-label="Use email and password"
           className="max-w-md space-y-4"

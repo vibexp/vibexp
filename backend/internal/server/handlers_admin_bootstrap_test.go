@@ -28,9 +28,16 @@ func bootstrapBody(email string) map[string]any {
 	return map[string]any{"email": email, "password": bootstrapTestPassphrase}
 }
 
-// asPasswordSessionOf signs userID in with a cookie session from a password
+// asRootPasswordSession signs the root admin in with a cookie session from a
+// password sign-in.
+func asRootPasswordSession(t *testing.T, f *authSettingsFixture, r *http.Request) {
+	t.Helper()
+	asPasswordSession(authTestRootID)(t, f, r)
+}
+
+// asPasswordSession signs userID in with a cookie session from a password
 // sign-in.
-func asPasswordSessionOf(userID string) authCaller {
+func asPasswordSession(userID string) authCaller {
 	return func(t *testing.T, f *authSettingsFixture, r *http.Request) {
 		t.Helper()
 		rr := httptest.NewRecorder()
@@ -135,7 +142,7 @@ func TestBootstrapAdminPassword_Refusals(t *testing.T) {
 		require.NoError(t, err)
 
 		for name, caller := range map[string]authCaller{
-			"root admin": asRoot, "granted admin": asDBAdmin, "root by password session": asPasswordSessionOf(authTestRootID),
+			"root admin": asRoot, "granted admin": asDBAdmin, "root by password session": asRootPasswordSession,
 		} {
 			rr := f.serve(t, caller, http.MethodPut, authBootstrapPath, bootstrapBody(authTestRootEmail))
 			require.Equal(t, http.StatusForbidden, rr.Code, name)
@@ -245,7 +252,7 @@ func TestAdminAuthPolicy_LockoutGuard(t *testing.T) {
 		f.createProvider(t, oidcProviderBody("okta"))
 		enablePasswordLogin(t, f)
 
-		refused(t, f.serve(t, asPasswordSessionOf(authTestRootID), http.MethodPut, authPolicyPath, putPolicy(false, false)),
+		refused(t, f.serve(t, asRootPasswordSession, http.MethodPut, authPolicyPath, putPolicy(false, false)),
 			services.AuthLockoutOwnMethod)
 
 		// The same change from a provider session locks nobody out.
@@ -267,6 +274,35 @@ func TestAdminAuthPolicy_LockoutGuard(t *testing.T) {
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	})
 
+	t.Run("every reason that applies is reported, the first one as reason (#1473)", func(t *testing.T) {
+		f := newAuthSettingsFixture(t)
+		enablePasswordLogin(t, f)
+		f.creds.passwordOnly = 2
+
+		// No provider, a password session, and password-only accounts.
+		metadata := refused(t, f.serve(t, asRootPasswordSession, http.MethodPut, authPolicyPath,
+			putPolicy(false, false)), services.AuthLockoutNoUsableMethod)
+		assert.Equal(t, []any{
+			services.AuthLockoutNoUsableMethod, services.AuthLockoutOwnMethod, services.AuthLockoutPasswordOnlyAccounts,
+		}, metadata["reasons"])
+		assert.EqualValues(t, 2, metadata["password_only_accounts"])
+
+		// With a provider: the own method and the accounts.
+		f.createProvider(t, oidcProviderBody("okta"))
+		metadata = refused(t, f.serve(t, asRootPasswordSession, http.MethodPut, authPolicyPath,
+			putPolicy(false, false)), services.AuthLockoutOwnMethod)
+		assert.Equal(t, []any{services.AuthLockoutOwnMethod, services.AuthLockoutPasswordOnlyAccounts},
+			metadata["reasons"])
+		assert.EqualValues(t, 2, metadata["password_only_accounts"])
+
+		// One reason: a list of one, and no count when it is not among them.
+		f.creds.passwordOnly = 0
+		metadata = refused(t, f.serve(t, asRootPasswordSession, http.MethodPut, authPolicyPath,
+			putPolicy(false, false)), services.AuthLockoutOwnMethod)
+		assert.Equal(t, []any{services.AuthLockoutOwnMethod}, metadata["reasons"])
+		assert.NotContains(t, metadata, "password_only_accounts")
+	})
+
 	t.Run("nothing to lose: no confirmation needed", func(t *testing.T) {
 		f := newAuthSettingsFixture(t)
 
@@ -284,7 +320,7 @@ func TestAdminAuthPolicy_LockoutGuard(t *testing.T) {
 		f := newAuthSettingsFixture(t)
 		f.creds.passwordOnly = 9
 
-		rr := f.serve(t, asPasswordSessionOf(authTestRootID), http.MethodPut, authPolicyPath, putPolicy(true, false))
+		rr := f.serve(t, asRootPasswordSession, http.MethodPut, authPolicyPath, putPolicy(true, false))
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	})
 }

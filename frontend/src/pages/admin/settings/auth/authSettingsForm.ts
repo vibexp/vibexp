@@ -332,6 +332,24 @@ export function lockoutRiskReason(err: unknown): string | null {
 }
 
 /**
+ * Every reason a `lockout_risk` names, in the server's order (#1473): its
+ * `metadata.reasons`, or the single `reason` from a server that sends no list.
+ * Empty for any other error.
+ */
+export function lockoutRiskReasons(err: unknown): string[] {
+  const first = lockoutRiskReason(err)
+  if (first === null || !(err instanceof ApiError)) return []
+  const listed: unknown = err.metadata?.reasons
+  if (Array.isArray(listed)) {
+    const reasons = listed.filter(
+      (reason): reason is string => typeof reason === 'string' && reason !== ''
+    )
+    if (reasons.length > 0) return reasons
+  }
+  return [first]
+}
+
+/**
  * How many accounts have a password as their only sign-in method, as carried
  * by a `password_only_accounts` lockout risk; null for any other error.
  */
@@ -392,6 +410,23 @@ export function lockoutRiskCopy(
         description:
           'The server refused this change because it could leave you unable to sign in. Continue only if you have another way in.',
       }
+  }
+}
+
+/**
+ * What the lockout confirmation says for several reasons at once (#1473): a
+ * title naming the risk, and each reason's own title and explanation, in the
+ * server's order. One reason reads exactly as `lockoutRiskCopy`.
+ */
+export function lockoutRisksCopy(
+  reasons: readonly string[],
+  accounts: number | null = null
+): { title: string; items: { title: string; description: string }[] } {
+  const items = reasons.map(reason => lockoutRiskCopy(reason, accounts))
+  if (items.length === 1) return { title: items[0].title, items }
+  return {
+    title: 'This change could lock people out in several ways',
+    items,
   }
 }
 

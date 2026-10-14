@@ -174,6 +174,8 @@ export function SetupFinishPrompt({
           <Button
             key={provider.id}
             type="button"
+            // The label is long: let it wrap on a narrow screen (#1473).
+            className="h-auto w-full py-2 whitespace-normal sm:w-auto"
             disabled={signingIn !== null}
             data-testid="setup-sign-in"
             data-provider-slug={provider.slug}

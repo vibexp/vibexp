@@ -44,15 +44,36 @@ const (
 // ErrAuthLockoutRisk is returned when a provider or policy change could lock
 // sign-in out and the caller did not confirm the risk.
 type ErrAuthLockoutRisk struct {
-	// Reason is one of the AuthLockout* constants.
+	// Reason is one of the AuthLockout* constants: the first that applies.
 	Reason string
+	// Reasons is every reason that applies, Reason first (#1473). Set by the
+	// policy guard, which can find several; nil for a provider change, which
+	// has one.
+	Reasons []string
 	// PasswordOnlyAccounts is how many accounts have a password as their only
 	// sign-in method; set with AuthLockoutPasswordOnlyAccounts.
 	PasswordOnlyAccounts int
 }
 
+// AllReasons is every reason that applies: Reasons, or Reason alone.
+func (e *ErrAuthLockoutRisk) AllReasons() []string {
+	if len(e.Reasons) > 0 {
+		return e.Reasons
+	}
+	return []string{e.Reason}
+}
+
 func (e *ErrAuthLockoutRisk) Error() string {
-	switch e.Reason {
+	reasons := e.AllReasons()
+	texts := make([]string, 0, len(reasons))
+	for _, reason := range reasons {
+		texts = append(texts, e.reasonText(reason))
+	}
+	return strings.Join(texts, "; ")
+}
+
+func (e *ErrAuthLockoutRisk) reasonText(reason string) string {
+	switch reason {
 	case AuthLockoutOwnProvider:
 		return "this change disables the sign-in provider your own session was issued by"
 	case AuthLockoutNoUsableMethod:
@@ -640,11 +661,12 @@ func (s *InstanceAuthSettingsService) UpdatePolicy(
 
 // guardPasswordLoginOff is the save guard on a policy that leaves password
 // login off (#1438). It judges only a change that takes password login AWAY,
-// and refuses it, in this order: while password login is the only working way
-// in; when the caller's own session signed in with a password; and while
-// accounts exist whose only sign-in method is a password. The stored
-// passwords are not touched by the change, so switching it back on restores
-// every one of them.
+// and refuses it while password login is the only working way in, when the
+// caller's own session signed in with a password, or while accounts exist
+// whose only sign-in method is a password. Every reason that applies is
+// reported, in that order (#1473), so the admin sees the whole risk before
+// confirming. The stored passwords are not touched by the change, so
+// switching it back on restores every one of them.
 func (s *InstanceAuthSettingsService) guardPasswordLoginOff(
 	ctx context.Context, caller models.InstanceAuthLockoutContext,
 ) error {
@@ -656,6 +678,7 @@ func (s *InstanceAuthSettingsService) guardPasswordLoginOff(
 		return nil // already off: nothing is taken away
 	}
 
+	var reasons []string
 	providerEnabled, err := hasEnabledAuthProvider(ctx, s.deps.Providers)
 	if err != nil {
 		return err
@@ -666,20 +689,23 @@ func (s *InstanceAuthSettingsService) guardPasswordLoginOff(
 			return worksErr
 		}
 		if passwordWorks {
-			return &ErrAuthLockoutRisk{Reason: AuthLockoutNoUsableMethod}
+			reasons = append(reasons, AuthLockoutNoUsableMethod)
 		}
 	}
 	if caller.AuthMethod == session.AuthMethodPassword {
-		return &ErrAuthLockoutRisk{Reason: AuthLockoutOwnMethod}
+		reasons = append(reasons, AuthLockoutOwnMethod)
 	}
 	passwordOnly, err := s.deps.Credentials.CountPasswordOnly(ctx)
 	if err != nil {
 		return err
 	}
 	if passwordOnly > 0 {
-		return &ErrAuthLockoutRisk{Reason: AuthLockoutPasswordOnlyAccounts, PasswordOnlyAccounts: passwordOnly}
+		reasons = append(reasons, AuthLockoutPasswordOnlyAccounts)
 	}
-	return nil
+	if len(reasons) == 0 {
+		return nil
+	}
+	return &ErrAuthLockoutRisk{Reason: reasons[0], Reasons: reasons, PasswordOnlyAccounts: passwordOnly}
 }
 
 // BootstrapAdminPassword implements InstanceAuthSettingsServiceInterface.

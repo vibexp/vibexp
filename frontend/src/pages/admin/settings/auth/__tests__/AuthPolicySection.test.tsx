@@ -168,6 +168,46 @@ describe('AuthPolicySection', () => {
     expect(mode('Invitation only')).toBeChecked()
   })
 
+  it('names every reason the server reports, with the account count (#1473)', async () => {
+    service.updatePolicy.mockRejectedValueOnce(
+      lockoutRisk('own_method', {
+        reasons: ['own_method', 'password_only_accounts'],
+        password_only_accounts: 2,
+      })
+    )
+    const user = await renderSection(stored)
+    await user.click(passwordSwitch())
+    await user.click(save())
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(
+      within(dialog).getByText(
+        'This change could lock people out in several ways'
+      )
+    ).toBeVisible()
+    const reasons = within(dialog).getByTestId('lockout-reasons')
+    expect(
+      within(reasons).getByText('You signed in with a password')
+    ).toBeVisible()
+    expect(
+      within(reasons).getByText('2 accounts can only sign in with a password')
+    ).toBeVisible()
+    expect(reasons).toHaveTextContent('Their passwords are kept')
+  })
+
+  it('reads a single reason from a server that sends no list', async () => {
+    service.updatePolicy.mockRejectedValueOnce(lockoutRisk('own_method'))
+    const user = await renderSection(stored)
+    await user.click(passwordSwitch())
+    await user.click(save())
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(
+      within(dialog).getByText('You signed in with a password')
+    ).toBeVisible()
+    expect(within(dialog).queryByTestId('lockout-reasons')).toBeNull()
+  })
+
   it.each([
     ['no_usable_method', {}, 'This leaves no way to sign in'],
     ['own_method', {}, 'You signed in with a password'],

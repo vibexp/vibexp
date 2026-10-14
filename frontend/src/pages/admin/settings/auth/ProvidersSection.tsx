@@ -106,56 +106,66 @@ function ProviderRow({
       data-testid="auth-provider-row"
       data-provider-slug={provider.slug}
     >
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex flex-col">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-6"
-            aria-label={`Move ${provider.display_name} up`}
-            disabled={disabled || index === 0}
-            onClick={() => {
-              void state.move(index, -1)
-            }}
-          >
-            <ArrowUp className="size-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-6"
-            aria-label={`Move ${provider.display_name} down`}
-            disabled={disabled || index === count - 1}
-            onClick={() => {
-              void state.move(index, 1)
-            }}
-          >
-            <ArrowDown className="size-4" />
-          </Button>
-        </div>
-
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium">{provider.display_name}</span>
-            <Badge variant="outline">
-              {PROVIDER_TYPE_LABELS[provider.type]}
-            </Badge>
-            <Badge
-              variant={HEALTH_VARIANTS[status]}
-              data-testid="auth-provider-health"
+      {/* Narrow: the reorder arrows and the name on one line, the switch and
+          the actions on the next; one row from `sm` up (#1473). */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div
+          className="flex min-w-0 flex-1 items-center gap-3"
+          data-testid="auth-provider-identity"
+        >
+          <div className="flex shrink-0 flex-col">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-6"
+              aria-label={`Move ${provider.display_name} up`}
+              disabled={disabled || index === 0}
+              onClick={() => {
+                void state.move(index, -1)
+              }}
             >
-              {HEALTH_LABELS[status]}
-            </Badge>
+              <ArrowUp className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-6"
+              aria-label={`Move ${provider.display_name} down`}
+              disabled={disabled || index === count - 1}
+              onClick={() => {
+                void state.move(index, 1)
+              }}
+            >
+              <ArrowDown className="size-4" />
+            </Button>
           </div>
-          <p className="text-muted-foreground truncate font-mono text-xs">
-            {provider.slug}
-            {provider.issuer_url ? ` · ${provider.issuer_url}` : ''}
-          </p>
+
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">{provider.display_name}</span>
+              <Badge variant="outline">
+                {PROVIDER_TYPE_LABELS[provider.type]}
+              </Badge>
+              <Badge
+                variant={HEALTH_VARIANTS[status]}
+                data-testid="auth-provider-health"
+              >
+                {HEALTH_LABELS[status]}
+              </Badge>
+            </div>
+            <p className="text-muted-foreground font-mono text-xs break-all sm:truncate sm:break-normal">
+              {provider.slug}
+              {provider.issuer_url ? ` · ${provider.issuer_url}` : ''}
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div
+          className="flex shrink-0 items-center gap-2 self-end sm:self-auto"
+          data-testid="auth-provider-actions"
+        >
           <Switch
             checked={provider.enabled}
             disabled={disabled}

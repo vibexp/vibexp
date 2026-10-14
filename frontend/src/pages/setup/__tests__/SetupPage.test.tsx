@@ -23,6 +23,10 @@ vi.mock('@/services/setupService', () => ({
   setupService: { createSession: vi.fn(), getStatus: vi.fn() },
 }))
 
+vi.mock('@/contexts/useAuth', () => ({
+  useAuth: () => ({ isAuthenticated: false, user: null }),
+}))
+
 vi.mock('@/services/authService', () => ({
   authService: { getLoginUrl: vi.fn(), passwordLogin: vi.fn() },
 }))

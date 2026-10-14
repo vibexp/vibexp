@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
 
 	"github.com/vibexp/vibexp/internal/auth/password"
 	"github.com/vibexp/vibexp/internal/contextkeys"
@@ -633,7 +634,9 @@ func (a *adminStrictServer) mapInstanceAuthError(handler, invalidMsg string, err
 		return apierrors.NewInstanceAuthProviderConflictError()
 	case errors.As(err, &lockout):
 		problem := apierrors.NewLockoutRiskError(lockout.Reason, lockout.Error()+adminMsgLockoutConfirm)
-		if lockout.Reason == services.AuthLockoutPasswordOnlyAccounts {
+		reasons := lockout.AllReasons()
+		problem.Metadata["reasons"] = reasons
+		if slices.Contains(reasons, services.AuthLockoutPasswordOnlyAccounts) {
 			problem.Metadata["password_only_accounts"] = lockout.PasswordOnlyAccounts
 		}
 		return problem

@@ -11,8 +11,14 @@ vi.mock('@/services/authSettingsService', () => ({
 }))
 
 vi.mock('@/services/authService', () => ({
-  authService: { passwordLogin: vi.fn() },
+  authService: { passwordLogin: vi.fn(), logout: vi.fn() },
 }))
+
+const authState = vi.hoisted(() => ({
+  isAuthenticated: false,
+  user: null as { email: string } | null,
+}))
+vi.mock('@/contexts/useAuth', () => ({ useAuth: () => authState }))
 
 import { SetupPasswordSection } from '../SetupPasswordSection'
 
@@ -309,5 +315,77 @@ describe('SetupPasswordSection', () => {
     await waitFor(() => {
       expect(navigate).toHaveBeenCalled()
     })
+  })
+})
+
+describe('SetupPasswordSection in a signed-in browser (#1473)', () => {
+  const reload = vi.fn()
+
+  function renderSignedIn() {
+    render(
+      <MemoryRouter>
+        <SetupPasswordSection navigate={navigate} reload={reload} />
+      </MemoryRouter>
+    )
+    return userEvent.setup()
+  }
+
+  afterEach(() => {
+    authState.isAuthenticated = false
+    authState.user = null
+  })
+
+  it('says beforehand that the signed-in session is used, and signs out here', async () => {
+    authState.isAuthenticated = true
+    authState.user = { email: 'admin@example.com' }
+    auth.logout.mockResolvedValue(undefined)
+    const user = renderSignedIn()
+
+    const note = screen.getByTestId('setup-signed-in-note')
+    expect(note).toHaveTextContent('You are signed in as admin@example.com')
+    expect(note).toHaveTextContent('private window')
+    await user.click(screen.getByRole('button', { name: 'Sign out here' }))
+    await waitFor(() => {
+      expect(reload).toHaveBeenCalledTimes(1)
+    })
+    expect(auth.logout).toHaveBeenCalledTimes(1)
+  })
+
+  it('explains the refusal instead of showing it raw when the server finds a signed-in session', async () => {
+    settings.bootstrapAdminPassword.mockRejectedValue(
+      new ApiError({
+        type: 'about:blank',
+        title: 'Forbidden',
+        status: 403,
+        detail: "Only a setup session may set a root admin's password",
+        code: 'FORBIDDEN',
+        request_id: 'req-1',
+        timestamp: '2026-10-14T00:00:00Z',
+      })
+    )
+    const user = renderSignedIn()
+    expect(screen.queryByTestId('setup-signed-in-note')).toBeNull()
+    await fill(user, {
+      email: 'root@example.com',
+      password: PASSPHRASE,
+      repeat: PASSPHRASE,
+    })
+    await user.click(submit())
+
+    expect(await screen.findByTestId('setup-signed-in-note')).toBeVisible()
+    expect(screen.queryByTestId('setup-password-error')).toBeNull()
+    expect(screen.queryByText(/Only a setup session may set/)).toBeNull()
+  })
+
+  it('keeps the page when signing out fails', async () => {
+    authState.isAuthenticated = true
+    auth.logout.mockRejectedValue(new Error('Network Error'))
+    const user = renderSignedIn()
+
+    await user.click(screen.getByRole('button', { name: 'Sign out here' }))
+    expect(
+      await screen.findByText('Network Error', { selector: '[role=alert]' })
+    ).toBeVisible()
+    expect(reload).not.toHaveBeenCalled()
   })
 })

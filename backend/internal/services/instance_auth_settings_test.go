@@ -868,3 +868,18 @@ func TestInstanceAuthSettings_ListAdmins_SkipsADeletedUser(t *testing.T) {
 	assert.Empty(t, list.Admins)
 	assert.NotNil(t, list.Admins)
 }
+
+func TestErrAuthLockoutRisk_NamesEveryReason(t *testing.T) {
+	single := &ErrAuthLockoutRisk{Reason: AuthLockoutOwnProvider}
+	assert.Equal(t, []string{AuthLockoutOwnProvider}, single.AllReasons())
+
+	several := &ErrAuthLockoutRisk{
+		Reason:               AuthLockoutOwnMethod,
+		Reasons:              []string{AuthLockoutOwnMethod, AuthLockoutPasswordOnlyAccounts},
+		PasswordOnlyAccounts: 1,
+	}
+	assert.Equal(t,
+		"this change switches off password sign-in, which your own session used; "+
+			"this change leaves 1 account, whose only sign-in method is a password, unable to sign in",
+		several.Error())
+}
