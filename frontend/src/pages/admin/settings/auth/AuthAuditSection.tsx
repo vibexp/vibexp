@@ -69,8 +69,8 @@ function SettingHistory({
 
 /**
  * Audit history of the authentication settings (#1239): one change history
- * per setting — providers, allowlist, instance admins and setup mode — behind
- * tabs. `refreshKey` reloads the open history after a change on the page.
+ * per setting — providers, allowlist, instance admins, setup mode and the
+ * sign-in policy — behind tabs. `refreshKey` reloads the open history after a change on the page.
  */
 export function AuthAuditSection({
   refreshKey,

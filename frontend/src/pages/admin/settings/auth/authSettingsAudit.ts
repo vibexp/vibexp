@@ -11,10 +11,11 @@ import {
 } from '../instanceSettingsAudit'
 
 /**
- * Presentation rules for the four authentication settings' change histories
- * (#1239). Each setting diffs an allowlist of the fields an admin actually
- * sets (`instanceSettingsAudit.ts`). A client secret is never in a snapshot:
- * only its `changed` / `unchanged` marker is, rendered as a badge.
+ * Presentation rules for the authentication settings' change histories
+ * (#1239, and the sign-in policy of #1442). Each setting diffs an allowlist of
+ * the fields an admin actually sets (`instanceSettingsAudit.ts`). A client
+ * secret is never in a snapshot: only its `changed` / `unchanged` marker is,
+ * rendered as a badge.
  */
 
 export interface AuthAuditSection {
@@ -83,12 +84,48 @@ export const AUTH_AUDIT_SECTIONS: readonly AuthAuditSection[] = [
     ],
     actionLabel: labelled({ upsert: 'Recorded' }),
   },
+  {
+    setting: 'auth_policy',
+    label: 'Sign-in policy',
+    description:
+      'Every change to password sign-in and to the registration mode.',
+    fields: [
+      ['password_login_enabled', 'Password sign-in'],
+      ['registration_mode', 'Registration'],
+    ],
+    actionLabel: labelled({}),
+  },
 ]
+
+/**
+ * The sign-in policy's values as the policy card words them, so the history
+ * reads "Open → Invitation only" and not the stored `open → invite_only`.
+ */
+const POLICY_VALUE_LABELS: ReadonlyMap<
+  string,
+  ReadonlyMap<unknown, string>
+> = new Map([
+  [
+    'password_login_enabled',
+    new Map<unknown, string>([
+      [true, 'On'],
+      [false, 'Off'],
+    ]),
+  ],
+  [
+    'registration_mode',
+    new Map<unknown, string>([
+      ['open', 'Open'],
+      ['invite_only', 'Invitation only'],
+    ]),
+  ],
+])
 
 /** A list is shown comma-separated, not as JSON. */
 function read(snapshot: AuditSnapshot, key: string): unknown {
   const value = snapshot?.[key]
-  return Array.isArray(value) ? value.join(', ') : value
+  if (Array.isArray(value)) return value.join(', ')
+  return POLICY_VALUE_LABELS.get(key)?.get(value) ?? value
 }
 
 /** The allowlisted fields of `section` whose displayed value differs. */
@@ -156,8 +193,11 @@ export function authAuditActorLabel(
       return SERVER_SETUP_EVENTS.has(entry.after?.event)
         ? 'Server'
         : auditActorLabel(entry)
+    // The policy is here because the setup page's "Use email and password"
+    // switches password sign-in on with no acting user.
     case 'auth_providers':
     case 'auth_allowlist':
+    case 'auth_policy':
       return 'Setup session or deleted user'
     default:
       return auditActorLabel(entry)

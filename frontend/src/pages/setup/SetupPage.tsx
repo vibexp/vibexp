@@ -26,6 +26,8 @@ import {
 import { setupService } from '@/services/setupService'
 import { ApiError } from '@/types/errors'
 
+import { SetupPasswordSection } from './SetupPasswordSection'
+
 /**
  * Where the token exchange stands. `invalid` is a 401 (a wrong, used-up or
  * expired token), `inactive` a 404 (the instance is not in setup mode).
@@ -50,7 +52,7 @@ const TERMINAL_COPY: Record<
   },
   inactive: {
     title: 'This instance is already set up',
-    body: 'Setup mode is off because a sign-in provider is enabled. Sign in and change the authentication settings under Admin → Settings → Authentication.',
+    body: 'Setup mode is off because a sign-in method already works. Sign in and change the authentication settings under Admin → Settings → Authentication.',
   },
 }
 
@@ -121,9 +123,12 @@ export function SetupFinishPrompt({
   if (enabled.length === 0) {
     return (
       <Alert data-testid="setup-next-step">
-        <AlertTitle>Next: add and enable a sign-in provider</AlertTitle>
+        <AlertTitle>
+          Next: add and enable a sign-in provider, or use email and password
+        </AlertTitle>
         <AlertDescription>
-          Setup finishes when a root admin signs in through one.
+          Setup finishes when a root admin signs in, through a provider or with
+          the password set under &quot;Use email and password&quot;.
         </AlertDescription>
       </Alert>
     )
@@ -193,8 +198,8 @@ export function SetupFinishPrompt({
 }
 
 /**
- * What a setup session can reach: the sign-in providers and the access
- * allowlist. The instance admins and the audit history are admin-only (a 404
+ * What a setup session can reach: the sign-in providers, the password of a
+ * root admin (#1442) and the access allowlist. The instance admins and the audit history are admin-only (a 404
  * on a setup session), so they are not rendered here.
  */
 function SetupSections() {
@@ -207,12 +212,13 @@ function SetupSections() {
           Set up sign-in for this instance
         </h1>
         <p className="text-muted-foreground text-sm">
-          Add at least one sign-in provider, optionally restrict who may sign
-          in, then sign in as a root admin. This setup session lasts up to an
-          hour.
+          Add at least one sign-in provider, or use an email address and a
+          password with no provider at all. Optionally restrict who may sign in,
+          then sign in as a root admin. This setup session lasts up to an hour.
         </p>
       </div>
       <ProvidersSection state={providers} />
+      <SetupPasswordSection />
       <AllowlistSection
         onSaved={() => {
           setProvidersKey(key => key + 1)

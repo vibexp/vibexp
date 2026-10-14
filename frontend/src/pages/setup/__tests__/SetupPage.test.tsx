@@ -24,7 +24,7 @@ vi.mock('@/services/setupService', () => ({
 }))
 
 vi.mock('@/services/authService', () => ({
-  authService: { getLoginUrl: vi.fn() },
+  authService: { getLoginUrl: vi.fn(), passwordLogin: vi.fn() },
 }))
 
 vi.mock('@/services/authSettingsService', () => ({
@@ -33,6 +33,8 @@ vi.mock('@/services/authSettingsService', () => ({
     getAllowlist: vi.fn(),
     listAdmins: vi.fn(),
     listAudit: vi.fn(),
+    getPolicy: vi.fn(),
+    bootstrapAdminPassword: vi.fn(),
   },
 }))
 
@@ -112,6 +114,53 @@ describe('SetupPage', () => {
     // Nothing is enabled yet, so there is nothing to sign in through.
     expect(screen.getByTestId('setup-next-step')).toBeVisible()
     expect(screen.queryByTestId('setup-sign-in')).toBeNull()
+  })
+
+  it('offers email and password as a way to finish with no provider', async () => {
+    setup.createSession.mockResolvedValue({
+      expires_at: '2026-10-10T13:00:00Z',
+    })
+    settings.bootstrapAdminPassword.mockResolvedValue(undefined)
+    auth.passwordLogin.mockResolvedValue({ id: 'u1' } as never)
+    const user = userEvent.setup()
+    renderAt('/setup?token=tok-123')
+
+    const section = await screen.findByTestId('setup-password-section')
+    expect(section).toBeVisible()
+    // The next step is worded once the provider list has loaded.
+    expect(await screen.findByTestId('setup-next-step')).toHaveTextContent(
+      'or use email and password'
+    )
+    // A setup session cannot read the policy (404): the page never asks.
+    expect(settings.getPolicy).not.toHaveBeenCalled()
+
+    await user.type(
+      screen.getByLabelText('Root admin email'),
+      'root@example.com'
+    )
+    await user.type(
+      screen.getByLabelText('Password'),
+      'a long setup passphrase'
+    )
+    await user.type(
+      screen.getByLabelText('Repeat the password'),
+      'a long setup passphrase'
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Set up admin and sign in' })
+    )
+
+    await waitFor(() => {
+      expect(assign).toHaveBeenCalledWith('/')
+    })
+    expect(settings.bootstrapAdminPassword).toHaveBeenCalledWith({
+      email: 'root@example.com',
+      password: 'a long setup passphrase',
+    })
+    expect(auth.passwordLogin).toHaveBeenCalledWith(
+      'root@example.com',
+      'a long setup passphrase'
+    )
   })
 
   it('does not call the settings API before the exchange succeeds', async () => {

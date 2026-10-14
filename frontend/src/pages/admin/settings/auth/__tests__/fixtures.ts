@@ -1,5 +1,6 @@
 import type {
   AdminAuthAllowlist,
+  AdminAuthPolicy,
   AdminAuthProvider,
 } from '@/services/authSettingsService'
 import { ApiError } from '@/types/errors'
@@ -62,6 +63,20 @@ export function allowlist(
   }
 }
 
+/** The sign-in policy; with no overrides, the defaults of a fresh instance. */
+export function policy(
+  overrides: Partial<AdminAuthPolicy> = {}
+): AdminAuthPolicy {
+  return {
+    password_login_enabled: false,
+    registration_mode: 'open',
+    version: null,
+    updated_at: null,
+    updated_by_user_id: null,
+    ...overrides,
+  }
+}
+
 export function apiError(
   status: number,
   code: string,
@@ -94,5 +109,7 @@ export function apiError(
 export const versionConflict = () =>
   apiError(409, 'INSTANCE_SETTINGS_VERSION_CONFLICT')
 
-export const lockoutRisk = (reason: string) =>
-  apiError(409, 'lockout_risk', { metadata: { reason } })
+export const lockoutRisk = (
+  reason: string,
+  metadata: Record<string, unknown> = {}
+) => apiError(409, 'lockout_risk', { metadata: { reason, ...metadata } })
