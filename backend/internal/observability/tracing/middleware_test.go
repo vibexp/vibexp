@@ -32,7 +32,7 @@ func TestHTTPMiddleware_RedactsSensitivePathsFromTheSpan(t *testing.T) {
 	} {
 		handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, path, nil))
 	}
-	// Shutdown flushes the batcher into the exporter's last snapshot.
+	// ForceFlush moves the batched spans into the exporter.
 	require.NoError(t, tracer.tracerProvider.ForceFlush(context.Background()))
 	spans := exporter.GetSpans()
 	require.Len(t, spans, 3)

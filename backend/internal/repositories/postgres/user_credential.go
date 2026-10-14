@@ -52,10 +52,13 @@ func (r *UserCredentialRepository) Get(ctx context.Context, userID string) (*mod
 	return c, nil
 }
 
-// storeUserHashQuery stores a password hash for a user. It is the one
-// statement that does: Upsert runs it on its own, and the completion of a
+// storeUserHashQuery stores a password hash for an existing user. It is the
+// one statement that does: Upsert runs it on its own, and the completion of a
 // one-time account link runs it inside its transaction (AccountTokenRepository
 // .Complete), so the two cannot drift apart on what "a new password" resets.
+// A NEW account's first password is the other write: UserRepository
+// .CreateWithCredential inserts it with the user row, where there is nothing
+// to reset.
 const storeUserHashQuery = `
 	INSERT INTO user_credentials (user_id, password_hash)
 	VALUES ($1, $2)
