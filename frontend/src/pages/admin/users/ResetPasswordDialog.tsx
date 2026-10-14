@@ -20,10 +20,11 @@ import {
 import { ApiError } from '@/types/errors'
 import { getErrorMessage } from '@/utils/errorHandling'
 
+import { type LinkDelivery, LinkDeliveryChoice } from './LinkDeliveryChoice'
 import { LinkReveal } from './LinkReveal'
 import { EMAIL_UNAVAILABLE_MESSAGE, isEmailUnavailable } from './setupOutcome'
 
-type Delivery = 'email' | 'link'
+type Delivery = LinkDelivery
 
 function refusalMessage(err: unknown, invalidateNow: boolean): string {
   if (err instanceof ApiError) {
@@ -53,6 +54,7 @@ export function ResetPasswordDialog({
   userId,
   email,
   hasPassword = true,
+  emailLinks = null,
 }: Readonly<{
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -63,6 +65,8 @@ export function ResetPasswordDialog({
    * link sets a first password, and there is no current one to stop.
    */
   hasPassword?: boolean
+  /** Whether a link can be emailed; false offers only "Show the link here". */
+  emailLinks?: boolean | null
 }>) {
   const [invalidateNow, setInvalidateNow] = useState(false)
   // A disabling reset waiting for the admin's second yes.
@@ -130,7 +134,8 @@ export function ResetPasswordDialog({
         </DialogHeader>
 
         {result === null && (
-          <div className="space-y-4">
+          // min-w-0: a grid item, so a long address cannot widen the dialog.
+          <div className="min-w-0 space-y-4">
             {hasPassword && (
               <div className="flex items-start gap-2">
                 <Checkbox
@@ -157,27 +162,12 @@ export function ResetPasswordDialog({
             )}
 
             {confirming === null ? (
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    choose('email')
-                  }}
-                >
-                  Email it to {email}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => {
-                    choose('link')
-                  }}
-                >
-                  Show the link here
-                </Button>
-              </div>
+              <LinkDeliveryChoice
+                email={email}
+                emailLinks={emailLinks}
+                busy={busy}
+                onChoose={choose}
+              />
             ) : (
               <Alert variant="destructive" data-testid="reset-confirm">
                 <AlertTitle>Disable the current password now?</AlertTitle>

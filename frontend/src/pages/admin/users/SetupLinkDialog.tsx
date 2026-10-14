@@ -17,6 +17,7 @@ import {
 } from '@/services/adminUserAccessService'
 import { getErrorMessage } from '@/utils/errorHandling'
 
+import { type LinkDelivery, LinkDeliveryChoice } from './LinkDeliveryChoice'
 import { LinkReveal } from './LinkReveal'
 import { EMAIL_UNAVAILABLE_MESSAGE, isEmailUnavailable } from './setupOutcome'
 
@@ -31,11 +32,14 @@ export function SetupLinkDialog({
   onOpenChange,
   userId,
   email,
+  emailLinks = null,
 }: Readonly<{
   open: boolean
   onOpenChange: (open: boolean) => void
   userId: string
   email: string
+  /** Whether a link can be emailed; false offers only "Show the link here". */
+  emailLinks?: boolean | null
 }>) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -49,7 +53,7 @@ export function SetupLinkDialog({
     onOpenChange(next)
   }
 
-  const issue = async (delivery: 'email' | 'link') => {
+  const issue = async (delivery: LinkDelivery) => {
     setBusy(true)
     setError(null)
     try {
@@ -83,28 +87,16 @@ export function SetupLinkDialog({
         </DialogHeader>
 
         {result === null && (
-          <div className="space-y-3">
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  void issue('email')
-                }}
-              >
-                Email it to {email}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={busy}
-                onClick={() => {
-                  void issue('link')
-                }}
-              >
-                Show the link here
-              </Button>
-            </div>
+          // min-w-0: a grid item, so a long address cannot widen the dialog.
+          <div className="min-w-0 space-y-3">
+            <LinkDeliveryChoice
+              email={email}
+              emailLinks={emailLinks}
+              busy={busy}
+              onChoose={delivery => {
+                void issue(delivery)
+              }}
+            />
             {error && (
               <p role="alert" className="text-destructive text-sm">
                 {error}

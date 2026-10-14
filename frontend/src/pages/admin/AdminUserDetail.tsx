@@ -18,7 +18,7 @@ import { UserActivityTab } from '@/pages/admin/users/detail/UserActivityTab'
 import { UserNotificationsTab } from '@/pages/admin/users/detail/UserNotificationsTab'
 import { UserOverviewTab } from '@/pages/admin/users/detail/UserOverviewTab'
 import { UserTeamsTab } from '@/pages/admin/users/detail/UserTeamsTab'
-import { usePasswordLoginEnabled } from '@/pages/admin/users/usePasswordLoginEnabled'
+import { useAccountLinkSettings } from '@/pages/admin/users/useAccountLinkSettings'
 import type { UserFormValues } from '@/pages/admin/users/UserFormDialog'
 import { UserFormDialog } from '@/pages/admin/users/UserFormDialog'
 import {
@@ -114,7 +114,7 @@ export function AdminUserDetail() {
   const suspended = user?.status === 'suspended'
   const actionable = canActOn(user, actingAdmin)
   const blockedReason = actionBlockedReason(user, actingAdmin)
-  const passwordLogin = usePasswordLoginEnabled()
+  const { passwordLogin, emailLinks } = useAccountLinkSettings()
   const signInNote = user
     ? signInActionsNote(user, actionable, passwordLogin)
     : null
@@ -211,6 +211,7 @@ export function AdminUserDetail() {
                   user={user}
                   actionable={actionable}
                   passwordLogin={passwordLogin}
+                  emailLinks={emailLinks}
                   onChanged={() => {
                     void reloadUser()
                   }}

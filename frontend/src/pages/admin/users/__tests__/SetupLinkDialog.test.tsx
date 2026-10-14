@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router'
 
 import { adminUserAccessService } from '@/services/adminUserAccessService'
 import { ApiError } from '@/types/errors'
@@ -30,6 +31,37 @@ beforeEach(() => {
 })
 
 describe('SetupLinkDialog', () => {
+  it('offers only showing the link when no email provider is configured (#1494)', async () => {
+    service.issueSetupLink.mockResolvedValue({
+      delivery: 'link',
+      link_url: 'http://localhost/account/setup#token=secret-9',
+      expires_at: '2026-10-21T10:00:00Z',
+    })
+    render(
+      <MemoryRouter>
+        <SetupLinkDialog
+          open
+          onOpenChange={onOpenChange}
+          userId="u-1"
+          email="grace@example.com"
+          emailLinks={false}
+        />
+      </MemoryRouter>
+    )
+    const user = userEvent.setup()
+
+    expect(
+      screen.getByRole('button', { name: 'Email it to grace@example.com' })
+    ).toBeDisabled()
+    expect(screen.getByTestId('link-delivery-no-email')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Show the link here' }))
+
+    expect(await screen.findByTestId('link-reveal')).toBeInTheDocument()
+    expect(service.issueSetupLink).toHaveBeenCalledWith('u-1', {
+      delivery: 'link',
+    })
+  })
+
   it('emails a new link and says until when it works', async () => {
     service.issueSetupLink.mockResolvedValue({
       delivery: 'email',

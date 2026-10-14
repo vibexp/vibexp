@@ -58,11 +58,14 @@ export function UserSignInActions({
   user,
   actionable,
   passwordLogin,
+  emailLinks = null,
   onChanged,
 }: Readonly<{
   user: AdminUserDetail
   actionable: boolean
   passwordLogin: boolean | null
+  /** Whether links can be emailed (#1494); null while unknown. */
+  emailLinks?: boolean | null
   onChanged: () => void
 }>) {
   const [setupOpen, setSetupOpen] = useState(false)
@@ -143,6 +146,7 @@ export function UserSignInActions({
         }}
         userId={user.id}
         email={user.email}
+        emailLinks={emailLinks}
       />
       <ResetPasswordDialog
         open={resetOpen}
@@ -154,6 +158,7 @@ export function UserSignInActions({
         userId={user.id}
         email={user.email}
         hasPassword={user.has_password}
+        emailLinks={emailLinks}
       />
       <RemovePasswordDialog
         open={removeOpen}
