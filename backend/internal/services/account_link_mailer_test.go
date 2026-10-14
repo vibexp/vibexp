@@ -503,6 +503,59 @@ func TestAccountLinkMailer_EmailSetupLink(t *testing.T) {
 	})
 }
 
+func TestAccountLinkMailer_EmailResetLink(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("emails a reset link valid for 1 hour, issued by the administrator", func(t *testing.T) {
+		f := newMailerFixture(t)
+		// A disabled password does not stop an administrator's reset.
+		f.passwords.status = PasswordStatus{Set: true, Usable: false}
+
+		expiresAt, err := f.mailer.EmailResetLink(ctx, pwTestUserID, linkTestAdminID)
+
+		require.NoError(t, err)
+		assert.Equal(t, linkTestNow.Add(time.Hour), expiresAt)
+		require.Len(t, f.sent.resets, 1)
+		assert.Equal(t, pwTestEmail, f.sent.resets[0].To)
+		rows := f.tokens.all()
+		require.Len(t, rows, 1)
+		assert.Equal(t, models.AccountTokenPurposeReset, rows[0].Purpose)
+		require.NotNil(t, rows[0].CreatedBy)
+		assert.Equal(t, linkTestAdminID, *rows[0].CreatedBy)
+	})
+
+	t.Run("refusals issue and send nothing", func(t *testing.T) {
+		for name, tc := range map[string]struct {
+			arrange func(f *mailerFixture)
+			want    error
+		}{
+			"no email provider": {func(f *mailerFixture) { f.policy.channel = PasswordResetByAdmin }, ErrAccountEmailUnavailable},
+			"an unverified address someone signs in to with a provider": {func(f *mailerFixture) {
+				f.linked = []models.UserIdentity{{UserID: pwTestUserID, Provider: "corp-sso", Subject: "sub-1"}}
+			}, ErrAccountEmailUnverifiedShared},
+		} {
+			f := newMailerFixture(t)
+			tc.arrange(f)
+
+			require.ErrorIs(t, f.mailer.CheckResetEmail(ctx, pwTestUserID), tc.want, name)
+			_, err := f.mailer.EmailResetLink(ctx, pwTestUserID, linkTestAdminID)
+			require.ErrorIs(t, err, tc.want, name)
+			assert.Empty(t, f.tokens.all(), name)
+			_, resets, _ := f.sent.counts()
+			assert.Zero(t, resets, name)
+		}
+	})
+
+	t.Run("a verified account with a provider identity is fine", func(t *testing.T) {
+		f := newMailerFixture(t)
+		verifiedAt := linkTestNow.Add(-24 * time.Hour)
+		f.user.EmailVerifiedAt = &verifiedAt
+		f.linked = []models.UserIdentity{{UserID: pwTestUserID, Provider: "corp-sso", Subject: "sub-1"}}
+
+		require.NoError(t, f.mailer.CheckResetEmail(ctx, pwTestUserID))
+	})
+}
+
 func TestAccountEmailNotifier(t *testing.T) {
 	newNotifier := func(f *mailerFixture) AccountNotifier {
 		return NewAccountEmailNotifier(AccountEmailNotifierDeps{
@@ -514,12 +567,12 @@ func TestAccountEmailNotifier(t *testing.T) {
 	t.Run("sends the notice in the background, with no link", func(t *testing.T) {
 		f := newMailerFixture(t)
 
-		newNotifier(f).PasswordChanged(context.Background(), pwTestUserID)
+		newNotifier(f).PasswordChanged(context.Background(), pwTestUserID, AccountChangeChanged)
 		f.drain()
 
 		require.Len(t, f.sent.changed, 1)
 		assert.Equal(t, PasswordChangedNotice{
-			To: pwTestEmail, Name: "Ada", ChangedAt: linkTestNow, CanResetByEmail: true,
+			To: pwTestEmail, Name: "Ada", Kind: AccountChangeChanged, ChangedAt: linkTestNow, CanResetByEmail: true,
 		}, f.sent.changed[0])
 	})
 
@@ -528,7 +581,7 @@ func TestAccountEmailNotifier(t *testing.T) {
 		cancelled, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		newNotifier(f).PasswordChanged(cancelled, pwTestUserID)
+		newNotifier(f).PasswordChanged(cancelled, pwTestUserID, AccountChangeChanged)
 		f.drain()
 
 		assert.Len(t, f.sent.changed, 1)
@@ -538,7 +591,7 @@ func TestAccountEmailNotifier(t *testing.T) {
 		f := newMailerFixture(t)
 		f.policy.channel = PasswordResetByAdmin
 
-		newNotifier(f).PasswordChanged(context.Background(), pwTestUserID)
+		newNotifier(f).PasswordChanged(context.Background(), pwTestUserID, AccountChangeChanged)
 		f.drain()
 
 		assert.Empty(t, f.sent.changed)
@@ -549,7 +602,7 @@ func TestAccountEmailNotifier(t *testing.T) {
 		f := newMailerFixture(t)
 		f.sent.err = errors.New("smtp: connection refused")
 
-		newNotifier(f).PasswordChanged(context.Background(), pwTestUserID)
+		newNotifier(f).PasswordChanged(context.Background(), pwTestUserID, AccountChangeChanged)
 		f.drain()
 
 		require.NotNil(t, f.logs.LastEntry())
@@ -568,7 +621,7 @@ func TestAccountEmailNotifier(t *testing.T) {
 			Users: f.users, Policy: f.policy, Email: f.sent, Runner: full, Logger: f.svc.logger,
 		})
 
-		notifier.PasswordChanged(context.Background(), pwTestUserID)
+		notifier.PasswordChanged(context.Background(), pwTestUserID, AccountChangeChanged)
 
 		require.NotNil(t, f.logs.LastEntry())
 		assert.Contains(t, f.logs.LastEntry().Message, "was dropped")
@@ -582,7 +635,7 @@ func TestAccountEmailNotifier(t *testing.T) {
 		f := newMailerFixture(t)
 		f.user = nil
 
-		newNotifier(f).PasswordChanged(context.Background(), pwTestUserID)
+		newNotifier(f).PasswordChanged(context.Background(), pwTestUserID, AccountChangeChanged)
 		f.drain()
 
 		assert.Empty(t, f.sent.changed)

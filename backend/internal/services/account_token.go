@@ -533,7 +533,11 @@ func (s *AccountTokenService) complete(
 	// owner is told now. Never a reason to fail: the notifier sends in the
 	// background. It is the mailbox owner's signal that a password was set,
 	// which matters most when the link was a copied one.
-	s.notifier.PasswordChanged(ctx, user.ID)
+	kind := AccountChangeSet
+	if done.Token.Purpose == models.AccountTokenPurposeReset {
+		kind = AccountChangeReset
+	}
+	s.notifier.PasswordChanged(ctx, user.ID, kind)
 
 	if c.revokeAPIAccess {
 		revokeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), accountLinkCompletionTimeout)

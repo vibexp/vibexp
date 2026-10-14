@@ -24,6 +24,54 @@ func (_m *MockPasswordAuthServiceInterface) EXPECT() *MockPasswordAuthServiceInt
 	return &MockPasswordAuthServiceInterface_Expecter{mock: &_m.Mock}
 }
 
+// ChangeOwnPassword provides a mock function with given fields: ctx, userID, plaintext
+func (_m *MockPasswordAuthServiceInterface) ChangeOwnPassword(ctx context.Context, userID string, plaintext string) error {
+	ret := _m.Called(ctx, userID, plaintext)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ChangeOwnPassword")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
+		r0 = rf(ctx, userID, plaintext)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockPasswordAuthServiceInterface_ChangeOwnPassword_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ChangeOwnPassword'
+type MockPasswordAuthServiceInterface_ChangeOwnPassword_Call struct {
+	*mock.Call
+}
+
+// ChangeOwnPassword is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - plaintext string
+func (_e *MockPasswordAuthServiceInterface_Expecter) ChangeOwnPassword(ctx interface{}, userID interface{}, plaintext interface{}) *MockPasswordAuthServiceInterface_ChangeOwnPassword_Call {
+	return &MockPasswordAuthServiceInterface_ChangeOwnPassword_Call{Call: _e.mock.On("ChangeOwnPassword", ctx, userID, plaintext)}
+}
+
+func (_c *MockPasswordAuthServiceInterface_ChangeOwnPassword_Call) Run(run func(ctx context.Context, userID string, plaintext string)) *MockPasswordAuthServiceInterface_ChangeOwnPassword_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockPasswordAuthServiceInterface_ChangeOwnPassword_Call) Return(_a0 error) *MockPasswordAuthServiceInterface_ChangeOwnPassword_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockPasswordAuthServiceInterface_ChangeOwnPassword_Call) RunAndReturn(run func(context.Context, string, string) error) *MockPasswordAuthServiceInterface_ChangeOwnPassword_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // HasPassword provides a mock function with given fields: ctx, userID
 func (_m *MockPasswordAuthServiceInterface) HasPassword(ctx context.Context, userID string) (bool, error) {
 	ret := _m.Called(ctx, userID)

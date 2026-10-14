@@ -121,20 +121,11 @@ func (r *AccountTokenRepository) Replace(
 	// replaces the first. It is the lock Complete and ClearForClaim take, so a
 	// link is never issued into the middle of either.
 	return r.inUserTx(ctx, "replace", token.UserID, func(tx *sql.Tx) error {
-		// The age check runs under the user's lock, in the transaction that
-		// replaces: of simultaneous requests the first stores its link and
-		// every later one sees it here. Both sides of the comparison are the
-		// database's clock.
-		if unlessIssuedWithin > 0 {
-			var tooRecent bool
-			err := tx.QueryRowContext(ctx, recentAccountLinkExists,
-				token.UserID, token.Purpose, token.Delivery, unlessIssuedWithin.Seconds()).Scan(&tooRecent)
-			if err != nil {
-				return fmt.Errorf("failed to read the age of the live account token: %w", err)
-			}
-			if tooRecent {
-				return repositories.ErrAccountTokenTooRecent
-			}
+		if err := refuseSelfServiceResetWhileDisabled(ctx, tx, token); err != nil {
+			return err
+		}
+		if err := refuseWhileLiveLinkIsRecent(ctx, tx, token, unlessIssuedWithin); err != nil {
+			return err
 		}
 		if _, err := tx.ExecContext(ctx, `
 			DELETE FROM account_tokens
@@ -159,6 +150,49 @@ func (r *AccountTokenRepository) Replace(
 		}
 		return nil
 	})
+}
+
+// refuseSelfServiceResetWhileDisabled refuses a reset the owner asked for (no
+// administrator behind it) while an administrator has the password disabled:
+// completing it would lift the mark. It runs under the lock DisablePassword
+// takes, so a disable that commits after the request was screened still wins.
+func refuseSelfServiceResetWhileDisabled(ctx context.Context, tx *sql.Tx, token *models.AccountToken) error {
+	if token.CreatedBy != nil || token.Purpose != models.AccountTokenPurposeReset {
+		return nil
+	}
+	var disabled bool
+	err := tx.QueryRowContext(ctx, `
+		SELECT EXISTS (SELECT 1 FROM user_credentials WHERE user_id = $1 AND disabled_at IS NOT NULL)`,
+		token.UserID).Scan(&disabled)
+	if err != nil {
+		return fmt.Errorf("failed to read whether the password is disabled: %w", err)
+	}
+	if disabled {
+		return repositories.ErrUserCredentialDisabled
+	}
+	return nil
+}
+
+// refuseWhileLiveLinkIsRecent is Replace's age check: it runs under the user's
+// lock, in the transaction that replaces, so of simultaneous requests the
+// first stores its link and every later one sees it here. Both sides of the
+// comparison are the database's clock.
+func refuseWhileLiveLinkIsRecent(
+	ctx context.Context, tx *sql.Tx, token *models.AccountToken, unlessIssuedWithin time.Duration,
+) error {
+	if unlessIssuedWithin <= 0 {
+		return nil
+	}
+	var tooRecent bool
+	err := tx.QueryRowContext(ctx, recentAccountLinkExists,
+		token.UserID, token.Purpose, token.Delivery, unlessIssuedWithin.Seconds()).Scan(&tooRecent)
+	if err != nil {
+		return fmt.Errorf("failed to read the age of the live account token: %w", err)
+	}
+	if tooRecent {
+		return repositories.ErrAccountTokenTooRecent
+	}
+	return nil
 }
 
 // GetLive returns the link when it can still be completed at now; see the
@@ -311,6 +345,47 @@ func (r *AccountTokenRepository) ClearForClaim(
 		return nil, err
 	}
 	return cleared, nil
+}
+
+// DisablePassword is an administrator's "invalidate now"; see the interface.
+// One transaction under the user's sign-in method lock: a link issued, or
+// completed, concurrently lands wholly before (and is deleted or overridden
+// here) or wholly after.
+func (r *AccountTokenRepository) DisablePassword(
+	ctx context.Context, userID string,
+) (*repositories.DisabledAccountPassword, error) {
+	disabled := &repositories.DisabledAccountPassword{}
+	err := r.inUserTx(ctx, "disable password", userID, func(tx *sql.Tx) error {
+		err := tx.QueryRowContext(ctx, `
+			UPDATE user_credentials SET disabled_at = COALESCE(disabled_at, CURRENT_TIMESTAMP),
+				updated_at = CURRENT_TIMESTAMP
+			WHERE user_id = $1 RETURNING true`, userID).Scan(&disabled.HadPassword)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("failed to disable the password: %w", err)
+		}
+
+		links, err := tx.ExecContext(ctx,
+			`DELETE FROM account_tokens WHERE user_id = $1 AND consumed_at IS NULL`, userID)
+		if err != nil {
+			return fmt.Errorf("failed to delete the live account tokens of a disabled password: %w", err)
+		}
+		if disabled.Links, err = links.RowsAffected(); err != nil {
+			return fmt.Errorf("failed to count deleted account tokens: %w", err)
+		}
+
+		err = tx.QueryRowContext(ctx, `
+			UPDATE users SET session_epoch = session_epoch + 1 WHERE id = $1 RETURNING session_epoch`, userID,
+		).Scan(&disabled.SessionEpoch)
+		if err != nil {
+			return mapNoRows(fmt.Errorf("failed to end the sessions of a disabled password: %w", err),
+				repositories.ErrUserNotFound)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return disabled, nil
 }
 
 // Delete removes the link with this token hash; see the interface.

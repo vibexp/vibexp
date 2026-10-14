@@ -83,6 +83,10 @@ type adminSetupMailer struct {
 	AccountLinkMailerInterface
 	emailed []string
 	err     error
+	// checkErr is what CheckResetEmail answers; log, when set, records calls
+	// in order with the other fakes.
+	checkErr error
+	log      *[]string
 }
 
 func (m *adminSetupMailer) EmailSetupLink(_ context.Context, userID, createdBy string) (time.Time, error) {

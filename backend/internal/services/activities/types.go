@@ -176,6 +176,13 @@ const (
 	// ActivityTypeAdminUserSetupLinkIssued is an administrator emailing or
 	// copying a setup link for an account (#1436). The token is never recorded.
 	ActivityTypeAdminUserSetupLinkIssued = "admin_user_setup_link_issued"
+	// ActivityTypeAdminUserResetLinkIssued is an administrator emailing or
+	// copying a reset link, with whether the current password was stopped
+	// (#1436). The token is never recorded.
+	ActivityTypeAdminUserResetLinkIssued = "admin_user_reset_link_issued"
+	// ActivityTypeAdminUserLocalSignInRemoved is an administrator removing an
+	// account's password (#1436).
+	ActivityTypeAdminUserLocalSignInRemoved = "admin_user_password_removed"
 	// ActivityTypeAdminUserDeleted is recorded against the ACTING ADMIN, never
 	// the deleted user: an activities row owned by the target would cascade away
 	// with them (activities.user_id is ON DELETE CASCADE), erasing the audit

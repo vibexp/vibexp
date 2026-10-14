@@ -105,6 +105,19 @@ type AdminAccountServiceInterface interface {
 	// ErrAdminAccountHasSignInMethod, ErrAccountEmailUnavailable or
 	// ErrAdminRootAdminLinkRefused.
 	IssueSetupLink(ctx context.Context, actorID, userID string, delivery AdminLinkDelivery) (*AdminSetupLink, error)
+	// IssueResetLink issues a password reset link by email or to copy,
+	// optionally stopping the current password, sessions and links first
+	// (InvalidateNow). It refuses as IssueSetupLink does, except that the
+	// account may already have a way in, and additionally with
+	// ErrAccountEmailUnverifiedShared; a refusal changes nothing. When the link
+	// cannot be made after InvalidateNow stopped the password, the error comes
+	// with a non-nil result (Invalidated, no link) so that change is audited.
+	IssueResetLink(ctx context.Context, actorID, userID string, req AdminResetLinkRequest) (*AdminResetLink, error)
+	// RemovePassword removes the account's password, a disabled one too, and
+	// returns the account's address for the audit record. ErrAdminOwnAccount,
+	// ErrAdminUserNotFound, ErrAccountPasswordNotSet, and ErrLastSignInMethod
+	// unless allowLast.
+	RemovePassword(ctx context.Context, actorID, userID string, allowLast bool) (email string, err error)
 }
 
 // AdminAccountDeps are the collaborators of AdminAccountService.
@@ -114,6 +127,12 @@ type AdminAccountDeps struct {
 	Policy AuthPolicyResolver
 	Tokens AccountTokenServiceInterface
 	Mailer AccountLinkMailerInterface
+	// Store disables a password for "invalidate now".
+	Store repositories.AccountTokenRepository
+	// Accounts removes a password with the account's own rules.
+	Accounts AccountServiceInterface
+	// Notifier tells the owner their password was disabled.
+	Notifier AccountNotifier
 	// RootAdmins says whether an address is a root instance admin's.
 	RootAdmins RootAdminChecker
 	Logger     *slog.Logger
@@ -132,6 +151,9 @@ type AdminAccountService struct {
 	policy     AuthPolicyResolver
 	tokens     AccountTokenServiceInterface
 	mailer     AccountLinkMailerInterface
+	store      repositories.AccountTokenRepository
+	accounts   AccountServiceInterface
+	notifier   AccountNotifier
 	rootAdmins RootAdminChecker
 	logger     *slog.Logger
 }
@@ -140,9 +162,14 @@ var _ AdminAccountServiceInterface = (*AdminAccountService)(nil)
 
 // NewAdminAccountService creates the service.
 func NewAdminAccountService(deps AdminAccountDeps) *AdminAccountService {
+	notifier := deps.Notifier
+	if notifier == nil {
+		notifier = noopAccountNotifier{}
+	}
 	return &AdminAccountService{
 		admin: deps.Admin, users: deps.Users, policy: deps.Policy, tokens: deps.Tokens,
-		mailer: deps.Mailer, rootAdmins: deps.RootAdmins, logger: deps.Logger,
+		mailer: deps.Mailer, store: deps.Store, accounts: deps.Accounts, notifier: notifier,
+		rootAdmins: deps.RootAdmins, logger: deps.Logger,
 	}
 }
 

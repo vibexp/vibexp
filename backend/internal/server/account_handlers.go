@@ -421,6 +421,23 @@ func (h *accountStrictServer) recordActivity(
 		RecordAuthActivity(ctx, userID, activityType, nil, metadata, exchange.r)
 }
 
+// accountRefusals are the account service's refusals that always get the same
+// answer: a status, a stable code and a fixed detail.
+var accountRefusals = []struct {
+	err    error
+	code   string
+	detail string
+	status int
+}{
+	{services.ErrReauthenticationRequired, apierrors.CodeReauthenticationRequired,
+		accountReauthenticationDetail, http.StatusForbidden},
+	{services.ErrLastSignInMethod, apierrors.CodeLastSignInMethod, accountLastMethodDetail, http.StatusConflict},
+	{services.ErrPasswordDisabled, apierrors.CodeDisabledByAdmin,
+		services.ErrPasswordDisabled.Error(), http.StatusConflict},
+	{services.ErrPasswordLoginDisabled, apierrors.CodeLocalSignInDisabled,
+		accountLocalSignInOffDetail, http.StatusConflict},
+}
+
 // accountError maps a service error onto the response. Policy outcomes are the
 // documented 4xx with their stable codes; anything else is logged and answered
 // 500 without detail.
@@ -428,21 +445,15 @@ func (h *accountStrictServer) accountError(handler, userID string, err error) er
 	var policyErr *password.PolicyError
 	var locked *services.PasswordLockedError
 	var requestErr *apierrors.APIError
+	for _, refusal := range accountRefusals {
+		if errors.Is(err, refusal.err) {
+			return apierrors.NewAPIError(refusal.code, apierrors.GetErrorTitle(refusal.code), refusal.detail, refusal.status)
+		}
+	}
 	switch {
 	case errors.As(err, &requestErr):
 		// Already an answer for the caller (a request validation error).
 		return requestErr
-	case errors.Is(err, services.ErrReauthenticationRequired):
-		return apierrors.NewAPIError(apierrors.CodeReauthenticationRequired,
-			apierrors.GetErrorTitle(apierrors.CodeReauthenticationRequired),
-			accountReauthenticationDetail, http.StatusForbidden)
-	case errors.Is(err, services.ErrLastSignInMethod):
-		return apierrors.NewAPIError(apierrors.CodeLastSignInMethod,
-			apierrors.GetErrorTitle(apierrors.CodeLastSignInMethod), accountLastMethodDetail, http.StatusConflict)
-	case errors.Is(err, services.ErrPasswordLoginDisabled):
-		return apierrors.NewAPIError(apierrors.CodeLocalSignInDisabled,
-			apierrors.GetErrorTitle(apierrors.CodeLocalSignInDisabled),
-			accountLocalSignInOffDetail, http.StatusConflict)
 	case errors.Is(err, services.ErrAccountNameInvalid):
 		return apierrors.NewValidationError("The name is not valid", []apierrors.ValidationError{
 			apierrors.NewFieldValidationError("name", "Enter a name of 1 to 255 characters", "invalid_length"),
@@ -521,6 +532,7 @@ func toGenAccount(view *services.AccountView, recentSignIn bool) (accountgen.Acc
 			Set:          view.Password.Set,
 			ChangedAt:    view.Password.ChangedAt,
 			LoginEnabled: view.Password.LoginEnabled,
+			Disabled:     view.Password.Disabled,
 		},
 		Identities:   identities,
 		RecentSignIn: recentSignIn,

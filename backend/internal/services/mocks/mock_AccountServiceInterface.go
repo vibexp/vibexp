@@ -22,6 +22,54 @@ func (_m *MockAccountServiceInterface) EXPECT() *MockAccountServiceInterface_Exp
 	return &MockAccountServiceInterface_Expecter{mock: &_m.Mock}
 }
 
+// AdminRemovePassword provides a mock function with given fields: ctx, userID, allowLast
+func (_m *MockAccountServiceInterface) AdminRemovePassword(ctx context.Context, userID string, allowLast bool) error {
+	ret := _m.Called(ctx, userID, allowLast)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AdminRemovePassword")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, bool) error); ok {
+		r0 = rf(ctx, userID, allowLast)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockAccountServiceInterface_AdminRemovePassword_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AdminRemovePassword'
+type MockAccountServiceInterface_AdminRemovePassword_Call struct {
+	*mock.Call
+}
+
+// AdminRemovePassword is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - allowLast bool
+func (_e *MockAccountServiceInterface_Expecter) AdminRemovePassword(ctx interface{}, userID interface{}, allowLast interface{}) *MockAccountServiceInterface_AdminRemovePassword_Call {
+	return &MockAccountServiceInterface_AdminRemovePassword_Call{Call: _e.mock.On("AdminRemovePassword", ctx, userID, allowLast)}
+}
+
+func (_c *MockAccountServiceInterface_AdminRemovePassword_Call) Run(run func(ctx context.Context, userID string, allowLast bool)) *MockAccountServiceInterface_AdminRemovePassword_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(bool))
+	})
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_AdminRemovePassword_Call) Return(_a0 error) *MockAccountServiceInterface_AdminRemovePassword_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_AdminRemovePassword_Call) RunAndReturn(run func(context.Context, string, bool) error) *MockAccountServiceInterface_AdminRemovePassword_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DisconnectIdentity provides a mock function with given fields: ctx, userID, identityID, recentSignIn
 func (_m *MockAccountServiceInterface) DisconnectIdentity(ctx context.Context, userID string, identityID string, recentSignIn bool) (string, error) {
 	ret := _m.Called(ctx, userID, identityID, recentSignIn)

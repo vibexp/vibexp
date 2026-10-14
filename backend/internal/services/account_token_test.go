@@ -147,6 +147,10 @@ func (m *memAccountTokens) ClearForClaim(context.Context, string) (*repositories
 	return &repositories.ClearedAccountClaim{}, nil
 }
 
+func (m *memAccountTokens) DisablePassword(context.Context, string) (*repositories.DisabledAccountPassword, error) {
+	return &repositories.DisabledAccountPassword{}, nil
+}
+
 // completed returns what every completion stored.
 func (m *memAccountTokens) completed() []repositories.AccountLinkCompletion {
 	m.mu.Lock()

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -42,7 +43,7 @@ func (p *fakePasswords) VerifyPassword(_ context.Context, _, plaintext string) e
 	return p.verifyErr
 }
 
-func (p *fakePasswords) SetPassword(_ context.Context, _, plaintext string) error {
+func (p *fakePasswords) ChangeOwnPassword(_ context.Context, _, plaintext string) error {
 	p.calls = append(p.calls, "set:"+plaintext)
 	if p.setErr == nil {
 		p.status = PasswordStatus{Set: true, Usable: true, ChangedAt: time.Now()}
@@ -72,10 +73,14 @@ func (a *fakeAPIAccess) RevokeAPIAccess(_ context.Context, userID string) (*mode
 }
 
 // recordingNotifier counts password-changed notifications.
-type recordingNotifier struct{ notified []string }
+type recordingNotifier struct {
+	notified []string
+	kinds    []AccountChangeKind
+}
 
-func (n *recordingNotifier) PasswordChanged(_ context.Context, userID string) {
+func (n *recordingNotifier) PasswordChanged(_ context.Context, userID string, kind AccountChangeKind) {
 	n.notified = append(n.notified, userID)
+	n.kinds = append(n.kinds, kind)
 }
 
 // accountFixture is an AccountService over fakes. By default password sign-in
@@ -314,7 +319,7 @@ func TestAccountService_RemovePassword(t *testing.T) {
 
 	t.Run("removed, and the notifier is told", func(t *testing.T) {
 		f := newAccountFixture(t, passwordLoginOn)
-		f.methods.EXPECT().RemovePassword(ctx, accountTestUser, usableWith(true)).Return(nil).Once()
+		f.methods.EXPECT().RemovePassword(ctx, accountTestUser, usableWith(true), repositories.RemovePasswordOptions{}).Return(nil).Once()
 
 		require.NoError(t, f.svc.RemovePassword(ctx, accountTestUser, true))
 
@@ -323,7 +328,7 @@ func TestAccountService_RemovePassword(t *testing.T) {
 
 	t.Run("works while password sign-in is off, and says so to the repository", func(t *testing.T) {
 		f := newAccountFixture(t, passwordLoginOff)
-		f.methods.EXPECT().RemovePassword(ctx, accountTestUser, usableWith(false)).Return(nil).Once()
+		f.methods.EXPECT().RemovePassword(ctx, accountTestUser, usableWith(false), repositories.RemovePasswordOptions{}).Return(nil).Once()
 
 		require.NoError(t, f.svc.RemovePassword(ctx, accountTestUser, true))
 	})
@@ -338,10 +343,11 @@ func TestAccountService_RemovePassword(t *testing.T) {
 	for name, tc := range map[string]struct{ repoErr, want error }{
 		"the only usable method": {repositories.ErrLastSignInMethod, ErrLastSignInMethod},
 		"no password":            {repositories.ErrUserCredentialNotFound, ErrAccountPasswordNotSet},
+		"a disabled password":    {repositories.ErrUserCredentialDisabled, ErrPasswordDisabled},
 	} {
 		t.Run(name, func(t *testing.T) {
 			f := newAccountFixture(t, passwordLoginOn)
-			f.methods.EXPECT().RemovePassword(ctx, accountTestUser, usableWith(true)).Return(tc.repoErr).Once()
+			f.methods.EXPECT().RemovePassword(ctx, accountTestUser, usableWith(true), repositories.RemovePasswordOptions{}).Return(tc.repoErr).Once()
 
 			require.ErrorIs(t, f.svc.RemovePassword(ctx, accountTestUser, true), tc.want)
 			assert.Empty(t, f.notifier.notified)
@@ -350,13 +356,97 @@ func TestAccountService_RemovePassword(t *testing.T) {
 
 	t.Run("a storage failure is not reported as a refusal", func(t *testing.T) {
 		f := newAccountFixture(t, passwordLoginOn)
-		f.methods.EXPECT().RemovePassword(ctx, accountTestUser, usableWith(true)).Return(errors.New("pq: down")).Once()
+		f.methods.EXPECT().RemovePassword(ctx, accountTestUser, usableWith(true), repositories.RemovePasswordOptions{}).Return(errors.New("pq: down")).Once()
 
 		err := f.svc.RemovePassword(ctx, accountTestUser, true)
 
 		require.Error(t, err)
 		require.NotErrorIs(t, err, ErrLastSignInMethod)
 		require.NotErrorIs(t, err, ErrAccountPasswordNotSet)
+	})
+}
+
+// An administrator's disable (#1461): the owner sees it and cannot clear it.
+func TestAccountService_DisabledPassword(t *testing.T) {
+	ctx := context.Background()
+	disabled := func(f *accountFixture) *accountFixture {
+		f.passwords.status = PasswordStatus{Set: true, Usable: false, ChangedAt: time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)}
+		return f
+	}
+
+	t.Run("the account shows it", func(t *testing.T) {
+		f := disabled(newAccountFixture(t, passwordLoginOn))
+		f.users.On("GetByID", mock.Anything, accountTestUser).Return(&models.User{ID: accountTestUser}, nil).Maybe()
+		f.identities.On("ListByUserID", mock.Anything, accountTestUser).Return(nil, nil).Maybe()
+
+		view, err := f.svc.Get(ctx, accountTestUser)
+
+		require.NoError(t, err)
+		assert.True(t, view.Password.Disabled)
+		assert.True(t, view.Password.Set)
+	})
+
+	t.Run("a change is refused before the current password is checked", func(t *testing.T) {
+		f := disabled(newAccountFixture(t, passwordLoginOn))
+
+		_, err := f.svc.SetPassword(ctx, accountTestUser,
+			AccountPasswordChange{Current: "the old one", New: "a brand new long passphrase", RecentSignIn: true})
+
+		require.ErrorIs(t, err, ErrPasswordDisabled)
+		assert.Empty(t, f.passwords.calls, "no attempt is spent and nothing is stored")
+		assert.Empty(t, f.notifier.notified)
+	})
+
+	t.Run("a disable that lands during the change wins", func(t *testing.T) {
+		// The status read said usable; the store, which checks again in the
+		// same statement, finds the mark.
+		f := newAccountFixture(t, passwordLoginOn).hasPassword()
+		f.passwords.setErr = ErrPasswordDisabled
+
+		_, err := f.svc.SetPassword(ctx, accountTestUser,
+			AccountPasswordChange{Current: "the old one", New: "a brand new long passphrase"})
+
+		require.ErrorIs(t, err, ErrPasswordDisabled)
+		assert.Empty(t, f.notifier.notified)
+	})
+}
+
+func TestAccountService_NoticeKinds(t *testing.T) {
+	ctx := context.Background()
+	const next = "a brand new long passphrase"
+
+	f := newAccountFixture(t, passwordLoginOn)
+	_, err := f.svc.SetPassword(ctx, accountTestUser, AccountPasswordChange{New: next, RecentSignIn: true})
+	require.NoError(t, err)
+	_, err = f.svc.SetPassword(ctx, accountTestUser, AccountPasswordChange{Current: next, New: next + "!"})
+	require.NoError(t, err)
+	f.methods.EXPECT().RemovePassword(ctx, accountTestUser, usableWith(true), repositories.RemovePasswordOptions{}).Return(nil).Once()
+	require.NoError(t, f.svc.RemovePassword(ctx, accountTestUser, true))
+
+	assert.Equal(t, []AccountChangeKind{AccountChangeSet, AccountChangeChanged, AccountChangeRemoved}, f.notifier.kinds)
+}
+
+func TestAccountService_AdminRemovePassword(t *testing.T) {
+	ctx := context.Background()
+
+	for _, allowLast := range []bool{false, true} {
+		t.Run(fmt.Sprintf("allowLast=%v removes a disabled one too and tells the owner", allowLast), func(t *testing.T) {
+			f := newAccountFixture(t, passwordLoginOn)
+			f.methods.EXPECT().RemovePassword(ctx, accountTestUser, usableWith(true),
+				repositories.RemovePasswordOptions{AllowLast: allowLast, AllowDisabled: true}).Return(nil).Once()
+
+			require.NoError(t, f.svc.AdminRemovePassword(ctx, accountTestUser, allowLast))
+			assert.Equal(t, []AccountChangeKind{AccountChangeRemovedByAdmin}, f.notifier.kinds)
+		})
+	}
+
+	t.Run("the last method is refused unless allowed", func(t *testing.T) {
+		f := newAccountFixture(t, passwordLoginOn)
+		f.methods.EXPECT().RemovePassword(ctx, accountTestUser, usableWith(true),
+			repositories.RemovePasswordOptions{AllowDisabled: true}).Return(repositories.ErrLastSignInMethod).Once()
+
+		require.ErrorIs(t, f.svc.AdminRemovePassword(ctx, accountTestUser, false), ErrLastSignInMethod)
+		assert.Empty(t, f.notifier.notified)
 	})
 }
 

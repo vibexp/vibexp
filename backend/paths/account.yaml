@@ -104,7 +104,10 @@ api-v1-account-password:
 
       Only a browser session may call this: an API key or a bearer token is
       answered 403 `cookie_session_required`. While password sign-in is switched
-      off on the instance the answer is 409 `password_login_disabled`.
+      off on the instance the answer is 409 `password_login_disabled`. While an
+      administrator has the password disabled (`password.disabled`) it cannot be
+      changed here: 409 `password_disabled`; a link from an administrator sets
+      a new one.
 
       `reauthentication_required`, `cookie_session_required`,
       `password_login_disabled` and `too_many_attempts` are stable values of
@@ -155,7 +158,9 @@ api-v1-account-password:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '409':
-        description: '`password_login_disabled` — password sign-in is switched off on this instance'
+        description: |
+          `password_login_disabled` — password sign-in is switched off on this
+          instance; `password_disabled` — an administrator disabled the password
         content:
           application/problem+json:
             schema:
@@ -191,8 +196,9 @@ api-v1-account-password:
 
       On success every other browser session of the user is ended and this one
       stays signed in. Only a browser session may call this (403
-      `cookie_session_required` otherwise). `last_sign_in_method` is a stable
-      value of `code`.
+      `cookie_session_required` otherwise). A password an administrator disabled
+      cannot be removed by its owner (409 `password_disabled`).
+      `last_sign_in_method` and `password_disabled` are stable values of `code`.
     operationId: deleteAccountPassword
     tags:
       - Account
@@ -225,7 +231,9 @@ api-v1-account-password:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '409':
-        description: '`last_sign_in_method` — the password is the only usable sign-in method'
+        description: |
+          `last_sign_in_method` — the password is the only usable sign-in
+          method; `password_disabled` — an administrator disabled the password
         content:
           application/problem+json:
             schema:

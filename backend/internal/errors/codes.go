@@ -85,6 +85,12 @@ const (
 	// CodeAccountSuspended: the account is suspended, so it is not sent a way
 	// to sign in until it is reactivated.
 	CodeAccountSuspended = "account_suspended"
+	// CodeDisabledByAdmin: an administrator disabled the account's password,
+	// so its owner can neither change nor remove it (#1461).
+	CodeDisabledByAdmin = "password_disabled"
+	// CodeEmailUnverifiedShared: no link is emailed to an unverified address
+	// that somebody signs in to with a provider; share a link instead.
+	CodeEmailUnverifiedShared = "email_unverified_shared"
 	// CodeTooManyAttempts: too many wrong passwords; the account's password is
 	// temporarily locked. The response carries Retry-After.
 	CodeTooManyAttempts = "too_many_attempts"
@@ -195,6 +201,8 @@ var errorTitles = map[string]string{
 	CodeHasSignInMethod:                   "Has Sign-In Method",
 	CodeOwnAccount:                        "Own Account",
 	CodeAccountSuspended:                  "Account Suspended",
+	CodeDisabledByAdmin:                   "Disabled By Administrator",
+	CodeEmailUnverifiedShared:             "Email Unverified",
 	CodeLocalSignInDisabled:               "Password Sign-In Is Off",
 	CodeTooManyAttempts:                   "Too Many Attempts",
 	CodeRateLimitExceeded:                 "Rate Limit Exceeded",

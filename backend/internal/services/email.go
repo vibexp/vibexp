@@ -581,24 +581,48 @@ func (es *EmailService) SendPasswordChanged(ctx context.Context, notice Password
 		emailLayoutData
 		Name            string
 		Email           string
+		Kind            string
+		Verb            string
+		ByAdmin         bool
 		ChangedAt       string
 		CanResetByEmail bool
 	}{
 		emailLayoutData: layout,
 		Name:            strings.TrimSpace(notice.Name),
 		Email:           notice.To,
+		Kind:            string(notice.Kind),
+		Verb:            accountChangeVerb(notice.Kind),
+		ByAdmin:         notice.Kind == AccountChangeRemovedByAdmin || notice.Kind == AccountChangeDisabledByAdmin,
 		ChangedAt:       notice.ChangedAt.UTC().Format(accountNoticeTimeFormat),
 		CanResetByEmail: notice.CanResetByEmail,
 	}
-	subject := fmt.Sprintf("Your %s password was changed", layout.Brand.DisplayName)
+	subject := fmt.Sprintf("Your %s password was %s", layout.Brand.DisplayName, data.Verb)
 	return es.sendAccountEmail(ctx, changeNoticeTemplate, notice.To, subject, data)
+}
+
+// accountChangeVerb is the subject's word for what happened to the password.
+func accountChangeVerb(kind AccountChangeKind) string {
+	switch kind {
+	case AccountChangeSet:
+		return "set"
+	case AccountChangeReset:
+		return "reset"
+	case AccountChangeRemoved, AccountChangeRemovedByAdmin:
+		return "removed"
+	case AccountChangeDisabledByAdmin:
+		return "disabled"
+	default:
+		return "changed"
+	}
 }
 
 // PasswordChangedNotice is what the password-changed email needs. It carries
 // no link.
 type PasswordChangedNotice struct {
-	To        string
-	Name      string
+	To   string
+	Name string
+	// Kind is what happened; the subject and the text say exactly that.
+	Kind      AccountChangeKind
 	ChangedAt time.Time
 	// CanResetByEmail is whether the sign-in page offers "Forgot password" on
 	// this instance, so the notice only mentions it when it exists.

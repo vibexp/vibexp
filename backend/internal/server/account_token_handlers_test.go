@@ -117,6 +117,10 @@ func (m *memLinks) ClearForClaim(context.Context, string) (*repositories.Cleared
 	return &repositories.ClearedAccountClaim{}, nil
 }
 
+func (m *memLinks) DisablePassword(context.Context, string) (*repositories.DisabledAccountPassword, error) {
+	return &repositories.DisabledAccountPassword{}, nil
+}
+
 func (m *memLinks) Delete(context.Context, []byte) (bool, error) { return false, nil }
 
 func (m *memLinks) DeleteDead(context.Context, time.Time) (int64, error) { return 0, nil }

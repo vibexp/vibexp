@@ -386,6 +386,9 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		Policy:     authPolicyResolver,
 		Tokens:     accountTokenServiceInterface,
 		Mailer:     accountLinkMailerInterface,
+		Store:      accountTokenRepository,
+		Accounts:   accountServiceInterface,
+		Notifier:   accountNotifier,
 		RootAdmins: instanceAdminResolver,
 		Logger:     logger,
 	}

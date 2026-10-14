@@ -583,6 +583,15 @@ type UsableSignInMethods struct {
 	PasswordLogin bool
 }
 
+// RemovePasswordOptions relaxes SignInMethodRepository.RemovePassword's
+// refusals for an administrator (#1436). The owner's own removal sets neither.
+type RemovePasswordOptions struct {
+	// AllowLast removes the password even when it is the last way in.
+	AllowLast bool
+	// AllowDisabled removes a password an administrator disabled.
+	AllowDisabled bool
+}
+
 // SignInMethodRepository removes an account's sign-in methods (#1437) without
 // ever removing the last one that works.
 //
@@ -593,9 +602,12 @@ type UsableSignInMethods struct {
 // ONE transaction on one connection.
 type SignInMethodRepository interface {
 	// RemovePassword deletes the user's password. It returns
-	// ErrUserCredentialNotFound when there is none, and ErrLastSignInMethod
-	// when the user has no identity from one of usable.Providers.
-	RemovePassword(ctx context.Context, userID string, usable UsableSignInMethods) error
+	// ErrUserCredentialNotFound when there is none, ErrLastSignInMethod when
+	// the user has no identity from one of usable.Providers (unless
+	// opts.AllowLast), and ErrUserCredentialDisabled when an administrator
+	// disabled the password (unless opts.AllowDisabled): deleting it would
+	// clear the administrator's mark.
+	RemovePassword(ctx context.Context, userID string, usable UsableSignInMethods, opts RemovePasswordOptions) error
 	// RemoveIdentity deletes the identity with identityID when it belongs to
 	// userID, and with it the user's legacy Google identity that has the same
 	// subject (left behind, that alias would keep the same Google account able
@@ -2217,6 +2229,12 @@ type UserCredentialRepository interface {
 	// lock and a disabled mark are cleared. An unknown user returns
 	// ErrUserNotFound.
 	Upsert(ctx context.Context, userID, passwordHash string) error
+	// ReplaceUnlessDisabled is Upsert for the owner's own change: it stores
+	// the hash the same way, except that a password an administrator disabled
+	// is left untouched and ErrUserCredentialDisabled is returned. The check
+	// and the write are one statement, so a disable that lands while the owner
+	// is changing the password is never undone by that change.
+	ReplaceUnlessDisabled(ctx context.Context, userID, passwordHash string) error
 	// UpdateHash replaces the hash, and nothing else, only while the stored
 	// hash still equals currentHash. It is for re-hashing a password that was
 	// just verified against currentHash under newer parameters, so it must not
@@ -2295,6 +2313,17 @@ type ClearedAccountClaim struct {
 	SessionEpoch int64
 }
 
+// DisabledAccountPassword is the result of AccountTokenRepository
+// .DisablePassword.
+type DisabledAccountPassword struct {
+	// HadPassword reports whether there was a password to disable.
+	HadPassword bool
+	// Links is how many live one-time links were deleted.
+	Links int64
+	// SessionEpoch is the user's session epoch after the bump.
+	SessionEpoch int64
+}
+
 // AccountTokenRepository stores one-time account links (#1432) by the SHA-256
 // of their token. It never sees a token.
 type AccountTokenRepository interface {
@@ -2310,6 +2339,11 @@ type AccountTokenRepository interface {
 	// the links it emails: of any number of simultaneous requests, one is
 	// stored and the rest are refused. The age is measured on the database's
 	// clock.
+	//
+	// A reset link with no CreatedBy (the owner's own forgot-password request)
+	// for a user whose password an administrator disabled is refused with
+	// ErrUserCredentialDisabled, under the same lock: completing it would lift
+	// the administrator's mark.
 	Replace(ctx context.Context, token *models.AccountToken, unlessIssuedWithin time.Duration) error
 	// GetLive returns the link with this token hash when it can still be
 	// completed at now, or ErrAccountTokenNotFound: unknown, expired and
@@ -2336,6 +2370,13 @@ type AccountTokenRepository interface {
 	// and (by bumping the session epoch) every session. It is idempotent. An
 	// unknown user returns ErrUserNotFound.
 	ClearForClaim(ctx context.Context, userID string) (*ClearedAccountClaim, error)
+	// DisablePassword is an administrator's "invalidate now" (#1436): in one
+	// transaction under the same lock it marks the user's password disabled
+	// (when there is one and it is not already), deletes every live link of
+	// the user and ends every session by bumping the session epoch. Completing
+	// a link issued afterwards stores a new password and clears the mark. An
+	// unknown user returns ErrUserNotFound.
+	DisablePassword(ctx context.Context, userID string) (*DisabledAccountPassword, error)
 	// Delete removes the link with this token hash, live or not, and reports
 	// whether there was one. It is for withdrawing a link that could not be
 	// delivered.
