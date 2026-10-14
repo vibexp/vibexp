@@ -929,3 +929,44 @@ func TestAuthService_VerifiedSignInToAVerifiedAccountKeepsItsPassword(t *testing
 	assert.Empty(t, apiAccess.revoked, "a verified account keeps its password, its links and its API keys")
 	assert.Empty(t, events)
 }
+
+// #1466 through the real hook: when ClearForClaim finds the account changed
+// under the lock, the refusal travels through UnverifiedAccountCleanup intact,
+// nothing is revoked, and the sign-in links the account as a verified one.
+func TestAuthService_ClaimFindsTheAccountVerifiedUnderTheLock(t *testing.T) {
+	ctx := context.Background()
+	logger, _ := logtest.New()
+	account := &models.User{ID: "invited-1", Email: "ada@example.com", Status: models.UserStatusActive, Version: 2}
+	verifiedAt := time.Now().Add(-time.Second)
+	fresh := &models.User{ID: "invited-1", Email: "ada@example.com", Status: models.UserStatusActive,
+		Version: 3, EmailVerifiedAt: &verifiedAt}
+	apiAccess := &recordingAPIAccess{}
+
+	users := repo_mocks.NewMockUserRepository(t)
+	identities := repo_mocks.NewMockUserIdentityRepository(t)
+	tokens := repo_mocks.NewMockAccountTokenRepository(t)
+	users.On("GetByIDPSubject", ctx, "corp-sso", "sub-owner").Return(nil, repositories.ErrUserNotFound)
+	users.On("GetByEmail", ctx, "ada@example.com").Return(account, nil)
+	identities.On("ListByUserID", ctx, account.ID).Return([]models.UserIdentity{}, nil)
+	tokens.On("ClearForClaim", ctx, account.ID).Return(nil, repositories.ErrAccountNoLongerClaimable)
+	users.On("GetByID", ctx, account.ID).Return(fresh, nil)
+	var written *models.User
+	users.On("Update", ctx, mock.Anything).Run(func(args mock.Arguments) {
+		written = args.Get(1).(*models.User)
+	}).Return(nil)
+	identities.On("Upsert", ctx, account.ID, "corp-sso", "sub-owner").Return(nil)
+
+	svc := NewAuthService(users, identities, staticIDPResolver{reg: idp.NewRegistry()}, nil, logger,
+		newStaticAllowlistResolver(logger, nil),
+		WithUnverifiedAccountClaimHook(NewUnverifiedAccountCleanup(tokens, apiAccess, logger)))
+
+	user, _, err := svc.createOrUpdateUserFromClaims(ctx, "corp-sso", idp.ProviderOIDC,
+		&idp.Claims{Subject: "sub-owner", Email: "ada@example.com", EmailVerified: true})
+
+	require.NoError(t, err)
+	assert.Equal(t, account.ID, user.ID)
+	assert.Empty(t, apiAccess.revoked, "nothing of the owner's is revoked")
+	require.NotNil(t, written)
+	assert.EqualValues(t, 3, written.Version)
+	users.AssertNotCalled(t, "BumpSessionEpoch", mock.Anything, mock.Anything)
+}

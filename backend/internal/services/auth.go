@@ -466,9 +466,15 @@ func (as *AuthService) linkIdentityByEmail(
 
 	now := time.Now()
 	if user.EmailVerifiedAt == nil {
-		fresh, err := as.claimOrReload(ctx, user, providerName)
+		fresh, err := as.claimOrReload(ctx, user, providerName, claims.Email)
 		if err != nil {
 			return nil, false, err
+		}
+		if fresh.IsSuspended() {
+			// Suspended while the sign-in ran: returned untouched, as at the
+			// top, so the caller's suspension gate refuses it and no way in
+			// is attached.
+			return fresh, false, nil
 		}
 		user = fresh
 		if user.EmailVerifiedAt == nil {
@@ -502,7 +508,7 @@ func (as *AuthService) linkIdentityByEmail(
 // sign-in identity is refused like any unverified account with one. It
 // returns the user to link, which carries the current version.
 func (as *AuthService) claimOrReload(
-	ctx context.Context, user *models.User, providerName string,
+	ctx context.Context, user *models.User, providerName, claimEmail string,
 ) (*models.User, error) {
 	err := as.claimUnverifiedAccount(ctx, user, providerName)
 	if err == nil {
@@ -515,8 +521,16 @@ func (as *AuthService) claimOrReload(
 	if err != nil {
 		return nil, fmt.Errorf("failed to re-read an account that changed during sign-in: %w", err)
 	}
+	// Nothing un-verifies an account, so one still unverified became
+	// unclaimable by gaining a sign-in identity.
 	if fresh.EmailVerifiedAt == nil {
 		as.logLinkRefused(fresh, providerName, "unverified_account_has_identity")
+		return nil, ErrExistingSignInRequired
+	}
+	// The match was by email: an address changed meanwhile is not the one the
+	// provider verified.
+	if models.NormalizeEmail(fresh.Email) != models.NormalizeEmail(claimEmail) {
+		as.logLinkRefused(fresh, providerName, "email_changed_during_sign_in")
 		return nil, ErrExistingSignInRequired
 	}
 	as.logger.With("user_id", fresh.ID, "provider", providerName).

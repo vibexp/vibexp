@@ -1800,6 +1800,36 @@ func TestAuthService_LinkByVerifiedEmail_AccountChangedBeforeTheClaim(t *testing
 		f.identities.AssertNotCalled(t, "Upsert", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	})
 
+	t.Run("suspended meanwhile: returned untouched, nothing linked", func(t *testing.T) {
+		account := &models.User{ID: "pre-1", Email: "ada@example.com"}
+		f := newLinkFixture(t, account, stale(repositories.ErrAccountNoLongerClaimable), nil)
+		verifiedAt := time.Now()
+		f.users.On("GetByID", mock.Anything, "pre-1").Return(&models.User{
+			ID: "pre-1", Email: "ada@example.com", EmailVerifiedAt: &verifiedAt, Status: models.UserStatusSuspended,
+		}, nil)
+
+		user, _, err := f.signIn(idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: true})
+
+		require.NoError(t, err)
+		assert.True(t, user.IsSuspended(), "the caller's suspension gate refuses it")
+		f.users.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+		f.identities.AssertNotCalled(t, "Upsert", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("email changed meanwhile: refused, nothing linked", func(t *testing.T) {
+		account := &models.User{ID: "pre-1", Email: "ada@example.com"}
+		f := newLinkFixture(t, account, stale(repositories.ErrAccountNoLongerClaimable), nil)
+		verifiedAt := time.Now()
+		f.users.On("GetByID", mock.Anything, "pre-1").Return(&models.User{
+			ID: "pre-1", Email: "someone.else@example.com", EmailVerifiedAt: &verifiedAt,
+		}, nil)
+
+		_, _, err := f.signIn(idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: true})
+
+		require.ErrorIs(t, err, ErrExistingSignInRequired)
+		f.users.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	})
+
 	t.Run("a failed re-read fails the sign-in and links nothing", func(t *testing.T) {
 		account := &models.User{ID: "pre-1", Email: "ada@example.com"}
 		f := newLinkFixture(t, account, stale(repositories.ErrAccountNoLongerClaimable), nil)

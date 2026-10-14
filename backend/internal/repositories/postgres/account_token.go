@@ -310,6 +310,11 @@ func completeAccountLinkTx(
 // claim from a row it read before the lock; an emailed link completed in
 // between verified the address and set a password that belongs to the
 // mailbox's owner (#1466). Checked here, where nothing can change underneath.
+//
+// The identity half is as strong as its writers: a provider sign-in attaches
+// its identity outside this lock, so two sign-ins to one mailbox can both pass
+// here; the optimistic version check on the user row decides between them,
+// and the loser's retry finds the account verified.
 func refuseUnlessClaimable(ctx context.Context, tx *sql.Tx, userID string) error {
 	var verified, hasIdentity bool
 	err := tx.QueryRowContext(ctx, `
