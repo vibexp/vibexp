@@ -38,13 +38,11 @@ type AuthSettingsInvalidator struct {
 	caches []AuthSettingsCache
 }
 
-// NewAuthSettingsInvalidator invalidates each of resolvers that is an
-// AuthSettingsCache; the others (a test double, a resolver that reads the
-// version on every call) are skipped.
-func NewAuthSettingsInvalidator(resolvers ...any) *AuthSettingsInvalidator {
+// NewAuthSettingsInvalidator invalidates caches; nil entries are skipped.
+func NewAuthSettingsInvalidator(caches ...AuthSettingsCache) *AuthSettingsInvalidator {
 	inv := &AuthSettingsInvalidator{}
-	for _, r := range resolvers {
-		if c, ok := r.(AuthSettingsCache); ok {
+	for _, c := range caches {
+		if c != nil {
 			inv.caches = append(inv.caches, c)
 		}
 	}

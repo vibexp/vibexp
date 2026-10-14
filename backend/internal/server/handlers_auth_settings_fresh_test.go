@@ -97,3 +97,29 @@ func TestCreateProvider_ThePublicListShowsItAtOnce(t *testing.T) {
 
 	assert.Equal(t, []string{"corp-sso"}, listed())
 }
+
+// The allowlist an admin saves decides the very next sign-in decision.
+func TestUpdateAllowlist_AppliesAtOnce(t *testing.T) {
+	f := newAuthSettingsFixture(t)
+	ctx := context.Background()
+	allowed, active, err := f.allowlistResolver.IsEmailAllowed(ctx, "dev@example.com")
+	require.NoError(t, err)
+	require.True(t, allowed)
+	require.False(t, active, "no allowlist yet; that answer is now cached")
+
+	rr := f.serve(t, asRoot, http.MethodPut, authAllowlistPath,
+		map[string]any{"domains": []string{"example.org"}, "emails": []string{}})
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	allowed, active, err = f.allowlistResolver.IsEmailAllowed(ctx, "dev@example.com")
+	require.NoError(t, err)
+	assert.True(t, active)
+	assert.False(t, allowed, "the saved allowlist decides at once")
+
+	rr = f.serve(t, asRoot, http.MethodDelete, authAllowlistPath, nil)
+	require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
+	allowed, active, err = f.allowlistResolver.IsEmailAllowed(ctx, "dev@example.com")
+	require.NoError(t, err)
+	assert.False(t, active, "and so does its reset")
+	assert.True(t, allowed)
+}

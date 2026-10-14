@@ -374,6 +374,9 @@ func TestAuthPolicyResolver_ARefreshInFlightAcrossInvalidateIsNotServed(t *testi
 	r, _ := newTestAuthPolicyResolver(store)
 
 	release, held := make(chan struct{}), make(chan struct{})
+	var releaseOnce sync.Once
+	releaseHeld := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(releaseHeld) // a failing assertion must not leave the refresh held
 	store.mu.Lock()
 	store.holdNextRowRead, store.rowReadHeld = release, held
 	store.mu.Unlock()
@@ -395,7 +398,7 @@ func TestAuthPolicyResolver_ARefreshInFlightAcrossInvalidateIsNotServed(t *testi
 	require.NoError(t, err, "a reader after Invalidate must not join the refresh held with the old row")
 	assert.True(t, fresh.PasswordLoginEnabled)
 
-	close(release)
+	releaseHeld()
 	assert.False(t, (<-stale).PasswordLoginEnabled, "the reader that started before the write gets what it read")
 
 	after, err := r.Policy(ctx)

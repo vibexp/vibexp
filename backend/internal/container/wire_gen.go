@@ -396,7 +396,10 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	instanceAuthSetupRepository := providers.ProvideInstanceAuthSetupRepository(db)
 	authWayIn := providers.ProvideAuthWayIn(instanceAuthProviderRepository, instanceAuthPolicyRepository, userCredentialRepository, instanceAdminResolver)
 	setupModeService := providers.ProvideSetupModeService(instanceAuthSetupRepository, authWayIn, instanceAdminResolver, cfg, logger)
-	authSettingsInvalidator := providers.ProvideAuthSettingsInvalidator(authPolicyResolver, accessAllowlistResolver)
+	authSettingsInvalidator, err := providers.ProvideAuthSettingsInvalidator(authPolicyResolver, accessAllowlistResolver)
+	if err != nil {
+		return nil, err
+	}
 	rootAdminPasswordService := providers.ProvideRootAdminPasswordService(userRepository, userCredentialRepository, instanceAuthPolicyRepository, passwordAuthServiceInterface, instanceAdminResolver, authSettingsInvalidator, eventManager, logger)
 	instanceAuthSettingsServiceDeps := providers.InstanceAuthSettingsServiceDeps{
 		ProviderRepo:      instanceAuthProviderRepository,

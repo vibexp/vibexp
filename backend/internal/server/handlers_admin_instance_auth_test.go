@@ -271,8 +271,9 @@ type authSettingsFixture struct {
 	// setupCookie is the setup session's cookie, once primeSetupSession minted it.
 	setupCookie *http.Cookie
 	// policyResolver is the real, caching policy resolver sign-in reads (#1485).
-	policyResolver services.AuthPolicyResolver
-	passwords      *servicesmocks.MockPasswordAuthServiceInterface
+	policyResolver    services.AuthPolicyResolver
+	allowlistResolver services.AccessAllowlistResolver
+	passwords         *servicesmocks.MockPasswordAuthServiceInterface
 }
 
 // authSettingsContainer adds the setup-mode service to the admin mock
@@ -335,10 +336,13 @@ func newAuthSettingsFixture(t *testing.T) *authSettingsFixture {
 		Policies: f.store.Policy(), Versions: f.store.Versions(), EmailProviders: noEmail,
 		Logger: logger, ProbeInterval: time.Hour,
 	})
-	allowlistResolver := services.NewAccessAllowlistResolver(services.AccessAllowlistResolverDeps{
+	f.allowlistResolver = services.NewAccessAllowlistResolver(services.AccessAllowlistResolverDeps{
 		Allowlists: f.store.Allowlist(), Versions: f.store.Versions(), RootAdmins: admins, Logger: logger,
+		ProbeInterval: time.Hour,
 	})
-	caches := services.NewAuthSettingsInvalidator(f.policyResolver, allowlistResolver)
+	allowlistResolver := f.allowlistResolver
+	caches := services.NewAuthSettingsInvalidator(
+		f.policyResolver.(services.AuthSettingsCache), f.allowlistResolver.(services.AuthSettingsCache))
 	f.passwords = servicesmocks.NewMockPasswordAuthServiceInterface(t)
 
 	authSvc := servicesmocks.NewMockAuthServiceInterface(t)
