@@ -15,7 +15,7 @@ export type AdminUserResetLinkRequest =
 class AdminUserAccessService {
   /**
    * A new setup link for an account with no way to sign in yet. Any earlier
-   * link stops working.
+   * setup link stops working, emailed or shown (#1490).
    */
   async issueSetupLink(
     id: string,

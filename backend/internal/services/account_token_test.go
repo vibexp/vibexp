@@ -31,8 +31,9 @@ const (
 var linkTestNow = time.Date(2026, 10, 14, 9, 0, 0, 0, time.UTC)
 
 // memAccountTokens is an in-memory AccountTokenRepository with the semantics of
-// the PostgreSQL one: one live link per user, purpose and delivery, and a
-// completion that ends every other live link of the same user.
+// the PostgreSQL one: one live link per user, purpose and delivery; a link an
+// administrator issues (CreatedBy set) replaces every live link of its purpose
+// (#1490); and a completion that ends every other live link of the same user.
 type memAccountTokens struct {
 	mu     sync.Mutex
 	rows   []*models.AccountToken
@@ -76,7 +77,7 @@ func (m *memAccountTokens) Replace(
 	kept := m.rows[:0]
 	for _, row := range m.rows {
 		superseded := row.ConsumedAt == nil && row.UserID == token.UserID &&
-			row.Purpose == token.Purpose && row.Delivery == token.Delivery
+			row.Purpose == token.Purpose && (token.CreatedBy != nil || row.Delivery == token.Delivery)
 		if !superseded {
 			kept = append(kept, row)
 		}
@@ -516,21 +517,21 @@ func TestAccountTokenService_IssueByEmail(t *testing.T) {
 		assert.Contains(t, f.logs.LastEntry().Message, "Failed to withdraw")
 	})
 
-	t.Run("an emailed and a copied link of one purpose are both live", func(t *testing.T) {
+	// #1490: an administrator's link replaces every earlier link of its
+	// purpose; the owner's own emailed request replaces only the emailed one.
+	t.Run("an administrator's link replaces the owner's; the owner's leaves the administrator's", func(t *testing.T) {
 		f := newAccountLinkFixture(t)
 		emailed := f.emailed(t, models.AccountTokenPurposeReset)
 		copied := f.copied(t, models.AccountTokenPurposeReset)
 
 		_, err := f.svc.Preview(ctx, emailed)
-		require.NoError(t, err, "issuing a copied link leaves the emailed one live")
+		require.ErrorIs(t, err, ErrAccountTokenInvalid, "the administrator's copied link replaces the owner's emailed one")
 		_, err = f.svc.Preview(ctx, copied)
 		require.NoError(t, err)
 
 		again := f.emailed(t, models.AccountTokenPurposeReset)
-		_, err = f.svc.Preview(ctx, emailed)
-		require.ErrorIs(t, err, ErrAccountTokenInvalid, "a second emailed link replaces the first")
 		_, err = f.svc.Preview(ctx, copied)
-		require.NoError(t, err, "and leaves the copied one live")
+		require.NoError(t, err, "the owner's new emailed link leaves the copied one live")
 		_, err = f.svc.Preview(ctx, again)
 		require.NoError(t, err)
 	})

@@ -20,11 +20,14 @@
 --                system issued (forgot password) or once that user is deleted.
 --
 -- A user has at most one live link per purpose AND delivery (the partial unique
--- index): issuing a new emailed link removes the previous emailed one, and the
--- same for copied links, but an emailed and a copied link of one purpose may be
--- live together, so an administrator can both invite someone by email and hand
--- them a link. Completing any link removes every other live link of the user,
--- of either purpose: once a password is set, no older link may set another.
+-- index). A link an administrator issues removes every live link of its
+-- purpose, emailed or copied, so re-issuing one always ends the earlier ones
+-- (#1490). A forgot-password request removes only the previous emailed link:
+-- anyone can make it for any address, and it must not end a link an
+-- administrator handed over, so an emailed and a copied link of one purpose
+-- can still be live together. Completing any link removes every other live
+-- link of the user, of either purpose: once a password is set, no older link
+-- may set another.
 -- Dead rows (expired or consumed) are deleted by an hourly sweep in the server
 -- process.
 CREATE TABLE account_tokens (

@@ -987,7 +987,7 @@
     "/api/v1/auth/password/forgot": {
       "post": {
         "summary": "Ask for a password reset email",
-        "description": "Asks for a link to reset a forgotten password to be emailed to an\naddress.\n\nThe answer is always the same 202, whether or not the address belongs\nto an account, and it is given before the address is looked up, so\nneither the response nor the time it takes says anything about the\naddress. If the address belongs to an account that can sign in here, a\nlink valid for 1 hour is emailed to it. The same link also lets a person\nwho has no password yet (for example because their setup link expired)\nset one.\n\nNo email is sent when the instance has no email provider (`password.reset`\non `GET /api/v1/auth/providers` is then `admin`: ask an administrator\nfor a link instead), when the account cannot receive one (for example an\nadministrator has disabled its password, or its address was never\nverified and it is already used with a sign-in provider), or when an\nemail for the same account was sent in the last 5 minutes. In that last\ncase the earlier link still works. An administrator can always issue a\nlink.\n\nThe body must be `application/json`. Available only while password\nlogin is switched on; otherwise 404. Rate-limited per client IP.\n",
+        "description": "Asks for a link to reset a forgotten password to be emailed to an\naddress.\n\nThe answer is always the same 202, whether or not the address belongs\nto an account, and it is given before the address is looked up, so\nneither the response nor the time it takes says anything about the\naddress. If the address belongs to an account that can sign in here, a\nlink valid for 1 hour is emailed to it. The same link also lets a person\nwho has no password yet (for example because their setup link expired)\nset one.\n\nNo email is sent when the instance has no email provider (`password.reset`\non `GET /api/v1/auth/providers` is then `admin`: ask an administrator\nfor a link instead), when the account cannot receive one (for example an\nadministrator has disabled its password, or its address was never\nverified and it is already used with a sign-in provider), or when an\nemail for the same account was sent in the last 5 minutes. In that last\ncase the earlier link still works. An administrator can always issue a\nlink. A new emailed link replaces only the earlier emailed one: a link\nan administrator handed over keeps working.\n\nThe body must be `application/json`. Available only while password\nlogin is switched on; otherwise 404. Rate-limited per client IP.\n",
         "operationId": "requestPasswordReset",
         "security": [],
         "requestBody": {
@@ -18373,7 +18373,7 @@
     "/api/v1/admin/users/{id}/setup-link": {
       "post": {
         "summary": "Send or get a setup link for an account that cannot sign in yet",
-        "description": "Issues a new one-time setup link, valid for 7 days, for an account that\nhas no way to sign in yet (`pending_setup`). With `delivery: email` it is\nsent to the account's address; with `delivery: link` it is returned here,\nonce, for you to hand over. A new link of the same kind replaces the\nprevious one; an emailed and a shared link may both be live, and\ncompleting either ends the other.\n\nRefused (409, with a stable `code`) when password sign-in is off\n(`password_login_disabled`), when the account already has a way to sign in\n(`has_sign_in_method`), for a suspended account (`account_suspended`),\nfor your own account (`own_account`), for\n`delivery: email` with no email provider stored (`email_unavailable`),\nand for `delivery: link` to a root instance admin's address\n(`root_admin_link_refused`: such an account gets an emailed link only,\nor uses the setup page or the recovery CLI). Instance-admin only;\nnon-admin and unauthenticated requests receive 404.\n",
+        "description": "Issues a new one-time setup link, valid for 7 days, for an account that\nhas no way to sign in yet (`pending_setup`). With `delivery: email` it is\nsent to the account's address; with `delivery: link` it is returned here,\nonce, for you to hand over. It replaces every earlier setup link of the\naccount, emailed or shared, so only the newest one works.\n\nRefused (409, with a stable `code`) when password sign-in is off\n(`password_login_disabled`), when the account already has a way to sign in\n(`has_sign_in_method`), for a suspended account (`account_suspended`),\nfor your own account (`own_account`), for\n`delivery: email` with no email provider stored (`email_unavailable`),\nand for `delivery: link` to a root instance admin's address\n(`root_admin_link_refused`: such an account gets an emailed link only,\nor uses the setup page or the recovery CLI). Instance-admin only;\nnon-admin and unauthenticated requests receive 404.\n",
         "operationId": "issueAdminUserSetupLink",
         "tags": [
           "Admin"
@@ -18450,7 +18450,7 @@
             }
           },
           "500": {
-            "description": "Internal server error, or the email could not be sent; nothing usable was issued\n",
+            "description": "Internal server error, or the email could not be sent; nothing usable was issued. If the email could not be sent, any earlier setup link was already withdrawn\n",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -18465,7 +18465,7 @@
     "/api/v1/admin/users/{id}/reset-link": {
       "post": {
         "summary": "Send or get a password reset link",
-        "description": "Issues a one-time reset link: with `delivery: email` it is sent to the\naccount's address and is valid for 1 hour; with `delivery: link` it is\nreturned here, once, valid for 24 hours. Completing it sets a new\npassword. A new link of the same kind replaces the previous one.\n\nWithout `invalidate_now` the current password and sessions keep working\nuntil the link is used. With it, the password is disabled, every session\nof the user ends and every live link of the user stops working before\nthe new link is issued; the owner is told by email when the instance\nhas an email provider.\n\nRefused (409, with a stable `code`) when password sign-in is off\n(`password_login_disabled`), for a suspended account\n(`account_suspended`), for your own account (`own_account`), for\n`delivery: email` with no email provider stored (`email_unavailable`) or\nto an unverified address somebody signs in to with a provider\n(`email_unverified_shared`: share a link instead), and for\n`delivery: link` to a root instance admin's address\n(`root_admin_link_refused`). A refusal changes nothing, also with\n`invalidate_now`. Instance-admin only; non-admin and unauthenticated\nrequests receive 404.\n",
+        "description": "Issues a one-time reset link: with `delivery: email` it is sent to the\naccount's address and is valid for 1 hour; with `delivery: link` it is\nreturned here, once, valid for 24 hours. Completing it sets a new\npassword. It replaces every earlier reset link of the account, emailed\nor shared, including one the owner requested with forgot-password.\n\nWithout `invalidate_now` the current password and sessions keep working\nuntil the link is used. With it, the password is disabled, every session\nof the user ends and every live link of the user stops working before\nthe new link is issued; the owner is told by email when the instance\nhas an email provider.\n\nRefused (409, with a stable `code`) when password sign-in is off\n(`password_login_disabled`), for a suspended account\n(`account_suspended`), for your own account (`own_account`), for\n`delivery: email` with no email provider stored (`email_unavailable`) or\nto an unverified address somebody signs in to with a provider\n(`email_unverified_shared`: share a link instead), and for\n`delivery: link` to a root instance admin's address\n(`root_admin_link_refused`). A refusal changes nothing, also with\n`invalidate_now`. Instance-admin only; non-admin and unauthenticated\nrequests receive 404.\n",
         "operationId": "issueAdminUserResetLink",
         "tags": [
           "Admin"
@@ -18542,7 +18542,7 @@
             }
           },
           "500": {
-            "description": "Internal server error, or the email could not be sent. With\n`invalidate_now` the password may already be stopped; issue a link\nagain.\n",
+            "description": "Internal server error, or the email could not be sent. If the email\ncould not be sent, any earlier reset link was already withdrawn. With\n`invalidate_now` the password may already be stopped; issue a link\nagain.\n",
             "content": {
               "application/problem+json": {
                 "schema": {
