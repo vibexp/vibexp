@@ -187,6 +187,85 @@ it('debounces a query change and resets to page 1', async () => {
   expect(mockAdminService.listTeams).toHaveBeenCalledTimes(3)
 })
 
+it('keeps the pages scrolled in while the query is unchanged (#1448)', async () => {
+  // Fake timers, so "after the debounce" is a step of the test, not a race with
+  // how fast the machine runs it.
+  vi.useFakeTimers()
+  try {
+    mockAdminService.listTeams
+      .mockResolvedValueOnce(pageOf([team('t1', 'Alpha')], 1, 2))
+      .mockResolvedValueOnce(pageOf([team('t2', 'Beta')], 2, 2))
+      .mockResolvedValue(pageOf([team('t1', 'Alpha')], 1, 2))
+    render(<Probe />)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(screen.getByText('Alpha')).toBeInTheDocument()
+
+    // Scrolled to page 2 before the search debounce would have elapsed.
+    act(() => {
+      hook.loadMore()
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(screen.getByText('Beta')).toBeInTheDocument()
+
+    // Well past the debounce: nothing was typed, so nothing is searched again
+    // and the list is not reset to page 1.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+    })
+    expect(mockAdminService.listTeams).toHaveBeenCalledTimes(2)
+    expect(hook.loading).toBe(false)
+    expect(screen.getByText('Alpha')).toBeInTheDocument()
+    expect(screen.getByText('Beta')).toBeInTheDocument()
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('cancels the pending reset when the query is typed back before the debounce', async () => {
+  vi.useFakeTimers()
+  try {
+    mockAdminService.listTeams
+      .mockResolvedValueOnce(pageOf([team('t1', 'Alpha')], 1, 2))
+      .mockResolvedValueOnce(pageOf([team('t2', 'Beta')], 2, 2))
+      .mockResolvedValue(pageOf([team('t1', 'Alpha')], 1, 2))
+    render(<Probe />)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    act(() => {
+      hook.loadMore()
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(screen.getByText('Beta')).toBeInTheDocument()
+
+    // Typed and erased within the debounce: back to the searched text.
+    act(() => {
+      hook.setQuery('x')
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100)
+    })
+    act(() => {
+      hook.setQuery('')
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+    })
+
+    expect(mockAdminService.listTeams).toHaveBeenCalledTimes(2)
+    expect(screen.getByText('Alpha')).toBeInTheDocument()
+    expect(screen.getByText('Beta')).toBeInTheDocument()
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
 it('replaces the list on a new query rather than appending to it', async () => {
   mockAdminService.listTeams
     .mockResolvedValueOnce(pageOf([team('t1', 'Alpha')], 1, 1))

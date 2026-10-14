@@ -422,6 +422,12 @@ describe('the team filter', () => {
     })
     // Appended, not replaced.
     expect(within(list).getByText('Engineering')).toBeInTheDocument()
+    // Exactly page 1 then page 2. The search debounce once fired here for an
+    // unchanged query, reset to page 1 and refetched, so a run that crossed
+    // its 300 ms found "Searching…" instead of the rows (#1448).
+    expect(
+      mockAdminService.listTeams.mock.calls.map(([query]) => query.page)
+    ).toEqual([1, 2])
   })
 
   it('clears back to all teams', async () => {
