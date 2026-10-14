@@ -592,6 +592,39 @@ describe('password actions (#1443, #1436 part B)', () => {
     expect(screen.queryByRole('button', { name: 'Remove password' })).toBeNull()
   })
 
+  it.each([
+    ['email', true],
+    ['admin', false],
+  ] as const)(
+    'with password reset by %s, emailing the link is enabled: %s (#1494)',
+    async (reset, enabled) => {
+      signInMethods.mockResolvedValue({
+        providers: [],
+        password: { enabled: true, reset },
+      })
+      mockAdminService.getUser.mockResolvedValue(
+        user({ sign_in_methods: ['password'], has_password: true })
+      )
+      renderDetail()
+      const ui = userEvent.setup()
+      await ui.click(
+        await screen.findByRole('button', { name: 'Reset password' })
+      )
+
+      const dialog = await screen.findByTestId('reset-password-dialog')
+      await waitFor(() => {
+        const emailIt = within(dialog).getByRole('button', {
+          name: 'Email it to ada@example.com',
+        })
+        if (enabled) expect(emailIt).toBeEnabled()
+        else expect(emailIt).toBeDisabled()
+      })
+      expect(
+        within(dialog).queryByTestId('link-delivery-no-email') !== null
+      ).toBe(!enabled)
+    }
+  )
+
   it('disables the reset link while password sign-in is off, but not the removal', async () => {
     signInMethods.mockResolvedValue({
       providers: [],

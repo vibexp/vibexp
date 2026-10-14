@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router'
 
 import { adminUserAccessService } from '@/services/adminUserAccessService'
 import { ApiError } from '@/types/errors'
@@ -64,6 +65,45 @@ describe('ResetPasswordDialog', () => {
       invalidate_now: false,
     })
     expect(screen.queryByTestId('reset-invalidated')).toBeNull()
+  })
+
+  it('offers only showing the link when no email provider is configured, also for a first password (#1494)', async () => {
+    service.issueResetLink.mockResolvedValue({
+      delivery: 'link',
+      link_url: 'http://localhost/account/reset#token=secret-8',
+      expires_at: '2026-10-15T10:00:00Z',
+      invalidated: false,
+    })
+    render(
+      <MemoryRouter>
+        <ResetPasswordDialog
+          open
+          onOpenChange={vi.fn()}
+          userId="u-1"
+          email="grace@example.com"
+          hasPassword={false}
+          emailLinks={false}
+        />
+      </MemoryRouter>
+    )
+    const user = userEvent.setup()
+
+    expect(
+      screen.getByRole('heading', { name: 'Send a link to set a password' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Email it to grace@example.com' })
+    ).toBeDisabled()
+    expect(screen.getByTestId('link-delivery-no-email')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Show the link here' }))
+
+    expect(await screen.findByTestId('link-reveal-value')).toHaveTextContent(
+      'secret-8'
+    )
+    expect(service.issueResetLink).toHaveBeenCalledWith('u-1', {
+      delivery: 'link',
+      invalidate_now: false,
+    })
   })
 
   it('asks a second time before disabling the password, and Back changes nothing', async () => {
