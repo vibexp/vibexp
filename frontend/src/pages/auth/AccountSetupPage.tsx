@@ -1,10 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertCircle, KeyRound, Loader2 } from 'lucide-react'
+import { KeyRound } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -39,6 +38,8 @@ import {
 import type { AuthProvider } from '@/services/authService'
 import { ApiError } from '@/types/errors'
 
+import { previewFailure, statusOf } from './accountLinkFailure'
+import { CheckingLink, LinkNotice, SetButNotSignedIn } from './accountLinkParts'
 import { ProviderChoices } from './ProviderChoices'
 import { GoToSignIn, InstanceName } from './PublicCardParts'
 import { enabledProviders, messageOf, optionalNameField } from './publicForms'
@@ -62,10 +63,6 @@ type View =
   | { kind: 'ready'; preview: AccountLinkPreview; providers: AuthProvider[] }
   /** The password was set but the request did not finish. */
   | { kind: 'set-not-signed-in'; email: string }
-
-function statusOf(err: unknown): number | null {
-  return err instanceof ApiError ? err.status : null
-}
 
 /**
  * `/account/setup#token=…` (#1440): where an account an administrator created
@@ -100,21 +97,12 @@ export function AccountSetupPage({
           : { kind: 'invalid' }
       )
     } catch (err) {
-      const status = statusOf(err)
-      // 400: a token that cannot be one (oversized, malformed).
-      if (status === 401 || status === 400) setView({ kind: 'invalid' })
-      else if (status === 403)
-        setView({
-          kind: 'restricted',
-          message: messageOf(err, 'Access to this instance is restricted.'),
-        })
-      else if (status === 404)
-        setView({ kind: 'password-off', providers: await enabledProviders() })
-      else
-        setView({
-          kind: 'refused',
-          message: messageOf(err, 'The link could not be checked'),
-        })
+      const failure = previewFailure(err)
+      setView(
+        failure.kind === 'password-off'
+          ? { kind: 'password-off', providers: await enabledProviders() }
+          : failure
+      )
     }
   }, [token])
 
@@ -122,16 +110,7 @@ export function AccountSetupPage({
     void load()
   }, [load])
 
-  if (view.kind === 'loading') {
-    return (
-      <PublicCardPage>
-        <div className="flex flex-col items-center gap-3 text-center">
-          <Loader2 className="text-primary size-10 animate-spin" />
-          <p className="text-muted-foreground text-sm">Checking your link…</p>
-        </div>
-      </PublicCardPage>
-    )
-  }
+  if (view.kind === 'loading') return <CheckingLink />
 
   if (view.kind === 'ready') {
     return (
@@ -161,7 +140,7 @@ export function AccountSetupPage({
           <InstanceName />
           {view.kind === 'invalid' && (
             <>
-              <Notice
+              <LinkNotice
                 title="This link is not valid"
                 text="It may have expired or been used already. Ask your administrator for a new one. If you already set a password, sign in with it."
               />
@@ -170,7 +149,7 @@ export function AccountSetupPage({
           )}
           {view.kind === 'restricted' && (
             <>
-              <Notice
+              <LinkNotice
                 title="This account cannot be used here"
                 text={view.message}
               />
@@ -179,7 +158,7 @@ export function AccountSetupPage({
           )}
           {view.kind === 'refused' && (
             <>
-              <Notice
+              <LinkNotice
                 title="The link could not be checked"
                 text={view.message}
               />
@@ -195,7 +174,7 @@ export function AccountSetupPage({
           )}
           {view.kind === 'password-off' && (
             <>
-              <Notice
+              <LinkNotice
                 title="Passwords are not used here"
                 text="This instance does not offer password sign-in at the moment. Sign in with one of the providers below, using the email address your account was created for."
               />
@@ -204,30 +183,14 @@ export function AccountSetupPage({
             </>
           )}
           {view.kind === 'set-not-signed-in' && (
-            <>
-              <Alert>
-                <AlertTitle>Your password is set</AlertTitle>
-                <AlertDescription>
-                  Signing you in did not finish. Sign in with {view.email} and
-                  the password you just chose.
-                </AlertDescription>
-              </Alert>
-              <GoToSignIn variant="default" />
-            </>
+            <SetButNotSignedIn
+              title="Your password is set"
+              email={view.email}
+            />
           )}
         </CardContent>
       </Card>
     </PublicCardPage>
-  )
-}
-
-function Notice({ title, text }: Readonly<{ title: string; text: string }>) {
-  return (
-    <Alert variant="destructive">
-      <AlertCircle className="size-4" />
-      <AlertTitle>{title}</AlertTitle>
-      <AlertDescription>{text}</AlertDescription>
-    </Alert>
   )
 }
 

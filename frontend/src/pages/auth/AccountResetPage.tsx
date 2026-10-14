@@ -1,10 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertCircle, KeyRound, Loader2 } from 'lucide-react'
+import { KeyRound } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -38,6 +37,8 @@ import {
 } from '@/services/accountLinkService'
 import { ApiError } from '@/types/errors'
 
+import { previewFailure, statusOf } from './accountLinkFailure'
+import { CheckingLink, LinkNotice, SetButNotSignedIn } from './accountLinkParts'
 import { GoToSignIn, InstanceName } from './PublicCardParts'
 import { messageOf } from './publicForms'
 
@@ -60,10 +61,6 @@ type View =
   | { kind: 'ready'; preview: AccountLinkPreview }
   /** The password was changed but the request did not finish. */
   | { kind: 'set-not-signed-in'; email: string }
-
-function statusOf(err: unknown): number | null {
-  return err instanceof ApiError ? err.status : null
-}
 
 /**
  * `/account/reset#token=…` (#1439): a reset link, emailed after "Forgot
@@ -96,20 +93,7 @@ export function AccountResetPage({
           : { kind: 'invalid' }
       )
     } catch (err) {
-      const status = statusOf(err)
-      // 400: a token that cannot be one (oversized, malformed).
-      if (status === 401 || status === 400) setView({ kind: 'invalid' })
-      else if (status === 403)
-        setView({
-          kind: 'restricted',
-          message: messageOf(err, 'Access to this instance is restricted.'),
-        })
-      else if (status === 404) setView({ kind: 'password-off' })
-      else
-        setView({
-          kind: 'refused',
-          message: messageOf(err, 'The link could not be checked'),
-        })
+      setView(previewFailure(err))
     }
   }, [token])
 
@@ -117,16 +101,7 @@ export function AccountResetPage({
     void load()
   }, [load])
 
-  if (view.kind === 'loading') {
-    return (
-      <PublicCardPage>
-        <div className="flex flex-col items-center gap-3 text-center">
-          <Loader2 className="text-primary size-10 animate-spin" />
-          <p className="text-muted-foreground text-sm">Checking your link…</p>
-        </div>
-      </PublicCardPage>
-    )
-  }
+  if (view.kind === 'loading') return <CheckingLink />
 
   if (view.kind === 'ready') {
     return (
@@ -158,7 +133,7 @@ export function AccountResetPage({
           <h1 className="sr-only">Set a new password</h1>
           {view.kind === 'invalid' && (
             <>
-              <Notice
+              <LinkNotice
                 title="This link is not valid"
                 text="It may have expired or been used already. Ask for a new one with “Forgot password?” on the sign-in page, or ask your administrator."
               />
@@ -166,14 +141,14 @@ export function AccountResetPage({
             </>
           )}
           {view.kind === 'restricted' && (
-            <Notice
+            <LinkNotice
               title="This account cannot be used here"
               text={view.message}
             />
           )}
           {view.kind === 'refused' && (
             <>
-              <Notice
+              <LinkNotice
                 title="The link could not be checked"
                 text={view.message}
               />
@@ -189,7 +164,7 @@ export function AccountResetPage({
           )}
           {view.kind === 'password-off' && (
             <>
-              <Notice
+              <LinkNotice
                 title="Passwords are not used here"
                 text="This instance does not offer password sign-in at the moment. Sign in with one of the options on the sign-in page."
               />
@@ -197,30 +172,14 @@ export function AccountResetPage({
             </>
           )}
           {view.kind === 'set-not-signed-in' && (
-            <>
-              <Alert>
-                <AlertTitle>Your password is changed</AlertTitle>
-                <AlertDescription>
-                  Signing you in did not finish. Sign in with {view.email} and
-                  the password you just chose.
-                </AlertDescription>
-              </Alert>
-              <GoToSignIn variant="default" />
-            </>
+            <SetButNotSignedIn
+              title="Your password is changed"
+              email={view.email}
+            />
           )}
         </CardContent>
       </Card>
     </PublicCardPage>
-  )
-}
-
-function Notice({ title, text }: Readonly<{ title: string; text: string }>) {
-  return (
-    <Alert variant="destructive">
-      <AlertCircle className="size-4" />
-      <AlertTitle>{title}</AlertTitle>
-      <AlertDescription>{text}</AlertDescription>
-    </Alert>
   )
 }
 
