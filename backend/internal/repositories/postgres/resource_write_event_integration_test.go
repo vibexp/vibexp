@@ -94,7 +94,7 @@ func recordWrite(t *testing.T, f writeEventFixture, e writeEventSpec) {
 
 // seedMixedWrites fills the main project with resources created through every
 // channel plus some with no create event at all (as every resource written
-// before migration 022 is), and puts decoys in the sibling project and the
+// before migration 022_consolidated is), and puts decoys in the sibling project and the
 // other team.
 //
 // Main project, by type and channel:

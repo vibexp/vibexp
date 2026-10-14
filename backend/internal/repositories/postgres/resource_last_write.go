@@ -16,7 +16,7 @@ import (
 // and can neither duplicate a resource row nor change a count; LEFT keeps a
 // resource that has no write event, whose two columns then read NULL. It runs
 // once per row of the page it is joined to, each time as a single descent of
-// idx_resource_write_events_resource_latest (migration 026), so a list costs
+// idx_resource_write_events_resource_latest (migration 022_consolidated), so a list costs
 // one statement however many rows it returns.
 //
 // There is no team predicate inside the subquery: an event's resource_id is the

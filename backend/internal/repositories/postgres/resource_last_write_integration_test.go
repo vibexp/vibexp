@@ -246,7 +246,7 @@ func TestIntegrationLastWrite_ListAndDetailResolveTheLatestEvent(t *testing.T) {
 	}
 }
 
-// The latest-event lookup is served by the index migration 026 adds for it,
+// The latest-event lookup is served by the index migration 022_consolidated adds for it,
 // index-only: one descent per listed row, never a scan of the team's event log.
 // Sequential scans are disabled for the statement because a table this small
 // would be scanned whatever indexes exist; the assertion is that the planner

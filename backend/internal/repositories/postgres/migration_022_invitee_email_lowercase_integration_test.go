@@ -10,18 +10,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// "Before" is 027 rather than 028: 028 belongs to a sibling change of the same
-// epic (user_credentials) and nothing here depends on it, so the test holds
-// whether or not 028 is present.
+// The migration just before this one, and this one.
 const (
-	migrationInviteeLowercaseBefore = 27
-	migrationInviteeLowercaseAfter  = 29
+	migrationInviteeLowercaseBefore = 21
+	migrationInviteeLowercaseAfter  = 22
 )
 
-// Up/down round trip for the invitee_email lower-casing migration (#1434) on
-// its OWN scratch database: it migrates down, which would corrupt the shared
-// integrationDB.
-func TestMigration029_InviteeEmailLowercase(t *testing.T) {
+// Up/down round trip for the invitee_email lower-casing block of migration
+// 022_consolidated (#1434; originally migration 029) on its OWN scratch
+// database: it migrates down, which would corrupt the shared integrationDB.
+func TestMigration022_InviteeEmailLowercase(t *testing.T) {
 	db, cleanup := newScratchMigrationDB(t)
 	defer cleanup()
 	m := newMigrator(t, db)

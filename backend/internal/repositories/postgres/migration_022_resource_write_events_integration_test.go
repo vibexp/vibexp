@@ -14,9 +14,10 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
-// Up/down round-trip for migration 022_resource_write_events (#1392), on its OWN
-// scratch database: this test migrates DOWN, which would corrupt the shared
-// integrationDB.
+// Up/down round-trip for the resource-write-events block of migration
+// 022_consolidated (#1392; originally migration 022_resource_write_events), on
+// its OWN scratch database: this test migrates DOWN, which would corrupt the
+// shared integrationDB.
 //
 // Beyond "it applies", it pins what the rest of the feature leans on: a version
 // written before the migration reads NULL for its source (unknown, never a
@@ -25,9 +26,9 @@ import (
 // migration drops a POPULATED table.
 
 const (
-	migration022Table     = "resource_write_events"
-	migration022CreateIdx = "idx_resource_write_events_create"
-	migration022TeamIdx   = "idx_resource_write_events_team_created"
+	migrationWriteEventsTable     = "resource_write_events"
+	migrationWriteEventsCreateIdx = "idx_resource_write_events_create"
+	migrationWriteEventsTeamIdx   = "idx_resource_write_events_team_created"
 )
 
 // insertWriteEvent inserts one event with the given overrides and returns the
@@ -53,7 +54,7 @@ func insertWriteEvent(db *sql.DB, teamID string, overrides map[string]any) error
 		placeholders = append(placeholders, "$"+string(rune('0'+len(args))))
 	}
 	_, err := db.Exec(
-		"INSERT INTO "+migration022Table+" ("+strings.Join(columns, ", ")+") VALUES ("+
+		"INSERT INTO "+migrationWriteEventsTable+" ("+strings.Join(columns, ", ")+") VALUES ("+
 			strings.Join(placeholders, ", ")+")", args...)
 	return err
 }
@@ -67,7 +68,7 @@ func TestMigration022_ResourceWriteEvents_UpDownRoundTrip(t *testing.T) {
 	// 1. The version immediately before this migration, with a content version
 	//    already written: the row every existing instance has.
 	require.NoError(t, m.Migrate(21), "migrate to 021")
-	require.False(t, tableExists(t, db, migration022Table), "fixture: the table must not exist before 022")
+	require.False(t, tableExists(t, db, migrationWriteEventsTable), "fixture: the table must not exist before 022")
 	require.False(t, columnExists(t, db, "content_versions", "source"))
 
 	teamID := seedMigrationTeam(t, db)
@@ -79,9 +80,9 @@ func TestMigration022_ResourceWriteEvents_UpDownRoundTrip(t *testing.T) {
 
 	// 2. Apply 022.
 	require.NoError(t, m.Migrate(22), "migrate to 022")
-	require.True(t, tableExists(t, db, migration022Table))
-	require.True(t, indexExists(t, db, migration022CreateIdx))
-	require.True(t, indexExists(t, db, migration022TeamIdx))
+	require.True(t, tableExists(t, db, migrationWriteEventsTable))
+	require.True(t, indexExists(t, db, migrationWriteEventsCreateIdx))
+	require.True(t, indexExists(t, db, migrationWriteEventsTeamIdx))
 
 	t.Run("a version written before the migration has no source", func(t *testing.T) {
 		assert.Equal(t, 1, countRows(t, db,
@@ -165,21 +166,21 @@ func TestMigration022_ResourceWriteEvents_UpDownRoundTrip(t *testing.T) {
 		_, err = db.Exec("DELETE FROM users WHERE id = $1", writer)
 		require.NoError(t, err)
 		assert.Equal(t, 1, countRows(t, db,
-			"SELECT count(*) FROM "+migration022Table+" WHERE team_id = $1 AND user_id IS NULL", ownTeam),
+			"SELECT count(*) FROM "+migrationWriteEventsTable+" WHERE team_id = $1 AND user_id IS NULL", ownTeam),
 			"the event outlives its author, with the author blanked")
 
 		_, err = db.Exec("DELETE FROM teams WHERE id = $1", ownTeam)
 		require.NoError(t, err)
 		assert.Equal(t, 0, countRows(t, db,
-			"SELECT count(*) FROM "+migration022Table+" WHERE team_id = $1", ownTeam))
+			"SELECT count(*) FROM "+migrationWriteEventsTable+" WHERE team_id = $1", ownTeam))
 	})
 
 	// 3. Roll back with the table populated and sourced versions present.
-	require.Positive(t, countRows(t, db, "SELECT count(*) FROM "+migration022Table),
+	require.Positive(t, countRows(t, db, "SELECT count(*) FROM "+migrationWriteEventsTable),
 		"fixture: the table must hold rows before rolling back")
 	require.NoError(t, m.Migrate(21), "migrate down to 021")
 
-	assert.False(t, tableExists(t, db, migration022Table))
+	assert.False(t, tableExists(t, db, migrationWriteEventsTable))
 	assert.False(t, columnExists(t, db, "content_versions", "source"))
 	assert.False(t, columnExists(t, db, "content_versions", "assistant_name"))
 	assert.Equal(t, 0, constraintCount(t, db, "content_versions_source_check"))
@@ -189,6 +190,6 @@ func TestMigration022_ResourceWriteEvents_UpDownRoundTrip(t *testing.T) {
 
 	// 4. And forward again, so a re-applied migration is proven too.
 	require.NoError(t, m.Migrate(22), "re-apply 022")
-	assert.True(t, tableExists(t, db, migration022Table))
+	assert.True(t, tableExists(t, db, migrationWriteEventsTable))
 	assert.True(t, columnExists(t, db, "content_versions", "source"))
 }

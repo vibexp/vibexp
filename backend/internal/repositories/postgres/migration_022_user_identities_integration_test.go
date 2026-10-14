@@ -14,22 +14,23 @@ import (
 )
 
 const (
-	migration023Before = 22
-	migration023After  = 23
+	migrationUserIdentitiesBefore = 21
+	migrationUserIdentitiesAfter  = 22
 )
 
-// Migration 023 (#1427) on its OWN scratch database: it migrates down, which
-// would corrupt the shared integrationDB.
+// The user-identities block of migration 022_consolidated (#1427; originally
+// migration 023) on its OWN scratch database: it migrates down, which would
+// corrupt the shared integrationDB.
 //
 // It pins the backfill of user_identities from the inline identity columns, the
 // lower-casing of users.email with its CHECK, the refusal to run over accounts
 // that differ only by case, and the down migration.
-func TestMigration023_UserIdentities(t *testing.T) {
+func TestMigration022_UserIdentities(t *testing.T) {
 	db, cleanup := newScratchMigrationDB(t)
 	defer cleanup()
 	m := newMigrator(t, db)
 
-	// reset returns the database to version 022 with no users.
+	// reset returns the database to version 021 with no users.
 	reset := func(t *testing.T) {
 		t.Helper()
 		// A failed migration leaves the version dirty; clear it the way an
@@ -37,12 +38,12 @@ func TestMigration023_UserIdentities(t *testing.T) {
 		if version, dirty, err := m.Version(); err == nil && dirty {
 			require.NoError(t, m.Force(int(version)-1))
 		}
-		require.NoError(t, m.Migrate(migration023Before), "migrate to 022")
+		require.NoError(t, m.Migrate(migrationUserIdentitiesBefore), "migrate to 021")
 		_, err := db.Exec("TRUNCATE TABLE users CASCADE")
 		require.NoError(t, err)
-		require.False(t, tableExists(t, db, "user_identities"), "fixture: the table must not exist before 023")
+		require.False(t, tableExists(t, db, "user_identities"), "fixture: the table must not exist before 022")
 	}
-	// seed inserts a pre-023 user; nil means the column is NULL.
+	// seed inserts a pre-022 user; nil means the column is NULL.
 	seed := func(t *testing.T, email string, googleID, provider, subject *string) string {
 		t.Helper()
 		id := uuid.New().String()
@@ -77,7 +78,7 @@ func TestMigration023_UserIdentities(t *testing.T) {
 		pending := seed(t, "pending@example.com", nil, str("corp-sso"), nil)
 		bare := seed(t, "bare@example.com", nil, nil, nil)
 
-		require.NoError(t, m.Migrate(migration023After), "migrate to 023")
+		require.NoError(t, m.Migrate(migrationUserIdentitiesAfter), "migrate to 022")
 
 		assert.Equal(t, map[string]string{"corp-sso": "sub-1"}, identitiesOf(t, oidc))
 		assert.Equal(t, map[string]string{models.LegacyGoogleIdentityProvider: "g-legacy"}, identitiesOf(t, legacy),
@@ -110,7 +111,7 @@ func TestMigration023_UserIdentities(t *testing.T) {
 		mixed := seed(t, "Ada.Lovelace@Example.COM", nil, nil, nil)
 		lower := seed(t, "grace@example.com", nil, nil, nil)
 
-		require.NoError(t, m.Migrate(migration023After), "migrate to 023")
+		require.NoError(t, m.Migrate(migrationUserIdentitiesAfter), "migrate to 022")
 
 		var email string
 		require.NoError(t, db.QueryRow("SELECT email FROM users WHERE id = $1", mixed).Scan(&email))
@@ -132,7 +133,7 @@ func TestMigration023_UserIdentities(t *testing.T) {
 		second := seed(t, "sam@example.com", nil, str("corp-sso"), str("sam-2"))
 		seed(t, "Unrelated@Example.com", nil, nil, nil)
 
-		err := m.Migrate(migration023After)
+		err := m.Migrate(migrationUserIdentitiesAfter)
 
 		require.Error(t, err)
 		for _, want := range []string{
@@ -141,7 +142,14 @@ func TestMigration023_UserIdentities(t *testing.T) {
 			assert.Contains(t, err.Error(), want, "the error names the conflicting accounts")
 		}
 		assert.NotContains(t, err.Error(), "Unrelated@Example.com", "only the conflicting accounts are named")
+		// The operator is told the version to re-point to: the one before the
+		// consolidated migration, so the retry runs all of it.
+		assert.Contains(t, err.Error(), "migration 022 stopped")
+		assert.Contains(t, err.Error(), "SET version = 21,")
 
+		// The blocks run in one transaction, so the block before this one
+		// (resource_write_events) is rolled back too.
+		assert.False(t, tableExists(t, db, "resource_write_events"))
 		assert.False(t, tableExists(t, db, "user_identities"))
 		assert.False(t, columnExists(t, db, "users", "email_verified_at"))
 		assert.Equal(t, 1, countRows(t, db, "SELECT count(*) FROM users WHERE email = 'Unrelated@Example.com'"),
@@ -151,8 +159,8 @@ func TestMigration023_UserIdentities(t *testing.T) {
 		// migration, it applies.
 		_, err = db.Exec("UPDATE users SET email = 'sam.two@example.com' WHERE id = $1", second)
 		require.NoError(t, err)
-		require.NoError(t, m.Force(migration023Before))
-		require.NoError(t, m.Migrate(migration023After))
+		require.NoError(t, m.Force(migrationUserIdentitiesBefore))
+		require.NoError(t, m.Migrate(migrationUserIdentitiesAfter))
 		assert.Equal(t, 2, countRows(t, db, "SELECT count(*) FROM user_identities"))
 	})
 
@@ -160,7 +168,7 @@ func TestMigration023_UserIdentities(t *testing.T) {
 		reset(t)
 		owner := seed(t, "owner@example.com", nil, str("corp-sso"), str("sub-1"))
 		other := seed(t, "other@example.com", nil, nil, nil)
-		require.NoError(t, m.Migrate(migration023After), "migrate to 023")
+		require.NoError(t, m.Migrate(migrationUserIdentitiesAfter), "migrate to 022")
 
 		_, err := db.Exec("INSERT INTO user_identities (user_id, provider, subject) VALUES ($1, 'corp-sso', 'sub-1')", other)
 		requirePQCode(t, err, "23505")
@@ -177,10 +185,10 @@ func TestMigration023_UserIdentities(t *testing.T) {
 	t.Run("down drops a populated table and keeps the inline identity", func(t *testing.T) {
 		reset(t)
 		id := seed(t, "Down@Example.com", str("g-down"), str("google"), str("g-down"))
-		require.NoError(t, m.Migrate(migration023After), "migrate to 023")
+		require.NoError(t, m.Migrate(migrationUserIdentitiesAfter), "migrate to 022")
 		require.NotEmpty(t, identitiesOf(t, id))
 
-		require.NoError(t, m.Migrate(migration023Before), "migrate back to 022")
+		require.NoError(t, m.Migrate(migrationUserIdentitiesBefore), "migrate back to 021")
 
 		assert.False(t, tableExists(t, db, "user_identities"))
 		assert.False(t, columnExists(t, db, "users", "email_verified_at"))
@@ -199,7 +207,7 @@ func TestMigration023_UserIdentities(t *testing.T) {
 		// And up again over the restored state.
 		_, err = db.Exec("DELETE FROM users WHERE email = 'Mixed@Example.com'")
 		require.NoError(t, err)
-		require.NoError(t, m.Migrate(migration023After), "migrate to 023 again")
+		require.NoError(t, m.Migrate(migrationUserIdentitiesAfter), "migrate to 022 again")
 		assert.Len(t, identitiesOf(t, id), 2)
 	})
 }

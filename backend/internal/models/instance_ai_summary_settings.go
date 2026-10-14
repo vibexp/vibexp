@@ -37,16 +37,17 @@ type InstanceAISummarySettings struct {
 // request may assemble, for every team and for the instance defaults alike. It
 // is a code constant, not a setting (epic #1196, decision 3): the
 // team_ai_summary_settings.top_n and instance_ai_summary_settings.top_n CHECK
-// constraints (migrations 017 and 022) mirror it bound for bound, so a value
-// the database would reject can never be saved. Change them together.
+// constraints (migrations 017 and 019_consolidated) mirror it bound for bound,
+// so a value the database would reject can never be saved. Change them
+// together.
 const MaxAISummaryTopN = 10
 
 // MaxAISummaryOutputTokens is the hard limit on a summary's max_output_tokens,
 // for every team and for the instance defaults alike. The
 // instance_ai_summary_settings.max_output_tokens CHECK constraint (migration
-// 022) pins it for the instance row; the team row is checked only for > 0
-// (migration 017), so for a team the bound is enforced by the settings service
-// on save and clamped again by the summary service at request time.
+// 019_consolidated) pins it for the instance row; the team row is checked only
+// for > 0 (migration 017), so for a team the bound is enforced by the settings
+// service on save and clamped again by the summary service at request time.
 const MaxAISummaryOutputTokens = 32768
 
 // Provenance of the instance AI summary settings.

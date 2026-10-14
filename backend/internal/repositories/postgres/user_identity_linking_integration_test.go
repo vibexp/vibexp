@@ -166,7 +166,7 @@ func TestIntegrationLinking_PreVerificationUserLinksAfterSigningInTheirOwnWay(t 
 	users := NewUserRepository(integrationDB)
 	email := "old-" + uuid.New().String() + "@example.com"
 
-	// What migration 023 leaves for an existing user: an identity, no verification.
+	// What migration 022_consolidated leaves for an existing user: an identity, no verification.
 	account := &models.User{Email: email, Name: "Old Timer", IDPProvider: strRef("corp-sso"), IDPSubject: strRef("old-sub")}
 	require.NoError(t, users.Create(ctx, account))
 

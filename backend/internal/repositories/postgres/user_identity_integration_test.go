@@ -207,7 +207,8 @@ func TestIntegrationUser_EmailIsCaseInsensitive(t *testing.T) {
 }
 
 // A restricted prompt share granted to an address typed with capitals still
-// admits that account, whose users.email is lower case since migration 023.
+// admits that account, whose users.email is lower case since migration
+// 022_consolidated.
 func TestIntegrationPromptShare_HasAccessIsCaseInsensitive(t *testing.T) {
 	resetSearchTables(t)
 	ctx := context.Background()

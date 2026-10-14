@@ -103,7 +103,7 @@ func TestAuthService_AllowlistSubject_ExistingAccount(t *testing.T) {
 		},
 		{
 			// The path of every user from before email verification was recorded
-			// (migration 023 left email_verified_at NULL).
+			// (migration 022_consolidated left email_verified_at NULL).
 			name:      "never-verified account, provider verifies the stored address now: admitted",
 			allowlist: []string{"me@corp.example"},
 			stored:    models.User{ID: "user-1", Email: "me@corp.example"},
