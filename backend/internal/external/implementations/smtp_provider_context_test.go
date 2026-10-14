@@ -167,3 +167,21 @@ func TestSMTPEmailProvider_DialFailureIsPrompt(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "smtp: failed to send email")
 }
+
+// The bound is on the whole conversation, not on each step, and it is far
+// from what a slow but healthy server needs: one that holds every reply back
+// (a greeting delay, a busy relay) still delivers. Seven replies at 300 ms is
+// over 2 s; a send fails only at smtpDefaultTimeout (30 s), as Mailgun's
+// sender does at its own 30 s.
+func TestSMTPEmailProvider_ASlowButHealthyServerStillDelivers(t *testing.T) {
+	relay := startRelay(t, 300*time.Millisecond)
+	provider, err := NewSMTPEmailProvider(SMTPSpec{Host: "127.0.0.1", Port: relay.port()})
+	require.NoError(t, err)
+
+	start := time.Now()
+	require.NoError(t, provider.SendEmail(context.Background(), outgoing(testMessage(), "")))
+
+	assert.Greater(t, time.Since(start), 2*time.Second, "the server really was slow")
+	_, accepted := relay.outcome()
+	assert.True(t, accepted)
+}
