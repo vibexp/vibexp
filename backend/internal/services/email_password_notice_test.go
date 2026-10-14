@@ -68,7 +68,7 @@ func TestPasswordNoticeForAClaimNamesTheProviderAndTheReason(t *testing.T) {
 			assert.Contains(t, body, "If you did not sign in through Corp SSO, contact your administrator.")
 			assert.NotContains(t, body, "If this was you", "the owner did not change the password")
 			assert.NotContains(t, body, "#token=")
+			assert.Contains(t, body, "On "+changedAt.Format(accountNoticeTimeFormat))
 		})
 	}
-	assert.Contains(t, got.text, "On "+changedAt.Format(accountNoticeTimeFormat))
 }
