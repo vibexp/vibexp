@@ -120,7 +120,10 @@ export function DevLogin({ returnTo }: Readonly<DevLoginProps>) {
         </button>
       </CollapsibleTrigger>
 
-      <CollapsibleContent className="overflow-hidden">
+      {/* Not `overflow-hidden`: nothing here animates, and the fields' focus
+          ring is drawn outside their box, so clipping cut it into a stray
+          line above and below each field (#1497). */}
+      <CollapsibleContent>
         <form
           onSubmit={e => void handleDevLogin(e)}
           action="javascript:void(0)"

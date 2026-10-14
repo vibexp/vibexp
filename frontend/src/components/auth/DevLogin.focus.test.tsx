@@ -70,4 +70,27 @@ describe('DevLogin focus', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     expect(toggle).toHaveFocus()
   })
+
+  // The fields' focus ring is drawn outside their box, so any clipping
+  // container around them cuts it into a stray line above and below (#1497).
+  // jsdom cannot see clipping; the geometry is checked in
+  // e2e/features/auth/dev-login-focus-ring.spec.ts. This pins the structure.
+  it('puts no clipping container between the fields and the section', async () => {
+    const user = userEvent.setup()
+    const toggle = renderDevLogin()
+    await user.click(toggle)
+
+    const section = toggle.parentElement
+    if (!section) throw new Error('the toggle has no parent')
+    for (const label of ['Email', /Name/]) {
+      let node = screen.getByLabelText(label).parentElement
+      while (node && node !== section) {
+        expect(node.className).not.toMatch(
+          /\boverflow-(?:x-|y-)?(?:hidden|clip|auto|scroll)\b/
+        )
+        node = node.parentElement
+      }
+      expect(node).toBe(section)
+    }
+  })
 })
