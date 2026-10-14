@@ -406,9 +406,19 @@ func NewAccountEmailNotifier(deps AccountEmailNotifierDeps) AccountNotifier {
 
 // PasswordChanged implements AccountNotifier.
 func (n *accountEmailNotifier) PasswordChanged(_ context.Context, userID string, kind AccountChangeKind) {
+	n.notify(userID, kind, "")
+}
+
+// PasswordRemovedByClaim implements AccountNotifier.
+func (n *accountEmailNotifier) PasswordRemovedByClaim(_ context.Context, userID, provider string) {
+	n.notify(userID, AccountChangeRemovedByClaim, provider)
+}
+
+// notify sends the password-changed notice in the background.
+func (n *accountEmailNotifier) notify(userID string, kind AccountChangeKind, provider string) {
 	changedAt := n.now()
 	accepted := n.runner.Go(accountEmailTaskChanged, func(ctx context.Context) {
-		if err := n.sendPasswordChanged(ctx, userID, kind, changedAt); err != nil {
+		if err := n.sendPasswordChanged(ctx, userID, kind, provider, changedAt); err != nil {
 			n.logger.With("user_id", userID, "error", err.Error()).
 				Error("The password-changed notice could not be sent")
 		}
@@ -420,7 +430,7 @@ func (n *accountEmailNotifier) PasswordChanged(_ context.Context, userID string,
 }
 
 func (n *accountEmailNotifier) sendPasswordChanged(
-	ctx context.Context, userID string, kind AccountChangeKind, changedAt time.Time,
+	ctx context.Context, userID string, kind AccountChangeKind, provider string, changedAt time.Time,
 ) error {
 	channel, err := n.policy.PasswordResetChannel(ctx)
 	if err != nil {
@@ -438,7 +448,8 @@ func (n *accountEmailNotifier) sendPasswordChanged(
 		return fmt.Errorf("load the account to notify: %w", err)
 	}
 	err = n.email.SendPasswordChanged(ctx, PasswordChangedNotice{
-		To: user.Email, Name: user.Name, Kind: kind, ChangedAt: changedAt, CanResetByEmail: true,
+		To: user.Email, Name: user.Name, Kind: kind, Provider: provider, ChangedAt: changedAt,
+		CanResetByEmail: true,
 	})
 	if err != nil {
 		return fmt.Errorf("send the password-changed notice: %w", err)

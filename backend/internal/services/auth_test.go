@@ -1324,10 +1324,15 @@ func TestAuthService_ReturningSignIn_KeepsEmailAndProfile(t *testing.T) {
 type recordingClaimHook struct {
 	log *[]string
 	err error
+	// providers, when set, records the provider name each call was given.
+	providers *[]string
 }
 
-func (h recordingClaimHook) OnUnverifiedAccountClaimed(_ context.Context, userID string) error {
+func (h recordingClaimHook) OnUnverifiedAccountClaimed(_ context.Context, userID, provider string) error {
 	*h.log = append(*h.log, "hook:"+userID)
+	if h.providers != nil {
+		*h.providers = append(*h.providers, provider)
+	}
 	return h.err
 }
 
@@ -1337,6 +1342,7 @@ type linkFixture struct {
 	users      *repo_mocks.MockUserRepository
 	identities *repo_mocks.MockUserIdentityRepository
 	log        []string
+	providers  []string
 	written    *models.User
 	held       []models.UserIdentity
 }
@@ -1365,7 +1371,7 @@ func newLinkFixture(t *testing.T, account *models.User, hookErr, upsertErr error
 	logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
 	f.svc = NewAuthService(f.users, f.identities, staticIDPResolver{reg: idp.NewRegistry()}, nil, logger,
 		newStaticAllowlistResolver(logger, nil),
-		WithUnverifiedAccountClaimHook(recordingClaimHook{log: &f.log, err: hookErr}))
+		WithUnverifiedAccountClaimHook(recordingClaimHook{log: &f.log, err: hookErr, providers: &f.providers}))
 	return f
 }
 
@@ -1682,7 +1688,35 @@ func TestAuthService_DefaultClaimHookIsANoop(t *testing.T) {
 		newStaticAllowlistResolver(logger, nil), WithUnverifiedAccountClaimHook(nil))
 
 	require.NotNil(t, svc.claimHook)
-	require.NoError(t, svc.claimHook.OnUnverifiedAccountClaimed(context.Background(), "user-1"))
+	require.NoError(t, svc.claimHook.OnUnverifiedAccountClaimed(context.Background(), "user-1", "SSO"))
+}
+
+// The claim hook is told the provider by the name the sign-in page shows, so
+// the owner's notice names it (#1493); the slug stands in when the provider
+// cannot be resolved.
+func TestAuthService_ClaimHookIsGivenTheProviderDisplayName(t *testing.T) {
+	signIn := func(t *testing.T, resolver IdentityProviderResolver) []string {
+		f := newLinkFixture(t, &models.User{ID: "pre-1", Email: "ada@example.com"}, nil, nil)
+		f.svc.resolver = resolver
+		_, _, err := f.signIn(idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: true})
+		require.NoError(t, err)
+		return f.providers
+	}
+
+	t.Run("the display name of an enabled provider", func(t *testing.T) {
+		reg := idp.NewRegistryFromEntries(
+			idp.Entry{Provider: slugProvider("corp-sso"), Type: idp.ProviderOIDC, DisplayName: "Corp SSO"})
+		assert.Equal(t, []string{"Corp SSO"}, signIn(t, staticIDPResolver{reg: reg}))
+	})
+	t.Run("the slug when the provider is not in the snapshot", func(t *testing.T) {
+		assert.Equal(t, []string{"corp-sso"}, signIn(t, staticIDPResolver{reg: idp.NewRegistry()}))
+	})
+	t.Run("the slug when the service has no resolver", func(t *testing.T) {
+		assert.Equal(t, []string{"corp-sso"}, signIn(t, nil))
+	})
+	t.Run("the slug when the providers cannot be resolved", func(t *testing.T) {
+		assert.Equal(t, []string{"corp-sso"}, signIn(t, staticIDPResolver{err: errors.New("db down")}))
+	})
 }
 
 // A new account is verified from its first sign-in only when the provider says so.

@@ -76,6 +76,12 @@ func (a *fakeAPIAccess) RevokeAPIAccess(_ context.Context, userID string) (*mode
 type recordingNotifier struct {
 	notified []string
 	kinds    []AccountChangeKind
+	// claims records PasswordRemovedByClaim as "userID/provider".
+	claims []string
+}
+
+func (n *recordingNotifier) PasswordRemovedByClaim(_ context.Context, userID, provider string) {
+	n.claims = append(n.claims, userID+"/"+provider)
 }
 
 func (n *recordingNotifier) PasswordChanged(_ context.Context, userID string, kind AccountChangeKind) {

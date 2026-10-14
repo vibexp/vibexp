@@ -62,12 +62,22 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	accountTokenRepository := providers.ProvideAccountTokenRepository(db)
 	apiAccessRepository := providers.ProvideAPIAccessRepository(db)
 	apiAccessServiceInterface := providers.ProvideAPIAccessService(apiAccessRepository, logger)
-	instanceAuthProviderRepository := providers.ProvideInstanceAuthProviderRepository(db)
+	instanceAuthPolicyRepository := providers.ProvideInstanceAuthPolicyRepository(db)
 	instanceAuthSettingsVersionRepository := providers.ProvideInstanceAuthSettingsVersionRepository(db)
+	instanceEmailProviderRepository := providers.ProvideInstanceEmailProviderRepository(db)
+	authPolicyResolver := providers.ProvideAuthPolicyResolver(instanceAuthPolicyRepository, instanceAuthSettingsVersionRepository, instanceEmailProviderRepository, logger)
+	teamEmailProviderRepository := providers.ProvideTeamEmailProviderRepository(db)
 	encryptionServiceInterface, err := providers.ProvideEncryptionService(cfg)
 	if err != nil {
 		return nil, err
 	}
+	emailSenderResolver := providers.ProvideEmailSenderResolver(teamEmailProviderRepository, instanceEmailProviderRepository, encryptionServiceInterface, logger)
+	instanceSiteInfoRepository := providers.ProvideInstanceSiteInfoRepository(db)
+	instanceSiteInfoService := providers.ProvideInstanceSiteInfoService(instanceSiteInfoRepository, logger)
+	accountEmailSender := providers.ProvideAccountEmailSender(emailSenderResolver, instanceSiteInfoService, cfg)
+	accountEmailRunners := providers.ProvideAccountEmailRunners(logger)
+	accountNotifier := providers.ProvideAccountNotifier(userRepository, authPolicyResolver, accountEmailSender, accountEmailRunners, logger)
+	instanceAuthProviderRepository := providers.ProvideInstanceAuthProviderRepository(db)
 	identityProviderResolver := providers.ProvideIdentityProviderResolver(instanceAuthProviderRepository, instanceAuthSettingsVersionRepository, encryptionServiceInterface, cfg, logger)
 	metrics := providers.ProvideMetrics(cfg, logger)
 	eventManager := providers.ProvideEventManager(cfg, logger, metrics)
@@ -75,9 +85,6 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	instanceAdminRepository := providers.ProvideInstanceAdminRepository(db)
 	instanceAdminResolver := providers.ProvideInstanceAdminResolver(cfg, instanceAdminRepository, userRepository, logger)
 	accessAllowlistResolver := providers.ProvideAccessAllowlistResolver(instanceAuthAllowlistRepository, instanceAuthSettingsVersionRepository, instanceAdminResolver, logger)
-	instanceAuthPolicyRepository := providers.ProvideInstanceAuthPolicyRepository(db)
-	instanceEmailProviderRepository := providers.ProvideInstanceEmailProviderRepository(db)
-	authPolicyResolver := providers.ProvideAuthPolicyResolver(instanceAuthPolicyRepository, instanceAuthSettingsVersionRepository, instanceEmailProviderRepository, logger)
 	registrationGate := providers.ProvideRegistrationGate(authPolicyResolver, teamInvitationRepository, instanceAdminResolver, logger)
 	signInMethodRepository := providers.ProvideSignInMethodRepository(db)
 	authServiceDeps := providers.AuthServiceDeps{
@@ -85,6 +92,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		IdentityRepo:  userIdentityRepository,
 		AccountTokens: accountTokenRepository,
 		APIAccess:     apiAccessServiceInterface,
+		Notifier:      accountNotifier,
 		Resolver:      identityProviderResolver,
 		EventManager:  eventManager,
 		Logger:        logger,
@@ -176,10 +184,6 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	modelProviderServiceInterface := providers.ProvideModelProviderService(modelProviderRepository, encryptionServiceInterface, cfg, authorizationServiceInterface, teamSettingsAuditServiceInterface)
 	gitHubAppClientResolver := providers.ProvideGitHubAppClientResolver(gitHubAppConfigRepository, encryptionServiceInterface, logger)
 	gitHubAppConfigServiceInterface := providers.ProvideGitHubAppConfigService(gitHubAppConfigRepository, encryptionServiceInterface, cfg, authorizationServiceInterface, gitHubAppClientResolver)
-	teamEmailProviderRepository := providers.ProvideTeamEmailProviderRepository(db)
-	emailSenderResolver := providers.ProvideEmailSenderResolver(teamEmailProviderRepository, instanceEmailProviderRepository, encryptionServiceInterface, logger)
-	instanceSiteInfoRepository := providers.ProvideInstanceSiteInfoRepository(db)
-	instanceSiteInfoService := providers.ProvideInstanceSiteInfoService(instanceSiteInfoRepository, logger)
 	emailServiceInterface := providers.ProvideEmailService(emailSenderResolver, instanceSiteInfoService, cfg)
 	activityServiceDeps := providers.ActivityServiceDeps{
 		Repo:          activityRepository,
@@ -331,9 +335,6 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	instanceEmailProviderServiceInterface := providers.ProvideInstanceEmailProviderService(instanceEmailProviderRepository, instanceSettingsAuditRepository, userRepository, encryptionServiceInterface, logger)
 	userCredentialRepository := providers.ProvideUserCredentialRepository(db)
 	passwordAuthServiceInterface := providers.ProvidePasswordAuthService(userRepository, userCredentialRepository, authPolicyResolver, accessAllowlistResolver, logger)
-	accountEmailSender := providers.ProvideAccountEmailSender(emailSenderResolver, instanceSiteInfoService, cfg)
-	accountEmailRunners := providers.ProvideAccountEmailRunners(logger)
-	accountNotifier := providers.ProvideAccountNotifier(userRepository, authPolicyResolver, accountEmailSender, accountEmailRunners, logger)
 	accountServiceDeps := providers.AccountServiceDeps{
 		Users:      userRepository,
 		Identities: userIdentityRepository,

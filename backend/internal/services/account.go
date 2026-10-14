@@ -54,6 +54,11 @@ type AccountNotifier interface {
 	// must not fail the operation: an error is logged by the implementation,
 	// not returned.
 	PasswordChanged(ctx context.Context, userID string, kind AccountChangeKind)
+	// PasswordRemovedByClaim is called after a verified sign-in through
+	// provider (its display name) claimed the user's unverified account and
+	// removed the password its setup left (#1493). Like PasswordChanged, it
+	// must not fail the sign-in.
+	PasswordRemovedByClaim(ctx context.Context, userID, provider string)
 }
 
 // AccountChangeKind is what happened to an account's password, as its owner
@@ -74,11 +79,17 @@ const (
 	AccountChangeRemovedByAdmin AccountChangeKind = "removed_by_admin"
 	// AccountChangeDisabledByAdmin: an administrator disabled the password.
 	AccountChangeDisabledByAdmin AccountChangeKind = "disabled_by_admin"
+	// AccountChangeRemovedByClaim: a verified sign-in claimed the unverified
+	// account, which removed the password set before the address was verified
+	// (#1493).
+	AccountChangeRemovedByClaim AccountChangeKind = "removed_by_claim"
 )
 
 type noopAccountNotifier struct{}
 
 func (noopAccountNotifier) PasswordChanged(context.Context, string, AccountChangeKind) {}
+
+func (noopAccountNotifier) PasswordRemovedByClaim(context.Context, string, string) {}
 
 // AccountView is an account as its owner sees it.
 type AccountView struct {

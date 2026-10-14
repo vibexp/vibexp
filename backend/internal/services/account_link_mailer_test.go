@@ -576,6 +576,29 @@ func TestAccountEmailNotifier(t *testing.T) {
 		}, f.sent.changed[0])
 	})
 
+	t.Run("a password removed by a claim is sent with its kind and the provider (#1493)", func(t *testing.T) {
+		f := newMailerFixture(t)
+
+		newNotifier(f).PasswordRemovedByClaim(context.Background(), pwTestUserID, "Corp SSO")
+		f.drain()
+
+		require.Len(t, f.sent.changed, 1)
+		assert.Equal(t, PasswordChangedNotice{
+			To: pwTestEmail, Name: "Ada", Kind: AccountChangeRemovedByClaim, Provider: "Corp SSO",
+			ChangedAt: linkTestNow, CanResetByEmail: true,
+		}, f.sent.changed[0])
+	})
+
+	t.Run("a password removed by a claim sends nothing when no email provider is stored", func(t *testing.T) {
+		f := newMailerFixture(t)
+		f.policy.channel = PasswordResetByAdmin
+
+		newNotifier(f).PasswordRemovedByClaim(context.Background(), pwTestUserID, "Corp SSO")
+		f.drain()
+
+		assert.Empty(t, f.sent.changed)
+	})
+
 	t.Run("the caller's cancelled context does not stop the notice", func(t *testing.T) {
 		f := newMailerFixture(t)
 		cancelled, cancel := context.WithCancel(context.Background())

@@ -32,10 +32,13 @@ type AuthServiceDeps struct {
 	// in one transaction, the second its API keys and grants.
 	AccountTokens repositories.AccountTokenRepository
 	APIAccess     services.APIAccessServiceInterface
-	Resolver      services.IdentityProviderResolver
-	EventManager  events.EventPublisher
-	Logger        *slog.Logger
-	Allowlist     services.AccessAllowlistResolver
+	// Notifier tells the owner of a claimed account that its password was
+	// removed (#1493).
+	Notifier     services.AccountNotifier
+	Resolver     services.IdentityProviderResolver
+	EventManager events.EventPublisher
+	Logger       *slog.Logger
+	Allowlist    services.AccessAllowlistResolver
 	// Gate enforces the registration mode for a new account (#1434).
 	Gate services.RegistrationGate
 	// Methods records and reports disconnected identities (#1460).
@@ -53,7 +56,7 @@ func ProvideAuthService(deps AuthServiceDeps) services.AuthServiceInterface {
 		services.WithRegistrationGate(deps.Gate),
 		services.WithDisconnectedIdentities(deps.Methods),
 		services.WithUnverifiedAccountClaimHook(
-			services.NewUnverifiedAccountCleanup(deps.AccountTokens, deps.APIAccess, deps.Logger)))
+			services.NewUnverifiedAccountCleanup(deps.AccountTokens, deps.APIAccess, deps.Notifier, deps.Logger)))
 }
 
 // ProvideRegistrationGate creates the gate that enforces the instance's

@@ -588,7 +588,7 @@ func (as *AuthService) claimUnverifiedAccount(ctx context.Context, user *models.
 		return ErrExistingSignInRequired
 	}
 
-	if err = as.claimHook.OnUnverifiedAccountClaimed(ctx, user.ID); err != nil {
+	if err = as.claimHook.OnUnverifiedAccountClaimed(ctx, user.ID, as.providerDisplayName(ctx, providerName)); err != nil {
 		return fmt.Errorf("failed to secure the account before linking: %w", err)
 	}
 	epoch, err := as.userRepo.BumpSessionEpoch(ctx, user.ID)
@@ -597,6 +597,24 @@ func (as *AuthService) claimUnverifiedAccount(ctx context.Context, user *models.
 	}
 	user.SessionEpoch = epoch
 	return nil
+}
+
+// providerDisplayName is the label the sign-in page shows for the provider
+// with slug, or the slug itself when the provider cannot be resolved: the
+// name is only for telling a person what happened, never for a decision.
+func (as *AuthService) providerDisplayName(ctx context.Context, slug string) string {
+	if as.resolver == nil {
+		return slug
+	}
+	reg, err := as.snapshot(ctx)
+	if err != nil {
+		return slug
+	}
+	entry, ok := reg.Entry(idp.ProviderName(slug))
+	if !ok || strings.TrimSpace(entry.DisplayName) == "" {
+		return slug
+	}
+	return entry.DisplayName
 }
 
 // logLinkRefused records why a sign-in was not linked to the account with the

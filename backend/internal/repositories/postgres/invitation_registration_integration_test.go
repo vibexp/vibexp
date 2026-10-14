@@ -299,7 +299,7 @@ func TestIntegrationInvitationRegistration_AClaimDuringRegistrationWins(t *testi
 		services.WithUnverifiedAccountClaimHook(services.NewUnverifiedAccountCleanup(
 			NewAccountTokenRepository(integrationDB),
 			services.NewAPIAccessService(NewAPIAccessRepository(integrationDB), slog.New(slog.DiscardHandler)),
-			slog.New(slog.DiscardHandler))))
+			nil, slog.New(slog.DiscardHandler))))
 	var claimErr error
 	stack.events.onPublish = func() {
 		_, claimErr = owner.ProvisionFromClaims(ctx, "corp-sso",

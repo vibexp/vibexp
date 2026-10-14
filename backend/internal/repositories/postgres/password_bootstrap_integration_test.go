@@ -219,7 +219,7 @@ func TestIntegrationPasswordBootstrap_FromEmptyInstanceToWorkingSignIn(t *testin
 			nil, nil, slog.New(slog.DiscardHandler), openAllowlist{},
 			services.WithUnverifiedAccountClaimHook(
 				services.NewUnverifiedAccountCleanup(
-					NewAccountTokenRepository(integrationDB), nil, slog.New(slog.DiscardHandler))))
+					NewAccountTokenRepository(integrationDB), nil, nil, slog.New(slog.DiscardHandler))))
 
 		linked, err := auth.ProvisionFromClaims(ctx, "corp-sso",
 			&idp.Claims{Subject: "sub-root", Email: bootstrapRootEmail, EmailVerified: true})

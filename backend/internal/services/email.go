@@ -583,6 +583,7 @@ func (es *EmailService) SendPasswordChanged(ctx context.Context, notice Password
 		Email           string
 		Kind            string
 		Verb            string
+		Provider        string
 		ByAdmin         bool
 		ChangedAt       string
 		CanResetByEmail bool
@@ -592,6 +593,7 @@ func (es *EmailService) SendPasswordChanged(ctx context.Context, notice Password
 		Email:           notice.To,
 		Kind:            string(notice.Kind),
 		Verb:            accountChangeVerb(notice.Kind),
+		Provider:        strings.TrimSpace(notice.Provider),
 		ByAdmin:         notice.Kind == AccountChangeRemovedByAdmin || notice.Kind == AccountChangeDisabledByAdmin,
 		ChangedAt:       notice.ChangedAt.UTC().Format(accountNoticeTimeFormat),
 		CanResetByEmail: notice.CanResetByEmail,
@@ -607,7 +609,7 @@ func accountChangeVerb(kind AccountChangeKind) string {
 		return "set"
 	case AccountChangeReset:
 		return "reset"
-	case AccountChangeRemoved, AccountChangeRemovedByAdmin:
+	case AccountChangeRemoved, AccountChangeRemovedByAdmin, AccountChangeRemovedByClaim:
 		return "removed"
 	case AccountChangeDisabledByAdmin:
 		return "disabled"
@@ -622,7 +624,10 @@ type PasswordChangedNotice struct {
 	To   string
 	Name string
 	// Kind is what happened; the subject and the text say exactly that.
-	Kind      AccountChangeKind
+	Kind AccountChangeKind
+	// Provider is the display name of the sign-in provider that claimed the
+	// account; set only for AccountChangeRemovedByClaim (#1493).
+	Provider  string
 	ChangedAt time.Time
 	// CanResetByEmail is whether the sign-in page offers "Forgot password" on
 	// this instance, so the notice only mentions it when it exists.
