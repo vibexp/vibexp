@@ -44,12 +44,76 @@ beforeEach(() => {
 })
 
 describe('authSettingsAudit', () => {
-  it('covers the four authentication settings', () => {
+  it('covers the five authentication settings', () => {
     expect(AUTH_AUDIT_SECTIONS.map(s => s.setting)).toEqual([
       'auth_providers',
       'auth_allowlist',
       'instance_admins',
       'auth_setup',
+      'auth_policy',
+    ])
+  })
+
+  it('names the setup session as the author of an actor-less policy change', () => {
+    const entry = {
+      setting: 'auth_policy',
+      action: 'upsert',
+      actor_name: null,
+      before: null,
+      after: { password_login_enabled: true, registration_mode: 'open' },
+    } as const
+    expect(authAuditActorLabel(entry)).toBe('Setup session or deleted user')
+    expect(
+      authAuditActorLabel({
+        ...entry,
+        after: { ...entry.after, source: 'cli' },
+      })
+    ).toBe('Server CLI')
+  })
+
+  it('diffs the two settings of the sign-in policy', () => {
+    const policy = AUTH_AUDIT_SECTIONS.find(s => s.setting === 'auth_policy')
+    expect(policy?.label).toBe('Sign-in policy')
+    const changes = authAuditChanges(
+      {
+        before: { password_login_enabled: false, registration_mode: 'open' },
+        after: {
+          password_login_enabled: true,
+          registration_mode: 'open',
+          source: 'cli',
+        },
+      },
+      policy ?? { fields: [] }
+    )
+    expect(changes.map(change => change.label)).toEqual(['Password sign-in'])
+  })
+
+  it('words the sign-in policy values as the policy card does', () => {
+    const policy = AUTH_AUDIT_SECTIONS.find(s => s.setting === 'auth_policy')
+    expect(
+      authAuditChanges(
+        {
+          before: { password_login_enabled: true, registration_mode: 'open' },
+          after: {
+            password_login_enabled: false,
+            registration_mode: 'invite_only',
+          },
+        },
+        policy ?? { fields: [] }
+      )
+    ).toEqual([
+      {
+        key: 'password_login_enabled',
+        label: 'Password sign-in',
+        before: 'On',
+        after: 'Off',
+      },
+      {
+        key: 'registration_mode',
+        label: 'Registration',
+        before: 'Open',
+        after: 'Invitation only',
+      },
     ])
   })
 

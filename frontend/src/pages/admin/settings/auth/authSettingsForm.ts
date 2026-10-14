@@ -311,7 +311,7 @@ export function redirectUriFor(
 
 // --- lockout guard -----------------------------------------------------------
 
-/** The error code of a provider change refused because it could lock sign-in out. */
+/** The error code of a provider or policy change refused because it could lock sign-in out. */
 export const LOCKOUT_RISK_CODE = 'lockout_risk'
 
 /**
@@ -331,12 +331,49 @@ export function lockoutRiskReason(err: unknown): string | null {
   return typeof reason === 'string' && reason !== '' ? reason : 'unknown'
 }
 
-/** What the lockout confirmation says for `reason`. */
-export function lockoutRiskCopy(reason: string): {
+/**
+ * How many accounts have a password as their only sign-in method, as carried
+ * by a `password_only_accounts` lockout risk; null for any other error.
+ */
+export function lockoutRiskAccountCount(err: unknown): number | null {
+  if (!(err instanceof ApiError)) return null
+  const count = err.metadata?.password_only_accounts
+  return typeof count === 'number' && Number.isFinite(count) ? count : null
+}
+
+/**
+ * What the lockout confirmation says for `reason`. `accounts` is the count a
+ * `password_only_accounts` risk carries.
+ */
+export function lockoutRiskCopy(
+  reason: string,
+  accounts: number | null = null
+): {
   title: string
   description: string
 } {
   switch (reason) {
+    case 'no_usable_method':
+      return {
+        title: 'This leaves no way to sign in',
+        description:
+          'No sign-in provider is enabled, so password sign-in is the only way in. After this change nobody can sign in, including you once your session ends. The instance returns to setup mode, and the only way back in is the setup URL from the server logs or `vibexp admin auth password set --enable-login`.',
+      }
+    case 'own_method':
+      return {
+        title: 'You signed in with a password',
+        description:
+          'After this change you cannot sign in with your password again once your session ends. Make sure an enabled sign-in provider lets you in before you continue.',
+      }
+    case 'password_only_accounts':
+      return {
+        title:
+          accounts === 1
+            ? '1 account can only sign in with a password'
+            : `${accounts === null ? 'Some' : String(accounts)} accounts can only sign in with a password`,
+        description:
+          'They have no sign-in provider connected, so after this change they cannot sign in. Their passwords are kept and work again if you switch password sign-in back on.',
+      }
     case 'no_enabled_provider':
       return {
         title: 'This leaves no way to sign in',

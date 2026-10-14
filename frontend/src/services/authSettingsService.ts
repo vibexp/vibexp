@@ -36,6 +36,13 @@ export type AdminInstanceAdminGrant =
   components['schemas']['AdminInstanceAdminGrant']
 export type AdminAuthSettingsAuditSetting =
   components['schemas']['AdminAuthSettingsAuditSetting']
+export type AdminAuthPolicy = components['schemas']['AdminAuthPolicy']
+export type AdminAuthPolicyUpdate =
+  components['schemas']['AdminAuthPolicyUpdate']
+export type AdminAuthRegistrationMode =
+  components['schemas']['AdminAuthRegistrationMode']
+export type AdminBootstrapPasswordRequest =
+  components['schemas']['AdminBootstrapPasswordRequest']
 export type AdminAuthProviderDeleteParams = NonNullable<
   operations['deleteAdminAuthProvider']['parameters']['query']
 >
@@ -47,6 +54,8 @@ export type AdminAuthSettingsAuditParams = Omit<
 const PROVIDERS_PATH = '/api/v1/admin/settings/auth/providers'
 const ALLOWLIST_PATH = '/api/v1/admin/settings/auth/allowlist'
 const ADMINS_PATH = '/api/v1/admin/settings/auth/admins'
+const POLICY_PATH = '/api/v1/admin/settings/auth/policy'
+const BOOTSTRAP_PATH = '/api/v1/admin/settings/auth/bootstrap-admin'
 
 class AuthSettingsService {
   /** Every stored sign-in provider, with the shared settings `version`. */
@@ -122,6 +131,35 @@ class AuthSettingsService {
     body: AdminAuthAllowlistPreviewRequest
   ): Promise<AdminAuthAllowlistImpact> {
     return unwrap(generatedClient.POST(`${ALLOWLIST_PATH}/preview`, { body }))
+  }
+
+  /**
+   * The authentication policy: whether email and password sign-in is on and
+   * who may get an account. Never a 404: the defaults come back with a null
+   * `version` when nothing is stored. Instance admins only.
+   */
+  async getPolicy(): Promise<AdminAuthPolicy> {
+    return unwrap(generatedClient.GET(POLICY_PATH))
+  }
+
+  /**
+   * Replace the policy. 409 `INSTANCE_SETTINGS_VERSION_CONFLICT` on a stale
+   * `expected_version`; 409 `lockout_risk` when switching password sign-in off
+   * could lock people out (re-send with `confirm_lockout_risk`).
+   */
+  async updatePolicy(body: AdminAuthPolicyUpdate): Promise<AdminAuthPolicy> {
+    return unwrap(generatedClient.PUT(POLICY_PATH, { body }))
+  }
+
+  /**
+   * Setup session only: give a root instance admin a password and switch
+   * email and password sign-in on. 400 with a field error on `email` when the
+   * address is not a root admin, or on `password` when it breaks the policy.
+   */
+  async bootstrapAdminPassword(
+    body: AdminBootstrapPasswordRequest
+  ): Promise<void> {
+    await unwrap(generatedClient.PUT(BOOTSTRAP_PATH, { body }))
   }
 
   /** The root admins' emails and the DB-granted admins. */

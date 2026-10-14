@@ -4,14 +4,16 @@ import { useAuth } from '@/contexts/useAuth'
 
 import { AllowlistSection } from './AllowlistSection'
 import { AuthAuditSection } from './AuthAuditSection'
+import { AuthPolicySection } from './AuthPolicySection'
 import { InstanceAdminsSection } from './InstanceAdminsSection'
 import { ProvidersSection } from './ProvidersSection'
 import { useAuthProviders } from './useAuthProviders'
 
 /**
- * Admin → Settings → Authentication (#1239, epic #1230): the sign-in
- * providers, the access allowlist, the instance admins and their audit
- * history, all stored in the database and applied with no restart.
+ * Admin → Settings → Authentication (#1239, epic #1230): the sign-in policy
+ * (#1442), the sign-in providers, the access allowlist, the instance admins
+ * and their audit history, all stored in the database and applied with no
+ * restart.
  *
  * The section heading comes from the admin shell (`admin-nav.ts`), so the page
  * renders none. Who may grant or revoke instance admin comes from the server's
@@ -31,6 +33,7 @@ export function AdminAuthSettings() {
 
   return (
     <div className="space-y-6">
+      <AuthPolicySection onSaved={recordChange} />
       <ProvidersSection state={providers} />
       <AllowlistSection
         onSaved={() => {

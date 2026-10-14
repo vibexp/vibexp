@@ -23,8 +23,29 @@ class AuthService {
    * label. The list may be empty when no provider is configured.
    */
   async getProviders(): Promise<AuthProvider[]> {
-    return (await unwrap(generatedClient.GET('/api/v1/auth/providers', {})))
-      .providers
+    return (await this.getSignInMethods()).providers
+  }
+
+  /**
+   * Everything the sign-in screen can offer: the providers, and whether email
+   * and password sign-in is on together with how a forgotten password is
+   * reset (`email`, or `admin` when no email provider is configured).
+   */
+  async getSignInMethods(): Promise<ProvidersResponse> {
+    return unwrap(generatedClient.GET('/api/v1/auth/providers', {}))
+  }
+
+  /**
+   * Sign in with an email address and password. The backend sets the session
+   * cookie and returns the user. 401 for every wrong combination, 404 while
+   * password sign-in is switched off.
+   */
+  async passwordLogin(email: string, password: string): Promise<User> {
+    return unwrap(
+      generatedClient.POST('/api/v1/auth/password/login', {
+        body: { email, password },
+      })
+    )
   }
 
   /**

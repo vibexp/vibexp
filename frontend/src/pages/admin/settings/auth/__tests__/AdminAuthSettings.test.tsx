@@ -1,6 +1,8 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router'
 
+import { authService } from '@/services/authService'
 import { authSettingsService } from '@/services/authSettingsService'
 
 const mockUseAuth = vi.hoisted(() => vi.fn())
@@ -21,13 +23,20 @@ vi.mock('@/services/authSettingsService', () => ({
     previewAllowlist: vi.fn(),
     listAdmins: vi.fn(),
     listAudit: vi.fn(),
+    getPolicy: vi.fn(),
+    updatePolicy: vi.fn(),
   },
 }))
 
+vi.mock('@/services/authService', () => ({
+  authService: { getSignInMethods: vi.fn() },
+}))
+
 import { AdminAuthSettings } from '../AdminAuthSettings'
-import { allowlist, google, provider } from './fixtures'
+import { allowlist, google, policy, provider } from './fixtures'
 
 const service = vi.mocked(authSettingsService)
+const auth = vi.mocked(authService)
 
 const signedInAs = (flags: {
   is_instance_admin: boolean
@@ -56,12 +65,23 @@ beforeEach(() => {
     ],
   })
   service.listAudit.mockResolvedValue({ entries: [], next_cursor: null })
+  service.getPolicy.mockResolvedValue(policy())
+  auth.getSignInMethods.mockResolvedValue({
+    providers: [],
+    password: { enabled: false, reset: 'email' },
+  })
 })
 
 describe('AdminAuthSettings', () => {
-  it('renders the four sections', async () => {
+  it('renders the five sections, the sign-in policy first', async () => {
     signedInAs({ is_instance_admin: true, is_root_instance_admin: true })
-    render(<AdminAuthSettings />)
+    render(<AdminAuthSettings />, { wrapper: MemoryRouter })
+    const policySection = await screen.findByTestId('auth-policy-section')
+    const providersSection = await screen.findByTestId('auth-providers-section')
+    expect(
+      policySection.compareDocumentPosition(providersSection) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
     expect(await screen.findByTestId('auth-providers-section')).toBeVisible()
     expect(await screen.findByTestId('auth-allowlist-section')).toBeVisible()
     expect(await screen.findByTestId('auth-admins-section')).toBeVisible()
@@ -76,7 +96,7 @@ describe('AdminAuthSettings', () => {
 
   it('offers grant and revoke to a root admin', async () => {
     signedInAs({ is_instance_admin: true, is_root_instance_admin: true })
-    render(<AdminAuthSettings />)
+    render(<AdminAuthSettings />, { wrapper: MemoryRouter })
     await screen.findByTestId('auth-admins-section')
     expect(
       screen.getByRole('button', { name: 'Remove ada@example.com' })
@@ -86,7 +106,7 @@ describe('AdminAuthSettings', () => {
 
   it('hides grant and revoke from an admin who is not root', async () => {
     signedInAs({ is_instance_admin: true, is_root_instance_admin: false })
-    render(<AdminAuthSettings />)
+    render(<AdminAuthSettings />, { wrapper: MemoryRouter })
     await screen.findByTestId('auth-admins-section')
     expect(
       screen.queryByRole('button', { name: 'Remove ada@example.com' })
@@ -98,7 +118,7 @@ describe('AdminAuthSettings', () => {
 
   it('hides them while the flag is absent', async () => {
     mockUseAuth.mockReturnValue({ user: { id: 'u1', is_instance_admin: true } })
-    render(<AdminAuthSettings />)
+    render(<AdminAuthSettings />, { wrapper: MemoryRouter })
     await screen.findByTestId('auth-admins-section')
     expect(screen.queryByRole('button', { name: 'Grant' })).toBeNull()
   })
@@ -120,7 +140,7 @@ describe('AdminAuthSettings', () => {
     service.updateProvider.mockResolvedValue({ provider: google, version: 9 })
 
     const user = userEvent.setup()
-    render(<AdminAuthSettings />)
+    render(<AdminAuthSettings />, { wrapper: MemoryRouter })
     await screen.findByTestId('auth-allowlist-section')
     await waitFor(() => {
       expect(service.listAudit).toHaveBeenCalledTimes(1)
@@ -141,6 +161,27 @@ describe('AdminAuthSettings', () => {
     })
     expect(service.updateProvider.mock.calls[0][1]).toMatchObject({
       expected_version: 8,
+    })
+  })
+
+  it('re-reads the history after a sign-in policy save', async () => {
+    signedInAs({ is_instance_admin: true, is_root_instance_admin: true })
+    service.updatePolicy.mockResolvedValue(
+      policy({ password_login_enabled: true, version: 1 })
+    )
+    const user = userEvent.setup()
+    render(<AdminAuthSettings />, { wrapper: MemoryRouter })
+    await screen.findByTestId('auth-policy-section')
+    await waitFor(() => {
+      expect(service.listAudit).toHaveBeenCalledTimes(1)
+    })
+
+    await user.click(screen.getByRole('switch', { name: 'Password sign-in' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Save sign-in policy' })
+    )
+    await waitFor(() => {
+      expect(service.listAudit).toHaveBeenCalledTimes(2)
     })
   })
 })

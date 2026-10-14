@@ -115,7 +115,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     icon: KeyRound,
     group: 'settings',
     description:
-      'Who can sign in to this instance: identity providers, the access allowlist and instance admins.',
+      'Who can sign in to this instance: password sign-in and registration, identity providers, the access allowlist and instance admins.',
   },
 ]
 
