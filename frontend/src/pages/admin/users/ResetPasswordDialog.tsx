@@ -21,11 +21,13 @@ import { ApiError } from '@/types/errors'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 import { LinkReveal } from './LinkReveal'
+import { EMAIL_UNAVAILABLE_MESSAGE, isEmailUnavailable } from './setupOutcome'
 
 type Delivery = 'email' | 'link'
 
 function refusalMessage(err: unknown, invalidateNow: boolean): string {
   if (err instanceof ApiError) {
+    if (isEmailUnavailable(err)) return EMAIL_UNAVAILABLE_MESSAGE
     if (err.code === 'email_unverified_shared') {
       // The server's sentence already says what to do instead.
       return err.message
@@ -50,11 +52,17 @@ export function ResetPasswordDialog({
   onOpenChange,
   userId,
   email,
+  hasPassword = true,
 }: Readonly<{
   open: boolean
   onOpenChange: (open: boolean) => void
   userId: string
   email: string
+  /**
+   * False for an account that signs in only through identity providers: the
+   * link sets a first password, and there is no current one to stop.
+   */
+  hasPassword?: boolean
 }>) {
   const [invalidateNow, setInvalidateNow] = useState(false)
   // A disabling reset waiting for the admin's second yes.
@@ -108,37 +116,45 @@ export function ResetPasswordDialog({
         data-testid="reset-password-dialog"
       >
         <DialogHeader>
-          <DialogTitle>Reset password</DialogTitle>
+          <DialogTitle>
+            {hasPassword ? 'Reset password' : 'Send a link to set a password'}
+          </DialogTitle>
           <DialogDescription>
-            A one-time link for {email} to set a new password. An emailed link
-            works for 1 hour, a link you hand over for 24 hours.
+            A one-time link for {email} to set{' '}
+            {hasPassword
+              ? 'a new password'
+              : 'a password, so they can sign in without their identity provider'}
+            . An emailed link works for 1 hour, a link you hand over for 24
+            hours.
           </DialogDescription>
         </DialogHeader>
 
         {result === null && (
           <div className="space-y-4">
-            <div className="flex items-start gap-2">
-              <Checkbox
-                id="reset-invalidate-now"
-                checked={invalidateNow}
-                disabled={busy}
-                onCheckedChange={value => {
-                  setInvalidateNow(value === true)
-                  setConfirming(null)
-                }}
-                className="mt-0.5"
-              />
-              <div className="space-y-1">
-                <Label htmlFor="reset-invalidate-now">
-                  Sign out and disable the current password now
-                </Label>
-                <p className="text-muted-foreground text-sm">
-                  Use it if the password may be known to someone else. Without
-                  it, the current password and their sessions keep working until
-                  they use the link.
-                </p>
+            {hasPassword && (
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="reset-invalidate-now"
+                  checked={invalidateNow}
+                  disabled={busy}
+                  onCheckedChange={value => {
+                    setInvalidateNow(value === true)
+                    setConfirming(null)
+                  }}
+                  className="mt-0.5"
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="reset-invalidate-now">
+                    Sign out and disable the current password now
+                  </Label>
+                  <p className="text-muted-foreground text-sm">
+                    Use it if the password may be known to someone else. Without
+                    it, the current password and their sessions keep working
+                    until they use the link.
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
 
             {confirming === null ? (
               <div className="flex flex-col gap-2 sm:flex-row">

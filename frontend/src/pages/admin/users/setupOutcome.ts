@@ -72,3 +72,12 @@ export function teamRowErrors(err: unknown): Record<number, string> {
   }
   return rows
 }
+
+/** What `email_unavailable` means for a link the admin wanted emailed. */
+export const EMAIL_UNAVAILABLE_MESSAGE =
+  'No email provider is configured, so the link cannot be emailed. Show the link here and hand it over instead.'
+
+/** True for the 409 that refuses an emailed link with no email provider. */
+export function isEmailUnavailable(err: unknown): boolean {
+  return err instanceof ApiError && err.code === 'email_unavailable'
+}

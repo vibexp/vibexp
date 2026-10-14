@@ -75,6 +75,7 @@ vi.mock('sonner', () => ({
 import { toast } from 'sonner'
 
 import { adminService } from '@/services/adminService'
+import { ApiError } from '@/types/errors'
 
 import { AdminUserDetail } from '../AdminUserDetail'
 
@@ -668,7 +669,77 @@ describe('link actions for a suspended account or with password sign-in off (#14
     renderDetail()
 
     expect(await screen.findByTestId('sign-in-actions-note')).toHaveTextContent(
-      'Reset links need password sign-in'
+      'Password links need password sign-in'
+    )
+  })
+})
+
+describe('a provider-only account (#1443)', () => {
+  it('offers a link to set a password, without the disable-now option', async () => {
+    mockAdminService.getUser.mockResolvedValue(
+      user({ sign_in_methods: ['google'], has_password: false })
+    )
+    access.issueResetLink.mockResolvedValue({
+      delivery: 'link',
+      link_url: 'http://localhost/account/reset#token=secret-6',
+      expires_at: '2026-10-15T10:00:00Z',
+      invalidated: false,
+    })
+    renderDetail()
+
+    await userEvent.click(
+      await screen.findByRole('button', {
+        name: 'Send a link to set a password',
+      })
+    )
+    expect(screen.queryByRole('button', { name: 'Remove password' })).toBeNull()
+    const dialog = screen.getByTestId('reset-password-dialog')
+    expect(dialog).toHaveTextContent(
+      'so they can sign in without their identity provider'
+    )
+    expect(
+      within(dialog).queryByRole('checkbox', {
+        name: 'Sign out and disable the current password now',
+      })
+    ).toBeNull()
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Show the link here' })
+    )
+    expect(await screen.findByTestId('link-reveal-value')).toHaveTextContent(
+      'secret-6'
+    )
+    expect(access.issueResetLink).toHaveBeenCalledWith('u1', {
+      delivery: 'link',
+      invalidate_now: false,
+    })
+  })
+
+  it("shows the server's refusal, e.g. for a root admin's copied link", async () => {
+    mockAdminService.getUser.mockResolvedValue(
+      user({ sign_in_methods: ['google'], has_password: false })
+    )
+    access.issueResetLink.mockRejectedValue(
+      new ApiError({
+        type: 'about:blank',
+        title: 'Conflict',
+        status: 409,
+        detail: "A root admin's link cannot be shown here; it must be emailed.",
+        code: 'root_admin_link_refused',
+        request_id: 'r',
+        timestamp: '2026-10-14T00:00:00Z',
+      })
+    )
+    renderDetail()
+    await userEvent.click(
+      await screen.findByRole('button', {
+        name: 'Send a link to set a password',
+      })
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Show the link here' })
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "A root admin's link cannot be shown here"
     )
   })
 })

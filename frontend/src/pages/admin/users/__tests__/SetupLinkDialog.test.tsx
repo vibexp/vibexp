@@ -90,7 +90,7 @@ describe('SetupLinkDialog', () => {
       screen.getByRole('button', { name: 'Email it to grace@example.com' })
     )
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'No email provider is configured'
+      'No email provider is configured, so the link cannot be emailed. Show the link here'
     )
     await user.click(screen.getByRole('button', { name: 'Show the link here' }))
     await waitFor(() => {

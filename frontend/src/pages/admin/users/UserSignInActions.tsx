@@ -12,6 +12,17 @@ import { SetupLinkDialog } from './SetupLinkDialog'
 const PASSWORD_OFF = 'Password sign-in is switched off on this instance.'
 
 /**
+ * An account that signs in only through identity providers (#1443): an
+ * administrator can send it a link to set a first password, the way back in
+ * when the instance loses or switches off that provider.
+ */
+function providerOnly(user: AdminUserDetail): boolean {
+  return (
+    !user.pending_setup && !user.has_password && user.sign_in_methods.length > 0
+  )
+}
+
+/**
  * Why the link actions are unavailable, as text under the page header: a
  * disabled button's `title` reaches neither keyboard nor screen reader users.
  */
@@ -21,7 +32,8 @@ export function signInActionsNote(
   passwordLogin: boolean | null
 ): string | null {
   if (!actionable) return null
-  const wantsLink = user.pending_setup || user.has_password
+  const wantsLink =
+    user.pending_setup || user.has_password || providerOnly(user)
   if (!wantsLink) return null
   if (user.status === 'suspended') {
     return 'Setup and reset links cannot be sent to a suspended account. Reactivate it first.'
@@ -29,7 +41,7 @@ export function signInActionsNote(
   if (passwordLogin === false) {
     return user.pending_setup
       ? `Setup links need password sign-in, which is switched off on this instance. This person can sign in through an identity provider with ${user.email}.`
-      : 'Reset links need password sign-in, which is switched off on this instance.'
+      : 'Password links need password sign-in, which is switched off on this instance.'
   }
   return null
 }
@@ -37,7 +49,8 @@ export function signInActionsNote(
 /**
  * A user page's sign-in actions and their dialogs (#1443): "Get setup link"
  * for an account with no way in yet, "Reset password" and "Remove password"
- * for one with a password. Never for your own account (`actionable`). Links
+ * for one with a password, and "Send a link to set a password" for one that
+ * signs in only through identity providers. Never for your own account (`actionable`). Links
  * need password sign-in on the instance; removing a password does not.
  * `onChanged` re-reads the account after anything that may have changed it.
  */
@@ -76,6 +89,20 @@ export function UserSignInActions({
         >
           <Link2 className="mr-2 size-4" aria-hidden />
           Get setup link
+        </Button>
+      )}
+      {providerOnly(user) && linksAllowed && (
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={linksOff}
+          title={linksOff ? PASSWORD_OFF : undefined}
+          onClick={() => {
+            setResetOpen(true)
+          }}
+        >
+          <KeyRound className="mr-2 size-4" aria-hidden />
+          Send a link to set a password
         </Button>
       )}
       {user.has_password && (
@@ -126,6 +153,7 @@ export function UserSignInActions({
         }}
         userId={user.id}
         email={user.email}
+        hasPassword={user.has_password}
       />
       <RemovePasswordDialog
         open={removeOpen}

@@ -18,6 +18,7 @@ import {
 import { getErrorMessage } from '@/utils/errorHandling'
 
 import { LinkReveal } from './LinkReveal'
+import { EMAIL_UNAVAILABLE_MESSAGE, isEmailUnavailable } from './setupOutcome'
 
 /**
  * "Get setup link" on a user page (#1443): a new one-time link for an account
@@ -58,7 +59,11 @@ export function SetupLinkDialog({
     } catch (err) {
       // The 409s (`email_unavailable`, `has_sign_in_method`, …) carry a
       // sentence fit to show.
-      setError(getErrorMessage(err, 'The setup link could not be made'))
+      setError(
+        isEmailUnavailable(err)
+          ? EMAIL_UNAVAILABLE_MESSAGE
+          : getErrorMessage(err, 'The setup link could not be made')
+      )
     } finally {
       setBusy(false)
     }
