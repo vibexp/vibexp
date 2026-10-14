@@ -331,6 +331,7 @@ func TestUserRepository_Create(t *testing.T) {
 						sqlmock.AnyArg(),
 						sqlmock.AnyArg(),
 						models.LegacyGoogleIdentityProvider,
+						nil, // no password credential
 					).
 					WillReturnRows(rows)
 			},
@@ -358,6 +359,7 @@ func TestUserRepository_Create(t *testing.T) {
 						sqlmock.AnyArg(),
 						sqlmock.AnyArg(),
 						sqlmock.AnyArg(),
+						sqlmock.AnyArg(), // password hash
 					).
 					WillReturnError(sql.ErrConnDone)
 			},
@@ -793,7 +795,7 @@ func TestUserRepository_NormalizesEmail(t *testing.T) {
 	t.Run("Create", func(t *testing.T) {
 		mock.ExpectQuery(`INSERT INTO users`).
 			WithArgs(nil, nil, nil, "alice@example.com", nil, "Alice", nil, now, now,
-				models.LegacyGoogleIdentityProvider).
+				models.LegacyGoogleIdentityProvider, nil).
 			WillReturnRows(sqlmock.NewRows([]string{
 				"id", "default_team_id", "onboarding_completed", "onboarding_completed_at", "created_at", "updated_at",
 			}).AddRow("user-1", nil, false, nil, now, now))

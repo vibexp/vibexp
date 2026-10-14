@@ -6,6 +6,8 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	apierrors "github.com/vibexp/vibexp/internal/errors"
 )
 
 // HTTPMiddleware returns an HTTP middleware that instruments requests with OpenTelemetry tracing
@@ -32,5 +34,7 @@ func HTTPMiddleware(tracer *Tracer) func(http.Handler) http.Handler {
 
 // spanNameFormatter formats the span name based on the HTTP request
 func spanNameFormatter(_ string, r *http.Request) string {
-	return r.Method + " " + r.URL.Path
+	// A path can carry a bearer credential (an invitation token); a span name
+	// must not.
+	return r.Method + " " + apierrors.RedactSensitivePath(r.URL.Path)
 }

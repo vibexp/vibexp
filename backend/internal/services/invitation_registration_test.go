@@ -25,6 +25,8 @@ const (
 	invRegInvID   = "inv-1"
 	invRegInviter = "user-inviter"
 	invRegPhrase  = "a long invited passphrase"
+	// invRegRootEmail is the fixture's root instance admin (auth.instance_admins).
+	invRegRootEmail = "root.admin@example.com"
 )
 
 // invRegAllowlist admits everything but the addresses in denied.
@@ -38,18 +40,23 @@ func (a invRegAllowlist) IsEmailAllowed(_ context.Context, email string) (allowe
 	return !a.denied[email], len(a.denied) > 0, a.err
 }
 
-// invRegSetter records stored passwords.
-type invRegSetter struct {
-	stored []string
+// invRegHasher applies the real password policy and returns a marker hash.
+type invRegHasher struct {
+	hashed int
 	err    error
 }
 
-func (s *invRegSetter) SetPassword(_ context.Context, userID, _ string) error {
-	if s.err != nil {
-		return s.err
+const invRegHash = "hash-of-the-passphrase"
+
+func (h *invRegHasher) HashNewPassword(_ context.Context, plaintext, email string) (string, error) {
+	if err := password.Validate(plaintext, email); err != nil {
+		return "", err
 	}
-	s.stored = append(s.stored, userID)
-	return nil
+	if h.err != nil {
+		return "", h.err
+	}
+	h.hashed++
+	return invRegHash, nil
 }
 
 // invRegEvents records published events.
@@ -71,7 +78,7 @@ type invRegFixture struct {
 	invitations *repo_mocks.MockTeamInvitationRepository
 	teams       *repo_mocks.MockTeamRepository
 	users       *repo_mocks.MockUserRepository
-	setter      *invRegSetter
+	hasher      *invRegHasher
 	events      *invRegEvents
 	allowlist   *invRegAllowlist
 	now         time.Time
@@ -84,14 +91,15 @@ func newInvRegFixture(t *testing.T, policy AuthPolicyResolver) *invRegFixture {
 		invitations: repo_mocks.NewMockTeamInvitationRepository(t),
 		teams:       repo_mocks.NewMockTeamRepository(t),
 		users:       repo_mocks.NewMockUserRepository(t),
-		setter:      &invRegSetter{},
+		hasher:      &invRegHasher{},
 		events:      &invRegEvents{},
 		allowlist:   &invRegAllowlist{denied: map[string]bool{}},
 		now:         time.Date(2026, 10, 14, 10, 0, 0, 0, time.UTC),
 	}
 	f.svc = NewInvitationRegistrationService(InvitationRegistrationDeps{
-		Invitations: f.invitations, Teams: f.teams, Users: f.users, Passwords: f.setter,
+		Invitations: f.invitations, Teams: f.teams, Users: f.users, Passwords: f.hasher,
 		Policy: policy, Allowlist: f.allowlist, Events: f.events, Logger: logger,
+		IsRootAdmin: func(email string) bool { return email == invRegRootEmail },
 	})
 	f.svc.now = func() time.Time { return f.now }
 	return f
@@ -210,20 +218,36 @@ func TestInvitationRegistration_Preview(t *testing.T) {
 func TestInvitationRegistration_Register(t *testing.T) {
 	ctx := context.Background()
 
-	// arrange expects the account to be created (given id "user-new") and returns the fixture.
-	arrange := func(t *testing.T) *invRegFixture {
+	// arrange expects the account to be created WITH its credential in one
+	// call (given id "user-new") and returns the fixture. stored is what the
+	// re-read of the account returns; nil means the row as created.
+	arrange := func(t *testing.T, stored *models.User) *invRegFixture {
 		t.Helper()
 		f := newInvRegFixture(t, passwordLoginOn)
 		f.pending()
 		f.noAccount()
-		f.users.On("Create", mock.Anything, mock.MatchedBy(func(u *models.User) bool {
+		var created models.User
+		f.users.On("CreateWithCredential", mock.Anything, mock.MatchedBy(func(u *models.User) bool {
 			return u.Email == invRegEmail && u.EmailVerifiedAt == nil
-		})).Run(func(args mock.Arguments) { args.Get(1).(*models.User).ID = "user-new" }).Return(nil).Once()
+		}), invRegHash).Run(func(args mock.Arguments) {
+			u := args.Get(1).(*models.User)
+			u.ID = "user-new"
+			created = *u
+		}).Return(nil).Once()
+		f.users.On("GetByID", mock.Anything, "user-new").
+			Return(func(context.Context, string) (*models.User, error) {
+				if stored != nil {
+					return stored, nil
+				}
+				row := created
+				row.Version = 1
+				return &row, nil
+			}).Maybe()
 		return f
 	}
 
-	t.Run("creates the account, provisions it, stores the password and joins the team", func(t *testing.T) {
-		f := arrange(t)
+	t.Run("creates the account with its password, provisions it and joins the team", func(t *testing.T) {
+		f := arrange(t, nil)
 		f.invitations.On("Accept", mock.Anything, invRegInvID, mock.MatchedBy(func(m *models.TeamMember) bool {
 			return m.TeamID == invRegTeamID && m.UserID == "user-new" && m.Role == models.TeamMemberRoleAdmin
 		})).Return(nil).Once()
@@ -233,15 +257,19 @@ func TestInvitationRegistration_Register(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "user-new", result.User.ID)
 		assert.Equal(t, "Grace Hopper", result.User.Name)
+		assert.EqualValues(t, 1, result.User.Version, "the stored row, not the struct that was inserted")
 		assert.Nil(t, result.User.EmailVerifiedAt, "holding the link does not prove the mailbox")
 		assert.Equal(t, invRegTeamID, result.TeamID)
 		assert.True(t, result.InvitationAccepted)
 		require.Len(t, f.events.published, 1, "user.created provisions the workspace")
-		assert.Equal(t, []string{"user-new"}, f.setter.stored)
+		assert.Equal(t, 1, f.hasher.hashed)
+		// The account and its password are one write: never Create plus a
+		// separate password store.
+		f.users.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 	})
 
 	t.Run("with no name, the part of the email before the @ is used", func(t *testing.T) {
-		f := arrange(t)
+		f := arrange(t, nil)
 		f.invitations.On("Accept", mock.Anything, invRegInvID, mock.Anything).Return(nil).Once()
 
 		result, err := f.svc.Register(ctx, invRegToken, invRegPhrase, "   ")
@@ -255,7 +283,7 @@ func TestInvitationRegistration_Register(t *testing.T) {
 			"revoked at that moment": repositories.ErrTeamInvitationNotPending,
 			"storage failure":        errors.New("pq: down"),
 		} {
-			f := arrange(t)
+			f := arrange(t, nil)
 			f.invitations.On("Accept", mock.Anything, invRegInvID, mock.Anything).Return(acceptErr).Once()
 
 			result, err := f.svc.Register(ctx, invRegToken, invRegPhrase, "")
@@ -267,25 +295,36 @@ func TestInvitationRegistration_Register(t *testing.T) {
 		}
 	})
 
-	t.Run("a failure after the account row exists removes it again", func(t *testing.T) {
-		for name, breakIt := range map[string]func(*invRegFixture){
-			"provisioning event": func(f *invRegFixture) { f.events.err = errors.New("bus down") },
-			"password store":     func(f *invRegFixture) { f.setter.err = errors.New("pq: down") },
-		} {
-			f := arrange(t)
-			breakIt(f)
-			f.users.On("DeleteByID", mock.Anything, "user-new").Return(nil).Once()
+	// The address's owner signed in through a provider while the registration
+	// ran. That sign-in claimed the account (and removed the password that was
+	// written with it), so the registrant gets no session for it.
+	t.Run("an account claimed by a verified sign-in meanwhile is not handed to the registrant", func(t *testing.T) {
+		verified := time.Date(2026, 10, 14, 10, 0, 1, 0, time.UTC)
+		claimed := &models.User{ID: "user-new", Email: invRegEmail, EmailVerifiedAt: &verified, SessionEpoch: 1}
+		f := arrange(t, claimed)
+		f.invitations.On("Accept", mock.Anything, invRegInvID, mock.Anything).Return(nil).Once()
 
-			_, err := f.svc.Register(ctx, invRegToken, invRegPhrase, "")
+		result, err := f.svc.Register(ctx, invRegToken, invRegPhrase, "")
 
-			require.Error(t, err, name)
-			f.invitations.AssertNotCalled(t, "Accept", mock.Anything, mock.Anything, mock.Anything)
-		}
+		require.ErrorIs(t, err, ErrInvitationAccountExists)
+		assert.Nil(t, result)
+		f.users.AssertNotCalled(t, "DeleteByID", mock.Anything, mock.Anything)
+	})
+
+	t.Run("a failed provisioning removes the account again", func(t *testing.T) {
+		f := arrange(t, nil)
+		f.events.err = errors.New("bus down")
+		f.users.On("DeleteByID", mock.Anything, "user-new").Return(nil).Once()
+
+		_, err := f.svc.Register(ctx, invRegToken, invRegPhrase, "")
+
+		require.Error(t, err)
+		f.invitations.AssertNotCalled(t, "Accept", mock.Anything, mock.Anything, mock.Anything)
 	})
 
 	t.Run("the removal runs even when the request is already cancelled", func(t *testing.T) {
-		f := arrange(t)
-		f.setter.err = errors.New("pq: down")
+		f := arrange(t, nil)
+		f.events.err = errors.New("bus down")
 		cancelled, cancel := context.WithCancel(ctx)
 		f.users.On("DeleteByID", mock.MatchedBy(func(c context.Context) bool { return c.Err() == nil }), "user-new").
 			Return(nil).Once()
@@ -294,6 +333,18 @@ func TestInvitationRegistration_Register(t *testing.T) {
 		_, err := f.svc.Register(cancelled, invRegToken, invRegPhrase, "")
 
 		require.Error(t, err)
+	})
+
+	t.Run("a failure to hash writes nothing", func(t *testing.T) {
+		f := newInvRegFixture(t, passwordLoginOn) // strict mocks: no create is expected
+		f.pending()
+		f.noAccount()
+		f.hasher.err = errors.New("hashing abandoned")
+
+		_, err := f.svc.Register(ctx, invRegToken, invRegPhrase, "")
+
+		require.Error(t, err)
+		assert.Empty(t, f.events.published)
 	})
 }
 
@@ -357,12 +408,64 @@ func TestInvitationRegistration_RefusalsWriteNothing(t *testing.T) {
 		f := newInvRegFixture(t, passwordLoginOn)
 		f.pending()
 		f.noAccount()
-		f.users.On("Create", mock.Anything, mock.Anything).Return(repositories.ErrUserEmailTaken).Once()
+		f.users.On("CreateWithCredential", mock.Anything, mock.Anything, invRegHash).
+			Return(repositories.ErrUserEmailTaken).Once()
 
 		_, err := f.svc.Register(ctx, invRegToken, invRegPhrase, "")
 
 		require.ErrorIs(t, err, ErrInvitationAccountExists)
 		assert.Empty(t, f.events.published)
-		assert.Empty(t, f.setter.stored)
 	})
+}
+
+// A root instance admin has instance-admin power by its address alone. Anyone
+// who can invite to a team could invite such an address, copy the link and
+// register it: the registration is refused, and the preview does not offer it.
+func TestInvitationRegistration_RootAdminAddressesCannotRegister(t *testing.T) {
+	ctx := context.Background()
+	rootInvitation := func(f *invRegFixture) {
+		f.invitations.On("GetByToken", mock.Anything, invRegToken).
+			Return(f.invitation(func(i *models.TeamInvitation) { i.InviteeEmail = "Root.Admin@Example.com" }), nil)
+		f.users.On("GetByEmail", mock.Anything, mock.Anything).Return(nil, repositories.ErrUserNotFound)
+	}
+
+	t.Run("register is refused and writes nothing", func(t *testing.T) {
+		f := newInvRegFixture(t, passwordLoginOn) // strict mocks: no create is expected
+		rootInvitation(f)
+
+		_, err := f.svc.Register(ctx, invRegToken, invRegPhrase, "")
+
+		require.ErrorIs(t, err, ErrInvitationForRootAdmin)
+		assert.Zero(t, f.hasher.hashed)
+		assert.Empty(t, f.events.published)
+	})
+
+	t.Run("the preview does not offer password registration", func(t *testing.T) {
+		f := newInvRegFixture(t, passwordLoginOn)
+		rootInvitation(f)
+		f.teams.On("GetByID", mock.Anything, invRegTeamID).Return(&models.Team{Name: "Acme"}, nil)
+		f.users.On("GetByID", mock.Anything, invRegInviter).Return(nil, repositories.ErrUserNotFound)
+
+		preview, err := f.svc.Preview(ctx, invRegToken)
+
+		require.NoError(t, err)
+		assert.False(t, preview.AccountExists)
+		assert.False(t, preview.PasswordRegistration)
+	})
+}
+
+// A token the database cannot even compare is an unknown token, never a fault
+// an anonymous caller can provoke at will.
+func TestInvitationRegistration_MalformedTokensAreUnusable(t *testing.T) {
+	ctx := context.Background()
+	for name, token := range map[string]string{
+		"a NUL byte": "abc\x00def", "invalid UTF-8": "abc\xff\xfedef", "empty": "",
+	} {
+		f := newInvRegFixture(t, passwordLoginOn) // strict mocks: the repository is never asked
+
+		_, err := f.svc.Preview(ctx, token)
+		require.ErrorIs(t, err, ErrInvitationUnusable, name)
+		_, err = f.svc.Register(ctx, token, invRegPhrase, "")
+		require.ErrorIs(t, err, ErrInvitationUnusable, name)
+	}
 }

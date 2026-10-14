@@ -37,6 +37,8 @@ const (
 	invitationAccountExistsDetail = "An account already exists for the invited email. Sign in to accept the invitation."
 	invitationNotAllowedDetail    = "Access to this instance is restricted. " +
 		"Contact your administrator if you believe this is a mistake."
+	invitationRootAdminDetail = "An account for an instance administrator cannot be created through an invitation. " +
+		"Ask the operator of this instance to create it, or sign in through a sign-in provider."
 	invitationFailedDetail = "The invitation request could not be completed"
 	// invitationRegisteredNotSignedInDetail answers the one case where the
 	// account exists and the session could not be minted.
@@ -229,6 +231,8 @@ func (h *invitationRegistrationStrictServer) invitationError(handler, token stri
 			apierrors.GetErrorTitle(apierrors.CodeAccountExists), invitationAccountExistsDetail, http.StatusConflict)
 	case errors.Is(err, services.ErrInvitationEmailNotAllowed):
 		return apierrors.NewAccessRestrictedError(invitationNotAllowedDetail)
+	case errors.Is(err, services.ErrInvitationForRootAdmin):
+		return apierrors.NewAccessRestrictedError(invitationRootAdminDetail)
 	case errors.As(err, &policyErr):
 		return passwordPolicyProblem(policyErr)
 	}

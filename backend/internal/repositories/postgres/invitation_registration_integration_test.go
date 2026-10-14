@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/auth/password"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -46,10 +47,13 @@ func (a denyingAllowlist) IsEmailAllowed(_ context.Context, email string) (allow
 }
 
 // countingEvents records the user.created events and can be made to fail.
+// onPublish, when set, runs inside Publish: the moment right after the account
+// row was written, where a concurrent sign-in would land.
 type countingEvents struct {
 	mu        sync.Mutex
 	published int
 	err       error
+	onPublish func()
 }
 
 func (e *countingEvents) Publish(context.Context, events.Event) error {
@@ -59,15 +63,22 @@ func (e *countingEvents) Publish(context.Context, events.Event) error {
 		return e.err
 	}
 	e.published++
+	if e.onPublish != nil {
+		e.onPublish()
+	}
 	return nil
 }
 
+// invitationRootAdmin is the root instance admin of the test instance.
+const invitationRootAdmin = "root.admin@integration.test"
+
 type invitationRegistrationStack struct {
-	t       *testing.T
-	svc     *services.InvitationRegistrationService
-	events  *countingEvents
-	teamID  string
-	ownerID string
+	t         *testing.T
+	svc       *services.InvitationRegistrationService
+	passwords *services.PasswordAuthService
+	events    *countingEvents
+	teamID    string
+	ownerID   string
 }
 
 func newInvitationRegistrationStack(t *testing.T, allowlist services.AccessAllowlistResolver) *invitationRegistrationStack {
@@ -80,12 +91,13 @@ func newInvitationRegistrationStack(t *testing.T, allowlist services.AccessAllow
 		Hasher: password.NewHasher(password.Params{Memory: 64, Time: 1, Threads: 1, SaltLength: 16, KeyLength: 32}),
 		Logger: logger,
 	})
-	stack := &invitationRegistrationStack{t: t, events: &countingEvents{}}
+	stack := &invitationRegistrationStack{t: t, events: &countingEvents{}, passwords: passwords}
 	stack.teamID, stack.ownerID = gateTeam(t)
 	stack.svc = services.NewInvitationRegistrationService(services.InvitationRegistrationDeps{
 		Invitations: NewTeamInvitationRepository(integrationDB), Teams: NewTeamRepository(integrationDB),
 		Users: users, Passwords: passwords, Policy: invitedOnlyPasswordPolicy{}, Allowlist: allowlist,
-		Events: stack.events, Logger: logger,
+		IsRootAdmin: func(email string) bool { return email == invitationRootAdmin },
+		Events:      stack.events, Logger: logger,
 	})
 	return stack
 }
@@ -140,6 +152,7 @@ func TestIntegrationInvitationRegistration_CreatesTheAccountAndJoinsTheTeam(t *t
 	user, err := NewUserRepository(integrationDB).GetByEmail(ctx, "grace@integration.test")
 	require.NoError(t, err)
 	assert.Equal(t, result.User.ID, user.ID)
+	assert.Equal(t, user.Version, result.User.Version, "the response carries the stored row")
 	assert.Equal(t, "Grace Hopper", user.Name)
 	assert.Nil(t, user.EmailVerifiedAt, "holding an invitation link does not prove the mailbox")
 	assert.Equal(t, 1, stack.events.published, "user.created provisions the private workspace")
@@ -246,4 +259,99 @@ func TestIntegrationInvitationRegistration_SimultaneousRegistrationsCreateOneAcc
 			"SELECT count(*) FROM team_members m JOIN users u ON u.id = m.user_id WHERE u.email = $1", email))
 		assert.Equal(t, models.InvitationStatusAccepted, stack.invitationStatus(token))
 	}
+}
+
+// A root instance admin has instance-admin power by its address alone, and the
+// allowlist exempts it. An invitation for such an address must not turn into
+// an account for whoever holds the link.
+func TestIntegrationInvitationRegistration_RootAdminAddressIsRefused(t *testing.T) {
+	ctx := context.Background()
+	stack := newInvitationRegistrationStack(t, openAllowlist{})
+	token := stack.invite(invitationRootAdmin)
+	usersBefore := stack.count("SELECT count(*) FROM users")
+
+	preview, err := stack.svc.Preview(ctx, token)
+	require.NoError(t, err)
+	assert.False(t, preview.PasswordRegistration)
+
+	_, err = stack.svc.Register(ctx, token, invitedPassphrase, "")
+
+	require.ErrorIs(t, err, services.ErrInvitationForRootAdmin)
+	assert.Equal(t, usersBefore, stack.count("SELECT count(*) FROM users"), "no account")
+	assert.Zero(t, stack.count("SELECT count(*) FROM user_credentials"))
+	assert.Equal(t, models.InvitationStatusPending, stack.invitationStatus(token))
+}
+
+// The account and its password are one write, so a verified provider sign-in
+// that claims the account at ANY moment after it becomes visible finds the
+// password and removes it. Here the claim lands right after the insert (inside
+// the provisioning event): the registrant must end with no session and no
+// working password on what is now the owner's account.
+func TestIntegrationInvitationRegistration_AClaimDuringRegistrationWins(t *testing.T) {
+	ctx := context.Background()
+	stack := newInvitationRegistrationStack(t, openAllowlist{})
+	const email = "claimed@integration.test"
+	token := stack.invite(email)
+	credentials := NewUserCredentialRepository(integrationDB)
+	owner := services.NewAuthService(
+		NewUserRepository(integrationDB), NewUserIdentityRepository(integrationDB),
+		nil, nil, slog.New(slog.DiscardHandler), openAllowlist{},
+		services.WithUnverifiedAccountClaimHook(services.NewUnverifiedAccountCleanup(
+			NewAccountTokenRepository(integrationDB), credentials,
+			services.NewAPIAccessService(NewAPIAccessRepository(integrationDB), slog.New(slog.DiscardHandler)),
+			slog.New(slog.DiscardHandler))))
+	var claimErr error
+	stack.events.onPublish = func() {
+		_, claimErr = owner.ProvisionFromClaims(ctx, "corp-sso",
+			&idp.Claims{Subject: "sub-owner", Email: email, EmailVerified: true})
+	}
+
+	result, err := stack.svc.Register(ctx, token, invitedPassphrase, "")
+
+	require.NoError(t, claimErr, "the owner's sign-in claimed the account")
+	require.ErrorIs(t, err, services.ErrInvitationAccountExists)
+	assert.Nil(t, result, "no session for the registrant")
+	user, err := NewUserRepository(integrationDB).GetByEmail(ctx, email)
+	require.NoError(t, err)
+	assert.NotNil(t, user.EmailVerifiedAt)
+	_, err = credentials.Get(ctx, user.ID)
+	require.ErrorIs(t, err, repositories.ErrUserCredentialNotFound,
+		"the registrant's password did not survive on the owner's account")
+}
+
+func TestIntegrationUser_CreateWithCredential(t *testing.T) {
+	resetSearchTables(t)
+	ctx := context.Background()
+	users := NewUserRepository(integrationDB)
+	now := time.Now()
+
+	user := &models.User{Email: "With.Password@Integration.test", Name: "P", CreatedAt: now, UpdatedAt: now}
+	require.NoError(t, users.CreateWithCredential(ctx, user, credentialTestHash))
+
+	assert.NotEmpty(t, user.ID)
+	assert.Equal(t, "with.password@integration.test", user.Email)
+	credential, err := NewUserCredentialRepository(integrationDB).Get(ctx, user.ID)
+	require.NoError(t, err)
+	assert.Equal(t, credentialTestHash, credential.PasswordHash)
+	assert.Zero(t, credential.FailedAttempts)
+
+	t.Run("a taken email writes neither row", func(t *testing.T) {
+		before := 0
+		require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT count(*) FROM user_credentials").Scan(&before))
+		dup := &models.User{Email: "with.password@integration.test", CreatedAt: now, UpdatedAt: now}
+
+		err := users.CreateWithCredential(ctx, dup, credentialTestHash)
+
+		require.ErrorIs(t, err, repositories.ErrUserEmailTaken)
+		after := 0
+		require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT count(*) FROM user_credentials").Scan(&after))
+		assert.Equal(t, before, after)
+	})
+
+	t.Run("a plain Create stores no credential", func(t *testing.T) {
+		plain := &models.User{Email: "no.password@integration.test", CreatedAt: now, UpdatedAt: now}
+		require.NoError(t, users.Create(ctx, plain))
+		_, err := NewUserCredentialRepository(integrationDB).Get(ctx, plain.ID)
+		require.ErrorIs(t, err, repositories.ErrUserCredentialNotFound)
+	})
 }

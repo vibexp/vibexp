@@ -296,6 +296,10 @@ api-v1-invitations-token-register:
         invitation;
       - an account already has the invited email: 409 `account_exists`. That
         person signs in and accepts the invitation instead;
+      - the invited email is a root instance admin (an address in the server's
+        `auth.instance_admins`): 403 `access_restricted`. Such an account is
+        created by the operator or by its owner signing in through a provider,
+        never from a link;
       - an active access allowlist does not admit the invited email: 403
         `access_restricted`;
       - the password breaks the password policy: 400 with one
@@ -347,7 +351,7 @@ api-v1-invitations-token-register:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
-        description: The invited email is not admitted by the access allowlist (`access_restricted`); nothing was changed
+        description: The invited email is not admitted by the access allowlist, or is a root instance admin (`access_restricted`); nothing was changed
         content:
           application/problem+json:
             schema:
@@ -368,6 +372,12 @@ api-v1-invitations-token-register:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '429':
         description: Too many requests from this client
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '503':
+        description: Temporarily unavailable — whether password login is enabled could not be read; try again shortly
         content:
           application/problem+json:
             schema:

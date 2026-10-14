@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/vibexp/vibexp/internal/auth/password"
 	"github.com/vibexp/vibexp/internal/models"
@@ -38,6 +39,12 @@ var (
 	// ErrInvitationEmailNotAllowed is returned by Register when an active
 	// access allowlist does not admit the invited email.
 	ErrInvitationEmailNotAllowed = errors.New("the invited email is not permitted by the access allowlist")
+	// ErrInvitationForRootAdmin is returned by Register when the invited email
+	// is a root instance admin (auth.instance_admins). Such an account has
+	// instance-admin power by its address alone, so it is never created from a
+	// link a team admin can copy: the operator creates it (setup page, recovery
+	// CLI) or its owner signs in through a provider.
+	ErrInvitationForRootAdmin = errors.New("the invited email is a root instance admin")
 )
 
 // InvitationNameMaxLength bounds the display name given at registration.
@@ -83,10 +90,12 @@ type InvitationRegistrationServiceInterface interface {
 	Register(ctx context.Context, token, plaintext, name string) (*InvitationRegistration, error)
 }
 
-// InvitationPasswordSetter stores a password; PasswordAuthServiceInterface
-// satisfies it.
-type InvitationPasswordSetter interface {
-	SetPassword(ctx context.Context, userID, plaintext string) error
+// InvitationPasswordHasher checks the new account's password against the
+// policy and hashes it; PasswordAuthServiceInterface satisfies it. The hash is
+// stored with the account row in one statement
+// (UserRepository.CreateWithCredential).
+type InvitationPasswordHasher interface {
+	HashNewPassword(ctx context.Context, plaintext, email string) (string, error)
 }
 
 // InvitationRegistrationDeps are the collaborators of the service.
@@ -94,9 +103,12 @@ type InvitationRegistrationDeps struct {
 	Invitations repositories.TeamInvitationRepository
 	Teams       repositories.TeamRepository
 	Users       repositories.UserRepository
-	Passwords   InvitationPasswordSetter
+	Passwords   InvitationPasswordHasher
 	Policy      AuthPolicyResolver
 	Allowlist   AccessAllowlistResolver
+	// IsRootAdmin reports whether an email is in auth.instance_admins
+	// (InstanceAdminResolver.IsRootAdmin). Registration is refused for one.
+	IsRootAdmin func(email string) bool
 	// Events publishes user.created, from which the account's private
 	// workspace and default project are provisioned.
 	Events events.EventPublisher
@@ -119,7 +131,9 @@ func NewInvitationRegistrationService(deps InvitationRegistrationDeps) *Invitati
 // usable loads the invitation behind token when it is pending and unexpired.
 // Every other state, and an unknown token, is ErrInvitationUnusable.
 func (s *InvitationRegistrationService) usable(ctx context.Context, token string) (*models.TeamInvitation, error) {
-	if token == "" {
+	// A token PostgreSQL cannot even compare (invalid UTF-8, a NUL byte) is an
+	// unknown token, not a server fault.
+	if token == "" || !utf8.ValidString(token) || strings.ContainsRune(token, 0) {
 		return nil, ErrInvitationUnusable
 	}
 	invitation, err := s.deps.Invitations.GetByToken(ctx, token)
@@ -167,12 +181,13 @@ func (s *InvitationRegistrationService) Preview(ctx context.Context, token strin
 	}
 
 	preview := &InvitationPreview{
-		TeamName:             team.Name,
-		Email:                invitation.InviteeEmail,
-		Role:                 invitation.Role,
-		ExpiresAt:            invitation.ExpiresAt,
-		AccountExists:        exists,
-		PasswordRegistration: policy.PasswordLoginEnabled && !exists,
+		TeamName:      team.Name,
+		Email:         invitation.InviteeEmail,
+		Role:          invitation.Role,
+		ExpiresAt:     invitation.ExpiresAt,
+		AccountExists: exists,
+		PasswordRegistration: policy.PasswordLoginEnabled && !exists &&
+			!s.deps.IsRootAdmin(models.NormalizeEmail(invitation.InviteeEmail)),
 	}
 	// Best effort, as on the authenticated invitation page: a deleted inviter
 	// does not make the invitation unreadable.
@@ -184,11 +199,12 @@ func (s *InvitationRegistrationService) Preview(ctx context.Context, token strin
 
 // Register implements InvitationRegistrationServiceInterface.
 //
-// Every check runs before anything is written. After the account row exists, a
-// failure to provision it or to store its password removes the row again (as
-// admin user creation does), so the link works once more. Only a failure to
-// join the team is left standing: the account is complete by then, and the
-// invitation is still pending for an ordinary accept.
+// Every check runs before anything is written. The account row and its
+// password are written in one statement. A failure to provision the account
+// afterwards removes the row again (as admin user creation does), so the link
+// works once more. Only a failure to join the team is left standing: the
+// account is complete by then, and the invitation is still pending for an
+// ordinary accept.
 func (s *InvitationRegistrationService) Register(
 	ctx context.Context, token, plaintext, name string,
 ) (*InvitationRegistration, error) {
@@ -201,21 +217,39 @@ func (s *InvitationRegistrationService) Register(
 		return nil, err
 	}
 
-	user, err := s.createAccount(ctx, email, displayName(name, email), plaintext)
+	created, err := s.createAccount(ctx, email, displayName(name, email), plaintext)
 	if err != nil {
 		return nil, err
 	}
-	log := s.deps.Logger.With("user_id", user.ID, "invitation_id", invitation.ID, "team_id", invitation.TeamID)
+	log := s.deps.Logger.With("user_id", created.ID, "invitation_id", invitation.ID, "team_id", invitation.TeamID)
 
-	result := &InvitationRegistration{User: user, TeamID: invitation.TeamID}
 	now := s.now()
 	member := &models.TeamMember{
-		TeamID: invitation.TeamID, UserID: user.ID, Role: invitation.Role, CreatedAt: now, UpdatedAt: now,
+		TeamID: invitation.TeamID, UserID: created.ID, Role: invitation.Role, CreatedAt: now, UpdatedAt: now,
 	}
-	if err = s.deps.Invitations.Accept(ctx, invitation.ID, member); err != nil {
+	acceptErr := s.deps.Invitations.Accept(ctx, invitation.ID, member)
+
+	// The stored row, not the struct that was inserted: provisioning gave it a
+	// workspace, and the caller mints the session from its epoch.
+	user, err := s.deps.Users.GetByID(ctx, created.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the registered account: %w", err)
+	}
+	if user.EmailVerifiedAt != nil {
+		// The address's owner signed in through a provider while this request
+		// was running. That sign-in claimed the account and removed the
+		// password stored with it, so the account is theirs now: no session
+		// for the registrant.
+		log.Warn("Account registered through an invitation was claimed by a verified sign-in " +
+			"before the registration finished")
+		return nil, ErrInvitationAccountExists
+	}
+
+	result := &InvitationRegistration{User: user, TeamID: invitation.TeamID}
+	if acceptErr != nil {
 		// The account stands. Someone revoking the invitation at this moment,
 		// or a storage failure, must not undo a registration that succeeded.
-		log.With("error", err.Error()).
+		log.With("error", acceptErr.Error()).
 			Error("Account registered through an invitation, but joining the team failed; the invitation is still pending")
 		return result, nil
 	}
@@ -225,7 +259,8 @@ func (s *InvitationRegistrationService) Register(
 }
 
 // admit runs the refusals that depend on the invited email and the password:
-// the allowlist, an existing account, the password policy.
+// an existing account, a root admin address, the allowlist, the password
+// policy.
 func (s *InvitationRegistrationService) admit(ctx context.Context, email, plaintext string) error {
 	exists, err := s.accountExists(ctx, email)
 	if err != nil {
@@ -233,6 +268,12 @@ func (s *InvitationRegistrationService) admit(ctx context.Context, email, plaint
 	}
 	if exists {
 		return ErrInvitationAccountExists
+	}
+	// A root admin has instance-admin power by its address alone, and the
+	// allowlist exempts it. Anyone who can invite to a team could otherwise
+	// invite such an address, copy the link and register as an instance admin.
+	if s.deps.IsRootAdmin(email) {
+		return ErrInvitationForRootAdmin
 	}
 	// The allowlist is the hard boundary. Inviting an address it rejects is
 	// refused up front (#1434), but the allowlist may have changed since.
@@ -247,17 +288,29 @@ func (s *InvitationRegistrationService) admit(ctx context.Context, email, plaint
 	return password.Validate(plaintext, email)
 }
 
-// createAccount creates the user, provisions it through user.created and
-// stores the password, removing the row again when either step after the
-// insert fails. A concurrent registration that won the email is
+// createAccount hashes the password, creates the user WITH its credential in
+// one statement and provisions it through user.created, removing the row again
+// when provisioning fails. A concurrent registration that won the email is
 // ErrInvitationAccountExists.
+//
+// One statement, because the account must never be visible without its
+// password: a verified provider sign-in that claims an unverified account
+// removes the password it finds. Between two separate writes it would find
+// none, and the password stored afterwards would stay on an account that now
+// belongs to someone else.
 func (s *InvitationRegistrationService) createAccount(
 	ctx context.Context, email, name, plaintext string,
 ) (*models.User, error) {
+	hash, err := s.deps.Passwords.HashNewPassword(ctx, plaintext, email)
+	if err != nil {
+		// A *password.PolicyError is unreachable after admit, and is passed on
+		// as it is if it happens.
+		return nil, err
+	}
 	now := s.now()
 	// EmailVerifiedAt stays nil: holding the link does not prove the mailbox.
 	user := &models.User{Email: email, Name: name, CreatedAt: now, UpdatedAt: now}
-	if err := s.deps.Users.Create(ctx, user); err != nil {
+	if err = s.deps.Users.CreateWithCredential(ctx, user, hash); err != nil {
 		if errors.Is(err, repositories.ErrUserEmailTaken) {
 			return nil, ErrInvitationAccountExists
 		}
@@ -265,16 +318,8 @@ func (s *InvitationRegistrationService) createAccount(
 	}
 
 	event := events.NewUserCreatedEvent(user.ID, user.Email, user.Name, user.CreatedAt)
-	if err := s.deps.Events.Publish(ctx, event); err != nil {
+	if err = s.deps.Events.Publish(ctx, event); err != nil {
 		return nil, s.undo(ctx, user, fmt.Errorf("failed to provision the account: %w", err))
-	}
-	if err := s.deps.Passwords.SetPassword(ctx, user.ID, plaintext); err != nil {
-		var policyErr *password.PolicyError
-		if errors.As(err, &policyErr) {
-			// Unreachable after admit, but never report a policy refusal as a fault.
-			return nil, s.undo(ctx, user, err)
-		}
-		return nil, s.undo(ctx, user, fmt.Errorf("failed to store the password: %w", err))
 	}
 	return user, nil
 }

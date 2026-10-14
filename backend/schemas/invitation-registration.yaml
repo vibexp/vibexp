@@ -48,8 +48,9 @@ InvitationPreview:
       type: boolean
       description: |
         Whether `POST /api/v1/invitations/{token}/register` can create an
-        account right now: email and password sign-in is switched on and no
-        account has the invited email.
+        account right now: email and password sign-in is switched on, no
+        account has the invited email, and the address is not a root instance
+        admin.
 
 InvitationRegisterRequest:
   type: object

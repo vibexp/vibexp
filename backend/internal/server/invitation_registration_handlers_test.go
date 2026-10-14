@@ -154,6 +154,16 @@ func TestPreviewInvitation(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, rec.Code)
 	})
 
+	t.Run("a token the database could not compare is the same 404", func(t *testing.T) {
+		f := newInvRegHandlerFixture(t, true)
+		f.registration.EXPECT().Preview(mock.Anything, "a\x00b").Return(nil, services.ErrInvitationUnusable).Once()
+
+		rec := f.send(t, http.MethodGet, "/api/v1/invitations/a%00b/preview", "", "")
+
+		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+		assert.Equal(t, "invitation_invalid", invRegProblemCode(t, rec))
+	})
+
 	t.Run("an undecodable or oversized token never reaches the service", func(t *testing.T) {
 		f := newInvRegHandlerFixture(t, true) // a strict mock
 
@@ -229,6 +239,8 @@ func TestRegisterWithInvitation(t *testing.T) {
 		assert.Equal(t, invRegNewUser().ID, sess.UserID)
 		assert.Equal(t, sesslib.AuthMethodPassword, sess.AuthMethod)
 		assert.Equal(t, "invitation", recorded["via"], "the sign-in activity says how the person got in")
+		assert.Equal(t, "/api/v1/invitations/[redacted]/register", recorded["endpoint"],
+			"the stored activity does not carry the invitation token")
 	})
 
 	t.Run("a partial outcome is unmistakable: signed in, invitation not accepted", func(t *testing.T) {
@@ -254,6 +266,7 @@ func TestRegisterWithInvitation(t *testing.T) {
 			"unusable link":  {services.ErrInvitationUnusable, http.StatusNotFound, "invitation_invalid"},
 			"account exists": {services.ErrInvitationAccountExists, http.StatusConflict, "account_exists"},
 			"allowlist":      {services.ErrInvitationEmailNotAllowed, http.StatusForbidden, "access_restricted"},
+			"root admin":     {services.ErrInvitationForRootAdmin, http.StatusForbidden, "access_restricted"},
 			"weak password":  {password.Validate("short", "grace@example.com"), http.StatusBadRequest, "VALIDATION_FAILED"},
 			"storage":        {errors.New("pq: connection refused"), http.StatusInternalServerError, "INTERNAL_ERROR"},
 		} {
@@ -354,18 +367,105 @@ func TestInvitationRegistrationRoutes_CoexistWithTheAuthenticatedSubtree(t *test
 	assert.Contains(t, rec.Body.String(), "invitation_invalid")
 }
 
-// Both operations are mounted on the real server, and both are public: the
-// auth middleware of the protected routes is not in front of them.
-func TestInvitationRegistrationRoutes_AreMountedOnTheRealServer(t *testing.T) {
-	srv := New("8080", nil, "test-api-key", &config.Config{}, slog.New(slog.DiscardHandler))
-	var found []string
-	require.NoError(t, chi.Walk(srv.router,
-		func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
-			if strings.HasPrefix(route, "/api/v1/invitations/{token}/") {
-				found = append(found, method+" "+route)
+// On the REAL router the two operations are public and the four existing
+// invitation routes are still behind authentication. A change in server.go
+// that put the public ones behind auth, or exposed the others, fails here.
+func TestInvitationRoutes_PublicAndAuthenticatedOnTheRealServer(t *testing.T) {
+	container := newMockAuthContainer(t)
+	container.authPolicy = staticAuthPolicy{
+		policy: models.InstanceAuthPolicy{PasswordLoginEnabled: true, RegistrationMode: models.RegistrationModeOpen},
+		reset:  services.PasswordResetByAdmin,
+	}
+	registration := servicesmocks.NewMockInvitationRegistrationServiceInterface(t)
+	registration.EXPECT().Preview(mock.Anything, invRegTestToken).Return(nil, services.ErrInvitationUnusable).Once()
+	registration.EXPECT().Register(mock.Anything, invRegTestToken, mock.Anything, mock.Anything).
+		Return(nil, services.ErrInvitationUnusable).Once()
+	cfg := &config.Config{
+		Frontend: config.FrontendConfig{BaseURL: "http://localhost:5173"},
+		Auth:     config.AuthConfig{SessionEncryptionKey: testCookiePassword},
+	}
+	// The real router, with the services swapped for doubles afterwards: the
+	// routes read the container at request time.
+	srv := New("8080", nil, "test-api-key", cfg, slog.New(slog.DiscardHandler))
+	srv.container = &invRegContainer{MockAuthContainer: container, registration: registration}
+
+	serve := func(method, path, body string) *httptest.ResponseRecorder {
+		var req *http.Request
+		if body == "" {
+			req = httptest.NewRequest(method, path, nil)
+		} else {
+			req = httptest.NewRequest(method, path, strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+		}
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+		return rec
+	}
+
+	for name, tc := range map[string]struct{ method, path string }{
+		"pending": {http.MethodGet, "/api/v1/invitations/pending"},
+		"get":     {http.MethodGet, "/api/v1/invitations/" + invRegTestToken},
+		"accept":  {http.MethodPost, "/api/v1/invitations/" + invRegTestToken + "/accept"},
+		"reject":  {http.MethodPost, "/api/v1/invitations/" + invRegTestToken + "/reject"},
+	} {
+		rec := serve(tc.method, tc.path, "")
+		assert.Equal(t, http.StatusUnauthorized, rec.Code, "%s still needs a session: %s", name, rec.Body.String())
+	}
+
+	preview := serve(http.MethodGet, invRegPreviewURL, "")
+	assert.Equal(t, http.StatusNotFound, preview.Code, preview.Body.String())
+	assert.Equal(t, "invitation_invalid", invRegProblemCode(t, preview), "the public preview reached its handler")
+
+	register := serve(http.MethodPost, invRegRegister, `{"password":"`+invRegTestPhrase+`"}`)
+	assert.Equal(t, http.StatusNotFound, register.Code, register.Body.String())
+	assert.Equal(t, "invitation_invalid", invRegProblemCode(t, register), "the public register reached its handler")
+}
+
+// Both operations sit behind the per-IP auth limit and answer the 429 the spec
+// documents, as a problem document, before the service is reached.
+func TestInvitationRegistration_RateLimitIs429Problem(t *testing.T) {
+	for name, send := range map[string]func(f *invRegHandlerFixture) *httptest.ResponseRecorder{
+		"preview": func(f *invRegHandlerFixture) *httptest.ResponseRecorder {
+			return f.send(t, http.MethodGet, invRegPreviewURL, "", "")
+		},
+		"register": func(f *invRegHandlerFixture) *httptest.ResponseRecorder {
+			return f.register(t, `{"password":"`+invRegTestPhrase+`"}`)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newInvRegHandlerFixture(t, true)
+			// A production-like instance: not local development, two requests
+			// a minute. The routes are mounted again with that configuration.
+			f.srv.config.Frontend.BaseURL = "https://vibexp.example"
+			f.srv.config.RateLimit.AuthPerMinute = 2
+			f.srv.router = chi.NewRouter()
+			f.srv.setupInvitationRegistrationRoutes()
+			f.registration.EXPECT().Preview(mock.Anything, invRegTestToken).
+				Return(nil, services.ErrInvitationUnusable).Maybe()
+			f.registration.EXPECT().Register(mock.Anything, invRegTestToken, mock.Anything, mock.Anything).
+				Return(nil, services.ErrInvitationUnusable).Maybe()
+
+			var last *httptest.ResponseRecorder
+			for range 3 {
+				last = send(f)
 			}
-			return nil
-		}))
-	assert.Contains(t, found, "GET /api/v1/invitations/{token}/preview")
-	assert.Contains(t, found, "POST /api/v1/invitations/{token}/register")
+
+			require.Equal(t, http.StatusTooManyRequests, last.Code, last.Body.String())
+			assert.Contains(t, last.Header().Get("Content-Type"), "application/problem+json")
+			assert.Equal(t, "RATE_LIMIT_EXCEEDED", invRegProblemCode(t, last))
+			assert.NotContains(t, last.Body.String(), invRegTestToken, "the token is not echoed in `instance`")
+		})
+	}
+}
+
+// An unreadable policy is a 503 on register, never a 404: a database fault
+// must not pass for password login being switched off.
+func TestRegisterWithInvitation_UnreadablePolicyIs503(t *testing.T) {
+	f := newInvRegHandlerFixture(t, true) // a strict mock: Register is never expected
+	f.container.authPolicy = staticAuthPolicy{err: errors.New("pq: connection refused")}
+
+	rec := f.register(t, `{"password":"`+invRegTestPhrase+`"}`)
+
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code, rec.Body.String())
+	assert.NotContains(t, rec.Body.String(), "pq:")
 }

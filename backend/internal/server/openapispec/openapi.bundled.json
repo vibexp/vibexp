@@ -14801,7 +14801,7 @@
     "/api/v1/invitations/{token}/register": {
       "post": {
         "summary": "Create an account with a password through an invitation",
-        "description": "For a person who has an invitation link and no account. Creates the\naccount for the invited email with the given password, provisions its\nprivate workspace, joins the team with the invited role and signs the\nperson in by setting the session cookie (`vx_session`), in one request.\n\nAvailable only while an instance admin has switched password login on;\notherwise it returns 404. Refused, with nothing changed, when:\n\n- the link cannot be used: 404 `invitation_invalid`, the same response\n  for an unknown token and an expired, revoked, accepted or rejected\n  invitation;\n- an account already has the invited email: 409 `account_exists`. That\n  person signs in and accepts the invitation instead;\n- an active access allowlist does not admit the invited email: 403\n  `access_restricted`;\n- the password breaks the password policy: 400 with one\n  `validation_errors` entry per rule on `password`.\n\nThe new account's email is **not** marked verified: an invitation link\ncan be copied, so using it does not prove the mailbox. If the same\naddress later signs in through an identity provider that verifies it,\nthat sign-in takes the account over and this password is removed.\n\nThe body must be sent as `application/json`; any other `Content-Type` is\nrejected with 400. Rate-limited per client IP.\n",
+        "description": "For a person who has an invitation link and no account. Creates the\naccount for the invited email with the given password, provisions its\nprivate workspace, joins the team with the invited role and signs the\nperson in by setting the session cookie (`vx_session`), in one request.\n\nAvailable only while an instance admin has switched password login on;\notherwise it returns 404. Refused, with nothing changed, when:\n\n- the link cannot be used: 404 `invitation_invalid`, the same response\n  for an unknown token and an expired, revoked, accepted or rejected\n  invitation;\n- an account already has the invited email: 409 `account_exists`. That\n  person signs in and accepts the invitation instead;\n- the invited email is a root instance admin (an address in the server's\n  `auth.instance_admins`): 403 `access_restricted`. Such an account is\n  created by the operator or by its owner signing in through a provider,\n  never from a link;\n- an active access allowlist does not admit the invited email: 403\n  `access_restricted`;\n- the password breaks the password policy: 400 with one\n  `validation_errors` entry per rule on `password`.\n\nThe new account's email is **not** marked verified: an invitation link\ncan be copied, so using it does not prove the mailbox. If the same\naddress later signs in through an identity provider that verifies it,\nthat sign-in takes the account over and this password is removed.\n\nThe body must be sent as `application/json`; any other `Content-Type` is\nrejected with 400. Rate-limited per client IP.\n",
         "operationId": "registerWithInvitation",
         "security": [],
         "parameters": [
@@ -14855,7 +14855,7 @@
             }
           },
           "403": {
-            "description": "The invited email is not admitted by the access allowlist (`access_restricted`); nothing was changed",
+            "description": "The invited email is not admitted by the access allowlist, or is a root instance admin (`access_restricted`); nothing was changed",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -14896,6 +14896,16 @@
           },
           "500": {
             "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Temporarily unavailable — whether password login is enabled could not be read; try again shortly",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -32609,7 +32619,7 @@
           },
           "password_registration": {
             "type": "boolean",
-            "description": "Whether `POST /api/v1/invitations/{token}/register` can create an\naccount right now: email and password sign-in is switched on and no\naccount has the invited email.\n"
+            "description": "Whether `POST /api/v1/invitations/{token}/register` can create an\naccount right now: email and password sign-in is switched on, no\naccount has the invited email, and the address is not a root instance\nadmin.\n"
           }
         }
       },

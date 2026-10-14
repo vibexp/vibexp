@@ -81,8 +81,9 @@ type InvitationPreview struct {
 	InviterName *string `json:"inviter_name"`
 
 	// PasswordRegistration Whether `POST /api/v1/invitations/{token}/register` can create an
-	// account right now: email and password sign-in is switched on and no
-	// account has the invited email.
+	// account right now: email and password sign-in is switched on, no
+	// account has the invited email, and the address is not a root instance
+	// admin.
 	PasswordRegistration bool `json:"password_registration"`
 
 	// Role The role the invitation grants in the team.
@@ -574,6 +575,20 @@ func (response RegisterWithInvitation500ApplicationProblemPlusJSONResponse) Visi
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RegisterWithInvitation503ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response RegisterWithInvitation503ApplicationProblemPlusJSONResponse) VisitRegisterWithInvitationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(503)
 	_, err := buf.WriteTo(w)
 	return err
 }

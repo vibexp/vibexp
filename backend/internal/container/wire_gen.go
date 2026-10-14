@@ -349,6 +349,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		Passwords:   passwordAuthServiceInterface,
 		Policy:      authPolicyResolver,
 		Allowlist:   accessAllowlistResolver,
+		Admins:      instanceAdminResolver,
 		Events:      eventManager,
 		Logger:      logger,
 	}

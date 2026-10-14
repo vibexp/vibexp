@@ -111,6 +111,19 @@ func (r *UserRepository) GetByIDPSubject(
 // email. The identity rows are the (idp_provider, idp_subject) pair when both
 // are set, and the legacy Google identity when google_id is set.
 func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
+	return r.create(ctx, user, nil)
+}
+
+// CreateWithCredential implements repositories.UserRepository: the user, its
+// identities and its password credential in ONE statement.
+func (r *UserRepository) CreateWithCredential(ctx context.Context, user *models.User, passwordHash string) error {
+	return r.create(ctx, user, &passwordHash)
+}
+
+// create inserts the user and what must exist with it from the first moment
+// the row is visible: its identities, and its password credential when
+// passwordHash is not nil.
+func (r *UserRepository) create(ctx context.Context, user *models.User, passwordHash *string) error {
 	query := `
 		WITH new_user AS (
 			INSERT INTO users (google_id, idp_provider, idp_subject, email, email_verified_at,
@@ -126,6 +139,10 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 			INSERT INTO user_identities (user_id, provider, subject, created_at, last_used_at)
 			SELECT id, $10, $1, created_at, created_at FROM new_user
 			WHERE $1::varchar IS NOT NULL
+		), credential AS (
+			INSERT INTO user_credentials (user_id, password_hash)
+			SELECT id, $11 FROM new_user
+			WHERE $11::text IS NOT NULL
 		)
 		SELECT id, default_team_id,
 		       onboarding_completed, onboarding_completed_at, created_at, updated_at
@@ -136,7 +153,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 	err := r.db.QueryRowContext(ctx, query,
 		user.GoogleID, user.IDPProvider, user.IDPSubject,
 		email, user.EmailVerifiedAt, user.Name, user.AvatarURL,
-		user.CreatedAt, user.UpdatedAt, models.LegacyGoogleIdentityProvider,
+		user.CreatedAt, user.UpdatedAt, models.LegacyGoogleIdentityProvider, passwordHash,
 	).Scan(&user.ID, &user.DefaultTeamID,
 		&user.OnboardingCompleted, &user.OnboardingCompletedAt, &user.CreatedAt, &user.UpdatedAt)
 

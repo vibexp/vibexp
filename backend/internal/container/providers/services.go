@@ -1016,12 +1016,13 @@ type InvitationRegistrationDeps struct {
 	Passwords   services.PasswordAuthServiceInterface
 	Policy      services.AuthPolicyResolver
 	Allowlist   services.AccessAllowlistResolver
+	Admins      services.InstanceAdminResolver
 	Events      events.EventPublisher
 	Logger      *slog.Logger
 }
 
 // ProvideInvitationRegistrationService creates the public side of invitations
-// (#1435). It stores passwords through the password auth service only, shares
+// (#1435). It hashes passwords with the password auth service's hasher, shares
 // the policy and allowlist resolvers with sign-in, and publishes user.created
 // for the account it creates, so that account gets its workspace like any
 // other.
@@ -1035,6 +1036,7 @@ func ProvideInvitationRegistrationService(
 		Passwords:   deps.Passwords,
 		Policy:      deps.Policy,
 		Allowlist:   deps.Allowlist,
+		IsRootAdmin: deps.Admins.IsRootAdmin,
 		Events:      deps.Events,
 		Logger:      deps.Logger,
 	})

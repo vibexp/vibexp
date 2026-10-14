@@ -9810,6 +9810,10 @@ paths:
           invitation;
         - an account already has the invited email: 409 `account_exists`. That
           person signs in and accepts the invitation instead;
+        - the invited email is a root instance admin (an address in the server's
+          `auth.instance_admins`): 403 `access_restricted`. Such an account is
+          created by the operator or by its owner signing in through a provider,
+          never from a link;
         - an active access allowlist does not admit the invited email: 403
           `access_restricted`;
         - the password breaks the password policy: 400 with one
@@ -9861,7 +9865,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: The invited email is not admitted by the access allowlist (`access_restricted`); nothing was changed
+          description: The invited email is not admitted by the access allowlist, or is a root instance admin (`access_restricted`); nothing was changed
           content:
             application/problem+json:
               schema:
@@ -9888,6 +9892,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Temporarily unavailable — whether password login is enabled could not be read; try again shortly
           content:
             application/problem+json:
               schema:
@@ -22128,8 +22138,9 @@ components:
           type: boolean
           description: |
             Whether `POST /api/v1/invitations/{token}/register` can create an
-            account right now: email and password sign-in is switched on and no
-            account has the invited email.
+            account right now: email and password sign-in is switched on, no
+            account has the invited email, and the address is not a root instance
+            admin.
     InvitationRegisterRequest:
       type: object
       description: Request body for POST /api/v1/invitations/{token}/register.

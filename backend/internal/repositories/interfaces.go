@@ -526,6 +526,13 @@ type UserRepository interface {
 	// and the legacy Google identity when GoogleID is set. The email is stored
 	// normalized and user.Email is updated to the stored form.
 	Create(ctx context.Context, user *models.User) error
+	// CreateWithCredential is Create plus the account's password credential,
+	// in the same statement (#1435). An account created with a password must
+	// never be visible without it: a verified provider sign-in that claims an
+	// unverified account removes the password it finds, and one that ran
+	// between two separate writes would find none and leave the later one in
+	// place. passwordHash is an encoded hash from the password hasher.
+	CreateWithCredential(ctx context.Context, user *models.User, passwordHash string) error
 	// Update stores the email normalized and updates user.Email to that form.
 	Update(ctx context.Context, user *models.User) error
 	// UpdateName sets the user's display name. Returns ErrUserNotFound when no

@@ -74,6 +74,10 @@ func (m *mockUserRepository) Create(ctx context.Context, user *models.User) erro
 	return nil
 }
 
+func (m *mockUserRepository) CreateWithCredential(context.Context, *models.User, string) error {
+	return nil
+}
+
 func (m *mockUserRepository) Update(ctx context.Context, user *models.User) error {
 	return nil
 }
