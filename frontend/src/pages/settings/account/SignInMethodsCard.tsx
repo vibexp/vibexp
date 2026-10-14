@@ -356,7 +356,12 @@ export function SignInMethodsCard({
           })}
         </ul>
 
-        <DisconnectedList state={state} account={account} />
+        {/* Keyed on the entries: a changed list starts with no stale error. */}
+        <DisconnectedList
+          key={account.disconnected_identities.map(d => d.id).join(',')}
+          state={state}
+          account={account}
+        />
 
         <section
           aria-labelledby="account-password-heading"

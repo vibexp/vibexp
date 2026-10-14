@@ -96,12 +96,18 @@ describe('disconnected identities are not sign-in methods', () => {
   })
 
   it('the last identity cannot be disconnected because something is disconnected', () => {
-    const lastIdentity = account({
-      disconnected_identities: [
-        disconnectedIdentity({ provider: 'github', display_name: 'GitHub' }),
-      ],
-    })
+    const disconnected = [
+      disconnectedIdentity({ provider: 'github', display_name: 'GitHub' }),
+    ]
+    const lastIdentity = account({ disconnected_identities: disconnected })
     expect(canDisconnect(lastIdentity, identity())).toBe(false)
+    // The contrast: a real second way in (a usable password) does allow it.
+    expect(
+      canDisconnect(
+        withPassword({ disconnected_identities: disconnected }),
+        identity()
+      )
+    ).toBe(true)
   })
 
   it('allowing one again is something signing in again unlocks', () => {
