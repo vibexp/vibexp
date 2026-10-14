@@ -95,6 +95,8 @@ type accountFixture struct {
 	apiAccess  *fakeAPIAccess
 	notifier   *recordingNotifier
 	held       []models.UserIdentity
+	// disconnected is what ListDisconnected answers (#1460).
+	disconnected []models.DisconnectedIdentity
 }
 
 func newAccountFixture(t *testing.T, policy AuthPolicyResolver) *accountFixture {
@@ -112,6 +114,10 @@ func newAccountFixture(t *testing.T, policy AuthPolicyResolver) *accountFixture 
 		Return(&models.User{ID: accountTestUser, Email: "ada@example.com", Name: "Ada"}, nil).Maybe()
 	f.identities.On("ListByUserID", mock.Anything, accountTestUser).
 		Return(func(context.Context, string) ([]models.UserIdentity, error) { return f.held, nil }).Maybe()
+	f.methods.EXPECT().ListDisconnected(mock.Anything, accountTestUser).
+		RunAndReturn(func(context.Context, string) ([]models.DisconnectedIdentity, error) {
+			return f.disconnected, nil
+		}).Maybe()
 	registry := idp.NewRegistryFromEntries(
 		idp.Entry{Provider: slugProvider("google"), Type: idp.ProviderGoogle, DisplayName: "Google"},
 		idp.Entry{Provider: slugProvider("github"), Type: idp.ProviderGitHub, DisplayName: "GitHub"},
@@ -556,4 +562,61 @@ func TestAccountService_SetPassword_EmptyCurrentPasswordSpendsNoAttempt(t *testi
 
 	require.ErrorIs(t, err, ErrCurrentPasswordInvalid, "the same answer as a wrong one")
 	assert.Empty(t, f.passwords.calls, "nothing was verified, so nothing was counted")
+}
+
+// #1460: the provider accounts the owner disconnected, and allowing one again.
+func TestAccountService_DisconnectedIdentities(t *testing.T) {
+	ctx := context.Background()
+	at := time.Date(2026, 10, 14, 9, 0, 0, 0, time.UTC)
+
+	t.Run("listed with the provider's name, or its slug when it is not enabled", func(t *testing.T) {
+		f := newAccountFixture(t, passwordLoginOn)
+		f.disconnected = []models.DisconnectedIdentity{
+			{ID: "d-1", Provider: "google", Subject: "g-1", DisconnectedAt: at},
+			{ID: "d-2", Provider: "old-sso", Subject: "o-1", DisconnectedAt: at.Add(-time.Hour)},
+		}
+
+		view, err := f.svc.Get(ctx, accountTestUser)
+
+		require.NoError(t, err)
+		assert.Equal(t, []AccountDisconnectedView{
+			{ID: "d-1", Provider: "google", DisplayName: "Google", DisconnectedAt: at},
+			{ID: "d-2", Provider: "old-sso", DisplayName: "old-sso", DisconnectedAt: at.Add(-time.Hour)},
+		}, view.Disconnected)
+	})
+
+	t.Run("an empty list, not nil", func(t *testing.T) {
+		f := newAccountFixture(t, passwordLoginOn)
+
+		view, err := f.svc.Get(ctx, accountTestUser)
+
+		require.NoError(t, err)
+		assert.NotNil(t, view.Disconnected)
+		assert.Empty(t, view.Disconnected)
+	})
+
+	t.Run("allow again needs a recent sign-in", func(t *testing.T) {
+		f := newAccountFixture(t, passwordLoginOn)
+
+		_, err := f.svc.AllowIdentityAgain(ctx, accountTestUser, "d-1", false)
+		require.ErrorIs(t, err, ErrReauthenticationRequired)
+		f.methods.AssertNotCalled(t, "AllowIdentityAgain", mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("allow again deletes the record", func(t *testing.T) {
+		f := newAccountFixture(t, passwordLoginOn)
+		f.methods.EXPECT().AllowIdentityAgain(ctx, accountTestUser, "d-1").Return("google", true, nil).Once()
+
+		provider, err := f.svc.AllowIdentityAgain(ctx, accountTestUser, "d-1", true)
+		require.NoError(t, err)
+		assert.Equal(t, "google", provider)
+	})
+
+	t.Run("an unknown record", func(t *testing.T) {
+		f := newAccountFixture(t, passwordLoginOn)
+		f.methods.EXPECT().AllowIdentityAgain(ctx, accountTestUser, "nope").Return("", false, nil).Once()
+
+		_, err := f.svc.AllowIdentityAgain(ctx, accountTestUser, "nope", true)
+		require.ErrorIs(t, err, ErrDisconnectedIdentityNotFound)
+	})
 }

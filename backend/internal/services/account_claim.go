@@ -52,3 +52,17 @@ func WithUnverifiedAccountClaimHook(hook UnverifiedAccountClaimHook) AuthService
 		}
 	}
 }
+
+// DisconnectedIdentityChecker says whether an account's owner disconnected a
+// provider account (#1460). SignInMethodRepository satisfies it.
+type DisconnectedIdentityChecker interface {
+	IsDisconnected(ctx context.Context, userID, provider, subject string) (bool, error)
+}
+
+// WithDisconnectedIdentities makes sign-in refuse to link, by email, a provider
+// account the owner disconnected. Without it nothing is refused.
+func WithDisconnectedIdentities(checker DisconnectedIdentityChecker) AuthServiceOption {
+	return func(as *AuthService) {
+		as.disconnected = checker
+	}
+}

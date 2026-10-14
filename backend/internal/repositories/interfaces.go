@@ -626,7 +626,20 @@ type SignInMethodRepository interface {
 	// password counts only while usable.PasswordLogin is on and the credential
 	// is not disabled, and another identity only when its provider is in
 	// usable.Providers.
+	//
+	// It also records the removed (provider, subject) for the user, in the
+	// same transaction (#1460), so that provider account is not linked to the
+	// account by email again until the owner allows it (AllowIdentityAgain).
 	RemoveIdentity(ctx context.Context, userID, identityID string, usable UsableSignInMethods) (provider string, err error)
+	// ListDisconnected returns the identities the user disconnected and has
+	// not allowed again, newest first.
+	ListDisconnected(ctx context.Context, userID string) ([]models.DisconnectedIdentity, error)
+	// AllowIdentityAgain deletes the record with id when it belongs to userID
+	// and returns its provider slug; found is false when there was none.
+	AllowIdentityAgain(ctx context.Context, userID, id string) (provider string, found bool, err error)
+	// IsDisconnected reports whether the user disconnected this provider
+	// account and has not allowed it again.
+	IsDisconnected(ctx context.Context, userID, provider, subject string) (bool, error)
 }
 
 // APIAccessRepository revokes everything a user's non-browser access rests on

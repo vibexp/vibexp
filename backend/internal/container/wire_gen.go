@@ -79,6 +79,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	instanceEmailProviderRepository := providers.ProvideInstanceEmailProviderRepository(db)
 	authPolicyResolver := providers.ProvideAuthPolicyResolver(instanceAuthPolicyRepository, instanceAuthSettingsVersionRepository, instanceEmailProviderRepository, logger)
 	registrationGate := providers.ProvideRegistrationGate(authPolicyResolver, teamInvitationRepository, instanceAdminResolver, logger)
+	signInMethodRepository := providers.ProvideSignInMethodRepository(db)
 	authServiceDeps := providers.AuthServiceDeps{
 		UserRepo:      userRepository,
 		IdentityRepo:  userIdentityRepository,
@@ -89,6 +90,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		Logger:        logger,
 		Allowlist:     accessAllowlistResolver,
 		Gate:          registrationGate,
+		Methods:       signInMethodRepository,
 	}
 	authServiceInterface := providers.ProvideAuthService(authServiceDeps)
 	apiKeyServiceInterface := providers.ProvideAPIKeyService(apiKeyRepository, logger)
@@ -329,7 +331,6 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	instanceEmailProviderServiceInterface := providers.ProvideInstanceEmailProviderService(instanceEmailProviderRepository, instanceSettingsAuditRepository, userRepository, encryptionServiceInterface, logger)
 	userCredentialRepository := providers.ProvideUserCredentialRepository(db)
 	passwordAuthServiceInterface := providers.ProvidePasswordAuthService(userRepository, userCredentialRepository, authPolicyResolver, accessAllowlistResolver, logger)
-	signInMethodRepository := providers.ProvideSignInMethodRepository(db)
 	accountEmailSender := providers.ProvideAccountEmailSender(emailSenderResolver, instanceSiteInfoService, cfg)
 	accountEmailRunners := providers.ProvideAccountEmailRunners(logger)
 	accountNotifier := providers.ProvideAccountNotifier(userRepository, authPolicyResolver, accountEmailSender, accountEmailRunners, logger)

@@ -26,10 +26,13 @@ type AuthService struct {
 	claimHook    UnverifiedAccountClaimHook
 	// registrationGate decides whether a sign-in may create a new account.
 	registrationGate RegistrationGate
-	resolver         IdentityProviderResolver
-	allowlist        AccessAllowlistResolver
-	eventManager     events.EventPublisher
-	logger           *slog.Logger
+	// disconnected says whether an owner disconnected a provider account
+	// (#1460); nil means none is recorded.
+	disconnected DisconnectedIdentityChecker
+	resolver     IdentityProviderResolver
+	allowlist    AccessAllowlistResolver
+	eventManager events.EventPublisher
+	logger       *slog.Logger
 }
 
 // Ensure AuthService implements AuthServiceInterface
@@ -59,6 +62,11 @@ var ErrEmailNotVerified = errors.New("identity provider did not verify the email
 // nothing is written. Signing in once with the account's own identity, with a
 // verified email, verifies the account and lifts the refusal.
 var ErrExistingSignInRequired = errors.New("existing account must first be signed in to with its own method")
+
+// ErrIdentityDisconnected refuses to link, by email, a provider account the
+// account's owner disconnected (#1460). The owner allows it again from Account
+// settings, signed in another way.
+var ErrIdentityDisconnected = errors.New("this sign-in identity was disconnected from the account")
 
 // ErrIdentityProviderUnavailable is returned by HandleCallback and
 // RefreshTokens when the provider slug names no enabled provider, e.g. one
@@ -365,7 +373,8 @@ func isSignInRefusal(err error) bool {
 	return errors.Is(err, ErrAccessRestricted) ||
 		errors.Is(err, ErrRegistrationClosed) ||
 		errors.Is(err, ErrEmailNotVerified) ||
-		errors.Is(err, ErrExistingSignInRequired)
+		errors.Is(err, ErrExistingSignInRequired) ||
+		errors.Is(err, ErrIdentityDisconnected)
 }
 
 // existingAccountEmailVerified reports whether the STORED email of an existing
@@ -463,6 +472,9 @@ func (as *AuthService) linkIdentityByEmail(
 		as.logLinkRefused(user, providerName, "unverified_email")
 		return nil, false, ErrEmailNotVerified
 	}
+	if err := as.refuseDisconnected(ctx, user, providerName, claims.Subject); err != nil {
+		return nil, false, err
+	}
 
 	now := time.Now()
 	if user.EmailVerifiedAt == nil {
@@ -499,6 +511,25 @@ func (as *AuthService) linkIdentityByEmail(
 	).Info("Linked a new sign-in identity to an existing account by verified email")
 
 	return user, false, nil
+}
+
+// refuseDisconnected refuses a link to a provider account the owner disconnected
+// from this account (#1460). It runs before anything is written.
+func (as *AuthService) refuseDisconnected(
+	ctx context.Context, user *models.User, providerName, subject string,
+) error {
+	if as.disconnected == nil {
+		return nil
+	}
+	disconnected, err := as.disconnected.IsDisconnected(ctx, user.ID, providerName, subject)
+	if err != nil {
+		return fmt.Errorf("failed to read the account's disconnected identities: %w", err)
+	}
+	if disconnected {
+		as.logLinkRefused(user, providerName, "identity_disconnected")
+		return ErrIdentityDisconnected
+	}
+	return nil
 }
 
 // claimOrReload claims the unverified account, or, when the claim finds under

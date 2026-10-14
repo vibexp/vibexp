@@ -114,6 +114,9 @@ const (
 	ActivityTypeAuthCredentialChanged    = "auth_password_changed"
 	ActivityTypeAuthCredentialRemoved    = "auth_password_removed"
 	ActivityTypeAuthIdentityDisconnected = "auth_identity_disconnected"
+	// ActivityTypeAuthIdentityAllowedAgain is the owner allowing a disconnected
+	// provider account to link again (#1460).
+	ActivityTypeAuthIdentityAllowedAgain = "auth_identity_allowed_again"
 
 	// API Key activities
 	ActivityTypeAPIKeyCreated = "api_key_created"

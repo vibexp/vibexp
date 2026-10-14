@@ -122,13 +122,19 @@ func (r *SignInMethodRepository) RemoveIdentity(
 		}
 
 		// The legacy Google alias with the same subject goes with it (a no-op
-		// for a non-Google identity, whose subject no legacy row carries).
+		// for a non-Google identity, whose subject no legacy row carries), and
+		// the removed provider account is recorded so that linking by email
+		// does not attach it again (#1460).
 		_, err = tx.ExecContext(ctx, `
 			WITH removed AS (
-				DELETE FROM user_identities WHERE id = $2 AND user_id = $1 RETURNING subject
+				DELETE FROM user_identities WHERE id = $2 AND user_id = $1 RETURNING provider, subject
+			), alias AS (
+				DELETE FROM user_identities
+				WHERE user_id = $1 AND provider = $3 AND subject IN (SELECT subject FROM removed)
 			)
-			DELETE FROM user_identities
-			WHERE user_id = $1 AND provider = $3 AND subject IN (SELECT subject FROM removed)`,
+			INSERT INTO user_disconnected_identities (user_id, provider, subject)
+			SELECT $1, provider, subject FROM removed
+			ON CONFLICT (user_id, provider, subject) DO UPDATE SET disconnected_at = CURRENT_TIMESTAMP`,
 			userID, identityID, models.LegacyGoogleIdentityProvider)
 		if err != nil {
 			return fmt.Errorf("failed to delete user identity: %w", err)
@@ -139,6 +145,60 @@ func (r *SignInMethodRepository) RemoveIdentity(
 		return "", err
 	}
 	return provider, nil
+}
+
+// ListDisconnected implements repositories.SignInMethodRepository.
+func (r *SignInMethodRepository) ListDisconnected(
+	ctx context.Context, userID string,
+) ([]models.DisconnectedIdentity, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, provider, subject, disconnected_at FROM user_disconnected_identities
+		WHERE user_id = $1 ORDER BY disconnected_at DESC, id`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list disconnected identities: %w", err)
+	}
+	defer func() { _ = rows.Close() }() //nolint:errcheck // a read; the scan error is the one reported
+	out := []models.DisconnectedIdentity{}
+	for rows.Next() {
+		d := models.DisconnectedIdentity{UserID: userID}
+		if err = rows.Scan(&d.ID, &d.Provider, &d.Subject, &d.DisconnectedAt); err != nil {
+			return nil, fmt.Errorf("failed to read a disconnected identity: %w", err)
+		}
+		out = append(out, d)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to list disconnected identities: %w", err)
+	}
+	return out, nil
+}
+
+// AllowIdentityAgain implements repositories.SignInMethodRepository.
+func (r *SignInMethodRepository) AllowIdentityAgain(
+	ctx context.Context, userID, id string,
+) (provider string, found bool, err error) {
+	err = r.db.QueryRowContext(ctx,
+		`DELETE FROM user_disconnected_identities WHERE id = $1 AND user_id = $2 RETURNING provider`,
+		id, userID).Scan(&provider)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("failed to allow a disconnected identity again: %w", err)
+	}
+	return provider, true, nil
+}
+
+// IsDisconnected implements repositories.SignInMethodRepository.
+func (r *SignInMethodRepository) IsDisconnected(ctx context.Context, userID, provider, subject string) (bool, error) {
+	var disconnected bool
+	err := r.db.QueryRowContext(ctx, `
+		SELECT EXISTS (SELECT 1 FROM user_disconnected_identities
+		               WHERE user_id = $1 AND provider = $2 AND subject = $3)`,
+		userID, provider, subject).Scan(&disconnected)
+	if err != nil {
+		return false, fmt.Errorf("failed to read whether the identity was disconnected: %w", err)
+	}
+	return disconnected, nil
 }
 
 // internalIdentityProviders are the user_identities.provider values that are

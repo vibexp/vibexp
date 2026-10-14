@@ -35,3 +35,14 @@ type UserIdentity struct {
 func NormalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
+
+// DisconnectedIdentity is a provider account its owner disconnected from the
+// account (#1460). Sign-in does not link it to the account by email again
+// until the owner allows it again.
+type DisconnectedIdentity struct {
+	ID             string
+	UserID         string
+	Provider       string
+	Subject        string
+	DisconnectedAt time.Time
+}

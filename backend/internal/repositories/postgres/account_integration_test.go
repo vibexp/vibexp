@@ -463,3 +463,89 @@ func TestIntegrationUser_UpdateName(t *testing.T) {
 
 	require.ErrorIs(t, users.UpdateName(ctx, uuid.New().String(), "Nobody"), repositories.ErrUserNotFound)
 }
+
+// #1460: a disconnect records the provider account, under the same lock and in
+// the same statement as the removal, and "allow again" deletes the record.
+func TestIntegrationSignInMethod_DisconnectIsRemembered(t *testing.T) {
+	ctx := context.Background()
+	f := newSignInMethodFixture(t)
+	userID := f.user(true, "google", "github")
+	otherUser := f.user(true, "google")
+	// The legacy Google alias of the same subject goes with the identity and is
+	// not recorded on its own.
+	require.NoError(t, f.identities.Upsert(ctx, userID, models.LegacyGoogleIdentityProvider, "google-"+userID))
+
+	provider, err := f.methods.RemoveIdentity(ctx, userID, f.identityID(userID, "google"), usableMethods(true))
+	require.NoError(t, err)
+	require.Equal(t, "google", provider)
+
+	disconnected, err := f.methods.ListDisconnected(ctx, userID)
+	require.NoError(t, err)
+	require.Len(t, disconnected, 1)
+	assert.Equal(t, "google", disconnected[0].Provider)
+	assert.Equal(t, "google-"+userID, disconnected[0].Subject)
+	assert.WithinDuration(t, time.Now(), disconnected[0].DisconnectedAt, time.Minute)
+
+	isOut, err := f.methods.IsDisconnected(ctx, userID, "google", "google-"+userID)
+	require.NoError(t, err)
+	assert.True(t, isOut)
+	isOut, err = f.methods.IsDisconnected(ctx, otherUser, "google", "google-"+otherUser)
+	require.NoError(t, err)
+	assert.False(t, isOut, "another account's identity is untouched")
+	assert.Equal(t, []string{"github"}, f.providersOf(userID), "the alias went with the identity")
+
+	_, allowed, err := f.methods.AllowIdentityAgain(ctx, otherUser, disconnected[0].ID)
+	require.NoError(t, err)
+	assert.False(t, allowed, "another account cannot allow it")
+
+	allowedProvider, allowed, err := f.methods.AllowIdentityAgain(ctx, userID, disconnected[0].ID)
+	require.NoError(t, err)
+	assert.True(t, allowed)
+	assert.Equal(t, "google", allowedProvider)
+	isOut, err = f.methods.IsDisconnected(ctx, userID, "google", "google-"+userID)
+	require.NoError(t, err)
+	assert.False(t, isOut)
+
+	_, allowed, err = f.methods.AllowIdentityAgain(ctx, userID, disconnected[0].ID)
+	require.NoError(t, err)
+	assert.False(t, allowed, "already allowed")
+}
+
+// A refused disconnect (the last way in) records nothing, and the records go
+// with the account.
+func TestIntegrationSignInMethod_DisconnectRecordLifecycle(t *testing.T) {
+	ctx := context.Background()
+	f := newSignInMethodFixture(t)
+
+	loner := f.user(false, "google")
+	_, err := f.methods.RemoveIdentity(ctx, loner, f.identityID(loner, "google"), usableMethods(true))
+	require.ErrorIs(t, err, repositories.ErrLastSignInMethod)
+	disconnected, err := f.methods.ListDisconnected(ctx, loner)
+	require.NoError(t, err)
+	assert.Empty(t, disconnected, "nothing was removed, so nothing is recorded")
+
+	userID := f.user(true, "google")
+	_, err = f.methods.RemoveIdentity(ctx, userID, f.identityID(userID, "google"), usableMethods(true))
+	require.NoError(t, err)
+	_, err = integrationDB.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, userID)
+	require.NoError(t, err)
+	var left int
+	require.NoError(t, integrationDB.QueryRowContext(ctx,
+		`SELECT count(*) FROM user_disconnected_identities WHERE user_id = $1`, userID).Scan(&left))
+	assert.Zero(t, left, "the records go with the account")
+}
+
+// A recorded disconnect is not a sign-in method: it never counts as "another
+// usable method remains" (#1460).
+func TestIntegrationSignInMethod_ADisconnectedRecordIsNotAWayIn(t *testing.T) {
+	ctx := context.Background()
+	f := newSignInMethodFixture(t)
+	userID := f.user(true, "google")
+	_, err := f.methods.RemoveIdentity(ctx, userID, f.identityID(userID, "google"), usableMethods(true))
+	require.NoError(t, err, "the password remains, so google can go")
+
+	err = f.methods.RemovePassword(ctx, userID, usableMethods(true), repositories.RemovePasswordOptions{})
+
+	require.ErrorIs(t, err, repositories.ErrLastSignInMethod, "the disconnected google record does not count")
+	assert.True(t, f.hasPassword(userID))
+}

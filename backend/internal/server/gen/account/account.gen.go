@@ -24,6 +24,12 @@ const (
 
 // Account The signed-in user's own account and its sign-in methods.
 type Account struct {
+	// DisconnectedIdentities Provider accounts the user disconnected and has not allowed again,
+	// newest first (#1460). Signing in through one of them does not link it
+	// to this account by email; `DELETE
+	// /api/v1/account/disconnected-identities/{id}` allows it again.
+	DisconnectedIdentities []AccountDisconnectedIdentity `json:"disconnected_identities"`
+
 	// Email The account's email address. It cannot be changed here.
 	Email openapi_types.Email `json:"email"`
 	Id    openapi_types.UUID  `json:"id"`
@@ -45,6 +51,20 @@ type Account struct {
 	// authenticated by an API key or a bearer token. Refreshing or extending a
 	// session does not make it recent again; signing in does.
 	RecentSignIn bool `json:"recent_sign_in"`
+}
+
+// AccountDisconnectedIdentity A provider account the user disconnected from this account.
+type AccountDisconnectedIdentity struct {
+	DisconnectedAt time.Time `json:"disconnected_at"`
+
+	// DisplayName The provider's name as shown on the sign-in page; its slug when the provider is not enabled.
+	DisplayName string `json:"display_name"`
+
+	// Id Identifier to pass to `DELETE /api/v1/account/disconnected-identities/{id}`.
+	Id openapi_types.UUID `json:"id"`
+
+	// Provider The provider's slug.
+	Provider string `json:"provider"`
 }
 
 // AccountIdentity One identity provider the account can sign in with.
@@ -181,6 +201,9 @@ type ServerInterface interface {
 	// Update my account
 	// (PATCH /api/v1/account)
 	UpdateAccount(w http.ResponseWriter, r *http.Request)
+	// Allow a disconnected sign-in identity again
+	// (DELETE /api/v1/account/disconnected-identities/{id})
+	DeleteAccountDisconnectedIdentity(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Disconnect a sign-in identity
 	// (DELETE /api/v1/account/identities/{id})
 	DeleteAccountIdentity(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -205,6 +228,12 @@ func (_ Unimplemented) GetAccount(w http.ResponseWriter, r *http.Request) {
 // Update my account
 // (PATCH /api/v1/account)
 func (_ Unimplemented) UpdateAccount(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Allow a disconnected sign-in identity again
+// (DELETE /api/v1/account/disconnected-identities/{id})
+func (_ Unimplemented) DeleteAccountDisconnectedIdentity(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -274,6 +303,38 @@ func (siw *ServerInterfaceWrapper) UpdateAccount(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateAccount(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAccountDisconnectedIdentity operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAccountDisconnectedIdentity(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAccountDisconnectedIdentity(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -475,6 +536,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Patch(options.BaseURL+"/api/v1/account", wrapper.UpdateAccount)
 	})
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/account/disconnected-identities/{id}", wrapper.DeleteAccountDisconnectedIdentity)
+	})
+	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/api/v1/account/identities/{id}", wrapper.DeleteAccountIdentity)
 	})
 	r.Group(func(r chi.Router) {
@@ -589,6 +653,92 @@ func (response UpdateAccount401ApplicationProblemPlusJSONResponse) VisitUpdateAc
 type UpdateAccount500ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response UpdateAccount500ApplicationProblemPlusJSONResponse) VisitUpdateAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAccountDisconnectedIdentityRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type DeleteAccountDisconnectedIdentityResponseObject interface {
+	VisitDeleteAccountDisconnectedIdentityResponse(w http.ResponseWriter) error
+}
+
+type DeleteAccountDisconnectedIdentity204Response struct {
+}
+
+func (response DeleteAccountDisconnectedIdentity204Response) VisitDeleteAccountDisconnectedIdentityResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAccountDisconnectedIdentity400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteAccountDisconnectedIdentity400ApplicationProblemPlusJSONResponse) VisitDeleteAccountDisconnectedIdentityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAccountDisconnectedIdentity401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteAccountDisconnectedIdentity401ApplicationProblemPlusJSONResponse) VisitDeleteAccountDisconnectedIdentityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAccountDisconnectedIdentity403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteAccountDisconnectedIdentity403ApplicationProblemPlusJSONResponse) VisitDeleteAccountDisconnectedIdentityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAccountDisconnectedIdentity404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteAccountDisconnectedIdentity404ApplicationProblemPlusJSONResponse) VisitDeleteAccountDisconnectedIdentityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAccountDisconnectedIdentity500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteAccountDisconnectedIdentity500ApplicationProblemPlusJSONResponse) VisitDeleteAccountDisconnectedIdentityResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -927,6 +1077,9 @@ type StrictServerInterface interface {
 	// Update my account
 	// (PATCH /api/v1/account)
 	UpdateAccount(ctx context.Context, request UpdateAccountRequestObject) (UpdateAccountResponseObject, error)
+	// Allow a disconnected sign-in identity again
+	// (DELETE /api/v1/account/disconnected-identities/{id})
+	DeleteAccountDisconnectedIdentity(ctx context.Context, request DeleteAccountDisconnectedIdentityRequestObject) (DeleteAccountDisconnectedIdentityResponseObject, error)
 	// Disconnect a sign-in identity
 	// (DELETE /api/v1/account/identities/{id})
 	DeleteAccountIdentity(ctx context.Context, request DeleteAccountIdentityRequestObject) (DeleteAccountIdentityResponseObject, error)
@@ -1015,6 +1168,32 @@ func (sh *strictHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(UpdateAccountResponseObject); ok {
 		if err := validResponse.VisitUpdateAccountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAccountDisconnectedIdentity operation middleware
+func (sh *strictHandler) DeleteAccountDisconnectedIdentity(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request DeleteAccountDisconnectedIdentityRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAccountDisconnectedIdentity(ctx, request.(DeleteAccountDisconnectedIdentityRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAccountDisconnectedIdentity")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAccountDisconnectedIdentityResponseObject); ok {
+		if err := validResponse.VisitDeleteAccountDisconnectedIdentityResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -10,6 +10,7 @@ Account:
     - name
     - password
     - identities
+    - disconnected_identities
     - recent_sign_in
   properties:
     id:
@@ -33,6 +34,15 @@ Account:
         Empty when the account has none.
       items:
         $ref: '#/AccountIdentity'
+    disconnected_identities:
+      type: array
+      description: |
+        Provider accounts the user disconnected and has not allowed again,
+        newest first (#1460). Signing in through one of them does not link it
+        to this account by email; `DELETE
+        /api/v1/account/disconnected-identities/{id}` allows it again.
+      items:
+        $ref: '#/AccountDisconnectedIdentity'
     recent_sign_in:
       type: boolean
       description: |
@@ -111,6 +121,31 @@ AccountIdentity:
       format: date-time
       nullable: true
       description: When the identity last signed in. Null when it has not since it was recorded.
+
+AccountDisconnectedIdentity:
+  type: object
+  description: A provider account the user disconnected from this account.
+  required:
+    - id
+    - provider
+    - display_name
+    - disconnected_at
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Identifier to pass to `DELETE /api/v1/account/disconnected-identities/{id}`.
+    provider:
+      type: string
+      description: The provider's slug.
+      example: "google"
+    display_name:
+      type: string
+      description: The provider's name as shown on the sign-in page; its slug when the provider is not enabled.
+      example: "Google"
+    disconnected_at:
+      type: string
+      format: date-time
 
 AccountUpdateRequest:
   type: object

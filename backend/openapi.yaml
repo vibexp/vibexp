@@ -181,6 +181,8 @@ components:
       $ref: "./schemas/account.yaml#/AccountPassword"
     AccountIdentity:
       $ref: "./schemas/account.yaml#/AccountIdentity"
+    AccountDisconnectedIdentity:
+      $ref: "./schemas/account.yaml#/AccountDisconnectedIdentity"
     AccountUpdateRequest:
       $ref: "./schemas/account.yaml#/AccountUpdateRequest"
     AccountPasswordRequest:
@@ -1284,6 +1286,8 @@ paths:
     $ref: "./paths/account.yaml#/api-v1-account-password"
   /api/v1/account/identities/{id}:
     $ref: "./paths/account.yaml#/api-v1-account-identities-id"
+  /api/v1/account/disconnected-identities/{id}:
+    $ref: "./paths/account.yaml#/api-v1-account-disconnected-identities-id"
   /api/v1/site-info:
     $ref: "./paths/siteinfo.yaml#/api-v1-site-info"
   /api/v1/setup/status:

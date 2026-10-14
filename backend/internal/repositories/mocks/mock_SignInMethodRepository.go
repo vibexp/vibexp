@@ -6,6 +6,8 @@ import (
 	context "context"
 
 	mock "github.com/stretchr/testify/mock"
+	models "github.com/vibexp/vibexp/internal/models"
+
 	repositories "github.com/vibexp/vibexp/internal/repositories"
 )
 
@@ -20,6 +22,189 @@ type MockSignInMethodRepository_Expecter struct {
 
 func (_m *MockSignInMethodRepository) EXPECT() *MockSignInMethodRepository_Expecter {
 	return &MockSignInMethodRepository_Expecter{mock: &_m.Mock}
+}
+
+// AllowIdentityAgain provides a mock function with given fields: ctx, userID, id
+func (_m *MockSignInMethodRepository) AllowIdentityAgain(ctx context.Context, userID string, id string) (string, bool, error) {
+	ret := _m.Called(ctx, userID, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AllowIdentityAgain")
+	}
+
+	var r0 string
+	var r1 bool
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (string, bool, error)); ok {
+		return rf(ctx, userID, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) string); ok {
+		r0 = rf(ctx, userID, id)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) bool); ok {
+		r1 = rf(ctx, userID, id)
+	} else {
+		r1 = ret.Get(1).(bool)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, string, string) error); ok {
+		r2 = rf(ctx, userID, id)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockSignInMethodRepository_AllowIdentityAgain_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AllowIdentityAgain'
+type MockSignInMethodRepository_AllowIdentityAgain_Call struct {
+	*mock.Call
+}
+
+// AllowIdentityAgain is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - id string
+func (_e *MockSignInMethodRepository_Expecter) AllowIdentityAgain(ctx interface{}, userID interface{}, id interface{}) *MockSignInMethodRepository_AllowIdentityAgain_Call {
+	return &MockSignInMethodRepository_AllowIdentityAgain_Call{Call: _e.mock.On("AllowIdentityAgain", ctx, userID, id)}
+}
+
+func (_c *MockSignInMethodRepository_AllowIdentityAgain_Call) Run(run func(ctx context.Context, userID string, id string)) *MockSignInMethodRepository_AllowIdentityAgain_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockSignInMethodRepository_AllowIdentityAgain_Call) Return(provider string, found bool, err error) *MockSignInMethodRepository_AllowIdentityAgain_Call {
+	_c.Call.Return(provider, found, err)
+	return _c
+}
+
+func (_c *MockSignInMethodRepository_AllowIdentityAgain_Call) RunAndReturn(run func(context.Context, string, string) (string, bool, error)) *MockSignInMethodRepository_AllowIdentityAgain_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// IsDisconnected provides a mock function with given fields: ctx, userID, provider, subject
+func (_m *MockSignInMethodRepository) IsDisconnected(ctx context.Context, userID string, provider string, subject string) (bool, error) {
+	ret := _m.Called(ctx, userID, provider, subject)
+
+	if len(ret) == 0 {
+		panic("no return value specified for IsDisconnected")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) (bool, error)); ok {
+		return rf(ctx, userID, provider, subject)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) bool); ok {
+		r0 = rf(ctx, userID, provider, subject)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string) error); ok {
+		r1 = rf(ctx, userID, provider, subject)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockSignInMethodRepository_IsDisconnected_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsDisconnected'
+type MockSignInMethodRepository_IsDisconnected_Call struct {
+	*mock.Call
+}
+
+// IsDisconnected is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - provider string
+//   - subject string
+func (_e *MockSignInMethodRepository_Expecter) IsDisconnected(ctx interface{}, userID interface{}, provider interface{}, subject interface{}) *MockSignInMethodRepository_IsDisconnected_Call {
+	return &MockSignInMethodRepository_IsDisconnected_Call{Call: _e.mock.On("IsDisconnected", ctx, userID, provider, subject)}
+}
+
+func (_c *MockSignInMethodRepository_IsDisconnected_Call) Run(run func(ctx context.Context, userID string, provider string, subject string)) *MockSignInMethodRepository_IsDisconnected_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string))
+	})
+	return _c
+}
+
+func (_c *MockSignInMethodRepository_IsDisconnected_Call) Return(_a0 bool, _a1 error) *MockSignInMethodRepository_IsDisconnected_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockSignInMethodRepository_IsDisconnected_Call) RunAndReturn(run func(context.Context, string, string, string) (bool, error)) *MockSignInMethodRepository_IsDisconnected_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListDisconnected provides a mock function with given fields: ctx, userID
+func (_m *MockSignInMethodRepository) ListDisconnected(ctx context.Context, userID string) ([]models.DisconnectedIdentity, error) {
+	ret := _m.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListDisconnected")
+	}
+
+	var r0 []models.DisconnectedIdentity
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]models.DisconnectedIdentity, error)); ok {
+		return rf(ctx, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []models.DisconnectedIdentity); ok {
+		r0 = rf(ctx, userID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.DisconnectedIdentity)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockSignInMethodRepository_ListDisconnected_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListDisconnected'
+type MockSignInMethodRepository_ListDisconnected_Call struct {
+	*mock.Call
+}
+
+// ListDisconnected is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+func (_e *MockSignInMethodRepository_Expecter) ListDisconnected(ctx interface{}, userID interface{}) *MockSignInMethodRepository_ListDisconnected_Call {
+	return &MockSignInMethodRepository_ListDisconnected_Call{Call: _e.mock.On("ListDisconnected", ctx, userID)}
+}
+
+func (_c *MockSignInMethodRepository_ListDisconnected_Call) Run(run func(ctx context.Context, userID string)) *MockSignInMethodRepository_ListDisconnected_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockSignInMethodRepository_ListDisconnected_Call) Return(_a0 []models.DisconnectedIdentity, _a1 error) *MockSignInMethodRepository_ListDisconnected_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockSignInMethodRepository_ListDisconnected_Call) RunAndReturn(run func(context.Context, string) ([]models.DisconnectedIdentity, error)) *MockSignInMethodRepository_ListDisconnected_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // RemoveIdentity provides a mock function with given fields: ctx, userID, identityID, usable

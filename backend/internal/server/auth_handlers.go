@@ -50,6 +50,12 @@ const (
 	// EXISTING_SIGN_IN_REQUIRED_CODE in the frontend.
 	callbackErrorExistingSignInRequired = "existing_sign_in_required"
 
+	// callbackErrorIdentityDisconnected is the SPA callback error code for a
+	// sign-in through a provider account the owner disconnected from the
+	// account it would link to (#1460). Mirrored by IDENTITY_DISCONNECTED_CODE
+	// in the frontend.
+	callbackErrorIdentityDisconnected = "identity_disconnected"
+
 	// callbackErrorRegistrationClosed is the SPA callback error code for a
 	// sign-in that would have created an account while the registration mode
 	// is invite_only and the person was not invited (#1434). Mirrored by
@@ -278,6 +284,11 @@ func (s *Server) handleCallbackFailure(w http.ResponseWriter, r *http.Request, s
 	// sign-in method, so it must be signed in to that way first.
 	if stderrors.Is(err, services.ErrExistingSignInRequired) {
 		s.redirectCallbackError(w, r, callbackErrorExistingSignInRequired)
+		return
+	}
+	// The provider account was disconnected by the account's owner (#1460).
+	if stderrors.Is(err, services.ErrIdentityDisconnected) {
+		s.redirectCallbackError(w, r, callbackErrorIdentityDisconnected)
 		return
 	}
 	// The sign-in would have created an account and registration is by
