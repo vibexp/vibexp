@@ -12,6 +12,8 @@ import {
   GENERIC_AUTH_ERROR,
   mapAuthCallbackError,
   mapSignInError,
+  PASSWORD_SIGN_IN_FAILED_MESSAGE,
+  passwordSignInErrorMessage,
   REGISTRATION_CLOSED_CODE,
   REGISTRATION_CLOSED_ERROR,
 } from './authErrors'
@@ -105,6 +107,44 @@ describe('mapSignInError', () => {
     )
     expect(mapSignInError(undefined, 'Dev login failed')).toBe(
       'Dev login failed'
+    )
+  })
+})
+
+describe('passwordSignInErrorMessage (#1439)', () => {
+  const failure = (status: number) =>
+    new ApiError({
+      type: 'about:blank',
+      title: 'x',
+      status,
+      detail: 'server detail that must not be shown',
+      code: 'X',
+      request_id: 'r',
+      timestamp: '2026-10-14T00:00:00Z',
+    })
+
+  it('one message for a wrong password and a locked account', () => {
+    expect(passwordSignInErrorMessage(failure(401))).toBe(
+      PASSWORD_SIGN_IN_FAILED_MESSAGE
+    )
+  })
+
+  it.each([
+    [400, 'Check the email address and password'],
+    [403, ACCESS_RESTRICTED_MESSAGE],
+    [404, 'Password sign-in is switched off'],
+    [429, 'Wait a minute'],
+    [500, 'Sign-in failed'],
+  ])('status %i', (status, text) => {
+    expect(passwordSignInErrorMessage(failure(status))).toContain(text)
+  })
+
+  it('never echoes the server detail, and copes with non-API errors', () => {
+    expect(passwordSignInErrorMessage(failure(500))).not.toContain(
+      'server detail'
+    )
+    expect(passwordSignInErrorMessage(new Error('network'))).toContain(
+      'Sign-in failed'
     )
   })
 })

@@ -16,6 +16,8 @@ import {
 import { SiteInfoContext } from '@/features/site-info/SiteInfoContext'
 
 import type { AuthProvider } from '../../services/authService'
+import { ApiError } from '../../types/errors'
+import { PASSWORD_SIGN_IN_FAILED_MESSAGE } from '../../utils/authErrors'
 import { SignInPage } from './SignInPage'
 
 // ---------------------------------------------------------------------------
@@ -64,9 +66,32 @@ vi.mock('../../services/setupService', () => ({
   },
 }))
 
+const mockPassword = vi.hoisted(() => ({
+  value: { enabled: false, reset: 'admin' },
+}))
+const mockPasswordLogin = vi.hoisted(() => vi.fn())
+
 vi.mock('../../services/authService', () => ({
   authService: {
-    getProviders: () => mockGetProviders(),
+    getSignInMethods: () =>
+      mockGetProviders().then(providers => ({
+        providers,
+        password: mockPassword.value,
+      })),
+    passwordLogin: (email: string, password: string): unknown =>
+      mockPasswordLogin(email, password),
+  },
+}))
+
+const mockHardRedirect = vi.hoisted(() => vi.fn())
+vi.mock('../../utils/navigation', () => ({
+  hardRedirect: (url: string): unknown => mockHardRedirect(url),
+}))
+
+const mockDevLoginEnabled = vi.hoisted(() => ({ value: false }))
+vi.mock('../../services/environmentService', () => ({
+  environmentService: {
+    isDevLoginEnabled: () => mockDevLoginEnabled.value,
   },
 }))
 
@@ -654,5 +679,169 @@ describe('SignInPage — logo, credit and small-screen footer (#1359)', () => {
       'aria-hidden',
       'true'
     )
+  })
+})
+
+describe('SignInPage — password sign-in (#1439)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    window.sessionStorage.clear()
+    mockGetSetupStatus.mockResolvedValue({ setup_required: true })
+    mockPassword.value = { enabled: true, reset: 'email' }
+    mockDevLoginEnabled.value = false
+  })
+
+  afterEach(() => {
+    mockPassword.value = { enabled: false, reset: 'admin' }
+  })
+
+  const orDividers = () => screen.queryAllByText('or', { exact: true })
+
+  it('a password-only instance shows the form, no empty state, no setup hint and no divider', async () => {
+    mockGetProviders.mockResolvedValue([])
+    renderSignInPage()
+
+    expect(
+      await screen.findByRole('form', { name: 'Password sign-in' })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/no login providers are configured/i)
+    ).not.toBeInTheDocument()
+    expect(screen.queryByTestId('setup-required-hint')).not.toBeInTheDocument()
+    expect(mockGetSetupStatus).not.toHaveBeenCalled()
+    expect(orDividers()).toHaveLength(0)
+    expect(
+      screen.getByRole('link', { name: 'Forgot password?' })
+    ).toHaveAttribute('href', '/forgot-password')
+  })
+
+  it('a mixed instance puts one divider between the form and the providers', async () => {
+    mockGetProviders.mockResolvedValue(PROVIDERS)
+    renderSignInPage()
+
+    await screen.findByRole('form', { name: 'Password sign-in' })
+    expect(
+      screen.getByRole('button', { name: /continue with google/i })
+    ).toBeInTheDocument()
+    expect(orDividers()).toHaveLength(1)
+  })
+
+  it('a provider-only instance shows no form and no divider without dev login', async () => {
+    mockPassword.value = { enabled: false, reset: 'email' }
+    mockGetProviders.mockResolvedValue(PROVIDERS)
+    renderSignInPage()
+
+    await screen.findByRole('button', { name: /continue with google/i })
+    expect(
+      screen.queryByRole('form', { name: 'Password sign-in' })
+    ).not.toBeInTheDocument()
+    expect(orDividers()).toHaveLength(0)
+  })
+
+  it('shows the dev-login divider only where dev login shows', async () => {
+    mockDevLoginEnabled.value = true
+    mockPassword.value = { enabled: false, reset: 'email' }
+    mockGetProviders.mockResolvedValue(PROVIDERS)
+    renderSignInPage()
+
+    await screen.findByRole('button', { name: /continue with google/i })
+    expect(orDividers()).toHaveLength(1)
+  })
+
+  it('signs in and loads return_to afresh', async () => {
+    mockGetProviders.mockResolvedValue([])
+    mockPasswordLogin.mockResolvedValue({ id: 'u1' })
+    renderSignInPage('/login?return_to=%2Foauth%2Fconsent%3Fx%3D1')
+
+    const form = within(
+      await screen.findByRole('form', { name: 'Password sign-in' })
+    )
+    fireEvent.change(form.getByLabelText('Email'), {
+      target: { value: 'ada@example.com' },
+    })
+    fireEvent.change(form.getByLabelText('Password'), {
+      target: { value: 'correct horse battery' },
+    })
+    fireEvent.submit(form.getByRole('button', { name: 'Sign in' }))
+
+    await waitFor(() => {
+      expect(mockHardRedirect).toHaveBeenCalledWith('/oauth/consent?x=1')
+    })
+    expect(mockPasswordLogin).toHaveBeenCalledWith(
+      'ada@example.com',
+      'correct horse battery'
+    )
+  })
+
+  it('a wrong password and a locked account read the same, inline as an alert', async () => {
+    mockGetProviders.mockResolvedValue([])
+    mockPasswordLogin.mockRejectedValue(
+      new ApiError({
+        type: 'about:blank',
+        title: 'Unauthorized',
+        status: 401,
+        detail: 'invalid email or password',
+        code: 'AUTH_INVALID_CREDENTIALS',
+        request_id: 'r',
+        timestamp: '2026-10-14T00:00:00Z',
+      })
+    )
+    renderSignInPage()
+
+    const form = within(
+      await screen.findByRole('form', { name: 'Password sign-in' })
+    )
+    fireEvent.change(form.getByLabelText('Email'), {
+      target: { value: 'ada@example.com' },
+    })
+    fireEvent.change(form.getByLabelText('Password'), {
+      target: { value: 'wrong' },
+    })
+    fireEvent.submit(form.getByRole('button', { name: 'Sign in' }))
+
+    expect(await form.findByRole('alert')).toHaveTextContent(
+      PASSWORD_SIGN_IN_FAILED_MESSAGE
+    )
+    expect(mockHardRedirect).not.toHaveBeenCalled()
+  })
+
+  it('checks the fields before asking the server', async () => {
+    mockGetProviders.mockResolvedValue([])
+    renderSignInPage()
+
+    const form = within(
+      await screen.findByRole('form', { name: 'Password sign-in' })
+    )
+    fireEvent.submit(form.getByRole('button', { name: 'Sign in' }))
+
+    expect(await form.findByText('Enter your email address.')).toHaveAttribute(
+      'role',
+      'alert'
+    )
+    expect(form.getByLabelText('Email')).toHaveAttribute('aria-invalid', 'true')
+    expect(mockPasswordLogin).not.toHaveBeenCalled()
+  })
+
+  it('holds the provider buttons while a password sign-in is in flight', async () => {
+    mockGetProviders.mockResolvedValue(PROVIDERS)
+    mockPasswordLogin.mockReturnValue(new Promise(() => {}))
+    renderSignInPage()
+
+    const form = within(
+      await screen.findByRole('form', { name: 'Password sign-in' })
+    )
+    fireEvent.change(form.getByLabelText('Email'), {
+      target: { value: 'ada@example.com' },
+    })
+    fireEvent.change(form.getByLabelText('Password'), {
+      target: { value: 'correct horse battery' },
+    })
+    fireEvent.submit(form.getByRole('button', { name: 'Sign in' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /continue with google/i })
+      ).toBeDisabled()
+    })
   })
 })

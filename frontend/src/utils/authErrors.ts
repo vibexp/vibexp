@@ -136,3 +136,34 @@ export function mapSignInError(err: unknown, fallback: string): string {
   }
   return fallback
 }
+
+/**
+ * The one message for a failed password sign-in (#1431). A wrong password and
+ * a locked account get the same 401, so the client cannot tell them apart and
+ * must not try: the text covers both.
+ */
+export const PASSWORD_SIGN_IN_FAILED_MESSAGE =
+  'Incorrect email or password. After several failed attempts, wait a few minutes before trying again.'
+
+/**
+ * What to tell a person whose password sign-in failed, by the response status.
+ * Credential failures stay here and never reach `useErrorHandler`, which reads
+ * `AUTH_*` codes as an expired session.
+ */
+export function passwordSignInErrorMessage(err: unknown): string {
+  const status = err instanceof ApiError ? err.status : null
+  switch (status) {
+    case 401:
+      return PASSWORD_SIGN_IN_FAILED_MESSAGE
+    case 400:
+      return 'Check the email address and password, then try again.'
+    case 403:
+      return ACCESS_RESTRICTED_MESSAGE
+    case 404:
+      return 'Password sign-in is switched off on this instance. Sign in with a provider instead.'
+    case 429:
+      return 'Too many sign-in attempts from this device. Wait a minute, then try again.'
+    default:
+      return 'Sign-in failed. Try again in a moment.'
+  }
+}

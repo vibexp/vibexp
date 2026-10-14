@@ -8,6 +8,8 @@ import { generatedClient, unwrap } from '../lib/apiClientGenerated'
 export type AccountLinkPreview = components['schemas']['AccountLinkPreview']
 export type CompleteAccountSetupRequest =
   components['schemas']['CompleteAccountSetupRequest']
+export type CompleteAccountResetRequest =
+  components['schemas']['CompleteAccountResetRequest']
 
 class AccountLinkService {
   /**
@@ -29,6 +31,15 @@ class AccountLinkService {
    */
   async completeSetup(body: CompleteAccountSetupRequest): Promise<void> {
     await unwrap(generatedClient.POST('/api/v1/auth/password/setup', { body }))
+  }
+
+  /**
+   * Replaces the password from a reset link and signs the person in. Same
+   * failures as completeSetup: a 503 stored nothing and the link still works;
+   * a 500 means the password WAS changed but the request did not finish.
+   */
+  async completeReset(body: CompleteAccountResetRequest): Promise<void> {
+    await unwrap(generatedClient.POST('/api/v1/auth/password/reset', { body }))
   }
 }
 

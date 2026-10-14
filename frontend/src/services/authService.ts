@@ -36,6 +36,17 @@ class AuthService {
   }
 
   /**
+   * Ask for a password reset email (#1433). The server always answers 202 and
+   * decides in the background whether the address gets an email, so nothing
+   * here says whether an account exists.
+   */
+  async requestPasswordReset(email: string): Promise<void> {
+    await unwrap(
+      generatedClient.POST('/api/v1/auth/password/forgot', { body: { email } })
+    )
+  }
+
+  /**
    * Sign in with an email address and password. The backend sets the session
    * cookie and returns the user. 401 for every wrong combination, 404 while
    * password sign-in is switched off.
