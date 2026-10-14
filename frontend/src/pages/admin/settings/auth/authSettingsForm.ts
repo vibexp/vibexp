@@ -357,7 +357,7 @@ export function lockoutRiskCopy(
       return {
         title: 'This leaves no way to sign in',
         description:
-          'No sign-in provider is enabled, so password sign-in is the only way in. After this change nobody can sign in, including you once your session ends. The instance returns to setup mode, and the only way back in is the setup URL from the server logs or `vibexp admin auth password set --enable-login`.',
+          'No sign-in provider is enabled, so password sign-in is the only way in. After this change nobody can sign in, including you once your session ends. The instance returns to setup mode, and the only way back in is the setup URL from the server logs or `vibexp admin auth password set --email <root-admin-email> --enable-login`.',
       }
     case 'own_method':
       return {

@@ -164,7 +164,7 @@ describe('AdminAuthSettings', () => {
     })
   })
 
-  it('re-reads the history after a sign-in policy save', async () => {
+  it('re-reads the history and the providers after a sign-in policy save', async () => {
     signedInAs({ is_instance_admin: true, is_root_instance_admin: true })
     service.updatePolicy.mockResolvedValue(
       policy({ password_login_enabled: true, version: 1 })
@@ -175,6 +175,7 @@ describe('AdminAuthSettings', () => {
     await waitFor(() => {
       expect(service.listAudit).toHaveBeenCalledTimes(1)
     })
+    expect(service.listProviders).toHaveBeenCalledTimes(1)
 
     await user.click(screen.getByRole('switch', { name: 'Password sign-in' }))
     await user.click(
@@ -182,6 +183,11 @@ describe('AdminAuthSettings', () => {
     )
     await waitFor(() => {
       expect(service.listAudit).toHaveBeenCalledTimes(2)
+    })
+    // A policy save bumps the version the providers are saved against: with a
+    // stale one the admin's next provider change would be a false conflict.
+    await waitFor(() => {
+      expect(service.listProviders).toHaveBeenCalledTimes(2)
     })
   })
 })

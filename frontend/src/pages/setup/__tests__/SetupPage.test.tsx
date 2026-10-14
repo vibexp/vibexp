@@ -147,7 +147,7 @@ describe('SetupPage', () => {
       'a long setup passphrase'
     )
     await user.click(
-      screen.getByRole('button', { name: 'Create admin and sign in' })
+      screen.getByRole('button', { name: 'Set up admin and sign in' })
     )
 
     await waitFor(() => {

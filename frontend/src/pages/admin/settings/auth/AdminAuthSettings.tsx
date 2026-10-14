@@ -22,25 +22,24 @@ import { useAuthProviders } from './useAuthProviders'
  */
 export function AdminAuthSettings() {
   const { user } = useAuth()
-  // An allowlist save bumps the shared version the providers are saved
-  // against, so it makes the providers re-read theirs.
+  // A policy or allowlist save bumps the shared version the providers are
+  // saved against, so it makes the providers re-read theirs.
   const [providersKey, setProvidersKey] = useState(0)
   const [auditKey, setAuditKey] = useState(0)
   const recordChange = () => {
     setAuditKey(key => key + 1)
   }
   const providers = useAuthProviders(providersKey, recordChange)
+  const reloadProviders = () => {
+    setProvidersKey(key => key + 1)
+    recordChange()
+  }
 
   return (
     <div className="space-y-6">
-      <AuthPolicySection onSaved={recordChange} />
+      <AuthPolicySection onSaved={reloadProviders} />
       <ProvidersSection state={providers} />
-      <AllowlistSection
-        onSaved={() => {
-          setProvidersKey(key => key + 1)
-          recordChange()
-        }}
-      />
+      <AllowlistSection onSaved={reloadProviders} />
       <InstanceAdminsSection
         canManage={user?.is_root_instance_admin === true}
         onChanged={recordChange}

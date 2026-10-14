@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { messageOf } from '@/pages/admin/settings/auth/authSettingsForm'
 import { FieldFrame } from '@/pages/admin/settings/InstanceSettingsFields'
 import {
   fieldDescribedBy,
@@ -35,9 +36,8 @@ interface PartialOutcome {
   message: string
 }
 
-function messageOf(err: unknown, fallback: string): string {
-  return err instanceof Error && err.message ? err.message : fallback
-}
+/** Enough to catch a slip; the server decides what an address is. */
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function clientErrors(
   email: string,
@@ -46,6 +46,8 @@ function clientErrors(
 ): FieldErrors<Field> {
   const errors: FieldErrors<Field> = {}
   if (email.trim() === '') errors.email = 'Enter the email address.'
+  else if (!EMAIL_SHAPE.test(email.trim()))
+    errors.email = 'Enter a complete email address, such as admin@example.com.'
   if (password === '') errors.password = 'Enter a password.'
   if (repeat !== password) errors.repeat = 'The two passwords do not match.'
   return errors
@@ -129,14 +131,19 @@ export function SetupPasswordSection({
         setFromServer(split.fields)
         setFormError(split.other)
       } else {
-        setFormError(messageOf(err, 'The admin account could not be created'))
+        setFormError(messageOf(err, 'The admin account could not be set up'))
       }
       setBusy(false)
       return
     }
 
     // The password is stored and password sign-in is on from here.
+    await signIn(address)
+  }
+
+  const signIn = async (address: string) => {
     try {
+      setBusy(true)
       await authService.passwordLogin(address, password)
     } catch (err) {
       setPartial({
@@ -160,19 +167,31 @@ export function SetupPasswordSection({
             <AlertTitle>The admin account is ready</AlertTitle>
             <AlertDescription className="space-y-2">
               <p>
-                The admin account for {partial.email} was created with the
-                password you chose, and password sign-in is switched on. Only
-                signing you in automatically did not work ({partial.message}).
+                The admin account for {partial.email} has the password you
+                chose, and password sign-in is switched on. Only signing you in
+                automatically did not work ({partial.message}).
               </p>
               <p>
+                Try again here, or{' '}
                 <Link
                   to="/login"
                   className="font-medium underline underline-offset-4"
                 >
-                  Go to the sign-in page
+                  go to the sign-in page
                 </Link>{' '}
-                and sign in with that email and password to finish setup.
+                and sign in with that email and password. Signing in finishes
+                setup.
               </p>
+              <Button
+                type="button"
+                disabled={busy}
+                data-testid="setup-password-retry"
+                onClick={() => {
+                  void signIn(partial.email)
+                }}
+              >
+                {busy ? 'Signing in…' : 'Try signing in again'}
+              </Button>
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -187,8 +206,9 @@ export function SetupPasswordSection({
         <CardDescription>
           No sign-in provider needed. Give a root instance admin (an address
           listed under auth.instance_admins in the server configuration) a
-          password. This switches password sign-in on and signs you in, which
-          finishes setup.
+          password. The account is created if it does not exist; if it does, its
+          password is replaced and it is signed out everywhere. This switches
+          password sign-in on and signs you in, which finishes setup.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -278,7 +298,7 @@ export function SetupPasswordSection({
 
           {formError && (
             <Alert variant="destructive" data-testid="setup-password-error">
-              <AlertTitle>The admin account was not created</AlertTitle>
+              <AlertTitle>The admin account was not set up</AlertTitle>
               <AlertDescription>{formError}</AlertDescription>
             </Alert>
           )}
@@ -288,7 +308,7 @@ export function SetupPasswordSection({
             disabled={busy}
             data-testid="setup-password-submit"
           >
-            {busy ? 'Creating…' : 'Create admin and sign in'}
+            {busy ? 'Setting up…' : 'Set up admin and sign in'}
           </Button>
         </form>
       </CardContent>

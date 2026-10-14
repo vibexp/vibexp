@@ -50,7 +50,7 @@ const email = () => screen.getByLabelText('Root admin email')
 const password = () => screen.getByLabelText('Password')
 const repeat = () => screen.getByLabelText('Repeat the password')
 const submit = () =>
-  screen.getByRole('button', { name: 'Create admin and sign in' })
+  screen.getByRole('button', { name: 'Set up admin and sign in' })
 
 async function fill(
   user: ReturnType<typeof userEvent.setup>,
@@ -217,7 +217,23 @@ describe('SetupPasswordSection', () => {
     expect(submit()).toBeEnabled()
   })
 
-  it('says the account is ready when only the sign-in failed, and points at the sign-in page', async () => {
+  it('catches a malformed email before any request', async () => {
+    const user = renderSection()
+    await fill(user, {
+      email: 'root@',
+      password: PASSPHRASE,
+      repeat: PASSPHRASE,
+    })
+    await user.click(submit())
+
+    expect(email()).toHaveAccessibleDescription(
+      'Enter a complete email address, such as admin@example.com.'
+    )
+    expect(settings.bootstrapAdminPassword).not.toHaveBeenCalled()
+    expect(email()).toHaveValue('root@')
+  })
+
+  it('says the account is ready when only the sign-in failed, and offers to try again', async () => {
     auth.passwordLogin.mockRejectedValue(new Error('Network Error'))
     const user = renderSection()
     await fill(user, {
@@ -229,15 +245,30 @@ describe('SetupPasswordSection', () => {
 
     const partial = await screen.findByTestId('setup-password-partial')
     expect(partial).toHaveTextContent(
-      'The admin account for root@example.com was created'
+      'The admin account for root@example.com has the password you chose'
     )
     expect(partial).toHaveTextContent('Network Error')
     expect(
-      screen.getByRole('link', { name: 'Go to the sign-in page' })
+      screen.getByRole('link', { name: 'go to the sign-in page' })
     ).toHaveAttribute('href', '/login')
     expect(navigate).not.toHaveBeenCalled()
     // The password is never shown back.
     expect(partial).not.toHaveTextContent(PASSPHRASE)
+
+    // Trying again signs in with the same credentials and never repeats the
+    // bootstrap, which would end the sessions it just made possible.
+    auth.passwordLogin.mockResolvedValue({ id: 'u1' } as never)
+    await user.click(
+      screen.getByRole('button', { name: 'Try signing in again' })
+    )
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith('/')
+    })
+    expect(auth.passwordLogin).toHaveBeenLastCalledWith(
+      'root@example.com',
+      PASSPHRASE
+    )
+    expect(settings.bootstrapAdminPassword).toHaveBeenCalledTimes(1)
   })
 
   it('disables the form while it is working', async () => {
@@ -255,7 +286,7 @@ describe('SetupPasswordSection', () => {
     })
     await user.click(submit())
 
-    expect(screen.getByRole('button', { name: 'Creating…' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Setting up…' })).toBeDisabled()
     expect(email()).toBeDisabled()
     finish()
     await waitFor(() => {
