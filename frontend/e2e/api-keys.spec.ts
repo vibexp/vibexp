@@ -404,7 +404,9 @@ test.describe('API Keys Feature', () => {
 
       // Now test API key authentication with backend
       const apiBaseUrl =
-        process.env.PLAYWRIGHT_API_BASE_URL || 'http://localhost:8080'
+        process.env.PLAYWRIGHT_API_BASE_URL ||
+        process.env.PLAYWRIGHT_BASE_URL ||
+        'http://localhost:8080'
 
       // Any endpoint behind flexibleAuthMiddleware (cookie-or-API-key) proves
       // the point. This used to POST /api/v1/claude-code/hooks, which #614
@@ -426,7 +428,9 @@ test.describe('API Keys Feature', () => {
 
     test('should reject invalid API key', async ({ page }) => {
       const apiBaseUrl =
-        process.env.PLAYWRIGHT_API_BASE_URL || 'http://localhost:8080'
+        process.env.PLAYWRIGHT_API_BASE_URL ||
+        process.env.PLAYWRIGHT_BASE_URL ||
+        'http://localhost:8080'
 
       // Retargeted off the removed hooks endpoint (#660). This one happened to
       // keep passing, but only because auth rejects before routing — so it
@@ -441,7 +445,9 @@ test.describe('API Keys Feature', () => {
 
     test('should reject request without API key or JWT', async ({ page }) => {
       const apiBaseUrl =
-        process.env.PLAYWRIGHT_API_BASE_URL || 'http://localhost:8080'
+        process.env.PLAYWRIGHT_API_BASE_URL ||
+        process.env.PLAYWRIGHT_BASE_URL ||
+        'http://localhost:8080'
 
       // Retargeted off the removed hooks endpoint (#660), same as the two above.
       const response = await page.request.get(`${apiBaseUrl}/api/v1/teams`, {

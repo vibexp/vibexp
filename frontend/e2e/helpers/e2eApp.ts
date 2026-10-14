@@ -1,8 +1,9 @@
 import { execFileSync } from 'node:child_process'
 
 /**
- * Runs the break-glass CLI inside the e2e stack's app container, for the one
- * thing neither the UI nor the API can do: hand out a setup URL.
+ * Runs commands inside the e2e stack's app container, for what neither the UI
+ * nor the API can do: hand out a setup URL (the break-glass CLI), and read the
+ * stack's Mailpit, whose API is not published on the host.
  *
  * A setup token is only ever logged (at boot) or printed by
  * `vibexp admin auth setup rearm`; the server stores its hash alone. So the
@@ -54,14 +55,6 @@ export function e2eAppAvailable(): boolean {
 }
 
 /**
- * Re-arms authentication setup and returns the new one-time setup token.
- * Every earlier setup URL and setup session stops working.
- *
- * The published image's binary is `./main` (what the boot log calls
- * `vibexp`), run from the image's working directory with the server's own
- * configuration.
- */
-/**
  * Runs a command inside the app container and returns its stdout. The stack's
  * Mailpit shares that container's network namespace, so its HTTP API is
  * reachable from here at 127.0.0.1:8025 without being published on the host.
@@ -76,22 +69,16 @@ export function execInApp(args: readonly string[]): string {
   return run('docker', ['exec', containerId, ...args])
 }
 
+/**
+ * Re-arms authentication setup and returns the new one-time setup token.
+ * Every earlier setup URL and setup session stops working.
+ *
+ * The published image's binary is `./main` (what the boot log calls
+ * `vibexp`), run from the image's working directory with the server's own
+ * configuration.
+ */
 export function rearmSetup(): string {
-  const containerId = appContainerId()
-  if (containerId === null) {
-    throw new Error(
-      `no running ${COMPOSE_PROJECT}/${APP_SERVICE} container: is the e2e stack up (make e2e)?`
-    )
-  }
-  const output = run('docker', [
-    'exec',
-    containerId,
-    './main',
-    'admin',
-    'auth',
-    'setup',
-    'rearm',
-  ])
+  const output = execInApp(['./main', 'admin', 'auth', 'setup', 'rearm'])
   const token = /\/setup\?token=([\w-]+)/.exec(output)?.[1]
   if (!token) {
     throw new Error(`no setup URL in the rearm output:\n${output}`)

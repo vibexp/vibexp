@@ -22,7 +22,7 @@ import { execFileSync } from 'node:child_process'
  * expected to `test.skip` with a reason rather than assert nothing.
  */
 
-const COMPOSE_PROJECT = 'vibexp-e2e'
+const COMPOSE_PROJECT = process.env.E2E_COMPOSE_PROJECT ?? 'vibexp-e2e'
 const POSTGRES_SERVICE = 'postgres'
 const POSTGRES_USER = 'vibexp'
 const POSTGRES_DB = 'vibexp'

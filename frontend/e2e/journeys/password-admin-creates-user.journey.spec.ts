@@ -14,7 +14,9 @@ import {
   setPolicy,
   useMailpit,
   whoAmI,
-  withInstanceAuthRestored,
+  type InstanceAuthSnapshot,
+  restoreInstanceAuth,
+  snapshotInstanceAuth,
 } from '../helpers/passwordAuth'
 
 /**
@@ -27,7 +29,7 @@ import {
  */
 const UI_TIMEOUT = 20_000
 
-/** New user → email, name, one team → Create user; returns the outcome panel. */
+/** New user → email, name, one team → Create user. */
 async function createUser(
   admin: Page,
   email: string,
@@ -72,65 +74,75 @@ async function completeSetup(
 
 test.describe
   .serial('Password journeys: an administrator creates a user', () => {
+  let snapshot: InstanceAuthSnapshot | undefined
+
+  test.beforeEach(async ({ page }) => {
+    snapshot = undefined
+    test.skip(!e2eAppAvailable(), 'needs the docker e2e stack (make e2e)')
+    await devLogin(page, ADMIN_EMAIL, ADMIN_NAME)
+    snapshot = await snapshotInstanceAuth(page)
+  })
+
+  // In afterEach, not a finally in the test: it also runs after a timeout.
+  test.afterEach(async ({ page }) => {
+    if (snapshot) await restoreInstanceAuth(page, snapshot)
+  })
+
   test('emailed setup link, then a link shown once with no email provider', async ({
     page,
     browser,
   }) => {
-    test.skip(!e2eAppAvailable(), 'needs the docker e2e stack (make e2e)')
     test.setTimeout(180_000)
-    await devLogin(page, ADMIN_EMAIL, ADMIN_NAME)
 
-    await withInstanceAuthRestored(page, async () => {
-      await setPolicy(page, {
-        password_login_enabled: true,
-        registration_mode: 'open',
-      })
-      const team = `E2E Password Team ${RUN_ID}`
-      await createTeam(page, team)
-
-      // --- Emailed ---------------------------------------------------------
-      await useMailpit(page)
-      const mailed = runEmail('create', 'mailed')
-      await createUser(page, mailed, team)
-      await expect(page.getByTestId('user-created')).toContainText(
-        'Setup link emailed'
-      )
-      await page.getByRole('button', { name: 'Done' }).click()
-      const link = await emailedAccountLink(mailed, 'setup')
-      const owner = await freshPage(browser)
-      try {
-        await completeSetup(owner.page, link, mailed, team)
-      } finally {
-        await owner.context.close()
-      }
-
-      // --- No email provider: shown once ------------------------------------
-      await removeEmail(page)
-      const handed = runEmail('create', 'handed')
-      await createUser(page, handed, team)
-      const shown = (
-        await page.getByTestId('link-reveal-value').innerText()
-      ).trim()
-      expect(shown).toContain('/account/setup#token=')
-      await page.getByRole('button', { name: 'Done' }).click()
-      // Reopening the dialog shows nothing of it.
-      await page.getByRole('button', { name: /New user/ }).click()
-      await expect(page.getByRole('dialog')).not.toContainText(
-        shown.split('#token=')[1]
-      )
-      await page.keyboard.press('Escape')
-
-      const second = await freshPage(browser)
-      try {
-        await completeSetup(
-          second.page,
-          new URL(shown).pathname + new URL(shown).hash,
-          handed,
-          team
-        )
-      } finally {
-        await second.context.close()
-      }
+    await setPolicy(page, {
+      password_login_enabled: true,
+      registration_mode: 'open',
     })
+    const team = `E2E Password Team ${RUN_ID}`
+    await createTeam(page, team)
+
+    // --- Emailed ---------------------------------------------------------
+    await useMailpit(page)
+    const mailed = runEmail('create', 'mailed')
+    await createUser(page, mailed, team)
+    await expect(page.getByTestId('user-created')).toContainText(
+      'Setup link emailed'
+    )
+    await page.getByRole('button', { name: 'Done' }).click()
+    const link = await emailedAccountLink(mailed, 'setup')
+    const owner = await freshPage(browser)
+    try {
+      await completeSetup(owner.page, link, mailed, team)
+    } finally {
+      await owner.context.close()
+    }
+
+    // --- No email provider: shown once ------------------------------------
+    await removeEmail(page)
+    const handed = runEmail('create', 'handed')
+    await createUser(page, handed, team)
+    const shown = (
+      await page.getByTestId('link-reveal-value').innerText()
+    ).trim()
+    expect(shown).toContain('/account/setup#token=')
+    await page.getByRole('button', { name: 'Done' }).click()
+    // Reopening the dialog shows nothing of it.
+    await page.getByRole('button', { name: /New user/ }).click()
+    await expect(page.getByRole('dialog')).not.toContainText(
+      shown.split('#token=')[1]
+    )
+    await page.keyboard.press('Escape')
+
+    const second = await freshPage(browser)
+    try {
+      await completeSetup(
+        second.page,
+        new URL(shown).pathname + new URL(shown).hash,
+        handed,
+        team
+      )
+    } finally {
+      await second.context.close()
+    }
   })
 })

@@ -13,7 +13,8 @@ import { execInApp } from './e2eApp'
  * The e2e stack has no identity provider, so these journeys sign in through
  * the password form, read emailed links from the stack's Mailpit, and change
  * instance-wide settings (password sign-in, registration mode, the instance
- * email provider) that every journey must put back as it found them.
+ * email provider) that every journey puts back afterwards
+ * (`restoreInstanceAuth`).
  */
 
 /** A per-run namespace for the addresses a journey creates. */
@@ -126,8 +127,12 @@ export async function createPasswordAccount(
   })
   expect(response.ok(), await response.text()).toBeTruthy()
   const { setup } = (await response.json()) as {
-    setup: { delivery: string; link_url?: string }
+    setup: { delivery: string; link_url?: string; reason?: string }
   }
+  // `none` would otherwise surface as a 20-second wait for a mail never sent.
+  expect(setup.delivery, `no setup link: ${setup.reason ?? ''}`).not.toBe(
+    'none'
+  )
   const link =
     setup.delivery === 'link' && setup.link_url
       ? setup.link_url
@@ -177,7 +182,9 @@ export async function setPolicy(page: Page, policy: AuthPolicy): Promise<void> {
     }
   )
   expect(response.ok(), await response.text()).toBeTruthy()
-  // The server caches the policy for up to two seconds.
+  // The server re-reads the policy at most every two seconds
+  // (authPolicyVersionProbeInterval in services/auth_policy_resolver.go), so a
+  // request right after a change can still see the old one.
   await page.waitForTimeout(2_500)
 }
 
@@ -199,26 +206,60 @@ export async function removeEmail(page: Page): Promise<void> {
   expect([204, 409]).toContain(response.status())
 }
 
-/**
- * Runs `body` with the instance's password policy and email provider put back
- * afterwards, pass or fail. `page` must be signed in as an instance admin.
- */
-export async function withInstanceAuthRestored(
-  page: Page,
-  body: () => Promise<void>
-): Promise<void> {
-  const policy = await readPolicy(page)
-  const hadEmail = await emailConfigured(page)
-  try {
-    await body()
-  } finally {
-    await setPolicy(page, {
-      password_login_enabled: policy.password_login_enabled,
-      registration_mode: policy.registration_mode,
-    })
-    if (hadEmail) await useMailpit(page)
-    else await removeEmail(page)
+/** What the password journeys change instance-wide, as it was before them. */
+export interface InstanceAuthSnapshot {
+  policy: AuthPolicy
+  emailConfigured: boolean
+}
+
+/** Reads the state `restoreInstanceAuth` puts back. Call it in `beforeEach`. */
+export async function snapshotInstanceAuth(
+  page: Page
+): Promise<InstanceAuthSnapshot> {
+  return {
+    policy: await readPolicy(page),
+    emailConfigured: await emailConfigured(page),
   }
+}
+
+/**
+ * Puts the password policy and the instance email provider back. Call it in
+ * `afterEach`, which Playwright runs after a failure AND after a timeout (a
+ * `finally` inside the test body does not run on a timeout).
+ *
+ * The two are restored independently, so one failing does not skip the other,
+ * and then read back and compared. The email provider is restored as present
+ * or absent: a provider that was there comes back as the stack's Mailpit
+ * provider, since a stored secret can never be read back. On the e2e stack
+ * that is the only provider any spec configures.
+ */
+export async function restoreInstanceAuth(
+  page: Page,
+  snapshot: InstanceAuthSnapshot
+): Promise<void> {
+  const failures: unknown[] = []
+  try {
+    await setPolicy(page, {
+      password_login_enabled: snapshot.policy.password_login_enabled,
+      registration_mode: snapshot.policy.registration_mode,
+    })
+  } catch (error) {
+    failures.push(error)
+  }
+  try {
+    if (snapshot.emailConfigured) await useMailpit(page)
+    else await removeEmail(page)
+  } catch (error) {
+    failures.push(error)
+  }
+  if (failures.length > 0) throw failures[0]
+
+  const after = await snapshotInstanceAuth(page)
+  expect(after.policy).toMatchObject({
+    password_login_enabled: snapshot.policy.password_login_enabled,
+    registration_mode: snapshot.policy.registration_mode,
+  })
+  expect(after.emailConfigured).toBe(snapshot.emailConfigured)
 }
 
 /** A fresh browser with no session: a different person, or a signed-out one. */

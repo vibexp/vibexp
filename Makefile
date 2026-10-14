@@ -538,10 +538,15 @@ build-combined: frontend-build
 
 # Absolute compose path: every e2e target must work regardless of the shell's
 # cwd, so a recipe that cd's somewhere first can never break the teardown (#598).
-E2E_COMPOSE := docker compose -f $(CURDIR)/docker-compose.e2e.yml
-# Host port of the app (docker-compose.e2e.yml reads E2E_APP_PORT; default 8080).
-# Run a second stack beside one on :8080 with, e.g.,
-# `E2E_APP_PORT=8481 COMPOSE_PROJECT_NAME=vibexp-e2e-one E2E_COMPOSE_PROJECT=vibexp-e2e-one make e2e`.
+# The compose project and the app's port are overridable together, to run a
+# second stack beside one already up:
+#   E2E_APP_PORT=8481 E2E_COMPOSE_PROJECT=vibexp-e2e-one make e2e
+# Both are exported: docker-compose.e2e.yml reads E2E_APP_PORT, and the e2e
+# helpers that reach into the containers read E2E_COMPOSE_PROJECT.
+E2E_COMPOSE_PROJECT ?= vibexp-e2e
+export E2E_COMPOSE_PROJECT
+E2E_COMPOSE := docker compose -p $(E2E_COMPOSE_PROJECT) -f $(CURDIR)/docker-compose.e2e.yml
+# Port of the app, published and listened on (default 8080; see above).
 E2E_APP_PORT ?= 8080
 export E2E_APP_PORT
 E2E_BASE_URL ?= http://localhost:$(E2E_APP_PORT)
