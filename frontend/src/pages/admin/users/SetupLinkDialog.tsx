@@ -22,8 +22,8 @@ import { EMAIL_UNAVAILABLE_MESSAGE, isEmailUnavailable } from './setupOutcome'
 
 /**
  * "Get setup link" on a user page (#1443): a new one-time link for an account
- * with no way to sign in yet, emailed or shown here once. Any earlier link
- * stops working. The link lives in this dialog's state and is dropped when it
+ * with no way to sign in yet, emailed or shown here once. Any earlier setup
+ * link stops working, emailed or shown (#1490). The link lives in this dialog's state and is dropped when it
  * closes.
  */
 export function SetupLinkDialog({

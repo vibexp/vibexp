@@ -390,6 +390,37 @@ func TestIntegrationAccountToken_ConcurrentReplaceLeavesOneLiveLink(t *testing.T
 	assert.Equal(t, 1, countAccountTokens(t, "user_id = $1", userID))
 }
 
+// Simultaneous administrator links of one purpose, emailed and copied mixed,
+// leave exactly one live link of that purpose (#1490).
+func TestIntegrationAccountToken_ConcurrentAdminReplaceLeavesOneLinkOfThePurpose(t *testing.T) {
+	resetIntegrationTables(t)
+	repo := NewAccountTokenRepository(integrationDB)
+	adminID, userID := insertTestUser(t), insertTestUser(t)
+
+	var start, done sync.WaitGroup
+	start.Add(1)
+	for i := range 16 {
+		delivery := models.AccountTokenDeliveryEmail
+		if i%2 == 1 {
+			delivery = models.AccountTokenDeliveryLink
+		}
+		done.Add(1)
+		go func() {
+			defer done.Done()
+			start.Wait()
+			assert.NoError(t, repo.Replace(context.Background(), &models.AccountToken{
+				UserID: userID, Purpose: models.AccountTokenPurposeSetup, Delivery: delivery,
+				TokenHash: accountTokenHash(uuid.NewString()), ExpiresAt: accountTokenTestNow.Add(time.Hour),
+				CreatedBy: &adminID,
+			}, 0))
+		}()
+	}
+	start.Done()
+	done.Wait()
+
+	assert.Equal(t, 1, countAccountTokens(t, "user_id = $1", userID))
+}
+
 func TestIntegrationAccountToken_Delete(t *testing.T) {
 	resetIntegrationTables(t)
 	repo := NewAccountTokenRepository(integrationDB)
