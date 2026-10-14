@@ -1906,3 +1906,31 @@ func TestAuthService_LinkByVerifiedEmail_DisconnectedIdentity(t *testing.T) {
 		assert.Empty(t, f.log)
 	})
 }
+
+// #1460, the legacy Google path: a Google account linked under both the
+// provider slug and the legacy alias is disconnected (RemoveIdentity deletes
+// both rows, TestIntegrationSignInMethod_DisconnectIsRemembered). Its next
+// sign-in finds neither, falls through to the email match, and is refused
+// there by the record of the slug, not re-linked.
+func TestAuthService_DisconnectedGoogleAccountIsRefusedOnTheLegacyPathToo(t *testing.T) {
+	ctx := context.Background()
+	verifiedAt := time.Now().Add(-time.Hour)
+	account := &models.User{ID: "user-1", Email: "ada@example.com", EmailVerifiedAt: &verifiedAt}
+	users := &repo_mocks.MockUserRepository{}
+	identities := &repo_mocks.MockUserIdentityRepository{}
+	users.On("GetByIDPSubject", ctx, "google", "g-sub").Return(nil, repositories.ErrUserNotFound).Once()
+	users.On("GetByIDPSubject", ctx, models.LegacyGoogleIdentityProvider, "g-sub").
+		Return(nil, repositories.ErrUserNotFound).Once()
+	users.On("GetByEmail", ctx, "ada@example.com").Return(account, nil)
+	svc := identityAuthService(t, users, identities)
+	svc.disconnected = fakeDisconnected{keys: map[string]bool{"user-1|google|g-sub": true}}
+
+	user, _, err := svc.createOrUpdateUserFromClaims(ctx, "google", idp.ProviderGoogle,
+		&idp.Claims{Subject: "g-sub", Email: "ada@example.com", EmailVerified: true})
+
+	require.ErrorIs(t, err, ErrIdentityDisconnected)
+	assert.Nil(t, user)
+	users.AssertExpectations(t)
+	users.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	identities.AssertNotCalled(t, "Upsert", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
