@@ -1841,3 +1841,68 @@ func TestAuthService_LinkByVerifiedEmail_AccountChangedBeforeTheClaim(t *testing
 		f.users.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
 	})
 }
+
+// fakeDisconnected answers IsDisconnected from a fixed set of
+// "user|provider|subject" keys.
+type fakeDisconnected struct {
+	keys map[string]bool
+	err  error
+}
+
+func (f fakeDisconnected) IsDisconnected(_ context.Context, userID, provider, subject string) (bool, error) {
+	return f.keys[userID+"|"+provider+"|"+subject], f.err
+}
+
+// #1460: a provider account the owner disconnected is not linked by email
+// again; everything else links as before.
+func TestAuthService_LinkByVerifiedEmail_DisconnectedIdentity(t *testing.T) {
+	verifiedAt := time.Now().Add(-time.Hour)
+	claims := idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: true}
+
+	t.Run("refused, nothing written", func(t *testing.T) {
+		account := &models.User{ID: "user-1", Email: "ada@example.com", EmailVerifiedAt: &verifiedAt}
+		f := newLinkFixture(t, account, nil, nil)
+		f.svc.disconnected = fakeDisconnected{keys: map[string]bool{"user-1|corp-sso|sub-new": true}}
+
+		user, _, err := f.signIn(claims)
+
+		require.ErrorIs(t, err, ErrIdentityDisconnected)
+		assert.True(t, isSignInRefusal(err), "a policy outcome the callback explains")
+		assert.Nil(t, user)
+		assert.Empty(t, f.log, "nothing is claimed, updated or linked")
+	})
+
+	t.Run("another provider account of the same provider still links", func(t *testing.T) {
+		account := &models.User{ID: "user-1", Email: "ada@example.com", EmailVerifiedAt: &verifiedAt}
+		f := newLinkFixture(t, account, nil, nil)
+		f.svc.disconnected = fakeDisconnected{keys: map[string]bool{"user-1|corp-sso|sub-old": true}}
+
+		user, _, err := f.signIn(claims)
+
+		require.NoError(t, err)
+		assert.Equal(t, "user-1", user.ID)
+	})
+
+	t.Run("an admin-created account's first sign-in is unaffected: nothing is recorded for it", func(t *testing.T) {
+		account := &models.User{ID: "pre-1", Email: "ada@example.com"}
+		f := newLinkFixture(t, account, nil, nil)
+		f.svc.disconnected = fakeDisconnected{keys: map[string]bool{}}
+
+		_, _, err := f.signIn(claims)
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"hook:pre-1", "epoch", "update", "upsert"}, f.log)
+	})
+
+	t.Run("a failed read fails the sign-in and links nothing", func(t *testing.T) {
+		account := &models.User{ID: "user-1", Email: "ada@example.com", EmailVerifiedAt: &verifiedAt}
+		f := newLinkFixture(t, account, nil, nil)
+		f.svc.disconnected = fakeDisconnected{err: errors.New("database unavailable")}
+
+		_, _, err := f.signIn(claims)
+
+		require.Error(t, err)
+		require.NotErrorIs(t, err, ErrIdentityDisconnected)
+		assert.Empty(t, f.log)
+	})
+}

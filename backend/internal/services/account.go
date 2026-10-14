@@ -40,6 +40,9 @@ var (
 	// ErrAccountIdentityNotFound is returned when disconnecting an identity
 	// the account does not have.
 	ErrAccountIdentityNotFound = errors.New("the account has no such sign-in identity")
+	// ErrDisconnectedIdentityNotFound is returned when allowing again a
+	// disconnected identity the account does not have.
+	ErrDisconnectedIdentityNotFound = errors.New("the account has no such disconnected identity")
 )
 
 // AccountNotifier is told about changes to an account that its owner should
@@ -82,6 +85,19 @@ type AccountView struct {
 	User       *models.User
 	Password   AccountPasswordView
 	Identities []AccountIdentityView
+	// Disconnected are the provider accounts the owner disconnected and has
+	// not allowed again (#1460), newest first.
+	Disconnected []AccountDisconnectedView
+}
+
+// AccountDisconnectedView is a provider account the owner disconnected.
+type AccountDisconnectedView struct {
+	ID       string
+	Provider string
+	// DisplayName is the provider's name on the sign-in page, or its slug when
+	// the provider is not enabled.
+	DisplayName    string
+	DisconnectedAt time.Time
 }
 
 // AccountPasswordView is the password sign-in method of an account.
@@ -149,6 +165,10 @@ type AccountServiceInterface interface {
 	// DisconnectIdentity removes one identity and returns its provider slug.
 	// It requires a recent sign-in and another usable sign-in method.
 	DisconnectIdentity(ctx context.Context, userID, identityID string, recentSignIn bool) (provider string, err error)
+	// AllowIdentityAgain lets a disconnected provider account link to the
+	// account by email again (#1460). It requires a recent sign-in;
+	// ErrDisconnectedIdentityNotFound when the account has no such record.
+	AllowIdentityAgain(ctx context.Context, userID, id string, recentSignIn bool) error
 	// RevokeAPIAccess deletes the user's API keys and MCP/OAuth grants (the
 	// "also revoke API keys and connected tools" option of a password change).
 	RevokeAPIAccess(ctx context.Context, userID string) error
@@ -217,7 +237,13 @@ func (s *AccountService) Get(ctx context.Context, userID string) (*AccountView, 
 	if err != nil {
 		return nil, err
 	}
-	return &AccountView{User: user, Password: passwordView, Identities: identities}, nil
+	disconnected, err := s.disconnectedViews(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return &AccountView{
+		User: user, Password: passwordView, Identities: identities, Disconnected: disconnected,
+	}, nil
 }
 
 // passwordView reads the password's state and whether the instance allows
@@ -438,6 +464,53 @@ func removalError(action string, err error) error {
 		return ErrAccountIdentityNotFound
 	}
 	return fmt.Errorf("%s: %w", action, err)
+}
+
+// disconnectedViews lists the provider accounts the owner disconnected, each
+// with its provider's name.
+func (s *AccountService) disconnectedViews(ctx context.Context, userID string) ([]AccountDisconnectedView, error) {
+	disconnected, err := s.methods.ListDisconnected(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list the account's disconnected identities: %w", err)
+	}
+	if len(disconnected) == 0 {
+		return []AccountDisconnectedView{}, nil
+	}
+	registry, err := s.providers.Snapshot(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrIdentityProvidersUnresolvable, err)
+	}
+	names := map[string]string{}
+	for _, entry := range registry.Entries() {
+		names[string(entry.Provider.Name())] = entry.DisplayName
+	}
+	views := make([]AccountDisconnectedView, 0, len(disconnected))
+	for _, d := range disconnected {
+		name, ok := names[d.Provider]
+		if !ok {
+			name = d.Provider
+		}
+		views = append(views, AccountDisconnectedView{
+			ID: d.ID, Provider: d.Provider, DisplayName: name, DisconnectedAt: d.DisconnectedAt,
+		})
+	}
+	return views, nil
+}
+
+// AllowIdentityAgain implements AccountServiceInterface.
+func (s *AccountService) AllowIdentityAgain(ctx context.Context, userID, id string, recentSignIn bool) error {
+	if !recentSignIn {
+		return ErrReauthenticationRequired
+	}
+	allowed, err := s.methods.AllowIdentityAgain(ctx, userID, id)
+	if err != nil {
+		return fmt.Errorf("allow the identity again: %w", err)
+	}
+	if !allowed {
+		return ErrDisconnectedIdentityNotFound
+	}
+	s.logger.With("user_id", userID).Info("A disconnected sign-in identity was allowed again")
+	return nil
 }
 
 // RevokeAPIAccess implements AccountServiceInterface.

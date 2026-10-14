@@ -720,3 +720,70 @@ func TestSetAccountPassword_RevocationIsAttemptedWhenEndingSessionsFails(t *test
 		assert.NotContains(t, rec.Body.String(), "pq:")
 	})
 }
+
+// #1460: allowing a disconnected provider account again.
+func TestDeleteAccountDisconnectedIdentity(t *testing.T) {
+	const recordID = "6f1c2a7e-3b4d-4c5e-8f90-1a2b3c4d5e6f"
+	path := "/api/v1/account/disconnected-identities/" + recordID
+
+	t.Run("allowed again: audited, no session changes", func(t *testing.T) {
+		f := newAccountFixture(t)
+		otherDevice := f.session(t, 2*time.Hour)
+		f.account.On("AllowIdentityAgain", mock.Anything, epochUserID, recordID, true).Return(nil).Once()
+
+		req, rec := f.do(http.MethodDelete, path, "", f.session(t, time.Minute))
+
+		require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+		assert.Nil(t, sessionCookieIn(rec), "nothing about the session changes")
+		assert.True(t, f.stillSignedIn(t, otherDevice))
+		f.container.activityService.AssertCalled(t, "RecordAuthActivity", mock.Anything, epochUserID,
+			activities.ActivityTypeAuthIdentityAllowedAgain, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+		specconformance.AssertConformsToSpec(t, req, rec)
+	})
+
+	for name, tc := range map[string]struct {
+		err    error
+		status int
+		code   string
+	}{
+		"not a recent sign-in": {services.ErrReauthenticationRequired, http.StatusForbidden, apierrors.CodeReauthenticationRequired},
+		"no such record":       {services.ErrDisconnectedIdentityNotFound, http.StatusNotFound, apierrors.CodeResourceNotFound},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newAccountFixture(t)
+			f.account.On("AllowIdentityAgain", mock.Anything, epochUserID, recordID, false).Return(tc.err)
+
+			req, rec := f.do(http.MethodDelete, path, "", f.session(t, time.Hour))
+
+			require.Equal(t, tc.status, rec.Code, rec.Body.String())
+			assert.Equal(t, tc.code, decodeProblem(t, rec).Code)
+			specconformance.AssertConformsToSpec(t, req, rec)
+		})
+	}
+
+	t.Run("the account lists what was disconnected", func(t *testing.T) {
+		f := newAccountFixture(t)
+		view := accountView()
+		at := time.Date(2026, 10, 14, 9, 0, 0, 0, time.UTC)
+		view.Disconnected = []services.AccountDisconnectedView{
+			{ID: recordID, Provider: "google", DisplayName: "Google", DisconnectedAt: at},
+		}
+		f.account.On("Get", mock.Anything, epochUserID).Return(view, nil)
+
+		req, rec := f.do(http.MethodGet, "/api/v1/account", "", f.session(t, time.Hour))
+
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		assert.Contains(t, rec.Body.String(),
+			`"disconnected_identities":[{"disconnected_at":"2026-10-14T09:00:00Z","display_name":"Google","id":"`+recordID+`","provider":"google"}]`)
+		specconformance.AssertConformsToSpec(t, req, rec)
+	})
+
+	t.Run("an empty list is [] not null", func(t *testing.T) {
+		f := newAccountFixture(t)
+		f.account.On("Get", mock.Anything, epochUserID).Return(accountView(), nil)
+
+		_, rec := f.do(http.MethodGet, "/api/v1/account", "", f.session(t, time.Hour))
+
+		assert.Contains(t, rec.Body.String(), `"disconnected_identities":[]`)
+	})
+}

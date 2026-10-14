@@ -38,6 +38,8 @@ type AuthServiceDeps struct {
 	Allowlist     services.AccessAllowlistResolver
 	// Gate enforces the registration mode for a new account (#1434).
 	Gate services.RegistrationGate
+	// Methods records and reports disconnected identities (#1460).
+	Methods repositories.SignInMethodRepository
 }
 
 // ProvideAuthService creates a new AuthService. An unverified account claimed
@@ -49,6 +51,7 @@ func ProvideAuthService(deps AuthServiceDeps) services.AuthServiceInterface {
 	return services.NewAuthService(
 		deps.UserRepo, deps.IdentityRepo, deps.Resolver, deps.EventManager, deps.Logger, deps.Allowlist,
 		services.WithRegistrationGate(deps.Gate),
+		services.WithDisconnectedIdentities(deps.Methods),
 		services.WithUnverifiedAccountClaimHook(
 			services.NewUnverifiedAccountCleanup(deps.AccountTokens, deps.APIAccess, deps.Logger)))
 }

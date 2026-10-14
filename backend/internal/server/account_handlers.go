@@ -390,6 +390,25 @@ func (h *accountStrictServer) DeleteAccountIdentity(
 	return accountgen.DeleteAccountIdentity204Response{}, nil
 }
 
+// DeleteAccountDisconnectedIdentity allows a disconnected provider account to
+// link to the account again (#1460). Nothing is connected now and no session
+// changes: the next sign-in through it links by verified email as before.
+func (h *accountStrictServer) DeleteAccountDisconnectedIdentity(
+	ctx context.Context, request accountgen.DeleteAccountDisconnectedIdentityRequestObject,
+) (accountgen.DeleteAccountDisconnectedIdentityResponseObject, error) {
+	caller, err := h.browserCaller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	err = h.s.container.AccountService().AllowIdentityAgain(
+		ctx, caller.userID, request.Id.String(), caller.recentSignIn(time.Now()))
+	if err != nil {
+		return nil, h.accountError("DeleteAccountDisconnectedIdentity", caller.userID, err)
+	}
+	h.recordActivity(ctx, caller.userID, activities.ActivityTypeAuthIdentityAllowedAgain, nil)
+	return accountgen.DeleteAccountDisconnectedIdentity204Response{}, nil
+}
+
 // endOtherSessions ends every other browser session of the user and re-issues
 // the caller's cookie under the new session epoch, so the caller stays signed
 // in. The change it follows has already been made, so a failure here is
@@ -471,6 +490,8 @@ func (h *accountStrictServer) accountError(handler, userID string, err error) er
 		return newPasswordPolicyProblem(policyErr)
 	case errors.Is(err, services.ErrAccountPasswordNotSet):
 		return apierrors.NewResourceNotFoundError("password", "")
+	case errors.Is(err, services.ErrDisconnectedIdentityNotFound):
+		return apierrors.NewResourceNotFoundError("disconnected identity", "")
 	case errors.Is(err, services.ErrAccountIdentityNotFound):
 		return apierrors.NewResourceNotFoundError("identity", "")
 	}
@@ -524,6 +545,16 @@ func toGenAccount(view *services.AccountView, recentSignIn bool) (accountgen.Acc
 			LastUsedAt:  identity.LastUsedAt,
 		})
 	}
+	disconnected := make([]accountgen.AccountDisconnectedIdentity, 0, len(view.Disconnected))
+	for _, d := range view.Disconnected {
+		recordID, parseErr := uuid.Parse(d.ID)
+		if parseErr != nil {
+			return accountgen.Account{}, fmt.Errorf("disconnected identity id is not a UUID: %w", parseErr)
+		}
+		disconnected = append(disconnected, accountgen.AccountDisconnectedIdentity{
+			Id: recordID, Provider: d.Provider, DisplayName: d.DisplayName, DisconnectedAt: d.DisconnectedAt,
+		})
+	}
 	return accountgen.Account{
 		Id:    id,
 		Email: openapi_types.Email(view.User.Email),
@@ -534,7 +565,8 @@ func toGenAccount(view *services.AccountView, recentSignIn bool) (accountgen.Acc
 			LoginEnabled: view.Password.LoginEnabled,
 			Disabled:     view.Password.Disabled,
 		},
-		Identities:   identities,
-		RecentSignIn: recentSignIn,
+		Identities:             identities,
+		DisconnectedIdentities: disconnected,
+		RecentSignIn:           recentSignIn,
 	}, nil
 }

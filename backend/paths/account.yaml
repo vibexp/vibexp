@@ -249,11 +249,12 @@ api-v1-account-identities-id:
   delete:
     summary: Disconnect a sign-in identity
     description: |
-      Disconnects one identity provider from the signed-in user's account. The
-      link is removed, not blocked: a later sign-in through a provider that
-      reports the account's own email address as verified links to the account
-      again. To keep a provider account out for good, it must stop being able
-      to prove that address.
+      Disconnects one identity provider from the signed-in user's account, and
+      keeps that provider account out (#1460): a later sign-in through it is
+      refused (callback error `identity_disconnected`) instead of being linked
+      to the account again by its verified email. The account lists it under
+      `disconnected_identities` until the user allows it again with `DELETE
+      /api/v1/account/disconnected-identities/{id}`.
 
       Requires a recent sign-in (403 `reauthentication_required` otherwise), and
       is refused with 409 `last_sign_in_method` when no other usable sign-in
@@ -318,6 +319,64 @@ api-v1-account-identities-id:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '500':
         description: The identity could not be disconnected
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-account-disconnected-identities-id:
+  delete:
+    summary: Allow a disconnected sign-in identity again
+    description: |
+      Removes the record that keeps a disconnected provider account out
+      (#1460). The next sign-in through it links to this account by verified
+      email again, as before it was disconnected. It does not connect it now.
+
+      Requires a recent sign-in (403 `reauthentication_required` otherwise).
+      Only a browser session may call this (403 `cookie_session_required`
+      otherwise).
+    operationId: deleteAccountDisconnectedIdentity
+    tags:
+      - Account
+    security:
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: The record's `id` from `disconnected_identities` in `GET /api/v1/account`
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Allowed again
+      '400':
+        description: The id is not a UUID
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Not authenticated
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: '`cookie_session_required` or `reauthentication_required`'
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: The account has no such disconnected identity
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: The record could not be removed
         content:
           application/problem+json:
             schema:

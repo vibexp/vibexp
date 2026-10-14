@@ -70,6 +70,55 @@ func (_c *MockAccountServiceInterface_AdminRemovePassword_Call) RunAndReturn(run
 	return _c
 }
 
+// AllowIdentityAgain provides a mock function with given fields: ctx, userID, id, recentSignIn
+func (_m *MockAccountServiceInterface) AllowIdentityAgain(ctx context.Context, userID string, id string, recentSignIn bool) error {
+	ret := _m.Called(ctx, userID, id, recentSignIn)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AllowIdentityAgain")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, bool) error); ok {
+		r0 = rf(ctx, userID, id, recentSignIn)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockAccountServiceInterface_AllowIdentityAgain_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AllowIdentityAgain'
+type MockAccountServiceInterface_AllowIdentityAgain_Call struct {
+	*mock.Call
+}
+
+// AllowIdentityAgain is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - id string
+//   - recentSignIn bool
+func (_e *MockAccountServiceInterface_Expecter) AllowIdentityAgain(ctx interface{}, userID interface{}, id interface{}, recentSignIn interface{}) *MockAccountServiceInterface_AllowIdentityAgain_Call {
+	return &MockAccountServiceInterface_AllowIdentityAgain_Call{Call: _e.mock.On("AllowIdentityAgain", ctx, userID, id, recentSignIn)}
+}
+
+func (_c *MockAccountServiceInterface_AllowIdentityAgain_Call) Run(run func(ctx context.Context, userID string, id string, recentSignIn bool)) *MockAccountServiceInterface_AllowIdentityAgain_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(bool))
+	})
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_AllowIdentityAgain_Call) Return(_a0 error) *MockAccountServiceInterface_AllowIdentityAgain_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_AllowIdentityAgain_Call) RunAndReturn(run func(context.Context, string, string, bool) error) *MockAccountServiceInterface_AllowIdentityAgain_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DisconnectIdentity provides a mock function with given fields: ctx, userID, identityID, recentSignIn
 func (_m *MockAccountServiceInterface) DisconnectIdentity(ctx context.Context, userID string, identityID string, recentSignIn bool) (string, error) {
 	ret := _m.Called(ctx, userID, identityID, recentSignIn)
