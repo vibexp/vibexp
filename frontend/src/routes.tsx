@@ -41,6 +41,7 @@ import { PromptEditor } from '@/pages/prompts/PromptEditor'
 import { Prompts } from '@/pages/prompts/Prompts'
 import { PromptVersions } from '@/pages/prompts/PromptVersions'
 import { Search } from '@/pages/search/Search'
+import { AccountSettings } from '@/pages/settings/account/AccountSettings'
 import { APIKeys } from '@/pages/settings/api-keys/APIKeys'
 import { NotificationPreferences } from '@/pages/settings/notifications/NotificationPreferences'
 import { Settings } from '@/pages/settings/Settings'
@@ -175,6 +176,7 @@ export function AppRoutes() {
       />
       <Route path="notifications" element={<Notifications />} />
       <Route path="settings" element={<Settings />} />
+      <Route path="settings/account" element={<AccountSettings />} />
       <Route path="settings/activities" element={<Activities />} />
       <Route
         path="settings/notifications"

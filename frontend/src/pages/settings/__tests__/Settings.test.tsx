@@ -35,7 +35,12 @@ const team: Team = {
 }
 
 /** Every card this page is allowed to show (#543). */
-const PERSONAL_CARDS = ['Activities', 'Notification Preferences', 'API Keys']
+const PERSONAL_CARDS = [
+  'Account settings',
+  'Activities',
+  'Notification Preferences',
+  'API Keys',
+]
 
 /** Destinations that moved out under /teams/:id/ during epic #536. */
 const RELOCATED_CARDS = [
