@@ -63,10 +63,11 @@ embedded SPA), so a red run is a real signal even when the fix is test-side.
 - **The image is built from the WORKING TREE, not from the ref.** Uncommitted
   changes are silently included — useful when iterating on a fix, misleading when
   you think you are testing a clean ref. Say which in the report.
-- **The compose project name is fixed (`vibexp-e2e`) and only `:8080` is
-  published.** Two runs cannot coexist: one from a git worktree and one from the
-  main checkout collide on both the project name and the port. Run one at a time,
-  and tear down between.
+- **By default the compose project is `vibexp-e2e` and only `:8080` is
+  published**, so two default runs collide on both. To run a second stack beside
+  one, give it its own name and port:
+  `E2E_APP_PORT=8481 E2E_COMPOSE_PROJECT=vibexp-e2e-one make e2e`
+  (the app listens on that port, and the base URL, emailed links and the local OAuth issuer follow it).
 - **`make e2e` tears the stack down itself, on every exit path** — pass, fail, or
   Ctrl-C. The `e2e-up`/`e2e-test` path below does **not**; that one is on you.
 
@@ -218,6 +219,11 @@ cd frontend && CI=true PLAYWRIGHT_BASE_URL=http://localhost:8080 \
   E2E_A2A_AGENT_URL=http://a2a-test-agent:9001 \
   npx playwright test e2e/features/teams/team-management.spec.ts --headed
 ```
+
+The password journeys (`password-*.journey.spec.ts`) run in their own project
+that depends on all the others; rerun them with
+`npx playwright test --project=password-journeys --no-deps [file]`, or the
+whole suite runs first.
 
 `make e2e-test` does the same for the whole suite against a running stack. The
 app is a real browsable instance at <http://localhost:8080> with dev login on —
