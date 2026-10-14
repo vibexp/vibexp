@@ -11,7 +11,7 @@ import { MemoryRouter, useLocation } from 'react-router'
 import type { Mocked } from 'vitest'
 
 import type {
-  AdminUserDetail,
+  AdminUserCreated,
   AdminUserListItem,
   AdminUserListResponse,
 } from '@/services/adminService'
@@ -58,6 +58,10 @@ function listItem(
     id: 'u1',
     email: 'ada@example.com',
     name: 'Ada',
+    sign_in_methods: ['google'],
+    has_password: false,
+    password_disabled: false,
+    pending_setup: false,
     idp_provider: 'google',
     status: 'active',
     created_at: '2026-01-01T00:00:00Z',
@@ -375,8 +379,51 @@ describe('empty states', () => {
   })
 })
 
+describe('pending setup (#1443)', () => {
+  it('marks a pending account and filters on it, also in the export', async () => {
+    mockAdminService.listUsers.mockResolvedValue({
+      users: [listItem({ pending_setup: true, sign_in_methods: [] })],
+      page: 1,
+      per_page: 25,
+      total_count: 1,
+      total_pages: 1,
+    })
+    renderUsers()
+
+    expect(await screen.findByText('Pending setup')).toBeInTheDocument()
+    await userEvent.click(
+      screen.getByRole('combobox', { name: 'Account setup' })
+    )
+    await userEvent.click(
+      await screen.findByRole('option', { name: 'Pending setup' })
+    )
+    await waitFor(() => {
+      expect(lastQuery().pending_setup).toBe(true)
+    })
+    expect(currentSearch).toContain('setup=pending')
+  })
+
+  it('reads the filter from the URL, and "Any setup" sends nothing', async () => {
+    renderUsers('/admin/users?setup=done')
+    await screen.findByText('ada@example.com')
+    await waitFor(() => {
+      expect(lastQuery().pending_setup).toBe(false)
+    })
+
+    await userEvent.click(
+      screen.getByRole('combobox', { name: 'Account setup' })
+    )
+    await userEvent.click(
+      await screen.findByRole('option', { name: 'Any setup' })
+    )
+    await waitFor(() => {
+      expect(lastQuery().pending_setup).toBeUndefined()
+    })
+  })
+})
+
 describe('creating a user', () => {
-  const created: AdminUserDetail = {
+  const created: AdminUserCreated = {
     id: 'new-1',
     email: 'new.user@example.com',
     name: 'New User',
@@ -384,6 +431,11 @@ describe('creating a user', () => {
     status: 'active',
     created_at: '2026-07-25T00:00:00Z',
     memberships: [],
+    sign_in_methods: [],
+    has_password: false,
+    password_disabled: false,
+    pending_setup: true,
+    setup: { delivery: 'email', expires_at: '2026-08-01T00:00:00Z' },
   }
 
   const openDialog = async () => {
@@ -398,7 +450,7 @@ describe('creating a user', () => {
 
     await openDialog()
     await userEvent.type(screen.getByLabelText('Email'), 'new.user@example.com')
-    await userEvent.type(screen.getByLabelText('Name'), 'New User')
+    await userEvent.type(screen.getByLabelText('Name (optional)'), 'New User')
     await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
 
     await waitFor(() => {
@@ -407,6 +459,12 @@ describe('creating a user', () => {
         name: 'New User',
       })
     })
+    // The dialog says how the person gets in, then opens the user on request.
+    const outcome = await screen.findByTestId('user-created')
+    expect(outcome).toHaveTextContent('Setup link emailed')
+    expect(outcome).toHaveTextContent('emailed to new.user@example.com')
+    expect(mockNavigate).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'Open user' }))
     expect(mockNavigate).toHaveBeenCalledWith('/admin/users/new-1')
   })
 
@@ -417,7 +475,7 @@ describe('creating a user', () => {
 
     await openDialog()
     await userEvent.type(screen.getByLabelText('Email'), 'a@example.com')
-    await userEvent.type(screen.getByLabelText('Name'), 'A')
+    await userEvent.type(screen.getByLabelText('Name (optional)'), 'A')
     await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
 
     await waitFor(() => {
@@ -437,7 +495,7 @@ describe('creating a user', () => {
 
     await openDialog()
     await userEvent.type(screen.getByLabelText('Email'), 'a@example.com')
-    await userEvent.type(screen.getByLabelText('Name'), 'A')
+    await userEvent.type(screen.getByLabelText('Name (optional)'), 'A')
     await userEvent.type(
       screen.getByLabelText('Expected identity provider (optional)'),
       'oidc'
@@ -451,18 +509,73 @@ describe('creating a user', () => {
     })
   })
 
-  it('requires both email and name', async () => {
+  it('needs only an email; the name is optional and not sent when empty', async () => {
+    mockAdminService.createUser.mockResolvedValue(created)
     renderUsers()
     await screen.findByText('ada@example.com')
     await openDialog()
 
     expect(screen.getByRole('button', { name: 'Create user' })).toBeDisabled()
-
     await userEvent.type(screen.getByLabelText('Email'), 'a@example.com')
-    expect(screen.getByRole('button', { name: 'Create user' })).toBeDisabled()
-
-    await userEvent.type(screen.getByLabelText('Name'), 'A')
     expect(screen.getByRole('button', { name: 'Create user' })).toBeEnabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
+
+    await waitFor(() => {
+      expect(mockAdminService.createUser).toHaveBeenCalledWith({
+        email: 'a@example.com',
+      })
+    })
+  })
+
+  it('shows a link to hand over once, and drops it when the dialog closes', async () => {
+    mockAdminService.createUser.mockResolvedValue({
+      ...created,
+      setup: {
+        delivery: 'link',
+        link_url: 'http://localhost/account/setup#token=secret-1',
+        expires_at: '2026-08-01T00:00:00Z',
+      },
+    })
+    renderUsers()
+    await screen.findByText('ada@example.com')
+    await openDialog()
+    await userEvent.type(screen.getByLabelText('Email'), 'new.user@example.com')
+    await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
+
+    expect(await screen.findByTestId('link-reveal-value')).toHaveTextContent(
+      'http://localhost/account/setup#token=secret-1'
+    )
+    expect(screen.getByTestId('link-reveal')).toHaveTextContent(
+      'will not be shown again'
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }))
+    await openDialog()
+    expect(screen.queryByText(/secret-1/)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Email')).toHaveValue('')
+  })
+
+  it.each([
+    ['password_login_disabled', 'Password sign-in is switched off'],
+    ['root_admin_link_refused', 'root admin'],
+    ['email_failed', 'could not be sent'],
+    ['setup_failed', 'could not be made'],
+  ])('explains why there is no link (%s)', async (reason, text) => {
+    mockAdminService.createUser.mockResolvedValue({
+      ...created,
+      setup: {
+        delivery: 'none',
+        reason: reason as AdminUserCreated['setup']['reason'],
+      },
+    })
+    renderUsers()
+    await screen.findByText('ada@example.com')
+    await openDialog()
+    await userEvent.type(screen.getByLabelText('Email'), 'new.user@example.com')
+    await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
+
+    const setup = await screen.findByTestId('user-created-setup')
+    expect(setup).toHaveTextContent('No setup link')
+    expect(setup).toHaveTextContent(text)
   })
 
   it('shows a duplicate-email failure inline and keeps the form open', async () => {
@@ -474,7 +587,7 @@ describe('creating a user', () => {
 
     await openDialog()
     await userEvent.type(screen.getByLabelText('Email'), 'ada@example.com')
-    await userEvent.type(screen.getByLabelText('Name'), 'Ada')
+    await userEvent.type(screen.getByLabelText('Name (optional)'), 'Ada')
     await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
 
     expect(
@@ -491,7 +604,7 @@ describe('creating a user', () => {
     await screen.findByText('ada@example.com')
     await openDialog()
     await userEvent.type(screen.getByLabelText('Email'), 'a@example.com')
-    await userEvent.type(screen.getByLabelText('Name'), 'A')
+    await userEvent.type(screen.getByLabelText('Name (optional)'), 'A')
     await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
     await screen.findByText('boom')
 

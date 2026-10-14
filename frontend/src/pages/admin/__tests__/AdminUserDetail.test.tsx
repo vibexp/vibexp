@@ -20,6 +20,11 @@ vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => mockUseAuth(),
 }))
 
+const signInMethods = vi.hoisted(() => vi.fn())
+vi.mock('@/services/authService', () => ({
+  authService: { getSignInMethods: () => signInMethods() },
+}))
+
 vi.mock('@/services/adminService', () => ({
   adminService: {
     getUser: vi.fn(),
@@ -33,6 +38,7 @@ vi.mock('@/services/adminService', () => ({
     getUserTopAccessedResources: vi.fn(),
     getUserTimeline: vi.fn(),
     getUserNotificationPreferences: vi.fn(),
+    issueSetupLink: vi.fn(),
   },
 }))
 
@@ -80,6 +86,10 @@ function user(
     id: 'u1',
     email: 'ada@example.com',
     name: 'Ada',
+    sign_in_methods: ['google'],
+    has_password: false,
+    password_disabled: false,
+    pending_setup: false,
     idp_provider: 'google',
     status: 'active',
     created_at: '2026-01-01T00:00:00Z',
@@ -112,6 +122,10 @@ beforeEach(() => {
     isLoading: false,
   })
   mockAdminService.getUser.mockResolvedValue(user())
+  signInMethods.mockResolvedValue({
+    providers: [],
+    password: { enabled: true, reset: 'email' },
+  })
 })
 
 it('renders the profile, status and memberships', async () => {
@@ -470,4 +484,78 @@ it('shows the error state for an unknown id', async () => {
   expect(
     screen.queryByRole('button', { name: /Delete/ })
   ).not.toBeInTheDocument()
+})
+
+describe('sign-in methods and setup links (#1443)', () => {
+  it('lists the sign-in methods, marking a disabled password', async () => {
+    mockAdminService.getUser.mockResolvedValue(
+      user({
+        sign_in_methods: ['google', 'password'],
+        has_password: true,
+        password_disabled: true,
+      })
+    )
+    renderDetail()
+
+    const methods = await screen.findByTestId('user-sign-in-methods')
+    expect(methods).toHaveTextContent('google')
+    expect(methods).toHaveTextContent('Password (disabled)')
+    expect(screen.queryByRole('button', { name: 'Get setup link' })).toBeNull()
+  })
+
+  it('offers a setup link for a pending account and shows it once', async () => {
+    mockAdminService.getUser.mockResolvedValue(
+      user({ sign_in_methods: [], pending_setup: true })
+    )
+    mockAdminService.issueSetupLink.mockResolvedValue({
+      delivery: 'link',
+      link_url: 'http://localhost/account/setup#token=secret-4',
+      expires_at: '2026-10-21T10:00:00Z',
+    })
+    renderDetail()
+
+    expect(await screen.findByTestId('user-sign-in-methods')).toHaveTextContent(
+      'Pending setup'
+    )
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Get setup link' })
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Show the link here' })
+    )
+    expect(await screen.findByTestId('link-reveal-value')).toHaveTextContent(
+      'secret-4'
+    )
+    expect(mockAdminService.issueSetupLink).toHaveBeenCalledWith('u1', {
+      delivery: 'link',
+    })
+  })
+
+  it('disables the setup link, saying why, while password sign-in is off', async () => {
+    signInMethods.mockResolvedValue({
+      providers: [],
+      password: { enabled: false, reset: 'email' },
+    })
+    mockAdminService.getUser.mockResolvedValue(
+      user({ sign_in_methods: [], pending_setup: true })
+    )
+    renderDetail()
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Get setup link' })
+      ).toBeDisabled()
+    })
+    expect(screen.getByText(/Setup links need password sign-in/)).toBeVisible()
+  })
+
+  it('no longer says the suspension leaves passwords alone', async () => {
+    renderDetail()
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Suspend' })
+    )
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
+      'cannot sign in, with a password or through an identity provider'
+    )
+  })
 })

@@ -15,6 +15,7 @@ import { formatDate } from '@/lib/time'
 import { AdminExportButton } from '@/pages/admin/AdminExportButton'
 import { withoutPaging } from '@/pages/admin/exportParams'
 import { useAdminListFilters } from '@/pages/admin/useAdminListFilters'
+import { useCreateUser } from '@/pages/admin/users/useCreateUser'
 import { USER_ADVANCED_FILTERS } from '@/pages/admin/users/userAdvancedFilters'
 import { UserColumnChooser } from '@/pages/admin/users/UserColumnChooser'
 import type { UserSortKey } from '@/pages/admin/users/userColumns'
@@ -22,9 +23,11 @@ import {
   userActivityColumns,
   useUserColumnVisibility,
 } from '@/pages/admin/users/userColumns'
-import type { UserStatusFilter } from '@/pages/admin/users/UserFilters'
+import type {
+  UserSetupFilter,
+  UserStatusFilter,
+} from '@/pages/admin/users/UserFilters'
 import { UserFilters } from '@/pages/admin/users/UserFilters'
-import type { UserFormValues } from '@/pages/admin/users/UserFormDialog'
 import { UserFormDialog } from '@/pages/admin/users/UserFormDialog'
 import { buildUserListParams } from '@/pages/admin/users/userListParams'
 import type { AdminUserListItem } from '@/services/adminService'
@@ -60,6 +63,7 @@ const FILTER_DEFAULTS = {
   search: '',
   status: 'all',
   idp_provider: '',
+  setup: 'all',
   created_from: '',
   created_to: '',
   sort_by: 'created_at',
@@ -126,14 +130,11 @@ export function AdminUsers() {
     defaults: FILTER_DEFAULTS,
     sortableKeys: SORTABLE_KEYS,
     defaultSort: 'created_at',
-    filterKeys: ['status', 'idp_provider'],
+    filterKeys: ['status', 'idp_provider', 'setup'],
     advanced: USER_ADVANCED_FILTERS,
   })
   const { visibility, setVisible } = useUserColumnVisibility(sortBy)
   const [state, setState] = useState<State>(INITIAL)
-  const [createOpen, setCreateOpen] = useState(false)
-  const [creating, setCreating] = useState(false)
-  const [createError, setCreateError] = useState<string | null>(null)
 
   // One memoised request object: the list call and the CSV export both derive
   // from it, so they cannot send different filters (#1150).
@@ -150,6 +151,12 @@ export function AdminUsers() {
       }),
     [filters, advancedParams, page, createdFrom, createdTo, sortBy, sortOrder]
   )
+
+  // Bumped after a user is created, so the list shows them.
+  const [reloadKey, setReloadKey] = useState(0)
+  const create = useCreateUser(() => {
+    setReloadKey(key => key + 1)
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -178,7 +185,7 @@ export function AdminUsers() {
     return () => {
       cancelled = true
     }
-  }, [params])
+  }, [params, reloadKey])
 
   const columns = useMemo<ColumnDef<AdminUserListItem>[]>(
     () => [
@@ -193,6 +200,13 @@ export function AdminUsers() {
             {row.original.status === 'suspended' && (
               <Badge variant="destructive" className="font-normal">
                 Suspended
+              </Badge>
+            )}
+            {/* No way to sign in yet: an admin-created account whose owner has
+                not used the setup link (#1443). */}
+            {row.original.pending_setup && (
+              <Badge variant="outline" className="font-normal">
+                Pending setup
               </Badge>
             )}
           </div>
@@ -235,31 +249,6 @@ export function AdminUsers() {
     [navigate]
   )
 
-  const handleCreate = (values: UserFormValues) => {
-    setCreating(true)
-    setCreateError(null)
-    adminService
-      .createUser({
-        email: values.email,
-        name: values.name,
-        ...(values.idp_provider ? { idp_provider: values.idp_provider } : {}),
-      })
-      .then(user => {
-        setCreateOpen(false)
-        // Straight to the new user: creating an account is usually the first half
-        // of doing something with it.
-        void navigate(`/admin/users/${user.id}`)
-      })
-      .catch((err: unknown) => {
-        // Inline rather than a toast: a duplicate email is a correction to make in
-        // the form, which stays open.
-        setCreateError(getErrorMessage(err, 'Failed to create the user'))
-      })
-      .finally(() => {
-        setCreating(false)
-      })
-  }
-
   const status = listPageStatus(
     state.loading,
     state.error,
@@ -285,6 +274,10 @@ export function AdminUsers() {
               provider={filters.idp_provider}
               onProviderChange={value => {
                 setFilters({ idp_provider: value })
+              }}
+              setup={filters.setup as UserSetupFilter}
+              onSetupChange={value => {
+                setFilters({ setup: value })
               }}
               created={created}
               onCreatedChange={setCreated}
@@ -313,12 +306,7 @@ export function AdminUsers() {
                 onVisibleChange={setVisible}
                 sortBy={sortBy}
               />
-              <Button
-                onClick={() => {
-                  setCreateError(null)
-                  setCreateOpen(true)
-                }}
-              >
+              <Button onClick={create.start}>
                 <UserPlus className="mr-2 size-4" aria-hidden />
                 New user
               </Button>
@@ -381,12 +369,19 @@ export function AdminUsers() {
       </ListPage.Container>
 
       <UserFormDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
+        open={create.open}
+        onOpenChange={create.onOpenChange}
         mode="create"
-        submitting={creating}
-        error={createError}
-        onSubmit={handleCreate}
+        submitting={create.submitting}
+        error={create.error}
+        teamErrors={create.teamErrors}
+        created={create.created}
+        onOpenCreated={() => {
+          const id = create.created?.id
+          create.onOpenChange(false)
+          if (id) void navigate(`/admin/users/${id}`)
+        }}
+        onSubmit={create.submit}
       />
     </ListPage>
   )
