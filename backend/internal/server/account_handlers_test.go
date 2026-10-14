@@ -729,7 +729,7 @@ func TestDeleteAccountDisconnectedIdentity(t *testing.T) {
 	t.Run("allowed again: audited, no session changes", func(t *testing.T) {
 		f := newAccountFixture(t)
 		otherDevice := f.session(t, 2*time.Hour)
-		f.account.On("AllowIdentityAgain", mock.Anything, epochUserID, recordID, true).Return(nil).Once()
+		f.account.On("AllowIdentityAgain", mock.Anything, epochUserID, recordID, true).Return("google", nil).Once()
 
 		req, rec := f.do(http.MethodDelete, path, "", f.session(t, time.Minute))
 
@@ -737,7 +737,9 @@ func TestDeleteAccountDisconnectedIdentity(t *testing.T) {
 		assert.Nil(t, sessionCookieIn(rec), "nothing about the session changes")
 		assert.True(t, f.stillSignedIn(t, otherDevice))
 		f.container.activityService.AssertCalled(t, "RecordAuthActivity", mock.Anything, epochUserID,
-			activities.ActivityTypeAuthIdentityAllowedAgain, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+			activities.ActivityTypeAuthIdentityAllowedAgain, mock.Anything,
+			mock.MatchedBy(func(metadata map[string]interface{}) bool { return metadata["provider"] == "google" }),
+			mock.Anything, mock.Anything)
 		specconformance.AssertConformsToSpec(t, req, rec)
 	})
 
@@ -751,7 +753,7 @@ func TestDeleteAccountDisconnectedIdentity(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			f := newAccountFixture(t)
-			f.account.On("AllowIdentityAgain", mock.Anything, epochUserID, recordID, false).Return(tc.err)
+			f.account.On("AllowIdentityAgain", mock.Anything, epochUserID, recordID, false).Return("", tc.err)
 
 			req, rec := f.do(http.MethodDelete, path, "", f.session(t, time.Hour))
 
@@ -782,8 +784,9 @@ func TestDeleteAccountDisconnectedIdentity(t *testing.T) {
 		f := newAccountFixture(t)
 		f.account.On("Get", mock.Anything, epochUserID).Return(accountView(), nil)
 
-		_, rec := f.do(http.MethodGet, "/api/v1/account", "", f.session(t, time.Hour))
+		req, rec := f.do(http.MethodGet, "/api/v1/account", "", f.session(t, time.Hour))
 
 		assert.Contains(t, rec.Body.String(), `"disconnected_identities":[]`)
+		specconformance.AssertConformsToSpec(t, req, rec)
 	})
 }

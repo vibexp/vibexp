@@ -166,9 +166,10 @@ type AccountServiceInterface interface {
 	// It requires a recent sign-in and another usable sign-in method.
 	DisconnectIdentity(ctx context.Context, userID, identityID string, recentSignIn bool) (provider string, err error)
 	// AllowIdentityAgain lets a disconnected provider account link to the
-	// account by email again (#1460). It requires a recent sign-in;
-	// ErrDisconnectedIdentityNotFound when the account has no such record.
-	AllowIdentityAgain(ctx context.Context, userID, id string, recentSignIn bool) error
+	// account by email again (#1460) and returns its provider slug. It
+	// requires a recent sign-in; ErrDisconnectedIdentityNotFound when the
+	// account has no such record.
+	AllowIdentityAgain(ctx context.Context, userID, id string, recentSignIn bool) (provider string, err error)
 	// RevokeAPIAccess deletes the user's API keys and MCP/OAuth grants (the
 	// "also revoke API keys and connected tools" option of a password change).
 	RevokeAPIAccess(ctx context.Context, userID string) error
@@ -498,19 +499,21 @@ func (s *AccountService) disconnectedViews(ctx context.Context, userID string) (
 }
 
 // AllowIdentityAgain implements AccountServiceInterface.
-func (s *AccountService) AllowIdentityAgain(ctx context.Context, userID, id string, recentSignIn bool) error {
+func (s *AccountService) AllowIdentityAgain(
+	ctx context.Context, userID, id string, recentSignIn bool,
+) (string, error) {
 	if !recentSignIn {
-		return ErrReauthenticationRequired
+		return "", ErrReauthenticationRequired
 	}
-	allowed, err := s.methods.AllowIdentityAgain(ctx, userID, id)
+	provider, found, err := s.methods.AllowIdentityAgain(ctx, userID, id)
 	if err != nil {
-		return fmt.Errorf("allow the identity again: %w", err)
+		return "", fmt.Errorf("allow the identity again: %w", err)
 	}
-	if !allowed {
-		return ErrDisconnectedIdentityNotFound
+	if !found {
+		return "", ErrDisconnectedIdentityNotFound
 	}
-	s.logger.With("user_id", userID).Info("A disconnected sign-in identity was allowed again")
-	return nil
+	s.logger.With("user_id", userID, "provider", provider).Info("A disconnected sign-in identity was allowed again")
+	return provider, nil
 }
 
 // RevokeAPIAccess implements AccountServiceInterface.

@@ -289,6 +289,7 @@ func (s *Service) GetActivityTypes() []string {
 		ActivityTypeAuthCredentialChanged,
 		ActivityTypeAuthCredentialRemoved,
 		ActivityTypeAuthIdentityDisconnected,
+		ActivityTypeAuthIdentityAllowedAgain,
 		ActivityTypeAuthAdminBootstrap,
 		ActivityTypeAPIKeyCreated,
 		ActivityTypeAPIKeyDeleted,
@@ -625,6 +626,22 @@ func convertTimeToString(t *time.Time) *string {
 	return &str
 }
 
+// identityActivityDescription describes disconnecting a sign-in provider and
+// allowing it again (#1437, #1460), naming the provider when it is known.
+func identityActivityDescription(activityType string, metadata map[string]interface{}) string {
+	provider, named := metadata["provider"].(string)
+	switch {
+	case activityType == ActivityTypeAuthIdentityAllowedAgain && named:
+		return fmt.Sprintf("User allowed the disconnected sign-in provider %s again", provider)
+	case activityType == ActivityTypeAuthIdentityAllowedAgain:
+		return "User allowed a disconnected sign-in provider again"
+	case named:
+		return fmt.Sprintf("User disconnected the sign-in provider %s", provider)
+	default:
+		return "User disconnected a sign-in provider"
+	}
+}
+
 func (s *Service) generateAuthActivityDescription(activityType string, metadata map[string]interface{}) string {
 	switch activityType {
 	case ActivityTypeAuthLogin:
@@ -637,11 +654,8 @@ func (s *Service) generateAuthActivityDescription(activityType string, metadata 
 		return "User changed their password"
 	case ActivityTypeAuthCredentialRemoved:
 		return "User removed their password"
-	case ActivityTypeAuthIdentityDisconnected:
-		if provider, ok := metadata["provider"].(string); ok {
-			return fmt.Sprintf("User disconnected the sign-in provider %s", provider)
-		}
-		return "User disconnected a sign-in provider"
+	case ActivityTypeAuthIdentityDisconnected, ActivityTypeAuthIdentityAllowedAgain:
+		return identityActivityDescription(activityType, metadata)
 	case ActivityTypeAuthFailure:
 		if reason, ok := metadata["reason"].(string); ok {
 			return fmt.Sprintf("Authentication failed: %s", reason)

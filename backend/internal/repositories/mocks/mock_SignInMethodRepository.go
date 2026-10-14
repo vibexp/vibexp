@@ -25,31 +25,38 @@ func (_m *MockSignInMethodRepository) EXPECT() *MockSignInMethodRepository_Expec
 }
 
 // AllowIdentityAgain provides a mock function with given fields: ctx, userID, id
-func (_m *MockSignInMethodRepository) AllowIdentityAgain(ctx context.Context, userID string, id string) (bool, error) {
+func (_m *MockSignInMethodRepository) AllowIdentityAgain(ctx context.Context, userID string, id string) (string, bool, error) {
 	ret := _m.Called(ctx, userID, id)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AllowIdentityAgain")
 	}
 
-	var r0 bool
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) (bool, error)); ok {
+	var r0 string
+	var r1 bool
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (string, bool, error)); ok {
 		return rf(ctx, userID, id)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) bool); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) string); ok {
 		r0 = rf(ctx, userID, id)
 	} else {
-		r0 = ret.Get(0).(bool)
+		r0 = ret.Get(0).(string)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) bool); ok {
 		r1 = rf(ctx, userID, id)
 	} else {
-		r1 = ret.Error(1)
+		r1 = ret.Get(1).(bool)
 	}
 
-	return r0, r1
+	if rf, ok := ret.Get(2).(func(context.Context, string, string) error); ok {
+		r2 = rf(ctx, userID, id)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
 }
 
 // MockSignInMethodRepository_AllowIdentityAgain_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AllowIdentityAgain'
@@ -72,12 +79,12 @@ func (_c *MockSignInMethodRepository_AllowIdentityAgain_Call) Run(run func(ctx c
 	return _c
 }
 
-func (_c *MockSignInMethodRepository_AllowIdentityAgain_Call) Return(_a0 bool, _a1 error) *MockSignInMethodRepository_AllowIdentityAgain_Call {
-	_c.Call.Return(_a0, _a1)
+func (_c *MockSignInMethodRepository_AllowIdentityAgain_Call) Return(provider string, found bool, err error) *MockSignInMethodRepository_AllowIdentityAgain_Call {
+	_c.Call.Return(provider, found, err)
 	return _c
 }
 
-func (_c *MockSignInMethodRepository_AllowIdentityAgain_Call) RunAndReturn(run func(context.Context, string, string) (bool, error)) *MockSignInMethodRepository_AllowIdentityAgain_Call {
+func (_c *MockSignInMethodRepository_AllowIdentityAgain_Call) RunAndReturn(run func(context.Context, string, string) (string, bool, error)) *MockSignInMethodRepository_AllowIdentityAgain_Call {
 	_c.Call.Return(run)
 	return _c
 }

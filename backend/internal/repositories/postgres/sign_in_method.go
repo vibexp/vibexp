@@ -173,17 +173,19 @@ func (r *SignInMethodRepository) ListDisconnected(
 }
 
 // AllowIdentityAgain implements repositories.SignInMethodRepository.
-func (r *SignInMethodRepository) AllowIdentityAgain(ctx context.Context, userID, id string) (bool, error) {
-	result, err := r.db.ExecContext(ctx,
-		`DELETE FROM user_disconnected_identities WHERE id = $1 AND user_id = $2`, id, userID)
-	if err != nil {
-		return false, fmt.Errorf("failed to allow a disconnected identity again: %w", err)
+func (r *SignInMethodRepository) AllowIdentityAgain(
+	ctx context.Context, userID, id string,
+) (provider string, found bool, err error) {
+	err = r.db.QueryRowContext(ctx,
+		`DELETE FROM user_disconnected_identities WHERE id = $1 AND user_id = $2 RETURNING provider`,
+		id, userID).Scan(&provider)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
 	}
-	n, err := result.RowsAffected()
 	if err != nil {
-		return false, fmt.Errorf("failed to count the allowed identity: %w", err)
+		return "", false, fmt.Errorf("failed to allow a disconnected identity again: %w", err)
 	}
-	return n > 0, nil
+	return provider, true, nil
 }
 
 // IsDisconnected implements repositories.SignInMethodRepository.

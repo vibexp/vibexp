@@ -634,9 +634,9 @@ type SignInMethodRepository interface {
 	// ListDisconnected returns the identities the user disconnected and has
 	// not allowed again, newest first.
 	ListDisconnected(ctx context.Context, userID string) ([]models.DisconnectedIdentity, error)
-	// AllowIdentityAgain deletes the record with id when it belongs to userID,
-	// and reports whether there was one.
-	AllowIdentityAgain(ctx context.Context, userID, id string) (bool, error)
+	// AllowIdentityAgain deletes the record with id when it belongs to userID
+	// and returns its provider slug; found is false when there was none.
+	AllowIdentityAgain(ctx context.Context, userID, id string) (provider string, found bool, err error)
 	// IsDisconnected reports whether the user disconnected this provider
 	// account and has not allowed it again.
 	IsDisconnected(ctx context.Context, userID, provider, subject string) (bool, error)

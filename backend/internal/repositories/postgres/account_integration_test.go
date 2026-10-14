@@ -494,18 +494,19 @@ func TestIntegrationSignInMethod_DisconnectIsRemembered(t *testing.T) {
 	assert.False(t, isOut, "another account's identity is untouched")
 	assert.Equal(t, []string{"github"}, f.providersOf(userID), "the alias went with the identity")
 
-	allowed, err := f.methods.AllowIdentityAgain(ctx, otherUser, disconnected[0].ID)
+	_, allowed, err := f.methods.AllowIdentityAgain(ctx, otherUser, disconnected[0].ID)
 	require.NoError(t, err)
 	assert.False(t, allowed, "another account cannot allow it")
 
-	allowed, err = f.methods.AllowIdentityAgain(ctx, userID, disconnected[0].ID)
+	allowedProvider, allowed, err := f.methods.AllowIdentityAgain(ctx, userID, disconnected[0].ID)
 	require.NoError(t, err)
 	assert.True(t, allowed)
+	assert.Equal(t, "google", allowedProvider)
 	isOut, err = f.methods.IsDisconnected(ctx, userID, "google", "google-"+userID)
 	require.NoError(t, err)
 	assert.False(t, isOut)
 
-	allowed, err = f.methods.AllowIdentityAgain(ctx, userID, disconnected[0].ID)
+	_, allowed, err = f.methods.AllowIdentityAgain(ctx, userID, disconnected[0].ID)
 	require.NoError(t, err)
 	assert.False(t, allowed, "already allowed")
 }

@@ -14,6 +14,8 @@
 --
 --   provider  the provider slug of the removed row (user_identities.provider);
 --             a legacy Google alias removed with it is not recorded separately.
+--             Keyed by slug: a provider an administrator recreates under a new
+--             slug is a different provider, and its sign-ins are not refused.
 --   subject   the provider's subject of the removed row.
 CREATE TABLE user_disconnected_identities (
     id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),

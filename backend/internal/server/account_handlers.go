@@ -400,12 +400,13 @@ func (h *accountStrictServer) DeleteAccountDisconnectedIdentity(
 	if err != nil {
 		return nil, err
 	}
-	err = h.s.container.AccountService().AllowIdentityAgain(
+	provider, err := h.s.container.AccountService().AllowIdentityAgain(
 		ctx, caller.userID, request.Id.String(), caller.recentSignIn(time.Now()))
 	if err != nil {
 		return nil, h.accountError("DeleteAccountDisconnectedIdentity", caller.userID, err)
 	}
-	h.recordActivity(ctx, caller.userID, activities.ActivityTypeAuthIdentityAllowedAgain, nil)
+	h.recordActivity(ctx, caller.userID, activities.ActivityTypeAuthIdentityAllowedAgain,
+		map[string]interface{}{"provider": provider})
 	return accountgen.DeleteAccountDisconnectedIdentity204Response{}, nil
 }
 

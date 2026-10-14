@@ -71,21 +71,31 @@ func (_c *MockAccountServiceInterface_AdminRemovePassword_Call) RunAndReturn(run
 }
 
 // AllowIdentityAgain provides a mock function with given fields: ctx, userID, id, recentSignIn
-func (_m *MockAccountServiceInterface) AllowIdentityAgain(ctx context.Context, userID string, id string, recentSignIn bool) error {
+func (_m *MockAccountServiceInterface) AllowIdentityAgain(ctx context.Context, userID string, id string, recentSignIn bool) (string, error) {
 	ret := _m.Called(ctx, userID, id, recentSignIn)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AllowIdentityAgain")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, bool) error); ok {
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, bool) (string, error)); ok {
+		return rf(ctx, userID, id, recentSignIn)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, bool) string); ok {
 		r0 = rf(ctx, userID, id, recentSignIn)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(string)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, bool) error); ok {
+		r1 = rf(ctx, userID, id, recentSignIn)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MockAccountServiceInterface_AllowIdentityAgain_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AllowIdentityAgain'
@@ -109,12 +119,12 @@ func (_c *MockAccountServiceInterface_AllowIdentityAgain_Call) Run(run func(ctx 
 	return _c
 }
 
-func (_c *MockAccountServiceInterface_AllowIdentityAgain_Call) Return(_a0 error) *MockAccountServiceInterface_AllowIdentityAgain_Call {
-	_c.Call.Return(_a0)
+func (_c *MockAccountServiceInterface_AllowIdentityAgain_Call) Return(provider string, err error) *MockAccountServiceInterface_AllowIdentityAgain_Call {
+	_c.Call.Return(provider, err)
 	return _c
 }
 
-func (_c *MockAccountServiceInterface_AllowIdentityAgain_Call) RunAndReturn(run func(context.Context, string, string, bool) error) *MockAccountServiceInterface_AllowIdentityAgain_Call {
+func (_c *MockAccountServiceInterface_AllowIdentityAgain_Call) RunAndReturn(run func(context.Context, string, string, bool) (string, error)) *MockAccountServiceInterface_AllowIdentityAgain_Call {
 	_c.Call.Return(run)
 	return _c
 }

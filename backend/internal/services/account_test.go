@@ -598,21 +598,25 @@ func TestAccountService_DisconnectedIdentities(t *testing.T) {
 	t.Run("allow again needs a recent sign-in", func(t *testing.T) {
 		f := newAccountFixture(t, passwordLoginOn)
 
-		require.ErrorIs(t, f.svc.AllowIdentityAgain(ctx, accountTestUser, "d-1", false), ErrReauthenticationRequired)
+		_, err := f.svc.AllowIdentityAgain(ctx, accountTestUser, "d-1", false)
+		require.ErrorIs(t, err, ErrReauthenticationRequired)
 		f.methods.AssertNotCalled(t, "AllowIdentityAgain", mock.Anything, mock.Anything, mock.Anything)
 	})
 
 	t.Run("allow again deletes the record", func(t *testing.T) {
 		f := newAccountFixture(t, passwordLoginOn)
-		f.methods.EXPECT().AllowIdentityAgain(ctx, accountTestUser, "d-1").Return(true, nil).Once()
+		f.methods.EXPECT().AllowIdentityAgain(ctx, accountTestUser, "d-1").Return("google", true, nil).Once()
 
-		require.NoError(t, f.svc.AllowIdentityAgain(ctx, accountTestUser, "d-1", true))
+		provider, err := f.svc.AllowIdentityAgain(ctx, accountTestUser, "d-1", true)
+		require.NoError(t, err)
+		assert.Equal(t, "google", provider)
 	})
 
 	t.Run("an unknown record", func(t *testing.T) {
 		f := newAccountFixture(t, passwordLoginOn)
-		f.methods.EXPECT().AllowIdentityAgain(ctx, accountTestUser, "nope").Return(false, nil).Once()
+		f.methods.EXPECT().AllowIdentityAgain(ctx, accountTestUser, "nope").Return("", false, nil).Once()
 
-		require.ErrorIs(t, f.svc.AllowIdentityAgain(ctx, accountTestUser, "nope", true), ErrDisconnectedIdentityNotFound)
+		_, err := f.svc.AllowIdentityAgain(ctx, accountTestUser, "nope", true)
+		require.ErrorIs(t, err, ErrDisconnectedIdentityNotFound)
 	})
 }
