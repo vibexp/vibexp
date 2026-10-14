@@ -97,11 +97,17 @@ func (a *adminStrictServer) IssueAdminUserResetLink(
 			Delivery: services.AdminLinkDelivery(request.Body.Delivery), InvalidateNow: invalidate,
 		})
 	if err != nil {
+		if link != nil && link.Invalidated {
+			// The password, sessions and links were stopped before the link
+			// failed: that change is audited even though nothing was issued.
+			a.recordUserMutationActivity(ctx, activities.ActivityTypeAdminUserResetLinkIssued, userID, link.Email,
+				map[string]interface{}{"delivery": string(link.Delivery), "invalidated": true, "issued": false})
+		}
 		return nil, a.mapAdminAccountError(err, "IssueAdminUserResetLink")
 	}
 
 	a.recordUserMutationActivity(ctx, activities.ActivityTypeAdminUserResetLinkIssued, userID, link.Email,
-		map[string]interface{}{"delivery": string(link.Delivery), "invalidated": link.Invalidated})
+		map[string]interface{}{"delivery": string(link.Delivery), "invalidated": link.Invalidated, "issued": true})
 
 	out := admingen.IssueAdminUserResetLink200JSONResponse{
 		Delivery:    admingen.AdminUserResetLinkDelivery(link.Delivery),

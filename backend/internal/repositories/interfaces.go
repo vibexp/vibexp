@@ -2339,6 +2339,11 @@ type AccountTokenRepository interface {
 	// the links it emails: of any number of simultaneous requests, one is
 	// stored and the rest are refused. The age is measured on the database's
 	// clock.
+	//
+	// A reset link with no CreatedBy (the owner's own forgot-password request)
+	// for a user whose password an administrator disabled is refused with
+	// ErrUserCredentialDisabled, under the same lock: completing it would lift
+	// the administrator's mark.
 	Replace(ctx context.Context, token *models.AccountToken, unlessIssuedWithin time.Duration) error
 	// GetLive returns the link with this token hash when it can still be
 	// completed at now, or ErrAccountTokenNotFound: unknown, expired and

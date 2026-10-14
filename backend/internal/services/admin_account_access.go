@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
@@ -54,7 +55,7 @@ func (s *AdminAccountService) IssueResetLink(
 	if req.Delivery == AdminLinkByEmail {
 		out.ExpiresAt, err = s.mailer.EmailResetLink(ctx, userID, actorID)
 		if err != nil {
-			return nil, fmt.Errorf("email the reset link: %w", err)
+			return failedAfterInvalidate(out), fmt.Errorf("email the reset link: %w", err)
 		}
 		return out, nil
 	}
@@ -62,10 +63,22 @@ func (s *AdminAccountService) IssueResetLink(
 		UserID: userID, Purpose: models.AccountTokenPurposeReset, CreatedBy: actorID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("issue the reset link: %w", err)
+		return failedAfterInvalidate(out), fmt.Errorf("issue the reset link: %w", err)
 	}
 	out.LinkURL, out.ExpiresAt = link.URL, link.ExpiresAt
 	return out, nil
+}
+
+// failedAfterInvalidate is what IssueResetLink returns with its error when no
+// link could be made: nil, unless the password was already stopped, in which
+// case the caller gets the result (Invalidated, no link) so the change that
+// did happen can be audited.
+func failedAfterInvalidate(out *AdminResetLink) *AdminResetLink {
+	if !out.Invalidated {
+		return nil
+	}
+	out.ExpiresAt = time.Time{}
+	return out
 }
 
 // resetLinkTarget returns the account a reset link may be issued for, or why

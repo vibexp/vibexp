@@ -36,10 +36,14 @@ type orderedLinks struct {
 	AccountTokenServiceInterface
 	log    *[]string
 	issued []IssueAccountLinkParams
+	err    error
 }
 
 func (l *orderedLinks) IssueLink(_ context.Context, params IssueAccountLinkParams) (*IssuedAccountLink, error) {
 	*l.log = append(*l.log, "issue "+params.Purpose)
+	if l.err != nil {
+		return nil, l.err
+	}
 	l.issued = append(l.issued, params)
 	return &IssuedAccountLink{URL: "https://app.example.com/account/reset#token=COPIED",
 		ExpiresAt: time.Date(2026, 10, 15, 9, 0, 0, 0, time.UTC)}, nil
@@ -212,6 +216,37 @@ func TestAdminAccount_IssueResetLink(t *testing.T) {
 
 		require.ErrorIs(t, err, ErrAdminUserNotFound)
 		assert.Empty(t, f.log)
+	})
+
+	t.Run("a link that fails after the stop comes back with the stop, for the audit", func(t *testing.T) {
+		for name, arrange := range map[string]func(f *adminAccessFixture) AdminLinkDelivery{
+			"copied": func(f *adminAccessFixture) AdminLinkDelivery {
+				f.links.err = errors.New("pq: down")
+				return AdminLinkByCopy
+			},
+			"emailed": func(f *adminAccessFixture) AdminLinkDelivery {
+				f.mailer.err = errors.New("smtp down")
+				return AdminLinkByEmail
+			},
+		} {
+			f := newAdminAccessFixture(t)
+			delivery := arrange(f)
+
+			link, err := f.svc.IssueResetLink(ctx, setupAdminID, setupUserID,
+				AdminResetLinkRequest{Delivery: delivery, InvalidateNow: true})
+
+			require.Error(t, err, name)
+			require.NotNil(t, link, name)
+			assert.True(t, link.Invalidated, name)
+			assert.Empty(t, link.LinkURL, name)
+			assert.Equal(t, "pending@example.com", link.Email, name)
+
+			f2 := newAdminAccessFixture(t)
+			arrange(f2)
+			link, err = f2.svc.IssueResetLink(ctx, setupAdminID, setupUserID, AdminResetLinkRequest{Delivery: delivery})
+			require.Error(t, err, name)
+			assert.Nil(t, link, "nothing changed, nothing to audit: "+name)
+		}
 	})
 
 	t.Run("a failed stop issues nothing", func(t *testing.T) {

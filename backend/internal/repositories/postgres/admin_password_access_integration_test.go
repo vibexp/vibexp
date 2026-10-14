@@ -175,7 +175,14 @@ func TestIntegrationAccountToken_DisablePassword(t *testing.T) {
 	})
 
 	t.Run("a link issued afterwards completes and lifts the mark", func(t *testing.T) {
-		fresh := issueAccountToken(t, repo, userID, models.AccountTokenPurposeReset, models.AccountTokenDeliveryLink)
+		// The administrator's link: the owner's own reset is refused while
+		// the mark is set (TestIntegrationAccountToken_SelfServiceResetRefusedForADisabledPassword).
+		adminID := insertTestUser(t)
+		fresh := accountTokenHash(uuid.NewString())
+		require.NoError(t, repo.Replace(ctx, &models.AccountToken{
+			UserID: userID, Purpose: models.AccountTokenPurposeReset, Delivery: models.AccountTokenDeliveryLink,
+			TokenHash: fresh, ExpiresAt: accountTokenTestNow.Add(time.Hour), CreatedBy: &adminID,
+		}, 0))
 		_, err := completeLink(repo, fresh, accountTokenTestNow)
 		require.NoError(t, err)
 		assert.Nil(t, disabledAt(t, userID))
@@ -243,4 +250,31 @@ func TestIntegrationSignInMethod_RemovePasswordOptions(t *testing.T) {
 			repositories.RemovePasswordOptions{AllowLast: true, AllowDisabled: true}))
 		assert.False(t, f.hasPassword(userID))
 	})
+}
+
+// The owner's own reset request must not reach a disabled password: one that
+// passed the mailer's screening before an administrator's disable is refused
+// when it is stored, under the lock the disable takes. An administrator's link
+// (CreatedBy set) is what lifts the mark, so it is stored.
+func TestIntegrationAccountToken_SelfServiceResetRefusedForADisabledPassword(t *testing.T) {
+	resetIntegrationTables(t)
+	repo := NewAccountTokenRepository(integrationDB)
+	ctx := context.Background()
+	userID, adminID := insertTestUser(t), insertTestUser(t)
+	require.NoError(t, NewUserCredentialRepository(integrationDB).Upsert(ctx, userID, credentialTestHash))
+	_, err := repo.DisablePassword(ctx, userID)
+	require.NoError(t, err)
+	token := func(createdBy *string, purpose string) *models.AccountToken {
+		return &models.AccountToken{UserID: userID, Purpose: purpose, Delivery: models.AccountTokenDeliveryEmail,
+			TokenHash: accountTokenHash(uuid.NewString()), ExpiresAt: accountTokenTestNow.Add(time.Hour), CreatedBy: createdBy}
+	}
+
+	err = repo.Replace(ctx, token(nil, models.AccountTokenPurposeReset), 0)
+	require.ErrorIs(t, err, repositories.ErrUserCredentialDisabled)
+	assert.Zero(t, countAccountTokens(t, "user_id = $1", userID), "nothing stored")
+
+	require.NoError(t, repo.Replace(ctx, token(&adminID, models.AccountTokenPurposeReset), 0),
+		"an administrator's link is stored")
+	require.NoError(t, repo.Replace(ctx, token(nil, models.AccountTokenPurposeSetup), 0),
+		"the rule is about the owner's reset only")
 }

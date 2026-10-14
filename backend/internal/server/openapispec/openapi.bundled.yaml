@@ -12408,7 +12408,9 @@ paths:
       summary: Remove a user's password
       description: |
         Removes the account's password, a disabled one too. The owner is told by
-        email when the instance has an email provider.
+        email when the instance has an email provider. Sessions already signed
+        in keep working; to end them, issue a reset link with `invalidate_now`
+        instead.
 
         Refused with 409 `last_sign_in_method` when the password is the
         account's only usable sign-in method, unless `confirm_last_method` is

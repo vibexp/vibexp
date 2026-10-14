@@ -293,6 +293,10 @@ func (m *AccountLinkMailer) sendPasswordReset(ctx context.Context, email string)
 	if errors.Is(err, ErrAccountLinkTooRecent) {
 		return resetSkippedCooldown, nil
 	}
+	if errors.Is(err, repositories.ErrUserCredentialDisabled) {
+		// Disabled after the eligibility check above; the store refused it.
+		return resetSkippedDisabled, nil
+	}
 	if err != nil {
 		return "", fmt.Errorf("email a password reset link: %w", err)
 	}

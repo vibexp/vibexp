@@ -342,6 +342,29 @@ func TestIssueAdminUserResetLink(t *testing.T) {
 		activitySvc.AssertExpectations(t)
 	})
 
+	t.Run("a failure after the stop is still audited, as not issued", func(t *testing.T) {
+		account := servicesmocks.NewMockAdminAccountServiceInterface(t)
+		account.On("IssueResetLink", mock.Anything, actingID, userID, mock.Anything).
+			Return(&services.AdminResetLink{AdminSetupLink: services.AdminSetupLink{
+				Email: "ada@example.com", Delivery: services.AdminLinkByEmail,
+			}, Invalidated: true}, errors.New("smtp: connection refused"))
+		activitySvc := &MockActivityService{}
+		activitySvc.On("RecordResourceActivity",
+			mock.Anything, actingID, activities.ActivityTypeAdminUserResetLinkIssued, activities.EntityTypeUser,
+			mock.Anything, mock.Anything,
+			mock.MatchedBy(func(md map[string]interface{}) bool {
+				return md["invalidated"] == true && md["issued"] == false && md["target_email"] == "ada@example.com"
+			}),
+		).Return(nil).Once()
+
+		rr := adminAccountRequest(t, account, activitySvc, actingID, http.MethodPost, target,
+			`{"delivery":"email","invalidate_now":true}`)
+
+		require.Equal(t, http.StatusInternalServerError, rr.Code, rr.Body.String())
+		assert.NotContains(t, rr.Body.String(), "smtp")
+		activitySvc.AssertExpectations(t)
+	})
+
 	t.Run("by email; invalidate now defaults to false", func(t *testing.T) {
 		account := servicesmocks.NewMockAdminAccountServiceInterface(t)
 		account.On("IssueResetLink", mock.Anything, actingID, userID,

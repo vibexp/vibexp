@@ -109,7 +109,9 @@ type AdminAccountServiceInterface interface {
 	// optionally stopping the current password, sessions and links first
 	// (InvalidateNow). It refuses as IssueSetupLink does, except that the
 	// account may already have a way in, and additionally with
-	// ErrAccountEmailUnverifiedShared; a refusal changes nothing.
+	// ErrAccountEmailUnverifiedShared; a refusal changes nothing. When the link
+	// cannot be made after InvalidateNow stopped the password, the error comes
+	// with a non-nil result (Invalidated, no link) so that change is audited.
 	IssueResetLink(ctx context.Context, actorID, userID string, req AdminResetLinkRequest) (*AdminResetLink, error)
 	// RemovePassword removes the account's password, a disabled one too, and
 	// returns the account's address for the audit record. ErrAdminOwnAccount,

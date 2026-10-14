@@ -18475,7 +18475,7 @@
     "/api/v1/admin/users/{id}/password": {
       "delete": {
         "summary": "Remove a user's password",
-        "description": "Removes the account's password, a disabled one too. The owner is told by\nemail when the instance has an email provider.\n\nRefused with 409 `last_sign_in_method` when the password is the\naccount's only usable sign-in method, unless `confirm_last_method` is\ntrue: the account then has no way in until it gets a setup link. Refused\nwith 409 `own_account` for your own account. 404 when the user does not\nexist or has no password. Instance-admin only; non-admin and\nunauthenticated requests receive 404.\n",
+        "description": "Removes the account's password, a disabled one too. The owner is told by\nemail when the instance has an email provider. Sessions already signed\nin keep working; to end them, issue a reset link with `invalidate_now`\ninstead.\n\nRefused with 409 `last_sign_in_method` when the password is the\naccount's only usable sign-in method, unless `confirm_last_method` is\ntrue: the account then has no way in until it gets a setup link. Refused\nwith 409 `own_account` for your own account. 404 when the user does not\nexist or has no password. Instance-admin only; non-admin and\nunauthenticated requests receive 404.\n",
         "operationId": "deleteAdminUserPassword",
         "tags": [
           "Admin"
