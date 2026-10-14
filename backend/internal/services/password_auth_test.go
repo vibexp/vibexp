@@ -795,13 +795,15 @@ func TestUnverifiedAccountCleanup(t *testing.T) {
 		cleanup   *UnverifiedAccountCleanup
 		tokens    *repo_mocks.MockAccountTokenRepository
 		apiAccess *recordingAPIAccess
+		notifier  *recordingNotifier
 		logs      *logtest.Recorder
 	}
 	newFixture := func(t *testing.T) fixture {
 		logger, logs := logtest.New()
 		tokens := repo_mocks.NewMockAccountTokenRepository(t)
 		apiAccess := &recordingAPIAccess{}
-		return fixture{NewUnverifiedAccountCleanup(tokens, apiAccess, logger), tokens, apiAccess, logs}
+		notifier := &recordingNotifier{}
+		return fixture{NewUnverifiedAccountCleanup(tokens, apiAccess, notifier, logger), tokens, apiAccess, notifier, logs}
 	}
 
 	t.Run("clears the account in one step, revokes API access, and says what it removed", func(t *testing.T) {
@@ -809,7 +811,7 @@ func TestUnverifiedAccountCleanup(t *testing.T) {
 		f.tokens.On("ClearForClaim", ctx, pwTestUserID).
 			Return(&repositories.ClearedAccountClaim{Links: 2, HadPassword: true, SessionEpoch: 4}, nil).Once()
 
-		require.NoError(t, f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID))
+		require.NoError(t, f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID, "Corp SSO"))
 
 		assert.Equal(t, []string{pwTestUserID}, f.apiAccess.revoked)
 		require.Len(t, f.logs.AllEntries(), 1)
@@ -817,6 +819,42 @@ func TestUnverifiedAccountCleanup(t *testing.T) {
 		assert.Equal(t, pwTestUserID, entry.Data["user_id"])
 		assert.Equal(t, int64(2), entry.Data["links"])
 		assert.Equal(t, true, entry.Data["had_password"])
+		assert.Equal(t, []string{pwTestUserID + "/Corp SSO"}, f.notifier.claims,
+			"the owner is told once that the password was removed, and through which provider")
+		assert.Empty(t, f.notifier.kinds, "it is not an ordinary password change")
+	})
+
+	t.Run("an account that had no password is claimed without a notice", func(t *testing.T) {
+		f := newFixture(t)
+		f.tokens.On("ClearForClaim", ctx, pwTestUserID).
+			Return(&repositories.ClearedAccountClaim{Links: 1, SessionEpoch: 4}, nil).Once()
+
+		require.NoError(t, f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID, "Corp SSO"))
+
+		assert.Empty(t, f.notifier.claims)
+	})
+
+	t.Run("a claim run again after the password is gone sends no second notice", func(t *testing.T) {
+		f := newFixture(t)
+		f.tokens.On("ClearForClaim", ctx, pwTestUserID).
+			Return(&repositories.ClearedAccountClaim{HadPassword: true, SessionEpoch: 4}, nil).Once()
+		f.tokens.On("ClearForClaim", ctx, pwTestUserID).
+			Return(&repositories.ClearedAccountClaim{SessionEpoch: 5}, nil).Once()
+
+		require.NoError(t, f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID, "Corp SSO"))
+		require.NoError(t, f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID, "Corp SSO"))
+
+		assert.Len(t, f.notifier.claims, 1)
+	})
+
+	t.Run("a nil notifier tells nobody and still clears the account", func(t *testing.T) {
+		logger, _ := logtest.New()
+		tokens := repo_mocks.NewMockAccountTokenRepository(t)
+		tokens.On("ClearForClaim", ctx, pwTestUserID).
+			Return(&repositories.ClearedAccountClaim{HadPassword: true}, nil).Once()
+		cleanup := NewUnverifiedAccountCleanup(tokens, &recordingAPIAccess{}, nil, logger)
+
+		require.NoError(t, cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID, "Corp SSO"))
 	})
 
 	t.Run("is idempotent: an account with nothing to remove still has its API access revoked, each time", func(t *testing.T) {
@@ -824,8 +862,8 @@ func TestUnverifiedAccountCleanup(t *testing.T) {
 		f.tokens.On("ClearForClaim", ctx, pwTestUserID).
 			Return(&repositories.ClearedAccountClaim{SessionEpoch: 4}, nil).Twice()
 
-		require.NoError(t, f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID))
-		require.NoError(t, f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID))
+		require.NoError(t, f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID, "Corp SSO"))
+		require.NoError(t, f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID, "Corp SSO"))
 
 		assert.Equal(t, []string{pwTestUserID, pwTestUserID}, f.apiAccess.revoked)
 		assert.Empty(t, f.logs.AllEntries())
@@ -835,8 +873,9 @@ func TestUnverifiedAccountCleanup(t *testing.T) {
 		f := newFixture(t)
 		f.tokens.On("ClearForClaim", ctx, pwTestUserID).Return(nil, boom).Once()
 
-		require.ErrorIs(t, f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID), boom)
+		require.ErrorIs(t, f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID, "Corp SSO"), boom)
 		assert.Empty(t, f.apiAccess.revoked)
+		assert.Empty(t, f.notifier.claims)
 	})
 
 	t.Run("API access that cannot be revoked stops the claim", func(t *testing.T) {
@@ -845,7 +884,8 @@ func TestUnverifiedAccountCleanup(t *testing.T) {
 		f.tokens.On("ClearForClaim", ctx, pwTestUserID).
 			Return(&repositories.ClearedAccountClaim{HadPassword: true}, nil).Once()
 
-		require.ErrorIs(t, f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID), boom)
+		require.ErrorIs(t, f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID, "Corp SSO"), boom)
+		assert.Empty(t, f.notifier.claims, "a claim that failed is not reported as done")
 	})
 }
 
@@ -881,7 +921,7 @@ func TestAuthService_VerifiedSignInClaimsAPasswordAccount(t *testing.T) {
 
 	svc := NewAuthService(users, identities, staticIDPResolver{reg: idp.NewRegistry()}, nil, logger,
 		newStaticAllowlistResolver(logger, nil),
-		WithUnverifiedAccountClaimHook(NewUnverifiedAccountCleanup(tokens, apiAccess, logger)))
+		WithUnverifiedAccountClaimHook(NewUnverifiedAccountCleanup(tokens, apiAccess, nil, logger)))
 
 	user, isNew, err := svc.createOrUpdateUserFromClaims(ctx, "corp-sso", idp.ProviderOIDC,
 		&idp.Claims{Subject: "sub-owner", Email: "ada@example.com", Name: "Ada", EmailVerified: true})
@@ -920,7 +960,7 @@ func TestAuthService_VerifiedSignInToAVerifiedAccountKeepsItsPassword(t *testing
 
 	svc := NewAuthService(users, identities, staticIDPResolver{reg: idp.NewRegistry()}, nil, logger,
 		newStaticAllowlistResolver(logger, nil),
-		WithUnverifiedAccountClaimHook(NewUnverifiedAccountCleanup(tokens, apiAccess, logger)))
+		WithUnverifiedAccountClaimHook(NewUnverifiedAccountCleanup(tokens, apiAccess, nil, logger)))
 
 	_, _, err := svc.createOrUpdateUserFromClaims(ctx, "corp-sso", idp.ProviderOIDC,
 		&idp.Claims{Subject: "sub-owner", Email: "ada@example.com", Name: "Ada", EmailVerified: true})
@@ -958,7 +998,7 @@ func TestAuthService_ClaimFindsTheAccountVerifiedUnderTheLock(t *testing.T) {
 
 	svc := NewAuthService(users, identities, staticIDPResolver{reg: idp.NewRegistry()}, nil, logger,
 		newStaticAllowlistResolver(logger, nil),
-		WithUnverifiedAccountClaimHook(NewUnverifiedAccountCleanup(tokens, apiAccess, logger)))
+		WithUnverifiedAccountClaimHook(NewUnverifiedAccountCleanup(tokens, apiAccess, nil, logger)))
 
 	user, _, err := svc.createOrUpdateUserFromClaims(ctx, "corp-sso", idp.ProviderOIDC,
 		&idp.Claims{Subject: "sub-owner", Email: "ada@example.com", EmailVerified: true})

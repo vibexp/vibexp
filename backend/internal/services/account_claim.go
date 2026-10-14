@@ -28,15 +28,18 @@ import "context"
 //     given an identity) returns an error wrapping
 //     repositories.ErrAccountNoLongerClaimable and changes nothing; the caller
 //     re-reads the account and carries on from what is true now (#1466).
+//
+// provider is the display name of the sign-in provider that verified the
+// address, for telling the owner what happened (#1493).
 type UnverifiedAccountClaimHook interface {
-	OnUnverifiedAccountClaimed(ctx context.Context, userID string) error
+	OnUnverifiedAccountClaimed(ctx context.Context, userID, provider string) error
 }
 
 // noopUnverifiedAccountClaimHook is the default: until password credentials
 // exist, an account with no sign-in identity holds nothing for it to remove.
 type noopUnverifiedAccountClaimHook struct{}
 
-func (noopUnverifiedAccountClaimHook) OnUnverifiedAccountClaimed(context.Context, string) error {
+func (noopUnverifiedAccountClaimHook) OnUnverifiedAccountClaimed(context.Context, string, string) error {
 	return nil
 }
 

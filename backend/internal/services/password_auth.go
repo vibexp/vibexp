@@ -461,20 +461,27 @@ func (s *PasswordAuthService) HasPassword(ctx context.Context, userID string) (b
 // arrived has to go: the account's outstanding one-time links (#1432), which
 // would let their holder set a password again; the password; its sessions; and
 // every API key and MCP/OAuth grant (#1449), which the link's holder could
-// have minted while signed in.
+// have minted while signed in. When a password was removed, the owner is told
+// (#1493): the address is theirs, and a password they may have set themselves
+// otherwise just stops working.
 type UnverifiedAccountCleanup struct {
 	tokens    repositories.AccountTokenRepository
 	apiAccess APIAccessServiceInterface
+	notifier  AccountNotifier
 	logger    *slog.Logger
 }
 
 var _ UnverifiedAccountClaimHook = (*UnverifiedAccountCleanup)(nil)
 
-// NewUnverifiedAccountCleanup creates the cleanup.
+// NewUnverifiedAccountCleanup creates the cleanup. A nil notifier tells nobody.
 func NewUnverifiedAccountCleanup(
-	tokens repositories.AccountTokenRepository, apiAccess APIAccessServiceInterface, logger *slog.Logger,
+	tokens repositories.AccountTokenRepository, apiAccess APIAccessServiceInterface,
+	notifier AccountNotifier, logger *slog.Logger,
 ) *UnverifiedAccountCleanup {
-	return &UnverifiedAccountCleanup{tokens: tokens, apiAccess: apiAccess, logger: logger}
+	if notifier == nil {
+		notifier = noopAccountNotifier{}
+	}
+	return &UnverifiedAccountCleanup{tokens: tokens, apiAccess: apiAccess, notifier: notifier, logger: logger}
 }
 
 // OnUnverifiedAccountClaimed deletes the account's one-time links and its
@@ -491,11 +498,12 @@ func NewUnverifiedAccountCleanup(
 // after the hook; that is harmless and keeps it correct with any hook.)
 //
 // Both steps are idempotent, as the hook's contract requires: a second run on
-// an account already cleaned up changes nothing but the session epoch. A
+// an account already cleaned up changes nothing but the session epoch, and
+// finds no password, so the owner is told once. A
 // failed step is returned and aborts the sign-in, because linking the new
 // owner to an account its previous holder can still enter would defeat the
 // point.
-func (c *UnverifiedAccountCleanup) OnUnverifiedAccountClaimed(ctx context.Context, userID string) error {
+func (c *UnverifiedAccountCleanup) OnUnverifiedAccountClaimed(ctx context.Context, userID, provider string) error {
 	cleared, err := c.tokens.ClearForClaim(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("remove the one-time links and the password of a claimed account: %w", err)
@@ -506,6 +514,9 @@ func (c *UnverifiedAccountCleanup) OnUnverifiedAccountClaimed(ctx context.Contex
 	if cleared.Links > 0 || cleared.HadPassword {
 		c.logger.With("user_id", userID, "links", cleared.Links, "had_password", cleared.HadPassword).
 			Warn("Removed the one-time links and the password of an unverified account claimed by a verified sign-in")
+	}
+	if cleared.HadPassword {
+		c.notifier.PasswordRemovedByClaim(ctx, userID, provider)
 	}
 	return nil
 }
