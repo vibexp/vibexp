@@ -123,7 +123,10 @@ func replaceFromHeader(mime []byte, from string) []byte {
 	return append(out, rest...)
 }
 
-// smtpDefaultTimeout bounds a send whose context has no deadline. It matches
+// smtpDefaultTimeout is the longest a send may take, whatever the context
+// allows: it bounds a send whose context has no deadline, and it ends a
+// stalled send well inside the 60 s request deadline and write timeout, so a
+// caller such as the admin "send test email" still gets its answer. It matches
 // the per-task bound of the account email runner (#1433). A var so tests can
 // shorten it.
 var smtpDefaultTimeout = 30 * time.Second
@@ -134,9 +137,9 @@ var errSMTPNoAuth = errors.New("smtp: server doesn't support AUTH")
 
 // sendMailContext is net/smtp.SendMail with a context (#1472). It takes the
 // same steps — EHLO, STARTTLS when offered, AUTH when a is set, MAIL, RCPT,
-// DATA, QUIT — over a connection whose deadline is ctx's (or
-// smtpDefaultTimeout from now), and that is cut when ctx is cancelled, so a
-// stalled server cannot hold the caller.
+// DATA, QUIT — over a connection whose deadline is ctx's or smtpDefaultTimeout
+// from now, whichever comes first, and that is cut when ctx is cancelled, so
+// a stalled server cannot hold the caller.
 //
 // One difference: SendMail skips AUTH against a server that answers only HELO
 // (no extensions at all); here a set password against such a server is refused
@@ -156,13 +159,11 @@ func sendMailContext(
 			return errors.New("smtp: A line must not contain CR or LF")
 		}
 	}
-	// The default bounds the dial too: a host that drops SYNs would otherwise
-	// hold the caller for the OS connect timeout (minutes).
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, smtpDefaultTimeout)
-		defer cancel()
-	}
+	// The bound covers the dial too: a host that drops SYNs would otherwise
+	// hold the caller for the OS connect timeout (minutes). WithTimeout keeps
+	// an earlier deadline of ctx.
+	ctx, cancel := context.WithTimeout(ctx, smtpDefaultTimeout)
+	defer cancel()
 	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return err
@@ -178,11 +179,7 @@ func sendMailContext(
 		_ = conn.SetDeadline(time.Now()) //nolint:errcheck // see above
 	})
 	defer stop()
-	defer func() {
-		if err != nil && ctx.Err() != nil {
-			err = fmt.Errorf("%w (%w)", err, ctx.Err())
-		}
-	}()
+	defer func() { err = withContextCause(ctx, err) }()
 
 	c, err := smtp.NewClient(conn, host)
 	if err != nil {
@@ -196,6 +193,24 @@ func sendMailContext(
 		return err
 	}
 	return deliver(c, from, to, msg)
+}
+
+// withContextCause says when the context ended a send: its error is added to
+// err. A connection timeout counts as the deadline too, since the only
+// deadline on the connection is ctx's, and the read can fail a moment before
+// ctx's own timer marks it done.
+func withContextCause(ctx context.Context, err error) error {
+	if err == nil {
+		return nil
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return fmt.Errorf("%w (%w)", err, ctxErr)
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return fmt.Errorf("%w (%w)", err, context.DeadlineExceeded)
+	}
+	return err
 }
 
 // handshake is the first half of net/smtp.SendMail's conversation: EHLO,

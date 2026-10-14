@@ -129,6 +129,21 @@ func TestSMTPEmailProvider_NoDeadlineIsStillBounded(t *testing.T) {
 	assert.ErrorIs(t, err, context.DeadlineExceeded, "the default deadline ended it")
 }
 
+// A context that allows longer than the bound (the 60 s request deadline) is
+// still cut at the bound, so the caller hears back before its own deadline.
+func TestSMTPEmailProvider_ALongDeadlineIsCappedByTheBound(t *testing.T) {
+	previous := smtpDefaultTimeout
+	smtpDefaultTimeout = 200 * time.Millisecond
+	t.Cleanup(func() { smtpDefaultTimeout = previous })
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	err := sendWithin(t, ctx, stallingProvider(t, true))
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
 // A line break in an address is refused before anything is dialled, as
 // net/smtp.SendMail does: no half-built envelope reaches the server.
 func TestSMTPEmailProvider_LineBreakInAnAddressDialsNothing(t *testing.T) {
