@@ -219,8 +219,11 @@ func rootOnlyInstanceAdminResolver(cfg *config.Config) services.InstanceAdminRes
 // only an authenticated instance admin passes through; everyone else (non-admin,
 // unauthenticated, lookup failure) gets 404.
 func TestInstanceAdminMiddleware(t *testing.T) {
-	adminUser := &models.User{ID: "user-1", Email: "Admin@Example.com", Name: "Admin"}
+	verifiedAt := time.Now()
+	adminUser := &models.User{ID: "user-1", Email: "Admin@Example.com", Name: "Admin", EmailVerifiedAt: &verifiedAt}
 	nonAdminUser := &models.User{ID: "user-2", Email: "user@example.com", Name: "User"}
+	// #1467: the root admin's address with no verified email holds no power.
+	unverifiedRootUser := &models.User{ID: "user-3", Email: "admin@example.com", Name: "Squatter"}
 	cfg := &config.Config{Auth: config.AuthConfig{InstanceAdmins: config.EnvStringSlice{"admin@example.com"}}}
 
 	tests := []struct {
@@ -238,6 +241,15 @@ func TestInstanceAdminMiddleware(t *testing.T) {
 			},
 			wantStatus:     http.StatusOK,
 			wantNextCalled: true,
+		},
+		{
+			name:   "unverified account at a root admin's address gets 404",
+			userID: "user-3",
+			setupAuth: func(m *servicesmocks.MockAuthServiceInterface) {
+				m.On("GetUserByID", mock.Anything, "user-3").Return(unverifiedRootUser, nil)
+			},
+			wantStatus:     http.StatusNotFound,
+			wantNextCalled: false,
 		},
 		{
 			name:   "non-admin gets 404",

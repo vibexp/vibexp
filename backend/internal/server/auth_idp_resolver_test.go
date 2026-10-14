@@ -208,12 +208,22 @@ func (g *switchableGate) inviteOnly(invited ...string) {
 
 func newResolverAuthHarness(t *testing.T) *resolverAuthHarness {
 	t.Helper()
+	return newResolverAuthHarnessWithGate(t, nil)
+}
+
+// newResolverAuthHarnessWithGate builds the harness over gate as the
+// registration gate; nil keeps the switchable one.
+func newResolverAuthHarnessWithGate(t *testing.T, gate services.RegistrationGate) *resolverAuthHarness {
+	t.Helper()
 	enc, err := services.NewEncryptionService(strings.Repeat("k", 32))
 	require.NoError(t, err)
 	logger := slog.New(slog.DiscardHandler)
 	h := &resolverAuthHarness{
 		providers: &memAuthProviders{}, users: &memUsersByIDP{}, identities: &memIdentities{},
 		gate: &switchableGate{}, enc: enc,
+	}
+	if gate == nil {
+		gate = h.gate
 	}
 
 	resolver := services.NewIdentityProviderResolver(services.IdentityProviderResolverDeps{
@@ -225,7 +235,7 @@ func newResolverAuthHarness(t *testing.T) *resolverAuthHarness {
 	})
 	auth := services.NewAuthService(h.users, h.identities, resolver, nil, logger,
 		staticAllowlistResolver(nil, nil), // open access
-		services.WithRegistrationGate(h.gate))
+		services.WithRegistrationGate(gate))
 
 	mc := newMockAuthContainer(t)
 	mc.activityService.On("RecordAuthActivity",
@@ -392,6 +402,52 @@ func TestResolverAuth_CallbackLinksByVerifiedEmail(t *testing.T) {
 		assert.Equal(t, "http://localhost:5173/auth/callback?error=account_suspended", w.Header().Get("Location"))
 		assert.Nil(t, sessionCookie(w))
 		assert.Empty(t, h.identities.recorded())
+	})
+}
+
+// An open instance creates no account for an unverified provider claim to a
+// root admin's address (#1467), through the real registration gate: whoever
+// gets there first must not hold that address, and with it root admin power.
+// A verified claim to the same address gets its account.
+func TestResolverAuth_CallbackRefusesAnUnverifiedRootAdminClaim(t *testing.T) {
+	setup := func(t *testing.T) (*resolverAuthHarness, *fakeoidc.Issuer) {
+		t.Helper()
+		logger := slog.New(slog.DiscardHandler)
+		gate := services.NewRegistrationGate(services.RegistrationGateDeps{
+			Policy:     staticAuthPolicy{policy: models.DefaultInstanceAuthPolicy()}, // open
+			RootAdmins: services.NewInstanceAdminService([]string{"newcomer@example.com"}, nil, nil, logger),
+			Logger:     logger,
+		})
+		h := newResolverAuthHarnessWithGate(t, gate)
+		iss := fakeoidc.New(t, rtClientID, rtClientSecret, rtSubject, "Newcomer@Example.com")
+		h.providers.replace(h.oidcRow(t, "id-a", "corp-sso", iss.URL, 0))
+		return h, iss
+	}
+
+	t.Run("unverified claim: refused, no account", func(t *testing.T) {
+		h, iss := setup(t)
+		iss.SetEmailVerified(false)
+		state, cookie := h.login(t, "corp-sso")
+
+		w := h.callback(t, state, cookie)
+
+		require.Equal(t, http.StatusFound, w.Code, w.Body.String())
+		assert.Equal(t, "http://localhost:5173/auth/callback?error=registration_closed", w.Header().Get("Location"))
+		assert.Nil(t, sessionCookie(w), "no session is issued")
+		assert.Empty(t, h.users.users, "no account is created")
+		assert.Empty(t, h.identities.recorded())
+	})
+
+	t.Run("verified claim: the account is created verified", func(t *testing.T) {
+		h, _ := setup(t)
+		state, cookie := h.login(t, "corp-sso")
+
+		w := h.callback(t, state, cookie)
+
+		require.Equal(t, http.StatusFound, w.Code, w.Body.String())
+		assert.Equal(t, "http://localhost:5173/", w.Header().Get("Location"))
+		require.Len(t, h.users.users, 1)
+		assert.NotNil(t, h.users.users[0].EmailVerifiedAt, "a verified sign-in yields a working root admin")
 	})
 }
 

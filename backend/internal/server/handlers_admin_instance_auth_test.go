@@ -116,8 +116,11 @@ type authTestUsers struct {
 }
 
 func newAuthTestUsers() *authTestUsers {
+	// Root admin power needs a verified email (#1467).
+	rootVerifiedAt := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 	return &authTestUsers{users: []*models.User{
-		{ID: authTestRootID, Email: authTestRootEmail, Name: "Root Admin", Status: models.UserStatusActive},
+		{ID: authTestRootID, Email: authTestRootEmail, Name: "Root Admin", Status: models.UserStatusActive,
+			EmailVerifiedAt: &rootVerifiedAt},
 		{ID: authTestDBAdminID, Email: "delegate@instance.test", Name: "Delegate", Status: models.UserStatusActive},
 		{ID: authTestMemberID, Email: authTestMemberEmail, Status: models.UserStatusActive},
 		{ID: authTestSuspendedID, Email: "gone@instance.test", Status: models.UserStatusSuspended},

@@ -20,6 +20,13 @@ import (
 // and only they may grant or revoke DB admins. Because the root set is config
 // rather than data, an operator can always recover admin access by editing
 // config.
+//
+// The address alone is a RESERVATION, not the power (#1467): an account holds
+// root admin power only while its email is in auth.instance_admins AND
+// users.email_verified_at is set. Otherwise any path that creates an account
+// for an address without proving the mailbox (an open instance trusting an
+// unverified provider claim, a bearer link) would hand out instance-admin
+// power to whoever got there first.
 
 // ErrInstanceAdminNotRoot is returned when a grant or revoke is attempted by
 // anyone other than a root admin (a DB-granted admin, a plain user, or an
@@ -77,13 +84,19 @@ const (
 type InstanceAdminResolver interface {
 	// IsRootAdmin reports whether email is in auth.instance_admins. Matching is
 	// case-insensitive and whitespace-trimmed; a blank email is never root.
+	// It is the email-only RESERVATION check: use it to protect an address
+	// before anyone owns it, never to grant or protect power (IsVerifiedRootAdmin).
 	IsRootAdmin(email string) bool
+	// IsVerifiedRootAdmin reports whether user holds root admin power: its
+	// email is in auth.instance_admins AND its email_verified_at is set (#1467).
+	// Every check that grants or protects power uses this, not IsRootAdmin.
+	IsVerifiedRootAdmin(user *models.User) bool
 	// RootAdminEmails returns the root admins' normalized emails, sorted.
 	RootAdminEmails() []string
-	// IsInstanceAdmin reports whether user is a root admin or a non-suspended
-	// user holding a DB grant. Root admins are answered from config alone, so a
-	// database error never locks them out; for anyone else the error is
-	// returned and the caller must fail closed.
+	// IsInstanceAdmin reports whether user is a verified root admin or a
+	// non-suspended user holding a DB grant. Verified root admins are answered
+	// from the user row and config alone, so a database error never locks them
+	// out; for anyone else the error is returned and the caller must fail closed.
 	IsInstanceAdmin(ctx context.Context, user *models.User) (bool, error)
 	// RequireRootAdmin returns ErrInstanceAdminNotRoot unless userID names an
 	// active root admin. Grant and revoke apply it themselves; a caller uses it
@@ -140,6 +153,11 @@ func (s *InstanceAdminService) IsRootAdmin(email string) bool {
 	return ok
 }
 
+// IsVerifiedRootAdmin implements InstanceAdminResolver.
+func (s *InstanceAdminService) IsVerifiedRootAdmin(user *models.User) bool {
+	return user != nil && user.EmailVerifiedAt != nil && s.IsRootAdmin(user.Email)
+}
+
 // RootAdminEmails implements InstanceAdminResolver.
 func (s *InstanceAdminService) RootAdminEmails() []string {
 	emails := make([]string, 0, len(s.rootAdmins))
@@ -155,7 +173,7 @@ func (s *InstanceAdminService) IsInstanceAdmin(ctx context.Context, user *models
 	if user == nil {
 		return false, nil
 	}
-	if s.IsRootAdmin(user.Email) {
+	if s.IsVerifiedRootAdmin(user) {
 		return true, nil
 	}
 	if user.IsSuspended() {
@@ -182,7 +200,7 @@ func (s *InstanceAdminService) GrantInstanceAdmin(
 	if target == nil {
 		return false, &ErrInstanceAdminTargetInvalid{UserID: targetUserID, Reason: instanceAdminTargetUnknown}
 	}
-	if s.IsRootAdmin(target.Email) {
+	if s.IsVerifiedRootAdmin(target) {
 		return false, &ErrInstanceAdminTargetIsRoot{Email: target.Email}
 	}
 	if target.IsSuspended() {
@@ -218,7 +236,7 @@ func (s *InstanceAdminService) RevokeInstanceAdmin(
 	if target == nil {
 		return &ErrInstanceAdminNotGranted{UserID: targetUserID}
 	}
-	if s.IsRootAdmin(target.Email) {
+	if s.IsVerifiedRootAdmin(target) {
 		return &ErrInstanceAdminTargetIsRoot{Email: target.Email}
 	}
 
@@ -241,7 +259,7 @@ func (s *InstanceAdminService) RequireRootAdmin(ctx context.Context, actingUserI
 	if err != nil {
 		return err
 	}
-	if actor == nil || actor.IsSuspended() || !s.IsRootAdmin(actor.Email) {
+	if actor == nil || actor.IsSuspended() || !s.IsVerifiedRootAdmin(actor) {
 		return &ErrInstanceAdminNotRoot{}
 	}
 	return nil
@@ -257,4 +275,33 @@ func (s *InstanceAdminService) lookupUser(ctx context.Context, userID string) (*
 		return nil, fmt.Errorf("failed to look up user %s: %w", userID, err)
 	}
 	return user, nil
+}
+
+// WarnUnverifiedRootAdmins logs, at boot, a warning for every address in
+// auth.instance_admins whose account exists but has no verified email: such an
+// account holds no root admin power (#1467) until its owner signs in once with
+// a provider that verifies email, or the operator runs the recovery CLI. An
+// address with no account yet is not warned about; a look-up error is logged
+// and never fatal.
+func WarnUnverifiedRootAdmins(
+	ctx context.Context, admins InstanceAdminResolver, users repositories.UserRepository, logger *slog.Logger,
+) {
+	for _, email := range admins.RootAdminEmails() {
+		user, err := users.GetByEmail(ctx, email)
+		if errors.Is(err, repositories.ErrUserNotFound) {
+			continue
+		}
+		if err != nil {
+			logger.Warn("Could not check whether a root instance admin's email is verified",
+				"email", email, "error", err)
+			continue
+		}
+		if user == nil || user.EmailVerifiedAt != nil {
+			continue
+		}
+		logger.Warn("Root instance admin account has no verified email and holds no root admin power; "+
+			"sign in once with a provider that verifies email, or run "+
+			"`vibexp admin auth password set --email <email>`",
+			"email", email, "user_id", user.ID)
+	}
 }

@@ -99,7 +99,10 @@ type AdminUserDetail struct {
 	IDPProvider *string
 	Status      string
 	CreatedAt   time.Time
-	Memberships []AdminTeamMembership
+	// EmailVerifiedAt is users.email_verified_at: root admin power, and with it
+	// the protection from suspension and deletion, needs it set (#1467).
+	EmailVerifiedAt *time.Time
+	Memberships     []AdminTeamMembership
 	// SignIn is how the user can sign in (#1436).
 	SignIn AdminUserSignIn
 }

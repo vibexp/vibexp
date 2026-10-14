@@ -73,7 +73,7 @@ func TestBootstrapAdminPassword_MakesAPasswordOnlyInstanceUsable(t *testing.T) {
 	require.True(t, f.setupRequired(t), "no provider, no password login: setup mode")
 	root, err := f.users.GetByEmail(context.Background(), authTestRootEmail)
 	require.NoError(t, err)
-	require.Nil(t, root.EmailVerifiedAt)
+	root.EmailVerifiedAt = nil // an account from before verification was recorded: the bootstrap verifies it
 
 	rr := f.serve(t, asSetupSession, http.MethodPut, authBootstrapPath, bootstrapBody(strings.ToUpper(authTestRootEmail)))
 

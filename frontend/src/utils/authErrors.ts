@@ -78,16 +78,17 @@ export const EXISTING_SIGN_IN_REQUIRED_ERROR: AuthErrorView = {
  * Stable code the callback redirects with
  * (`/auth/callback?error=registration_closed`) when the sign-in would have
  * created a new account, but this instance only admits people who were invited
- * to a team or whose account an administrator created. Mirrors
+ * to a team or whose account an administrator created, or the sign-in provider
+ * did not verify an address that needs a verified email (#1467). Mirrors
  * `callbackErrorRegistrationClosed` in
  * `backend/internal/server/auth_handlers.go`.
  */
 export const REGISTRATION_CLOSED_CODE = 'registration_closed'
 
 export const REGISTRATION_CLOSED_ERROR: AuthErrorView = {
-  title: 'Sign-up is by invitation only',
+  title: 'This sign-in cannot create an account',
   description:
-    'You do not have an account here yet, and new accounts need an invitation. Ask a team admin to invite this email address, or ask your administrator to create an account for you, then sign in again.',
+    'You do not have an account here yet, and this sign-in cannot create one: new accounts need an invitation, or your sign-in provider did not verify this email address. Ask a team admin to invite this email address, ask your administrator to create an account for you, or sign in with a provider that verifies your email.',
   actionLabel: BACK_TO_SIGN_IN,
   actionHref: '/login',
 }

@@ -567,6 +567,7 @@ func (r *AdminRepository) GetUserDetail(
 	var identities pq.StringArray
 	err := r.db.QueryRowContext(ctx, adminUserDetailQuery, id).Scan(
 		&detail.ID, &detail.Email, &detail.Name, &detail.IDPProvider, &detail.Status, &detail.CreatedAt,
+		&detail.EmailVerifiedAt,
 		&detail.SignIn.HasPassword, &detail.SignIn.PasswordDisabled, &identities, &detail.SignIn.PendingSetup,
 	)
 	detail.SignIn.Methods = adminSignInMethods(detail.SignIn.HasPassword, identities)
@@ -604,6 +605,7 @@ func (r *AdminRepository) GetUserDetail(
 // adminUserDetailQuery reads one user with its sign-in state, from the same
 // aggregates and expressions as the listing so the two cannot disagree.
 var adminUserDetailQuery = `SELECT u.id, u.email, u.name, u.idp_provider, u.status, u.created_at, ` +
+	`u.email_verified_at, ` +
 	colUserHasLocalSignIn + `, ` + colUserLocalSignInOff + `, ` + colUserIdentityMethods + `, ` +
 	colUserPendingSetup + `
 	FROM users u

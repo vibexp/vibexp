@@ -1,10 +1,13 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -86,18 +89,27 @@ const (
 	iaPlainID     = "plain-id"
 	iaSuspendedID = "suspended-id"
 	iaRoot2ID     = "root2-id"
+	// iaUnverifiedRootID sits at a root admin's address (root3@example.com) but
+	// its email was never verified, so it holds no root admin power (#1467).
+	iaUnverifiedRootID = "unverified-root-id"
 )
+
+// iaVerifiedAt is the email_verified_at of every verified fixture user.
+var iaVerifiedAt = time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 
 func newInstanceAdminFixture(grants *fakeInstanceAdminGrants) (*InstanceAdminService, *fakeInstanceAdminUsers) {
 	users := &fakeInstanceAdminUsers{users: map[string]*models.User{
-		iaRootID:      {ID: iaRootID, Email: "Root@Example.com", Status: models.UserStatusActive},
-		iaRoot2ID:     {ID: iaRoot2ID, Email: "root2@example.com", Status: models.UserStatusActive},
-		iaDBAdminID:   {ID: iaDBAdminID, Email: "delegate@example.com", Status: models.UserStatusActive},
-		iaPlainID:     {ID: iaPlainID, Email: "plain@example.com", Status: models.UserStatusActive},
-		iaSuspendedID: {ID: iaSuspendedID, Email: "gone@example.com", Status: models.UserStatusSuspended},
+		iaRootID: {ID: iaRootID, Email: "Root@Example.com", Status: models.UserStatusActive,
+			EmailVerifiedAt: &iaVerifiedAt},
+		iaRoot2ID: {ID: iaRoot2ID, Email: "root2@example.com", Status: models.UserStatusActive,
+			EmailVerifiedAt: &iaVerifiedAt},
+		iaUnverifiedRootID: {ID: iaUnverifiedRootID, Email: "root3@example.com", Status: models.UserStatusActive},
+		iaDBAdminID:        {ID: iaDBAdminID, Email: "delegate@example.com", Status: models.UserStatusActive},
+		iaPlainID:          {ID: iaPlainID, Email: "plain@example.com", Status: models.UserStatusActive},
+		iaSuspendedID:      {ID: iaSuspendedID, Email: "gone@example.com", Status: models.UserStatusSuspended},
 	}}
 	svc := NewInstanceAdminService(
-		[]string{"  root@example.com ", "", "   ", "ROOT2@example.com"},
+		[]string{"  root@example.com ", "", "   ", "ROOT2@example.com", "root3@example.com"},
 		grants, users, slog.New(slog.DiscardHandler),
 	)
 	return svc, users
@@ -139,6 +151,7 @@ func TestInstanceAdminService_IsInstanceAdmin(t *testing.T) {
 		want   bool
 	}{
 		{"root admin", iaRootID, true},
+		{"unverified account at a root admin's address", iaUnverifiedRootID, false},
 		{"active DB-granted admin", iaDBAdminID, true},
 		{"suspended DB-granted admin", iaSuspendedID, false},
 		{"plain user", iaPlainID, false},
@@ -163,6 +176,15 @@ func TestInstanceAdminService_IsInstanceAdmin(t *testing.T) {
 		got, err := svc.IsInstanceAdmin(context.Background(), users.users[iaDBAdminID])
 		require.Error(t, err)
 		assert.False(t, got)
+	})
+
+	t.Run("an unverified root address with a DB grant is an ordinary instance admin", func(t *testing.T) {
+		grants.granted[iaUnverifiedRootID] = true
+		defer delete(grants.granted, iaUnverifiedRootID)
+		got, err := svc.IsInstanceAdmin(context.Background(), users.users[iaUnverifiedRootID])
+		require.NoError(t, err)
+		assert.True(t, got)
+		assert.False(t, svc.IsVerifiedRootAdmin(users.users[iaUnverifiedRootID]), "the grant makes no root admin")
 	})
 
 	t.Run("root admin survives a grant lookup error", func(t *testing.T) {
@@ -344,6 +366,74 @@ func TestInstanceAdminService_RevokeInstanceAdmin(t *testing.T) {
 			assert.Equal(t, target, notGranted.UserID)
 		})
 	}
+}
+
+// TestInstanceAdminService_UnverifiedRootAddress pins #1467: the address alone
+// grants no root admin power. An unverified account at a root admin's address
+// is refused RequireRootAdmin, and a root admin may grant or revoke it like any
+// other user.
+func TestInstanceAdminService_UnverifiedRootAddress(t *testing.T) {
+	ctx := context.Background()
+	grants := newFakeInstanceAdminGrants()
+	svc, users := newInstanceAdminFixture(grants)
+
+	assert.True(t, svc.IsRootAdmin("root3@example.com"), "the address is still reserved")
+	assert.True(t, svc.IsVerifiedRootAdmin(users.users[iaRootID]))
+	assert.False(t, svc.IsVerifiedRootAdmin(users.users[iaUnverifiedRootID]))
+	assert.False(t, svc.IsVerifiedRootAdmin(users.users[iaPlainID]))
+	assert.False(t, svc.IsVerifiedRootAdmin(nil))
+
+	var notRoot *ErrInstanceAdminNotRoot
+	require.ErrorAs(t, svc.RequireRootAdmin(ctx, iaUnverifiedRootID), &notRoot)
+	_, err := svc.GrantInstanceAdmin(ctx, iaUnverifiedRootID, iaPlainID)
+	require.ErrorAs(t, err, &notRoot)
+
+	granted, err := svc.GrantInstanceAdmin(ctx, iaRootID, iaUnverifiedRootID)
+	require.NoError(t, err)
+	assert.True(t, granted)
+	require.NoError(t, svc.RevokeInstanceAdmin(ctx, iaRootID, iaUnverifiedRootID))
+}
+
+// fakeRootAdminLookupUsers answers GetByEmail for WarnUnverifiedRootAdmins.
+type fakeRootAdminLookupUsers struct {
+	repositories.UserRepository
+	byEmail map[string]*models.User
+	err     map[string]error
+}
+
+func (f *fakeRootAdminLookupUsers) GetByEmail(_ context.Context, email string) (*models.User, error) {
+	if err := f.err[email]; err != nil {
+		return nil, err
+	}
+	if u, ok := f.byEmail[email]; ok {
+		return u, nil
+	}
+	return nil, repositories.ErrUserNotFound
+}
+
+func TestWarnUnverifiedRootAdmins(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+	admins := NewInstanceAdminService(
+		[]string{"verified@example.com", "unverified@example.com", "absent@example.com", "broken@example.com"},
+		nil, nil, logger)
+	users := &fakeRootAdminLookupUsers{
+		byEmail: map[string]*models.User{
+			"verified@example.com":   {ID: "v", Email: "verified@example.com", EmailVerifiedAt: &iaVerifiedAt},
+			"unverified@example.com": {ID: "u", Email: "unverified@example.com"},
+		},
+		err: map[string]error{"broken@example.com": errors.New("db down")},
+	}
+
+	WarnUnverifiedRootAdmins(context.Background(), admins, users, logger)
+
+	out := buf.String()
+	assert.Contains(t, out, "email=unverified@example.com user_id=u")
+	assert.Contains(t, out, "vibexp admin auth password set")
+	assert.Contains(t, out, "email=broken@example.com error=\"db down\"")
+	assert.NotContains(t, out, "verified@example.com user_id=v")
+	assert.NotContains(t, out, "absent@example.com")
+	assert.Equal(t, 2, strings.Count(out, "level=WARN"))
 }
 
 func TestInstanceAdminErrors_Messages(t *testing.T) {

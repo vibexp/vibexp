@@ -719,6 +719,7 @@ func TestAuthService_HandleDevLogin_AllowlistedEmailIsNotBlockedByVerification(t
 
 	existing := &models.User{ID: "user-1", Email: "dev@example.com", Name: "Dev User"}
 	mockRepo.On("GetByEmail", context.Background(), "dev@example.com").Return(existing, nil)
+	mockRepo.On("Update", context.Background(), existing).Return(nil)
 
 	user, err := service.HandleDevLogin(context.Background(), "dev@example.com", "Dev User")
 
@@ -749,7 +750,8 @@ func TestAuthService_HandleDevLogin(t *testing.T) {
 					// dev users have no google_id
 					return user.GoogleID == nil &&
 						user.Email == "dev@example.com" &&
-						user.Name == "Dev User"
+						user.Name == "Dev User" &&
+						user.EmailVerifiedAt != nil // dev login vouches for the address (#1467)
 				})).Return(nil).Run(func(args mock.Arguments) {
 					user := args.Get(1).(*models.User)
 					user.ID = "user-dev-123"
@@ -777,11 +779,42 @@ func TestAuthService_HandleDevLogin(t *testing.T) {
 				}
 				mockRepo.On("GetByEmail", context.Background(), "existing@example.com").
 					Return(existingUser, nil)
+				// An existing account from before email verification was recorded is
+				// marked verified, so a dev root admin keeps its power (#1467).
+				mockRepo.On("Update", context.Background(), mock.MatchedBy(func(user *models.User) bool {
+					return user.ID == "user-existing-456" && user.EmailVerifiedAt != nil
+				})).Return(nil).Once()
 			},
 			expectError: false,
 			validateResult: func(t *testing.T, user *models.User) {
 				assert.Equal(t, "user-existing-456", user.ID)
+				assert.NotNil(t, user.EmailVerifiedAt)
 			},
+		},
+		{
+			name:     "dev login with an already verified user writes nothing",
+			email:    "verified@example.com",
+			userName: "Verified User",
+			setupMocks: func(mockRepo *repo_mocks.MockUserRepository) {
+				verifiedAt := time.Now().Add(-time.Hour)
+				mockRepo.On("GetByEmail", context.Background(), "verified@example.com").
+					Return(&models.User{ID: "user-verified-789", Email: "verified@example.com", EmailVerifiedAt: &verifiedAt}, nil)
+			},
+			expectError: false,
+			validateResult: func(t *testing.T, user *models.User) {
+				assert.Equal(t, "user-verified-789", user.ID)
+			},
+		},
+		{
+			name:     "failed to mark an existing user verified",
+			email:    "unmarked@example.com",
+			userName: "Unmarked User",
+			setupMocks: func(mockRepo *repo_mocks.MockUserRepository) {
+				mockRepo.On("GetByEmail", context.Background(), "unmarked@example.com").
+					Return(&models.User{ID: "user-unmarked", Email: "unmarked@example.com"}, nil)
+				mockRepo.On("Update", context.Background(), mock.Anything).Return(fmt.Errorf("db down"))
+			},
+			expectError: true,
 		},
 		{
 			name:     "failed to query user",
@@ -1245,7 +1278,7 @@ func TestAuthService_HandleDevLogin_NormalizesTheSubject(t *testing.T) {
 	users.On("GetByEmail", ctx, "Dev@Example.com").Return(nil, repositories.ErrUserNotFound)
 	users.On("Create", ctx, mock.MatchedBy(func(u *models.User) bool {
 		return *u.IDPProvider == devIDPProvider && *u.IDPSubject == "dev_dev@example.com" &&
-			u.Email == "dev@example.com" && u.EmailVerifiedAt == nil
+			u.Email == "dev@example.com" && u.EmailVerifiedAt != nil
 	})).Return(nil)
 
 	_, err := identityAuthService(t, users, &repo_mocks.MockUserIdentityRepository{}).

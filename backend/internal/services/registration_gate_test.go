@@ -82,6 +82,29 @@ func TestRegistrationGate_OpenModeAdmitsEveryone(t *testing.T) {
 	}
 }
 
+// In every mode, an unverified claim to a root admin's address creates no
+// account (#1467): the address is reserved for whoever proves the mailbox.
+func TestRegistrationGate_UnverifiedRootAdminAddressIsRefusedInEveryMode(t *testing.T) {
+	ctx := context.Background()
+	for _, mode := range []string{models.RegistrationModeOpen, models.RegistrationModeInviteOnly} {
+		t.Run(mode, func(t *testing.T) {
+			f := newGateFixture(t, stubAuthPolicy{mode: mode})
+
+			err := f.gate.AllowNewAccount(ctx, "Root@Corp.Example", false)
+
+			require.ErrorIs(t, err, ErrRegistrationClosed)
+			assert.Equal(t, "unverified_root_admin", f.closedReason(t))
+			f.invitations.AssertNotCalled(t, "GetPendingByEmail", mock.Anything, mock.Anything)
+		})
+	}
+
+	t.Run("a verified root admin address is admitted in open mode", func(t *testing.T) {
+		f := newGateFixture(t, stubAuthPolicy{mode: models.RegistrationModeOpen})
+
+		require.NoError(t, f.gate.AllowNewAccount(ctx, gateRootAdmin, true))
+	})
+}
+
 func TestRegistrationGate_InviteOnly(t *testing.T) {
 	ctx := context.Background()
 	pending := []models.TeamInvitation{{ID: "inv-1", InviteeEmail: "ada@example.com"}}

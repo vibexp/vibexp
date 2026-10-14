@@ -34,6 +34,7 @@ func TestAuthService_AllowlistChangeAppliesToTheNextSignIn(t *testing.T) {
 	service, h := newAllowlistAuthService(repo, &idpmocks.MockIdentityProvider{})
 	repo.On("GetByEmail", ctx, "dev@example.com").
 		Return(&models.User{ID: "user-1", Email: "dev@example.com"}, nil)
+	repo.On("Update", ctx, mock.Anything).Return(nil).Maybe()
 
 	_, err := service.HandleDevLogin(ctx, "dev@example.com", "Dev")
 	require.NoError(t, err, "no allowlist stored is open access")
@@ -53,6 +54,7 @@ func TestAuthService_RootAdminIsExemptFromTheAllowlistAtSignIn(t *testing.T) {
 	h.store.set([]string{"example.com"}, nil)
 	repo.On("GetByEmail", ctx, allowlistRootAdmin).
 		Return(&models.User{ID: "root-1", Email: allowlistRootAdmin}, nil)
+	repo.On("Update", ctx, mock.Anything).Return(nil).Maybe()
 
 	user, err := service.HandleDevLogin(ctx, allowlistRootAdmin, "Root")
 	require.NoError(t, err)
@@ -91,6 +93,7 @@ func TestAuthService_SignInFailsClosedWhenTheActiveAllowlistIsUnreadable(t *test
 	h.store.set([]string{"example.com"}, nil)
 	repo.On("GetByEmail", ctx, "dev@example.com").
 		Return(&models.User{ID: "user-1", Email: "dev@example.com"}, nil).Once()
+	repo.On("Update", ctx, mock.Anything).Return(nil).Maybe()
 	_, err := service.HandleDevLogin(ctx, "dev@example.com", "Dev")
 	require.NoError(t, err)
 

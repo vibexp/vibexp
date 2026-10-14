@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -76,7 +77,9 @@ func serveAdminGate(t *testing.T, srv *Server, userID string) int {
 // admin revokes the grant the NEXT request gets 404 (no cache in between). A
 // suspended DB admin is denied while still granted.
 func TestInstanceAdminMiddleware_DBGrantThenRevoke(t *testing.T) {
-	root := &models.User{ID: uuid.NewString(), Email: "root@example.com", Status: models.UserStatusActive}
+	verifiedAt := time.Now()
+	root := &models.User{ID: uuid.NewString(), Email: "root@example.com", Status: models.UserStatusActive,
+		EmailVerifiedAt: &verifiedAt}
 	delegate := &models.User{ID: uuid.NewString(), Email: "delegate@example.com", Status: models.UserStatusActive}
 	suspended := &models.User{ID: uuid.NewString(), Email: "gone@example.com", Status: models.UserStatusSuspended}
 	users := memUsers{users: map[string]*models.User{root.ID: root, delegate.ID: delegate, suspended.ID: suspended}}

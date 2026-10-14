@@ -138,7 +138,8 @@ func newAuthSettingsFixture(t *testing.T) *authSettingsFixture {
 		wayIn:    &staticWayIn{},
 		counts:   &credentialCounts{},
 		users: &authSettingsUsers{users: []*models.User{
-			{ID: authSettingsRootID, Email: authSettingsRootEmail, Name: "Root", Status: models.UserStatusActive},
+			{ID: authSettingsRootID, Email: authSettingsRootEmail, Name: "Root", Status: models.UserStatusActive,
+				EmailVerifiedAt: &iaVerifiedAt},
 			{ID: authSettingsDBAdminID, Email: "delegate@example.com", Status: models.UserStatusActive},
 			{ID: authSettingsMemberID, Email: authSettingsMemberEmail, Name: "Ada", Status: models.UserStatusActive},
 			{ID: authSettingsSuspendedID, Email: "gone@example.com", Status: models.UserStatusSuspended},

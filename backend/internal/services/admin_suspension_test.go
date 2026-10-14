@@ -3,7 +3,9 @@ package services
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -23,7 +25,22 @@ func suspensionTarget(id, email, status string) *models.AdminUserDetail {
 }
 
 // noInstanceAdmins is the predicate for "the config allowlist is empty".
-func noInstanceAdmins(string) bool { return false }
+func noInstanceAdmins(*models.User) bool { return false }
+
+// rootAdminPredicate is the real IsVerifiedRootAdmin over auth.instance_admins
+// = [root@example.com], so a test exercises the verified-email rule (#1467).
+func rootAdminPredicate() InstanceAdminPredicate {
+	return NewInstanceAdminService([]string{"root@example.com"}, nil, nil, slog.New(slog.DiscardHandler)).
+		IsVerifiedRootAdmin
+}
+
+// verifiedSuspensionTarget is suspensionTarget with a verified email.
+func verifiedSuspensionTarget(id, email, status string) *models.AdminUserDetail {
+	detail := suspensionTarget(id, email, status)
+	verifiedAt := time.Now()
+	detail.EmailVerifiedAt = &verifiedAt
+	return detail
+}
 
 // TestSuspendUser_Success covers the happy path and pins that the service
 // re-reads the row after the write, so the caller sees PERSISTED state rather
@@ -66,12 +83,10 @@ func TestSuspendUser_LockoutGuards(t *testing.T) {
 			},
 		},
 		{
-			name:     "config-listed instance admin cannot be suspended",
-			actingID: suspendActingAdmin,
-			target:   suspensionTarget(suspendTarget, "root@example.com", models.UserStatusActive),
-			predicate: func(email string) bool {
-				return email == "root@example.com"
-			},
+			name:      "config-listed instance admin cannot be suspended",
+			actingID:  suspendActingAdmin,
+			target:    verifiedSuspensionTarget(suspendTarget, "root@example.com", models.UserStatusActive),
+			predicate: rootAdminPredicate(),
 			assertErr: func(t *testing.T, err error) {
 				var e *ErrAdminSuspendInstanceAdmin
 				require.ErrorAs(t, err, &e)
@@ -95,6 +110,26 @@ func TestSuspendUser_LockoutGuards(t *testing.T) {
 			tc.assertErr(t, err)
 		})
 	}
+}
+
+// TestSuspendUser_UnverifiedRootAddressIsNotProtected pins #1467: an account
+// sitting at a root admin's address whose email was never verified holds no
+// root admin power, so it is not shielded from suspension.
+func TestSuspendUser_UnverifiedRootAddressIsNotProtected(t *testing.T) {
+	repo := repomocks.NewMockAdminRepository(t)
+	repo.On("GetUserDetail", mock.Anything, suspendTarget).
+		Return(suspensionTarget(suspendTarget, "root@example.com", models.UserStatusActive), nil).Once()
+	repo.On("UpdateUserStatus", mock.Anything, suspendTarget, models.UserStatusSuspended).
+		Return(true, nil)
+	repo.On("GetUserDetail", mock.Anything, suspendTarget).
+		Return(suspensionTarget(suspendTarget, "root@example.com", models.UserStatusSuspended), nil).Once()
+
+	got, err := newReadOnlyAdminService(repo).SuspendUser(
+		context.Background(), suspendActingAdmin, suspendTarget, rootAdminPredicate(),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, models.UserStatusSuspended, got.Status)
 }
 
 // TestSuspendUser_NilPredicateStillGuardsSelf proves a missing predicate

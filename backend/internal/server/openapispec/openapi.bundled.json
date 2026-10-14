@@ -32865,7 +32865,7 @@
               },
               "is_root_instance_admin": {
                 "type": "boolean",
-                "description": "Whether the authenticated user's email is in the configured\nauth.instance_admins list (matched case-insensitively). Only root\nadmins may grant or revoke other instance admins. UI convenience\nonly; grant/revoke is authorized server-side.\n",
+                "description": "Whether the authenticated user is a root instance admin: their\nemail is in the configured auth.instance_admins list (matched\ncase-insensitively) AND has been verified (#1467). A listed but\nunverified account is not a root admin. Only root admins may grant\nor revoke other instance admins. UI convenience\nonly; grant/revoke is authorized server-side.\n",
                 "example": false
               }
             }

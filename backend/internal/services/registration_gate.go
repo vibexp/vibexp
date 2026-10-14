@@ -11,8 +11,10 @@ import (
 
 // ErrRegistrationClosed is returned by the provider sign-in entry points when
 // the sign-in would create an account, the instance's registration mode is
-// invite_only, and the person was not invited. Nothing is written.
-var ErrRegistrationClosed = errors.New("registration is by invitation only")
+// invite_only, and the person was not invited. Nothing is written. It is also
+// returned in every mode for an unverified claim to a root instance admin's
+// address (#1467).
+var ErrRegistrationClosed = errors.New("registration is closed to this sign-in")
 
 // RegistrationGate decides whether a sign-in may create a NEW account (#1434).
 // It is never asked about an existing account: the registration mode does not
@@ -25,7 +27,9 @@ type RegistrationGate interface {
 	// refuse: an unreadable policy never opens registration).
 	//
 	// emailVerified reports whether the sign-in provider verified the address.
-	// In invite_only mode an invitation and the root-admin exemption both admit
+	// In every mode, an unverified claim to a root instance admin's address
+	// (auth.instance_admins) is refused: the address is reserved for whoever
+	// proves the mailbox (#1467). In invite_only mode an invitation and the root-admin exemption both admit
 	// by address, so an address the person merely claimed satisfies neither.
 	AllowNewAccount(ctx context.Context, email string, emailVerified bool) error
 }
@@ -55,7 +59,10 @@ type registrationGate struct {
 // NewRegistrationGate returns the gate that enforces the instance's
 // registration mode (instance_auth_policy.registration_mode):
 //
-//   - open: anyone may create an account (the access allowlist, checked
+//   - in every mode, an address in auth.instance_admins needs a
+//     provider-verified email (#1467), so nobody claims a root admin's address
+//     before its owner signs in;
+//   - open: anyone else may create an account (the access allowlist, checked
 //     separately, is the only boundary);
 //   - invite_only: only someone whose provider-verified email has a pending,
 //     unexpired team invitation, or is a root instance admin
@@ -78,6 +85,9 @@ func (g *registrationGate) AllowNewAccount(ctx context.Context, email string, em
 	policy, err := g.policy.Policy(ctx)
 	if err != nil {
 		return fmt.Errorf("read the registration mode: %w", err)
+	}
+	if !emailVerified && g.rootAdmins.IsRootAdmin(email) {
+		return g.closed(email, "unverified_root_admin")
 	}
 	if !policy.InviteOnly() {
 		return nil
@@ -102,7 +112,7 @@ func (g *registrationGate) AllowNewAccount(ctx context.Context, email string, em
 // whatever the reason, and returns ErrRegistrationClosed.
 func (g *registrationGate) closed(email, reason string) error {
 	g.logger.With("email", email, "reason", reason).
-		Info("Sign-up refused: registration is by invitation only")
+		Info("Sign-up refused")
 	return ErrRegistrationClosed
 }
 
