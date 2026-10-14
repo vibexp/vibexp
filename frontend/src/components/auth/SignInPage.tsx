@@ -14,12 +14,18 @@ import { cn } from '@/lib/utils'
 import { STORAGE_KEYS } from '../../constants/storageKeys'
 import { useAuth } from '../../contexts/AuthContext'
 import { useAnalytics } from '../../hooks/useAnalytics'
-import type { AuthProvider } from '../../services/authService'
+import type {
+  AuthProvider,
+  ProvidersResponse,
+} from '../../services/authService'
 import { authService } from '../../services/authService'
+import { environmentService } from '../../services/environmentService'
 import { setupService } from '../../services/setupService'
+import { hardRedirect } from '../../utils/navigation'
 import { sanitizeReturnTo, stashReturnTo } from '../../utils/returnTo'
 import { sessionStore } from '../../utils/storage'
 import { DevLogin } from './DevLogin'
+import { PasswordSignInForm } from './PasswordSignInForm'
 
 const CURRENT_YEAR = new Date().getFullYear()
 
@@ -289,9 +295,25 @@ function PitchPanel() {
   )
 }
 
+/** The "or" between two ways to sign in; only rendered between two. */
+function OrDivider() {
+  return (
+    <div className="text-muted-foreground my-5 flex items-center gap-3 text-xs tracking-wider uppercase">
+      <div className="bg-border h-px flex-1" />
+      <span>or</span>
+      <div className="bg-border h-px flex-1" />
+    </div>
+  )
+}
+
 export function SignInPage() {
   // providers === null means "still loading the enabled-providers list".
   const [providers, setProviders] = useState<AuthProvider[] | null>(null)
+  // Password sign-in from the same discovery call (#1439); off until known.
+  const [password, setPassword] = useState<ProvidersResponse['password']>({
+    enabled: false,
+    reset: 'admin',
+  })
   const [providersError, setProvidersError] = useState<string>('')
   // signingIn holds the canonical name of the provider whose redirect is in
   // flight, so we can show a per-button spinner and disable the others.
@@ -319,14 +341,16 @@ export function SignInPage() {
     }
   }, [trackAuth])
 
-  // Fetch the deployment's enabled login providers so the picker reflects the
-  // actual configuration rather than a hardcoded list.
+  // Fetch the deployment's sign-in methods (providers, and whether password
+  // sign-in is on) so the card reflects the actual configuration.
   useEffect(() => {
     let active = true
     authService
-      .getProviders()
+      .getSignInMethods()
       .then(fetched => {
-        if (active) setProviders(fetched)
+        if (!active) return
+        setPassword(fetched.password)
+        setProviders(fetched.providers)
       })
       .catch((err: unknown) => {
         if (!active) return
@@ -345,7 +369,15 @@ export function SignInPage() {
   // With no provider to sign in through, ask whether the instance is waiting
   // to be set up, so the page can say where the setup URL is. A failure here
   // only costs the hint.
-  const noProviders = providers?.length === 0 && providersError === ''
+  // "No way to sign in" means no provider AND no password sign-in: a
+  // password-only instance is not waiting to be set up.
+  const noProviders =
+    providers?.length === 0 && providersError === '' && !password.enabled
+  const hasProviders = (providers?.length ?? 0) > 0
+  // The same rule DevLogin applies to show itself.
+  const devLoginShown =
+    environmentService.isDevLoginEnabled() &&
+    (searchParams.get('dev_login') ?? 'true') === 'true'
   useEffect(() => {
     if (!noProviders) return
     let active = true
@@ -433,14 +465,30 @@ export function SignInPage() {
                 </Alert>
               )}
 
-              <div className="mt-6 flex flex-col gap-2">
+              {password.enabled && providers !== null && (
+                <div className="mt-6" data-testid="password-sign-in">
+                  <PasswordSignInForm
+                    returnTo={returnTo}
+                    disabled={signingIn !== null}
+                    go={hardRedirect}
+                  />
+                </div>
+              )}
+              {password.enabled && hasProviders && <OrDivider />}
+
+              <div
+                className={cn(
+                  'flex flex-col gap-2',
+                  password.enabled && providers !== null ? '' : 'mt-6'
+                )}
+              >
                 {providers === null && (
                   <Button disabled className="w-full">
                     <span className="border-primary-foreground/40 border-r-primary-foreground inline-block h-4 w-4 animate-spin rounded-full border-2" />
                     <span>Loading sign-in options…</span>
                   </Button>
                 )}
-                {providers?.length === 0 && !providersError && (
+                {noProviders && (
                   <p className="text-muted-foreground text-sm">
                     No login providers are configured for this deployment.
                   </p>
@@ -481,12 +529,8 @@ export function SignInPage() {
                 ))}
               </div>
 
-              {/* Divider */}
-              <div className="text-muted-foreground my-5 flex items-center gap-3 text-xs tracking-wider uppercase">
-                <div className="bg-border h-px flex-1" />
-                <span>or</span>
-                <div className="bg-border h-px flex-1" />
-              </div>
+              {/* Dev login is local only; the divider shows when it does. */}
+              {devLoginShown && <OrDivider />}
 
               <DevLogin returnTo={returnTo} />
 

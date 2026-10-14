@@ -23,8 +23,10 @@ import { AdminRoutes } from '@/pages/admin/AdminRoutes'
 import { AdminShell } from '@/pages/admin/AdminShell'
 import { RequireInstanceAdmin } from '@/pages/admin/RequireInstanceAdmin'
 import { AcceptInvitation } from '@/pages/auth/AcceptInvitation'
+import { AccountResetPage } from '@/pages/auth/AccountResetPage'
 import { AccountSetupPage } from '@/pages/auth/AccountSetupPage'
 import { AuthCallback } from '@/pages/auth/AuthCallback'
+import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage'
 import { OAuthConsentPage } from '@/pages/auth/OAuthConsentPage'
 import { SharedPrompt } from '@/pages/prompts/SharedPrompt'
 import { SetupPage } from '@/pages/setup/SetupPage'
@@ -164,6 +166,24 @@ function App() {
                       element={
                         <BareLayout>
                           <AccountSetupPage />
+                        </BareLayout>
+                      }
+                    />
+                    {/* A reset link (#1439), emailed or handed over by an
+                      administrator; the token is in the URL fragment. */}
+                    <Route
+                      path="/account/reset"
+                      element={
+                        <BareLayout>
+                          <AccountResetPage />
+                        </BareLayout>
+                      }
+                    />
+                    <Route
+                      path="/forgot-password"
+                      element={
+                        <BareLayout>
+                          <ForgotPasswordPage />
                         </BareLayout>
                       }
                     />
