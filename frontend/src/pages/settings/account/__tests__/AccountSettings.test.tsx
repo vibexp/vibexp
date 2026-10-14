@@ -143,6 +143,7 @@ describe('AccountSettings: the three password cases', () => {
           set: true,
           changed_at: '2026-10-01T10:00:00Z',
           login_enabled: false,
+          disabled: false,
         },
       })
     )
@@ -719,6 +720,7 @@ describe('AccountSettings: a signed-out or stale page', () => {
           set: true,
           changed_at: '2026-10-01T10:00:00Z',
           login_enabled: false,
+          disabled: false,
         },
       })
     )
@@ -786,7 +788,12 @@ describe('AccountSettings: the sign-in-again note only where it helps', () => {
     service.get.mockResolvedValue(
       account({
         recent_sign_in: false,
-        password: { set: false, changed_at: null, login_enabled: false },
+        password: {
+          set: false,
+          changed_at: null,
+          login_enabled: false,
+          disabled: false,
+        },
       })
     )
     renderPage()
@@ -815,5 +822,48 @@ describe('AccountSettings: the sign-in-again note only where it helps', () => {
     ).toHaveAccessibleDescription(
       'This is your only way to sign in, so it cannot be removed.'
     )
+  })
+})
+
+describe('AccountSettings: a password an administrator disabled (#1443)', () => {
+  it('says so, offers no change or removal, and points at the administrator', async () => {
+    service.get.mockResolvedValue(
+      withPassword({
+        password: {
+          set: true,
+          changed_at: '2026-10-01T10:00:00Z',
+          login_enabled: true,
+          disabled: true,
+        },
+      })
+    )
+    renderPage()
+
+    const row = await screen.findByTestId('account-password-row')
+    expect(row).toHaveTextContent('Disabled by an administrator')
+    expect(row).toHaveTextContent('Ask them for a link')
+    expect(screen.getByTestId('account-password-admin-disabled')).toBeVisible()
+    expect(screen.queryByRole('form', { name: 'Change password' })).toBeNull()
+    expect(
+      screen.getByRole('button', { name: 'Remove password' })
+    ).toBeDisabled()
+    // The provider is then the only way in.
+    expect(
+      screen.getByRole('button', { name: 'Disconnect Google' })
+    ).toBeDisabled()
+  })
+
+  it('explains the refusal if the server disabled it while the page was open', async () => {
+    service.get.mockResolvedValue(withPassword())
+    service.setPassword.mockRejectedValue(
+      apiError(409, 'password_disabled', 'disabled')
+    )
+    const user = renderPage()
+    const form = await fillChange(user)
+    await user.click(form.getByRole('button', { name: 'Change password' }))
+
+    expect(
+      await screen.findByTestId('account-password-error')
+    ).toHaveTextContent('An administrator disabled your password')
   })
 })

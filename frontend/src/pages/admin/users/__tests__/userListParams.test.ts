@@ -3,7 +3,11 @@ import type { AdminUserListParams } from '@/services/adminService'
 
 import { USER_ADVANCED_FILTERS } from '../userAdvancedFilters'
 import type { UserListContext } from '../userListParams'
-import { buildUserListParams, statusParam } from '../userListParams'
+import {
+  buildUserListParams,
+  pendingSetupParam,
+  statusParam,
+} from '../userListParams'
 
 /** The page passes the hook's cleaned `advancedParams`; derive them the same way. */
 const advancedOf = (filters: Record<string, string>) =>
@@ -94,5 +98,17 @@ describe('statusParam', () => {
     ['bogus', undefined],
   ])('maps %j to %j', (input, expected) => {
     expect(statusParam(input)).toBe(expected)
+  })
+})
+
+describe('pendingSetupParam (#1443)', () => {
+  it.each([
+    ['pending', true],
+    ['done', false],
+    ['all', undefined],
+    ['', undefined],
+    ['nonsense', undefined],
+  ])('maps %s to %s', (value, expected) => {
+    expect(pendingSetupParam(value)).toBe(expected)
   })
 })

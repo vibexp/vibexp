@@ -33,7 +33,12 @@ describe('account rules', () => {
 
     // Password sign-in is off: the password is not a way in.
     const passwordOff = account({
-      password: { set: true, changed_at: null, login_enabled: false },
+      password: {
+        set: true,
+        changed_at: null,
+        login_enabled: false,
+        disabled: false,
+      },
     })
     expect(canDisconnect(passwordOff, passwordOff.identities[0])).toBe(false)
 

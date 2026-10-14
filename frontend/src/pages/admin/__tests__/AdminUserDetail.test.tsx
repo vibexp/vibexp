@@ -2,7 +2,7 @@
  * AdminUserDetail (#459): the four mutation flows and the safety behaviour around
  * the portal's only destructive action.
  */
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mocked } from 'vitest'
@@ -18,6 +18,19 @@ vi.mock('react-router', async () => ({
 const mockUseAuth = vi.hoisted(() => vi.fn())
 vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => mockUseAuth(),
+}))
+
+const signInMethods = vi.hoisted(() => vi.fn())
+const access = vi.hoisted(() => ({
+  issueSetupLink: vi.fn(),
+  issueResetLink: vi.fn(),
+  removePassword: vi.fn(),
+}))
+vi.mock('@/services/adminUserAccessService', () => ({
+  adminUserAccessService: access,
+}))
+vi.mock('@/services/authService', () => ({
+  authService: { getSignInMethods: () => signInMethods() },
 }))
 
 vi.mock('@/services/adminService', () => ({
@@ -62,6 +75,7 @@ vi.mock('sonner', () => ({
 import { toast } from 'sonner'
 
 import { adminService } from '@/services/adminService'
+import { ApiError } from '@/types/errors'
 
 import { AdminUserDetail } from '../AdminUserDetail'
 
@@ -80,6 +94,10 @@ function user(
     id: 'u1',
     email: 'ada@example.com',
     name: 'Ada',
+    sign_in_methods: ['google'],
+    has_password: false,
+    password_disabled: false,
+    pending_setup: false,
     idp_provider: 'google',
     status: 'active',
     created_at: '2026-01-01T00:00:00Z',
@@ -112,6 +130,10 @@ beforeEach(() => {
     isLoading: false,
   })
   mockAdminService.getUser.mockResolvedValue(user())
+  signInMethods.mockResolvedValue({
+    providers: [],
+    password: { enabled: true, reset: 'email' },
+  })
 })
 
 it('renders the profile, status and memberships', async () => {
@@ -470,4 +492,254 @@ it('shows the error state for an unknown id', async () => {
   expect(
     screen.queryByRole('button', { name: /Delete/ })
   ).not.toBeInTheDocument()
+})
+
+describe('sign-in methods and setup links (#1443)', () => {
+  it('lists the sign-in methods, marking a disabled password', async () => {
+    mockAdminService.getUser.mockResolvedValue(
+      user({
+        sign_in_methods: ['google', 'password'],
+        has_password: true,
+        password_disabled: true,
+      })
+    )
+    renderDetail()
+
+    const methods = await screen.findByTestId('user-sign-in-methods')
+    expect(methods).toHaveTextContent('google')
+    expect(methods).toHaveTextContent('Password (disabled)')
+    expect(screen.queryByRole('button', { name: 'Get setup link' })).toBeNull()
+  })
+
+  it('offers a setup link for a pending account and shows it once', async () => {
+    mockAdminService.getUser.mockResolvedValue(
+      user({ sign_in_methods: [], pending_setup: true })
+    )
+    access.issueSetupLink.mockResolvedValue({
+      delivery: 'link',
+      link_url: 'http://localhost/account/setup#token=secret-4',
+      expires_at: '2026-10-21T10:00:00Z',
+    })
+    renderDetail()
+
+    expect(await screen.findByTestId('user-sign-in-methods')).toHaveTextContent(
+      'Pending setup'
+    )
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Get setup link' })
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Show the link here' })
+    )
+    expect(await screen.findByTestId('link-reveal-value')).toHaveTextContent(
+      'secret-4'
+    )
+    expect(access.issueSetupLink).toHaveBeenCalledWith('u1', {
+      delivery: 'link',
+    })
+  })
+
+  it('disables the setup link, saying why, while password sign-in is off', async () => {
+    signInMethods.mockResolvedValue({
+      providers: [],
+      password: { enabled: false, reset: 'email' },
+    })
+    mockAdminService.getUser.mockResolvedValue(
+      user({ sign_in_methods: [], pending_setup: true })
+    )
+    renderDetail()
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Get setup link' })
+      ).toBeDisabled()
+    })
+    expect(screen.getByText(/Setup links need password sign-in/)).toBeVisible()
+  })
+
+  it('no longer says the suspension leaves passwords alone', async () => {
+    renderDetail()
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Suspend' })
+    )
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
+      'cannot sign in, with a password or through an identity provider'
+    )
+  })
+})
+
+describe('password actions (#1443, #1436 part B)', () => {
+  it('offers reset and remove for an account with a password, but not for your own', async () => {
+    mockAdminService.getUser.mockResolvedValue(
+      user({ sign_in_methods: ['password'], has_password: true })
+    )
+    renderDetail()
+    expect(
+      await screen.findByRole('button', { name: 'Reset password' })
+    ).toBeEnabled()
+    expect(
+      screen.getByRole('button', { name: 'Remove password' })
+    ).toBeEnabled()
+  })
+
+  it('hides them on your own account', async () => {
+    mockAdminService.getUser.mockResolvedValue(
+      user({ id: 'admin-1', sign_in_methods: ['password'], has_password: true })
+    )
+    renderDetail('admin-1')
+    await screen.findByTestId('user-sign-in-methods')
+    expect(screen.queryByRole('button', { name: 'Reset password' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Remove password' })).toBeNull()
+  })
+
+  it('disables the reset link while password sign-in is off, but not the removal', async () => {
+    signInMethods.mockResolvedValue({
+      providers: [],
+      password: { enabled: false, reset: 'email' },
+    })
+    mockAdminService.getUser.mockResolvedValue(
+      user({ sign_in_methods: ['password'], has_password: true })
+    )
+    renderDetail()
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Reset password' })
+      ).toBeDisabled()
+    })
+    expect(
+      screen.getByRole('button', { name: 'Remove password' })
+    ).toBeEnabled()
+  })
+
+  it('reads the account again after removing the password', async () => {
+    mockAdminService.getUser
+      .mockResolvedValueOnce(
+        user({ sign_in_methods: ['google', 'password'], has_password: true })
+      )
+      .mockResolvedValueOnce(user({ sign_in_methods: ['google'] }))
+    access.removePassword.mockResolvedValue(undefined)
+    renderDetail()
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Remove password' })
+    )
+    await userEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', {
+        name: 'Remove password',
+      })
+    )
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: 'Remove password' })
+      ).toBeNull()
+    })
+    expect(screen.getByTestId('user-sign-in-methods')).not.toHaveTextContent(
+      'Password'
+    )
+  })
+})
+
+describe('link actions for a suspended account or with password sign-in off (#1443)', () => {
+  it('offers no links to a suspended account, says why, and still allows removing the password', async () => {
+    mockAdminService.getUser.mockResolvedValue(
+      user({
+        status: 'suspended',
+        sign_in_methods: ['password'],
+        has_password: true,
+      })
+    )
+    renderDetail()
+
+    expect(await screen.findByTestId('sign-in-actions-note')).toHaveTextContent(
+      'cannot be sent to a suspended account'
+    )
+    expect(screen.queryByRole('button', { name: 'Reset password' })).toBeNull()
+    expect(
+      screen.getByRole('button', { name: 'Remove password' })
+    ).toBeEnabled()
+  })
+
+  it('writes the reason under the header while password sign-in is off', async () => {
+    signInMethods.mockResolvedValue({
+      providers: [],
+      password: { enabled: false, reset: 'email' },
+    })
+    mockAdminService.getUser.mockResolvedValue(
+      user({ sign_in_methods: ['password'], has_password: true })
+    )
+    renderDetail()
+
+    expect(await screen.findByTestId('sign-in-actions-note')).toHaveTextContent(
+      'Password links need password sign-in'
+    )
+  })
+})
+
+describe('a provider-only account (#1443)', () => {
+  it('offers a link to set a password, without the disable-now option', async () => {
+    mockAdminService.getUser.mockResolvedValue(
+      user({ sign_in_methods: ['google'], has_password: false })
+    )
+    access.issueResetLink.mockResolvedValue({
+      delivery: 'link',
+      link_url: 'http://localhost/account/reset#token=secret-6',
+      expires_at: '2026-10-15T10:00:00Z',
+      invalidated: false,
+    })
+    renderDetail()
+
+    await userEvent.click(
+      await screen.findByRole('button', {
+        name: 'Send a link to set a password',
+      })
+    )
+    expect(screen.queryByRole('button', { name: 'Remove password' })).toBeNull()
+    const dialog = screen.getByTestId('reset-password-dialog')
+    expect(dialog).toHaveTextContent(
+      'so they can sign in without their identity provider'
+    )
+    expect(
+      within(dialog).queryByRole('checkbox', {
+        name: 'Sign out and disable the current password now',
+      })
+    ).toBeNull()
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Show the link here' })
+    )
+    expect(await screen.findByTestId('link-reveal-value')).toHaveTextContent(
+      'secret-6'
+    )
+    expect(access.issueResetLink).toHaveBeenCalledWith('u1', {
+      delivery: 'link',
+      invalidate_now: false,
+    })
+  })
+
+  it("shows the server's refusal, e.g. for a root admin's copied link", async () => {
+    mockAdminService.getUser.mockResolvedValue(
+      user({ sign_in_methods: ['google'], has_password: false })
+    )
+    access.issueResetLink.mockRejectedValue(
+      new ApiError({
+        type: 'about:blank',
+        title: 'Conflict',
+        status: 409,
+        detail: "A root admin's link cannot be shown here; it must be emailed.",
+        code: 'root_admin_link_refused',
+        request_id: 'r',
+        timestamp: '2026-10-14T00:00:00Z',
+      })
+    )
+    renderDetail()
+    await userEvent.click(
+      await screen.findByRole('button', {
+        name: 'Send a link to set a password',
+      })
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Show the link here' })
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "A root admin's link cannot be shown here"
+    )
+  })
 })

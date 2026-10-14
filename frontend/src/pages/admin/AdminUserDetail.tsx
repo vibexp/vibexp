@@ -5,12 +5,9 @@ import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { PageHeader } from '@/components/PageHeader'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/contexts/useAuth'
-import { formatDate } from '@/lib/time'
 import { AdminDetailScaffold } from '@/pages/admin/AdminDetailScaffold'
 import {
   actionBlockedReason,
@@ -21,8 +18,14 @@ import { UserActivityTab } from '@/pages/admin/users/detail/UserActivityTab'
 import { UserNotificationsTab } from '@/pages/admin/users/detail/UserNotificationsTab'
 import { UserOverviewTab } from '@/pages/admin/users/detail/UserOverviewTab'
 import { UserTeamsTab } from '@/pages/admin/users/detail/UserTeamsTab'
+import { usePasswordLoginEnabled } from '@/pages/admin/users/usePasswordLoginEnabled'
 import type { UserFormValues } from '@/pages/admin/users/UserFormDialog'
 import { UserFormDialog } from '@/pages/admin/users/UserFormDialog'
+import {
+  signInActionsNote,
+  UserSignInActions,
+} from '@/pages/admin/users/UserSignInActions'
+import { UserSummaryCard } from '@/pages/admin/users/UserSummaryCard'
 import type {
   AdminUserDeleteBlockedResponse,
   AdminUserDetail as AdminUserDetailType,
@@ -93,6 +96,17 @@ export function AdminUserDetail() {
       })
   }, [id])
 
+  // A quiet re-read, without the page's loading state: after a setup link the
+  // account may have been set up meanwhile. A failure keeps what is shown.
+  const reloadUser = useCallback(async () => {
+    if (!id) return
+    try {
+      setUser(await adminService.getUser(id))
+    } catch {
+      // Keep the account already on screen.
+    }
+  }, [id])
+
   useEffect(() => {
     load()
   }, [load])
@@ -100,6 +114,10 @@ export function AdminUserDetail() {
   const suspended = user?.status === 'suspended'
   const actionable = canActOn(user, actingAdmin)
   const blockedReason = actionBlockedReason(user, actingAdmin)
+  const passwordLogin = usePasswordLoginEnabled()
+  const signInNote = user
+    ? signInActionsNote(user, actionable, passwordLogin)
+    : null
 
   const handleEdit = (values: UserFormValues) => {
     if (!user) return
@@ -189,6 +207,14 @@ export function AdminUserDetail() {
             description={user.name ? user.email : undefined}
             actions={
               <div className="flex flex-wrap items-center gap-2">
+                <UserSignInActions
+                  user={user}
+                  actionable={actionable}
+                  passwordLogin={passwordLogin}
+                  onChanged={() => {
+                    void reloadUser()
+                  }}
+                />
                 <Button
                   variant="outline"
                   size="sm"
@@ -235,39 +261,16 @@ export function AdminUserDetail() {
           {blockedReason && (
             <p className="text-muted-foreground text-sm">{blockedReason}</p>
           )}
+          {signInNote && (
+            <p
+              className="text-muted-foreground text-sm"
+              data-testid="sign-in-actions-note"
+            >
+              {signInNote}
+            </p>
+          )}
 
-          <Card>
-            <CardContent className="grid grid-cols-1 gap-4 py-4 sm:grid-cols-4">
-              <div>
-                <p className="text-muted-foreground text-xs">Status</p>
-                <div className="text-sm">
-                  {suspended ? (
-                    <Badge variant="destructive" className="font-normal">
-                      Suspended
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary" className="font-normal">
-                      Active
-                    </Badge>
-                  )}
-                </div>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs">Provider</p>
-                <p className="text-sm">{user.idp_provider ?? '—'}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs">Joined</p>
-                <p className="text-sm">{formatDate(user.created_at)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs">Teams</p>
-                <p className="text-sm tabular-nums">
-                  {user.memberships.length}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <UserSummaryCard user={user} />
 
           <Tabs value={tab} onValueChange={setTab} className="space-y-6">
             <TabsList>
@@ -307,7 +310,7 @@ export function AdminUserDetail() {
             description={
               suspended
                 ? `${user.email} will be able to sign in again, and their existing API keys and tokens start working immediately.`
-                : `${user.email} will be signed out everywhere. Sessions, API keys and MCP tokens stop working immediately, not at expiry. This does not disable their account at your identity provider, and you can undo it at any time.`
+                : `${user.email} will be signed out everywhere and cannot sign in, with a password or through an identity provider, until reactivated. Sessions, API keys and MCP tokens stop working immediately, not at expiry. Their account at an identity provider is not changed, and you can undo this at any time.`
             }
             confirmLabel={suspended ? 'Reactivate' : 'Suspend'}
             variant={suspended ? 'default' : 'destructive'}

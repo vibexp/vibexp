@@ -14,11 +14,21 @@ export const SIGN_IN_AGAIN_HREF = '/login?return_to=/settings/account'
 
 /**
  * Whether the account's password is a way to sign in: it has one and password
- * sign-in is on. The page cannot see a password an administrator disabled, so
- * the server's `last_sign_in_method` refusal is still handled.
+ * sign-in is on, and an administrator has not disabled it. The server's
+ * `last_sign_in_method` refusal is still handled.
  */
 function passwordUsable(account: Account): boolean {
-  return account.password.set && account.password.login_enabled
+  const { password } = account
+  return password.set && password.login_enabled && !password.disabled
+}
+
+/**
+ * The password exists but an administrator disabled it (#1436 part B): it
+ * does not sign in, and the owner can neither change nor remove it; a link
+ * from the administrator sets a new one and lifts the mark.
+ */
+export function passwordDisabled(account: Account): boolean {
+  return account.password.set && account.password.disabled
 }
 
 function usableIdentities(account: Account): AccountIdentity[] {
@@ -27,7 +37,7 @@ function usableIdentities(account: Account): AccountIdentity[] {
 
 /** The password can go while an enabled provider still signs the person in. */
 export function canRemovePassword(account: Account): boolean {
-  return usableIdentities(account).length > 0
+  return !passwordDisabled(account) && usableIdentities(account).length > 0
 }
 
 /** An identity can go while the password or another enabled provider remains. */
@@ -50,6 +60,7 @@ export function hasGuardedAction(account: Account): boolean {
   const { password } = account
   return (
     (!password.set && password.login_enabled) ||
+    // A disabled password is out of the owner's hands, so it unlocks nothing.
     (password.set && canRemovePassword(account)) ||
     account.identities.some(identity => canDisconnect(account, identity))
   )
@@ -75,6 +86,8 @@ export function accountErrorMessage(err: unknown, fallback: string): string {
       return 'This needs a recent sign-in. Sign in again, then repeat the change.'
     case 'cookie_session_required':
       return 'Sign-in methods can only be changed from a browser session, not with an API key or a connected tool.'
+    case 'password_disabled':
+      return 'An administrator disabled your password. Ask them for a link to set a new one.'
     case 'password_login_disabled':
       return 'Password sign-in is switched off on this instance, so a password cannot be set or changed.'
     case 'last_sign_in_method':

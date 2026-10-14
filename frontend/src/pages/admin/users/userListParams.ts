@@ -15,6 +15,13 @@ export function statusParam(value: string): 'active' | 'suspended' | undefined {
   return value === 'active' || value === 'suspended' ? value : undefined
 }
 
+/** `all` sends nothing; `pending` and `done` filter on `pending_setup` (#1443). */
+export function pendingSetupParam(value: string): boolean | undefined {
+  if (value === 'pending') return true
+  if (value === 'done') return false
+  return undefined
+}
+
 export interface UserListContext {
   /**
    * The cleaned range and date params — `useAdminListFilters`'s
@@ -45,6 +52,7 @@ export function buildUserListParams(
     status: statusParam(filters.status ?? ''),
     idp_provider:
       filters.idp_provider === '' ? undefined : filters.idp_provider,
+    pending_setup: pendingSetupParam(filters.setup ?? ''),
     created_from: ctx.createdFrom,
     created_to: ctx.createdTo,
     sort_by: ctx.sortBy,

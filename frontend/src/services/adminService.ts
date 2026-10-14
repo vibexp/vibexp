@@ -77,6 +77,8 @@ export type AdminUserDeleteResult =
   | { deleted: true }
   | { deleted: false; refusal: AdminUserDeleteBlockedResponse }
 export type AdminUserDetail = components['schemas']['AdminUserDetail']
+export type AdminUserCreated = components['schemas']['AdminUserCreated']
+export type AdminUserSetup = components['schemas']['AdminUserSetup']
 export type AdminTeamOwner = components['schemas']['AdminTeamOwner']
 export type AdminTeamListItem = components['schemas']['AdminTeamListItem']
 export type AdminTeamListResponse =
@@ -334,8 +336,13 @@ class AdminService {
     )
   }
 
-  /** Create a user directly. Publishes `user.created`, so the account gets its personal team and default project exactly as a self-signup would (#462). */
-  async createUser(body: AdminUserCreateRequest): Promise<AdminUserDetail> {
+  /**
+   * Create a user directly. Publishes `user.created`, so the account gets its
+   * personal team and default project exactly as a self-signup would (#462),
+   * then adds it to `teams` and makes its setup link (#1436). `setup` says how
+   * the owner gets in; a `link` delivery carries the link this once.
+   */
+  async createUser(body: AdminUserCreateRequest): Promise<AdminUserCreated> {
     return unwrap(generatedClient.POST('/api/v1/admin/users', { body }))
   }
 

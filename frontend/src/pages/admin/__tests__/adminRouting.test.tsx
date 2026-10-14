@@ -147,6 +147,10 @@ const userDetail: AdminUserDetail = {
   status: 'active',
   created_at: '2026-01-01T00:00:00Z',
   memberships: [],
+  sign_in_methods: ['google'],
+  has_password: false,
+  password_disabled: false,
+  pending_setup: false,
 }
 
 const emptyProjects: AdminProjectListResponse = {

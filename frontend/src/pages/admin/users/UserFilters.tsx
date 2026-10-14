@@ -22,6 +22,9 @@ import {
 /** `all` sends no `status` param; the other two map to the API enum. */
 export type UserStatusFilter = 'all' | 'active' | 'suspended'
 
+/** `all` sends no `pending_setup`; `pending` and `done` send true and false. */
+export type UserSetupFilter = 'all' | 'pending' | 'done'
+
 /**
  * Identity providers offered in the filter.
  *
@@ -39,6 +42,8 @@ export interface UserFiltersProps {
   onStatusChange: (value: UserStatusFilter) => void
   provider: string
   onProviderChange: (value: string) => void
+  setup: UserSetupFilter
+  onSetupChange: (value: UserSetupFilter) => void
   created: DateRangeValue
   onCreatedChange: (value: DateRangeValue) => void
   onClear?: () => void
@@ -63,6 +68,8 @@ export function UserFilters({
   onStatusChange,
   provider,
   onProviderChange,
+  setup,
+  onSetupChange,
   created,
   onCreatedChange,
   onClear,
@@ -132,6 +139,22 @@ export function UserFilters({
           <SelectItem value="all">All statuses</SelectItem>
           <SelectItem value="active">Active</SelectItem>
           <SelectItem value="suspended">Suspended</SelectItem>
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={setup}
+        onValueChange={value => {
+          onSetupChange(value as UserSetupFilter)
+        }}
+      >
+        <SelectTrigger className="w-control-sm" aria-label="Account setup">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Any setup</SelectItem>
+          <SelectItem value="pending">Pending setup</SelectItem>
+          <SelectItem value="done">Set up</SelectItem>
         </SelectContent>
       </Select>
 

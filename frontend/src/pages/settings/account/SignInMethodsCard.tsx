@@ -25,6 +25,7 @@ import {
   canDisconnect,
   canRemovePassword,
   hasGuardedAction,
+  passwordDisabled,
   SIGN_IN_AGAIN_HREF,
 } from './accountRules'
 import { PasswordForm } from './PasswordForm'
@@ -36,6 +37,9 @@ type Removal =
 
 const LAST_METHOD_HINT =
   'This is your only way to sign in, so it cannot be removed.'
+// An administrator disabled the password (#1436 part B).
+const PASSWORD_DISABLED_HINT =
+  'It does not sign you in, and only an administrator can change it. Ask them for a link to set a new password.'
 // Worded around what is missing: true also while password sign-in is off and
 // the password is not a way in itself.
 const PASSWORD_KEPT_HINT =
@@ -148,6 +152,7 @@ export function SignInMethodsCard({
   }
 
   const removePasswordAllowed = canRemovePassword(account)
+  const disabled = passwordDisabled(account)
   // Removing a method and setting a first password need a recent sign-in;
   // changing a password needs the current one instead.
   const guarded = state.needsSignIn
@@ -196,15 +201,23 @@ export function SignInMethodsCard({
             testId="account-password-row"
             title="Password"
             badge={
-              <Badge variant={password.set ? 'secondary' : 'outline'}>
-                {password.set ? 'Set' : 'Not set'}
-              </Badge>
+              disabled ? (
+                <Badge variant="destructive">
+                  Disabled by an administrator
+                </Badge>
+              ) : (
+                <Badge variant={password.set ? 'secondary' : 'outline'}>
+                  {password.set ? 'Set' : 'Not set'}
+                </Badge>
+              )
             }
             detail={passwordDetail(account)}
             hint={
-              password.set && !removePasswordAllowed
-                ? PASSWORD_KEPT_HINT
-                : undefined
+              disabled
+                ? PASSWORD_DISABLED_HINT
+                : password.set && !removePasswordAllowed
+                  ? PASSWORD_KEPT_HINT
+                  : undefined
             }
             action={
               password.set && (
@@ -270,7 +283,16 @@ export function SignInMethodsCard({
           <h3 id="account-password-heading" className="font-medium">
             {password.set ? 'Change password' : 'Set a password'}
           </h3>
-          {password.login_enabled ? (
+          {disabled ? (
+            <p
+              className="text-muted-foreground text-sm"
+              data-testid="account-password-admin-disabled"
+            >
+              An administrator disabled your password, so it cannot be changed
+              here. Ask them for a link to set a new one; using it lifts the
+              block.
+            </p>
+          ) : password.login_enabled ? (
             <PasswordForm
               state={state}
               hasPassword={password.set}

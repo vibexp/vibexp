@@ -5,13 +5,13 @@
  * The assertions are about the query the page issues and the URL it keeps — a
  * filter that renders but sends nothing would otherwise pass unnoticed.
  */
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router'
 import type { Mocked } from 'vitest'
 
 import type {
-  AdminUserDetail,
+  AdminUserCreated,
   AdminUserListItem,
   AdminUserListResponse,
 } from '@/services/adminService'
@@ -29,6 +29,7 @@ vi.mock('@/services/adminService', () => ({
     getSavedFilters: vi.fn(),
     replaceSavedFilters: vi.fn(),
     exportUsers: vi.fn(),
+    listTeams: vi.fn(),
   },
 }))
 
@@ -39,6 +40,7 @@ import { formatDate } from '@/lib/time'
 import { advancedKeys } from '@/pages/admin/filters/advancedFilterParams'
 import { USER_ADVANCED_FILTERS } from '@/pages/admin/users/userAdvancedFilters'
 import { adminService } from '@/services/adminService'
+import { ApiError } from '@/types/errors'
 import { storage, STORAGE_KEYS } from '@/utils/storage'
 
 import { AdminUsers } from '../AdminUsers'
@@ -58,6 +60,10 @@ function listItem(
     id: 'u1',
     email: 'ada@example.com',
     name: 'Ada',
+    sign_in_methods: ['google'],
+    has_password: false,
+    password_disabled: false,
+    pending_setup: false,
     idp_provider: 'google',
     status: 'active',
     created_at: '2026-01-01T00:00:00Z',
@@ -375,8 +381,51 @@ describe('empty states', () => {
   })
 })
 
+describe('pending setup (#1443)', () => {
+  it('marks a pending account and filters on it', async () => {
+    mockAdminService.listUsers.mockResolvedValue({
+      users: [listItem({ pending_setup: true, sign_in_methods: [] })],
+      page: 1,
+      per_page: 25,
+      total_count: 1,
+      total_pages: 1,
+    })
+    renderUsers()
+
+    expect(await screen.findByText('Pending setup')).toBeInTheDocument()
+    await userEvent.click(
+      screen.getByRole('combobox', { name: 'Account setup' })
+    )
+    await userEvent.click(
+      await screen.findByRole('option', { name: 'Pending setup' })
+    )
+    await waitFor(() => {
+      expect(lastQuery().pending_setup).toBe(true)
+    })
+    expect(currentSearch).toContain('setup=pending')
+  })
+
+  it('reads the filter from the URL, and "Any setup" sends nothing', async () => {
+    renderUsers('/admin/users?setup=done')
+    await screen.findByText('ada@example.com')
+    await waitFor(() => {
+      expect(lastQuery().pending_setup).toBe(false)
+    })
+
+    await userEvent.click(
+      screen.getByRole('combobox', { name: 'Account setup' })
+    )
+    await userEvent.click(
+      await screen.findByRole('option', { name: 'Any setup' })
+    )
+    await waitFor(() => {
+      expect(lastQuery().pending_setup).toBeUndefined()
+    })
+  })
+})
+
 describe('creating a user', () => {
-  const created: AdminUserDetail = {
+  const created: AdminUserCreated = {
     id: 'new-1',
     email: 'new.user@example.com',
     name: 'New User',
@@ -384,6 +433,11 @@ describe('creating a user', () => {
     status: 'active',
     created_at: '2026-07-25T00:00:00Z',
     memberships: [],
+    sign_in_methods: [],
+    has_password: false,
+    password_disabled: false,
+    pending_setup: true,
+    setup: { delivery: 'email', expires_at: '2026-08-01T00:00:00Z' },
   }
 
   const openDialog = async () => {
@@ -398,7 +452,7 @@ describe('creating a user', () => {
 
     await openDialog()
     await userEvent.type(screen.getByLabelText('Email'), 'new.user@example.com')
-    await userEvent.type(screen.getByLabelText('Name'), 'New User')
+    await userEvent.type(screen.getByLabelText('Name (optional)'), 'New User')
     await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
 
     await waitFor(() => {
@@ -407,6 +461,12 @@ describe('creating a user', () => {
         name: 'New User',
       })
     })
+    // The dialog says how the person gets in, then opens the user on request.
+    const outcome = await screen.findByTestId('user-created')
+    expect(outcome).toHaveTextContent('Setup link emailed')
+    expect(outcome).toHaveTextContent('emailed to new.user@example.com')
+    expect(mockNavigate).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'Open user' }))
     expect(mockNavigate).toHaveBeenCalledWith('/admin/users/new-1')
   })
 
@@ -417,7 +477,7 @@ describe('creating a user', () => {
 
     await openDialog()
     await userEvent.type(screen.getByLabelText('Email'), 'a@example.com')
-    await userEvent.type(screen.getByLabelText('Name'), 'A')
+    await userEvent.type(screen.getByLabelText('Name (optional)'), 'A')
     await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
 
     await waitFor(() => {
@@ -437,7 +497,7 @@ describe('creating a user', () => {
 
     await openDialog()
     await userEvent.type(screen.getByLabelText('Email'), 'a@example.com')
-    await userEvent.type(screen.getByLabelText('Name'), 'A')
+    await userEvent.type(screen.getByLabelText('Name (optional)'), 'A')
     await userEvent.type(
       screen.getByLabelText('Expected identity provider (optional)'),
       'oidc'
@@ -451,18 +511,141 @@ describe('creating a user', () => {
     })
   })
 
-  it('requires both email and name', async () => {
+  it('needs only an email; the name is optional and not sent when empty', async () => {
+    mockAdminService.createUser.mockResolvedValue(created)
     renderUsers()
     await screen.findByText('ada@example.com')
     await openDialog()
 
     expect(screen.getByRole('button', { name: 'Create user' })).toBeDisabled()
-
     await userEvent.type(screen.getByLabelText('Email'), 'a@example.com')
-    expect(screen.getByRole('button', { name: 'Create user' })).toBeDisabled()
-
-    await userEvent.type(screen.getByLabelText('Name'), 'A')
     expect(screen.getByRole('button', { name: 'Create user' })).toBeEnabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
+
+    await waitFor(() => {
+      expect(mockAdminService.createUser).toHaveBeenCalledWith({
+        email: 'a@example.com',
+      })
+    })
+  })
+
+  it('shows a link to hand over once, and drops it when the dialog closes', async () => {
+    mockAdminService.createUser.mockResolvedValue({
+      ...created,
+      setup: {
+        delivery: 'link',
+        link_url: 'http://localhost/account/setup#token=secret-1',
+        expires_at: '2026-08-01T00:00:00Z',
+      },
+    })
+    renderUsers()
+    await screen.findByText('ada@example.com')
+    await openDialog()
+    await userEvent.type(screen.getByLabelText('Email'), 'new.user@example.com')
+    await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
+
+    expect(await screen.findByTestId('link-reveal-value')).toHaveTextContent(
+      'http://localhost/account/setup#token=secret-1'
+    )
+    expect(screen.getByTestId('link-reveal')).toHaveTextContent(
+      'will not be shown again'
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }))
+    await openDialog()
+    expect(screen.queryByText(/secret-1/)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Email')).toHaveValue('')
+  })
+
+  it('sends the chosen teams with their roles, and keeps a refusal on its own team', async () => {
+    mockAdminService.listTeams.mockResolvedValue({
+      teams: [
+        { id: 't-a', name: 'Alpha', slug: 'a', is_personal: false },
+        { id: 't-b', name: 'Beta', slug: 'b', is_personal: false },
+        { id: 't-c', name: 'Gamma', slug: 'c', is_personal: false },
+      ],
+      page: 1,
+      total_pages: 1,
+    } as never)
+    mockAdminService.createUser.mockRejectedValueOnce(
+      new ApiError({
+        type: 'about:blank',
+        title: 'Validation Failed',
+        status: 400,
+        detail: 'Invalid',
+        code: 'VALIDATION_FAILED',
+        request_id: 'r',
+        timestamp: '2026-10-14T00:00:00Z',
+        validation_errors: [
+          {
+            field: 'teams[1]',
+            message: 'Beta cannot be used',
+            code: 'team_invalid',
+          },
+        ],
+      })
+    )
+    renderUsers()
+    await screen.findByText('ada@example.com')
+    await openDialog()
+    await userEvent.type(screen.getByLabelText('Email'), 'new.user@example.com')
+    for (const name of ['Alpha', 'Beta', 'Gamma']) {
+      await userEvent.click(screen.getByRole('button', { name: 'Add a team' }))
+      await userEvent.click(await screen.findByRole('option', { name }))
+    }
+    await userEvent.click(
+      within(
+        screen.getByRole('radiogroup', { name: 'Role in Gamma' })
+      ).getByRole('radio', { name: 'Admin' })
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
+
+    await waitFor(() => {
+      expect(mockAdminService.createUser).toHaveBeenCalledWith({
+        email: 'new.user@example.com',
+        teams: [
+          { team_id: 't-a', role: 'member' },
+          { team_id: 't-b', role: 'member' },
+          { team_id: 't-c', role: 'admin' },
+        ],
+      })
+    })
+    expect(await screen.findByText('Beta cannot be used')).toBeVisible()
+    expect(
+      screen.getByText('Some teams cannot be used. Nothing was created.')
+    ).toBeVisible()
+
+    // Removing ANOTHER row keeps the message on Beta.
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Alpha' }))
+    const rows = within(screen.getByTestId('team-assignments')).getAllByRole(
+      'listitem'
+    )
+    expect(rows[0]).toHaveTextContent('Beta')
+    expect(rows[0]).toHaveTextContent('Beta cannot be used')
+    expect(rows[1]).not.toHaveTextContent('cannot be used')
+  })
+
+  it.each([
+    ['password_login_disabled', 'Password sign-in is switched off'],
+    ['root_admin_link_refused', 'root admin'],
+    ['email_failed', 'could not be sent'],
+    ['setup_failed', 'could not be made'],
+  ])('explains why there is no link (%s)', async (reason, text) => {
+    mockAdminService.createUser.mockResolvedValue({
+      ...created,
+      setup: {
+        delivery: 'none',
+        reason: reason as AdminUserCreated['setup']['reason'],
+      },
+    })
+    renderUsers()
+    await screen.findByText('ada@example.com')
+    await openDialog()
+    await userEvent.type(screen.getByLabelText('Email'), 'new.user@example.com')
+    await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
+
+    const setup = await screen.findByTestId('user-created-setup')
+    expect(setup).toHaveTextContent('No setup link')
+    expect(setup).toHaveTextContent(text)
   })
 
   it('shows a duplicate-email failure inline and keeps the form open', async () => {
@@ -474,7 +657,7 @@ describe('creating a user', () => {
 
     await openDialog()
     await userEvent.type(screen.getByLabelText('Email'), 'ada@example.com')
-    await userEvent.type(screen.getByLabelText('Name'), 'Ada')
+    await userEvent.type(screen.getByLabelText('Name (optional)'), 'Ada')
     await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
 
     expect(
@@ -491,7 +674,7 @@ describe('creating a user', () => {
     await screen.findByText('ada@example.com')
     await openDialog()
     await userEvent.type(screen.getByLabelText('Email'), 'a@example.com')
-    await userEvent.type(screen.getByLabelText('Name'), 'A')
+    await userEvent.type(screen.getByLabelText('Name (optional)'), 'A')
     await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
     await screen.findByText('boom')
 
@@ -799,7 +982,7 @@ describe('CSV export (#1150)', () => {
       truncated: false,
     })
     renderUsers(
-      '/admin/users?page=2&search=ada&status=suspended&idp_provider=github&prompt_count_min=3&total_resource_count_max=9&last_resource_created_from=2026-07-01&last_resource_created_to=2026-07-24&sort_by=team_count&sort_order=asc'
+      '/admin/users?page=2&search=ada&status=suspended&setup=pending&idp_provider=github&prompt_count_min=3&total_resource_count_max=9&last_resource_created_from=2026-07-01&last_resource_created_to=2026-07-24&sort_by=team_count&sort_order=asc'
     )
 
     await waitFor(() => {
@@ -819,6 +1002,8 @@ describe('CSV export (#1150)', () => {
     expect(exported).toStrictEqual(listFilters)
     expect(exported).not.toHaveProperty('page')
     expect(exported).not.toHaveProperty('limit')
+    // The Setup filter (#1443) reaches the export too.
+    expect(exported.pending_setup).toBe(true)
     // Guard against both sides being empty: the URL's filters really are there.
     expect(exported).toMatchObject({
       search: 'ada',
