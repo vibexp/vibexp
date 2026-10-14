@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/vibexp/vibexp/internal/auth/password"
@@ -614,6 +615,7 @@ func ProvideRootAdminPasswordService(
 	policies repositories.InstanceAuthPolicyRepository,
 	passwords services.PasswordAuthServiceInterface,
 	admins services.InstanceAdminResolver,
+	caches *services.AuthSettingsInvalidator,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 ) *services.RootAdminPasswordService {
@@ -623,9 +625,33 @@ func ProvideRootAdminPasswordService(
 		Policies:    policies,
 		Passwords:   passwords,
 		IsRootAdmin: admins.IsRootAdmin,
+		Caches:      caches,
 		Events:      eventManager,
 		Logger:      logger,
 	})
+}
+
+// ProvideAuthSettingsInvalidator creates what in-process auth settings writers
+// call after a write, so the policy and allowlist caches serve it at once
+// (#1485). The identity provider resolver reads the settings version on every
+// call and needs no invalidation.
+//
+// Both resolvers must be invalidatable: a resolver wrapped in something that
+// is not would make every write wait out the probe again with no test noticing,
+// so it fails the start instead.
+func ProvideAuthSettingsInvalidator(
+	policy services.AuthPolicyResolver,
+	allowlist services.AccessAllowlistResolver,
+) (*services.AuthSettingsInvalidator, error) {
+	policyCache, ok := policy.(services.AuthSettingsCache)
+	if !ok {
+		return nil, fmt.Errorf("the auth policy resolver %T cannot be invalidated", policy)
+	}
+	allowlistCache, ok := allowlist.(services.AuthSettingsCache)
+	if !ok {
+		return nil, fmt.Errorf("the access allowlist resolver %T cannot be invalidated", allowlist)
+	}
+	return services.NewAuthSettingsInvalidator(policyCache, allowlistCache), nil
 }
 
 // ProvideIdentityProviderResolver creates the runtime sign-in provider resolver
@@ -863,6 +889,7 @@ type InstanceAuthSettingsServiceDeps struct {
 	WayIn             services.AuthWayIn
 	Credentials       repositories.UserCredentialRepository
 	RootPasswords     *services.RootAdminPasswordService
+	Caches            *services.AuthSettingsInvalidator
 	Enc               services.EncryptionServiceInterface
 	Cfg               *config.Config
 	Logger            *slog.Logger
@@ -888,6 +915,7 @@ func ProvideInstanceAuthSettingsService(
 		WayIn:             deps.WayIn,
 		Credentials:       deps.Credentials,
 		RootPasswords:     deps.RootPasswords,
+		Caches:            deps.Caches,
 		Enc:               deps.Enc,
 		CallbackURL:       deps.Cfg.AuthCallbackURL(),
 		Logger:            deps.Logger,

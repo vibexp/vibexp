@@ -64,6 +64,10 @@ type RootAdminPasswordDeps struct {
 	// IsRootAdmin reports whether an email is in auth.instance_admins
 	// (InstanceAdminResolver.IsRootAdmin).
 	IsRootAdmin func(email string) bool
+	// Caches is told after Set switches password login on, so the sign-in that
+	// follows in the same process sees it (#1485). Nil in the recovery CLI,
+	// a separate process the server picks up within its probe interval.
+	Caches *AuthSettingsInvalidator
 	// Events publishes user.created for an account Set creates; the server's
 	// listeners provision the account's workspace from it. Nil means this
 	// caller cannot create accounts: the CLI runs with no server and so no
@@ -267,5 +271,6 @@ func (s *RootAdminPasswordService) trySwitchLoginOn(ctx context.Context) (bool, 
 	if err = s.deps.Policies.UpsertAudited(ctx, next, nil, &expected); err != nil {
 		return false, fmt.Errorf("failed to switch password login on: %w", err)
 	}
+	s.deps.Caches.Invalidate()
 	return true, nil
 }

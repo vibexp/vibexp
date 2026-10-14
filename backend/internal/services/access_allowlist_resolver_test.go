@@ -534,3 +534,19 @@ func TestAccessAllowlistResolver_PreviewAllowlistImpact(t *testing.T) {
 		require.ErrorIs(t, err, h.store.previewErr)
 	})
 }
+
+// #1485: an allowlist written in this process applies to the next decision at
+// once, within the probe interval.
+func TestAccessAllowlistResolver_InvalidateIsSeenAtOnce(t *testing.T) {
+	h := newAllowlistHarness()
+	h.store.set([]string{"example.com"}, nil)
+	mustAllow(t, h.resolver, "dev@example.com")
+
+	h.store.set([]string{"example.org"}, nil)
+	h.resolver.Invalidate()
+
+	allowed, active, err := h.resolver.IsEmailAllowed(context.Background(), "dev@example.com")
+	require.NoError(t, err)
+	assert.True(t, active)
+	assert.False(t, allowed, "the new allowlist decides, with no probe interval to wait out")
+}

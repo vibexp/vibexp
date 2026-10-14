@@ -25,6 +25,7 @@ import (
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	"github.com/vibexp/vibexp/internal/services"
 	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
@@ -269,6 +270,10 @@ type authSettingsFixture struct {
 	admin *adminMockContainer
 	// setupCookie is the setup session's cookie, once primeSetupSession minted it.
 	setupCookie *http.Cookie
+	// policyResolver is the real, caching policy resolver sign-in reads (#1485).
+	policyResolver    services.AuthPolicyResolver
+	allowlistResolver services.AccessAllowlistResolver
+	passwords         *servicesmocks.MockPasswordAuthServiceInterface
 }
 
 // authSettingsContainer adds the setup-mode service to the admin mock
@@ -276,9 +281,29 @@ type authSettingsFixture struct {
 type authSettingsContainer struct {
 	*adminMockContainer
 	setup services.SetupModeService
+	// policy is the real resolver over the fixture's store, shared with the
+	// writers' invalidator (#1485); passwords answers password sign-in.
+	policy    services.AuthPolicyResolver
+	passwords services.PasswordAuthServiceInterface
+	// auth, when set, replaces the mocked auth service (a test that needs the
+	// real provider list).
+	auth services.AuthServiceInterface
+}
+
+func (c *authSettingsContainer) AuthService() services.AuthServiceInterface {
+	if c.auth != nil {
+		return c.auth
+	}
+	return c.adminMockContainer.AuthService()
 }
 
 func (c *authSettingsContainer) SetupModeService() services.SetupModeService { return c.setup }
+
+func (c *authSettingsContainer) AuthPolicyResolver() services.AuthPolicyResolver { return c.policy }
+
+func (c *authSettingsContainer) PasswordAuthService() services.PasswordAuthServiceInterface {
+	return c.passwords
+}
 
 func newAuthSettingsFixture(t *testing.T) *authSettingsFixture {
 	t.Helper()
@@ -303,6 +328,23 @@ func newAuthSettingsFixture(t *testing.T) *authSettingsFixture {
 		Logger:      logger,
 	})
 
+	// An hour-long probe: only an invalidation can make it re-read, so a test
+	// cannot pass because a slow step outlived the production 2 s.
+	noEmail := repomocks.NewMockInstanceEmailProviderRepository(t)
+	noEmail.On("Get", mock.Anything).Return(nil, repositories.ErrInstanceEmailProviderNotFound).Maybe()
+	f.policyResolver = services.NewAuthPolicyResolver(services.AuthPolicyResolverDeps{
+		Policies: f.store.Policy(), Versions: f.store.Versions(), EmailProviders: noEmail,
+		Logger: logger, ProbeInterval: time.Hour,
+	})
+	f.allowlistResolver = services.NewAccessAllowlistResolver(services.AccessAllowlistResolverDeps{
+		Allowlists: f.store.Allowlist(), Versions: f.store.Versions(), RootAdmins: admins, Logger: logger,
+		ProbeInterval: time.Hour,
+	})
+	allowlistResolver := f.allowlistResolver
+	caches := services.NewAuthSettingsInvalidator(
+		f.policyResolver.(services.AuthSettingsCache), f.allowlistResolver.(services.AuthSettingsCache))
+	f.passwords = servicesmocks.NewMockPasswordAuthServiceInterface(t)
+
 	authSvc := servicesmocks.NewMockAuthServiceInterface(t)
 	keySvc := servicesmocks.NewMockAPIKeyServiceInterface(t)
 	for _, user := range f.users.users {
@@ -325,22 +367,21 @@ func newAuthSettingsFixture(t *testing.T) *authSettingsFixture {
 		instanceAuditRepo:     f.store.AuditLog(),
 		instanceAdminResolver: admins,
 		instanceAuthSettingsService: services.NewInstanceAuthSettingsService(services.InstanceAuthSettingsDeps{
-			Providers:  f.store.Providers(),
-			Allowlists: f.store.Allowlist(),
-			Policies:   f.store.Policy(),
-			Versions:   f.store.Versions(),
-			Grants:     f.store.Grants(),
-			Users:      f.users,
-			Resolver:   f.resolver,
-			AllowlistResolver: services.NewAccessAllowlistResolver(services.AccessAllowlistResolverDeps{
-				Allowlists: f.store.Allowlist(), Versions: f.store.Versions(), RootAdmins: admins, Logger: logger,
-			}),
-			Admins:      admins,
-			WayIn:       f.wayIn,
-			Credentials: f.creds,
+			Providers:         f.store.Providers(),
+			Allowlists:        f.store.Allowlist(),
+			Policies:          f.store.Policy(),
+			Versions:          f.store.Versions(),
+			Grants:            f.store.Grants(),
+			Users:             f.users,
+			Resolver:          f.resolver,
+			AllowlistResolver: allowlistResolver,
+			Caches:            caches,
+			Admins:            admins,
+			WayIn:             f.wayIn,
+			Credentials:       f.creds,
 			RootPasswords: services.NewRootAdminPasswordService(services.RootAdminPasswordDeps{
 				Users: f.users, Credentials: f.creds, Policies: f.store.Policy(), Passwords: f.creds,
-				IsRootAdmin: admins.IsRootAdmin, Events: f.events, Logger: logger,
+				IsRootAdmin: admins.IsRootAdmin, Caches: caches, Events: f.events, Logger: logger,
 			}),
 			Enc:         enc,
 			CallbackURL: authTestCallbackURL,
@@ -349,7 +390,9 @@ func newAuthSettingsFixture(t *testing.T) *authSettingsFixture {
 	}
 	f.admin = admin
 	f.srv = newAdminTestServer(cfg, admin)
-	f.srv.container = &authSettingsContainer{adminMockContainer: admin, setup: f.setup}
+	f.srv.container = &authSettingsContainer{
+		adminMockContainer: admin, setup: f.setup, policy: f.policyResolver, passwords: f.passwords,
+	}
 	return f
 }
 
