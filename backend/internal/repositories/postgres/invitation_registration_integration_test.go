@@ -297,7 +297,7 @@ func TestIntegrationInvitationRegistration_AClaimDuringRegistrationWins(t *testi
 		NewUserRepository(integrationDB), NewUserIdentityRepository(integrationDB),
 		nil, nil, slog.New(slog.DiscardHandler), openAllowlist{},
 		services.WithUnverifiedAccountClaimHook(services.NewUnverifiedAccountCleanup(
-			NewAccountTokenRepository(integrationDB), credentials,
+			NewAccountTokenRepository(integrationDB),
 			services.NewAPIAccessService(NewAPIAccessRepository(integrationDB), slog.New(slog.DiscardHandler)),
 			slog.New(slog.DiscardHandler))))
 	var claimErr error

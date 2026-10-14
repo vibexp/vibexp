@@ -152,13 +152,6 @@ type PasswordAuthServiceInterface interface {
 	// PasswordStatus reports whether the user has a password, whether it is
 	// usable (not disabled by an administrator), and when it last changed.
 	PasswordStatus(ctx context.Context, userID string) (PasswordStatus, error)
-	// HashNewPassword checks plaintext against the password policy for an
-	// account with email and returns its encoded hash, storing nothing. It is
-	// for the one caller that must write the credential in the same statement
-	// as a new account (UserRepository.CreateWithCredential, #1435); every
-	// other caller uses SetPassword. A password that breaks the policy is a
-	// *password.PolicyError.
-	HashNewPassword(ctx context.Context, plaintext, email string) (string, error)
 }
 
 // PasswordHasher makes and checks password hashes. *password.Hasher is the
