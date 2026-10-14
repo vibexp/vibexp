@@ -79,9 +79,6 @@ export type AdminUserDeleteResult =
 export type AdminUserDetail = components['schemas']['AdminUserDetail']
 export type AdminUserCreated = components['schemas']['AdminUserCreated']
 export type AdminUserSetup = components['schemas']['AdminUserSetup']
-export type AdminUserSetupLink = components['schemas']['AdminUserSetupLink']
-export type AdminUserSetupLinkRequest =
-  components['schemas']['AdminUserSetupLinkRequest']
 export type AdminTeamOwner = components['schemas']['AdminTeamOwner']
 export type AdminTeamListItem = components['schemas']['AdminTeamListItem']
 export type AdminTeamListResponse =
@@ -353,18 +350,6 @@ class AdminService {
    * A new setup link for an account with no way to sign in yet (#1436). Any
    * earlier link stops working. `link` returns it here, once.
    */
-  async issueSetupLink(
-    id: string,
-    body: AdminUserSetupLinkRequest
-  ): Promise<AdminUserSetupLink> {
-    return unwrap(
-      generatedClient.POST('/api/v1/admin/users/{id}/setup-link', {
-        params: { path: { id } },
-        body,
-      })
-    )
-  }
-
   /** Update a user's display name. */
   async updateUser(
     id: string,

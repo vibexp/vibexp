@@ -20,7 +20,12 @@ export function account(overrides: Partial<Account> = {}): Account {
     id: '22222222-2222-4222-8222-222222222222',
     email: 'ada@example.com',
     name: 'Ada Lovelace',
-    password: { set: false, changed_at: null, login_enabled: true },
+    password: {
+      set: false,
+      changed_at: null,
+      login_enabled: true,
+      disabled: false,
+    },
     identities: [identity()],
     recent_sign_in: true,
     ...overrides,
@@ -33,6 +38,7 @@ export function withPassword(overrides: Partial<Account> = {}): Account {
       set: true,
       changed_at: '2026-10-01T10:00:00Z',
       login_enabled: true,
+      disabled: false,
     },
     ...overrides,
   })

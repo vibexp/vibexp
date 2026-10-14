@@ -1,16 +1,16 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-import { adminService } from '@/services/adminService'
+import { adminUserAccessService } from '@/services/adminUserAccessService'
 import { ApiError } from '@/types/errors'
 
-vi.mock('@/services/adminService', () => ({
-  adminService: { issueSetupLink: vi.fn() },
+vi.mock('@/services/adminUserAccessService', () => ({
+  adminUserAccessService: { issueSetupLink: vi.fn() },
 }))
 
 import { SetupLinkDialog } from '../SetupLinkDialog'
 
-const service = vi.mocked(adminService)
+const service = vi.mocked(adminUserAccessService)
 const onOpenChange = vi.fn()
 
 function renderDialog() {

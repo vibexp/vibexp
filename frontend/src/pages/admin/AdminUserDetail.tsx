@@ -1,4 +1,4 @@
-import { Ban, Link2, Pencil, Trash2, UserCheck } from 'lucide-react'
+import { Ban, Pencil, Trash2, UserCheck } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
@@ -18,10 +18,10 @@ import { UserActivityTab } from '@/pages/admin/users/detail/UserActivityTab'
 import { UserNotificationsTab } from '@/pages/admin/users/detail/UserNotificationsTab'
 import { UserOverviewTab } from '@/pages/admin/users/detail/UserOverviewTab'
 import { UserTeamsTab } from '@/pages/admin/users/detail/UserTeamsTab'
-import { SetupLinkDialog } from '@/pages/admin/users/SetupLinkDialog'
 import { usePasswordLoginEnabled } from '@/pages/admin/users/usePasswordLoginEnabled'
 import type { UserFormValues } from '@/pages/admin/users/UserFormDialog'
 import { UserFormDialog } from '@/pages/admin/users/UserFormDialog'
+import { UserSignInActions } from '@/pages/admin/users/UserSignInActions'
 import { UserSummaryCard } from '@/pages/admin/users/UserSummaryCard'
 import type {
   AdminUserDeleteBlockedResponse,
@@ -111,7 +111,6 @@ export function AdminUserDetail() {
   const suspended = user?.status === 'suspended'
   const actionable = canActOn(user, actingAdmin)
   const blockedReason = actionBlockedReason(user, actingAdmin)
-  const [setupLinkOpen, setSetupLinkOpen] = useState(false)
   const passwordLogin = usePasswordLoginEnabled()
 
   const handleEdit = (values: UserFormValues) => {
@@ -202,24 +201,14 @@ export function AdminUserDetail() {
             description={user.name ? user.email : undefined}
             actions={
               <div className="flex flex-wrap items-center gap-2">
-                {user.pending_setup && actionable && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={passwordLogin === false}
-                    title={
-                      passwordLogin === false
-                        ? 'Password sign-in is switched off on this instance.'
-                        : undefined
-                    }
-                    onClick={() => {
-                      setSetupLinkOpen(true)
-                    }}
-                  >
-                    <Link2 className="mr-2 size-4" aria-hidden />
-                    Get setup link
-                  </Button>
-                )}
+                <UserSignInActions
+                  user={user}
+                  actionable={actionable}
+                  passwordLogin={passwordLogin}
+                  onChanged={() => {
+                    void reloadUser()
+                  }}
+                />
                 <Button
                   variant="outline"
                   size="sm"
@@ -320,17 +309,6 @@ export function AdminUserDetail() {
             variant={suspended ? 'default' : 'destructive'}
             loading={statusWorking}
             onConfirm={handleStatusChange}
-          />
-
-          <SetupLinkDialog
-            open={setupLinkOpen}
-            onOpenChange={open => {
-              setSetupLinkOpen(open)
-              // The account may have been set up meanwhile.
-              if (!open) void reloadUser()
-            }}
-            userId={user.id}
-            email={user.email}
           />
 
           <DeleteUserDialog

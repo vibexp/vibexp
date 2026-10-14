@@ -11,7 +11,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { formatDateTime } from '@/lib/time'
-import { adminService, type AdminUserSetupLink } from '@/services/adminService'
+import {
+  adminUserAccessService,
+  type AdminUserSetupLink,
+} from '@/services/adminUserAccessService'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 import { LinkReveal } from './LinkReveal'
@@ -49,7 +52,9 @@ export function SetupLinkDialog({
     setBusy(true)
     setError(null)
     try {
-      setResult(await adminService.issueSetupLink(userId, { delivery }))
+      setResult(
+        await adminUserAccessService.issueSetupLink(userId, { delivery })
+      )
     } catch (err) {
       // The 409s (`email_unavailable`, `has_sign_in_method`, …) carry a
       // sentence fit to show.

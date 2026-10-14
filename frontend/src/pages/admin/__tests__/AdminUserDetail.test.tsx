@@ -2,7 +2,7 @@
  * AdminUserDetail (#459): the four mutation flows and the safety behaviour around
  * the portal's only destructive action.
  */
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mocked } from 'vitest'
@@ -21,6 +21,14 @@ vi.mock('@/contexts/useAuth', () => ({
 }))
 
 const signInMethods = vi.hoisted(() => vi.fn())
+const access = vi.hoisted(() => ({
+  issueSetupLink: vi.fn(),
+  issueResetLink: vi.fn(),
+  removePassword: vi.fn(),
+}))
+vi.mock('@/services/adminUserAccessService', () => ({
+  adminUserAccessService: access,
+}))
 vi.mock('@/services/authService', () => ({
   authService: { getSignInMethods: () => signInMethods() },
 }))
@@ -38,7 +46,6 @@ vi.mock('@/services/adminService', () => ({
     getUserTopAccessedResources: vi.fn(),
     getUserTimeline: vi.fn(),
     getUserNotificationPreferences: vi.fn(),
-    issueSetupLink: vi.fn(),
   },
 }))
 
@@ -507,7 +514,7 @@ describe('sign-in methods and setup links (#1443)', () => {
     mockAdminService.getUser.mockResolvedValue(
       user({ sign_in_methods: [], pending_setup: true })
     )
-    mockAdminService.issueSetupLink.mockResolvedValue({
+    access.issueSetupLink.mockResolvedValue({
       delivery: 'link',
       link_url: 'http://localhost/account/setup#token=secret-4',
       expires_at: '2026-10-21T10:00:00Z',
@@ -526,7 +533,7 @@ describe('sign-in methods and setup links (#1443)', () => {
     expect(await screen.findByTestId('link-reveal-value')).toHaveTextContent(
       'secret-4'
     )
-    expect(mockAdminService.issueSetupLink).toHaveBeenCalledWith('u1', {
+    expect(access.issueSetupLink).toHaveBeenCalledWith('u1', {
       delivery: 'link',
     })
   })
@@ -556,6 +563,76 @@ describe('sign-in methods and setup links (#1443)', () => {
     )
     expect(screen.getByRole('alertdialog')).toHaveTextContent(
       'cannot sign in, with a password or through an identity provider'
+    )
+  })
+})
+
+describe('password actions (#1443, #1436 part B)', () => {
+  it('offers reset and remove for an account with a password, but not for your own', async () => {
+    mockAdminService.getUser.mockResolvedValue(
+      user({ sign_in_methods: ['password'], has_password: true })
+    )
+    renderDetail()
+    expect(
+      await screen.findByRole('button', { name: 'Reset password' })
+    ).toBeEnabled()
+    expect(
+      screen.getByRole('button', { name: 'Remove password' })
+    ).toBeEnabled()
+  })
+
+  it('hides them on your own account', async () => {
+    mockAdminService.getUser.mockResolvedValue(
+      user({ id: 'admin-1', sign_in_methods: ['password'], has_password: true })
+    )
+    renderDetail('admin-1')
+    await screen.findByTestId('user-sign-in-methods')
+    expect(screen.queryByRole('button', { name: 'Reset password' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Remove password' })).toBeNull()
+  })
+
+  it('disables the reset link while password sign-in is off, but not the removal', async () => {
+    signInMethods.mockResolvedValue({
+      providers: [],
+      password: { enabled: false, reset: 'email' },
+    })
+    mockAdminService.getUser.mockResolvedValue(
+      user({ sign_in_methods: ['password'], has_password: true })
+    )
+    renderDetail()
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Reset password' })
+      ).toBeDisabled()
+    })
+    expect(
+      screen.getByRole('button', { name: 'Remove password' })
+    ).toBeEnabled()
+  })
+
+  it('reads the account again after removing the password', async () => {
+    mockAdminService.getUser
+      .mockResolvedValueOnce(
+        user({ sign_in_methods: ['google', 'password'], has_password: true })
+      )
+      .mockResolvedValueOnce(user({ sign_in_methods: ['google'] }))
+    access.removePassword.mockResolvedValue(undefined)
+    renderDetail()
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Remove password' })
+    )
+    await userEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', {
+        name: 'Remove password',
+      })
+    )
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: 'Remove password' })
+      ).toBeNull()
+    })
+    expect(screen.getByTestId('user-sign-in-methods')).not.toHaveTextContent(
+      'Password'
     )
   })
 })
