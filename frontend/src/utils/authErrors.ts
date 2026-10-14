@@ -114,7 +114,7 @@ export const IDENTITY_DISCONNECTED_CODE = 'identity_disconnected'
 export const IDENTITY_DISCONNECTED_ERROR: AuthErrorView = {
   title: 'This sign-in was disconnected',
   description:
-    'The account you signed in with was disconnected from your account here, so it was not let in. Sign in another way, then allow it again under Sign-in methods in Account settings.',
+    'That sign-in was disconnected from your account here, so it was not let in. Sign in another way, then allow it again under Sign-in methods in Account settings.',
   actionLabel: BACK_TO_SIGN_IN,
   actionHref: '/login',
 }
