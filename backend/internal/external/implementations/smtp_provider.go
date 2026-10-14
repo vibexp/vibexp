@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/smtp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/darkrockmountain/gomail"
@@ -147,14 +148,26 @@ func sendMailContext(
 	if err != nil {
 		return fmt.Errorf("smtp: bad address %q: %w", addr, err)
 	}
+	// Refuse a line break in an address before anything is sent, as SendMail
+	// does: checked command by command, a bad second recipient would leave
+	// the server a half-built envelope.
+	for _, line := range append([]string{from}, to...) {
+		if strings.ContainsAny(line, "\r\n") {
+			return errors.New("smtp: A line must not contain CR or LF")
+		}
+	}
+	// The default bounds the dial too: a host that drops SYNs would otherwise
+	// hold the caller for the OS connect timeout (minutes).
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, smtpDefaultTimeout)
+		defer cancel()
+	}
 	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return err
 	}
-	deadline, ok := ctx.Deadline()
-	if !ok {
-		deadline = time.Now().Add(smtpDefaultTimeout)
-	}
+	deadline, _ := ctx.Deadline()
 	if err = conn.SetDeadline(deadline); err != nil {
 		_ = conn.Close() //nolint:errcheck // the deadline error is the one reported
 		return err

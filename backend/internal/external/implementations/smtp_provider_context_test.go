@@ -23,10 +23,12 @@ func stallingServer(t *testing.T, greet bool) string {
 	require.NoError(t, err)
 	var mu sync.Mutex
 	var conns []net.Conn
+	closed := false
 	t.Cleanup(func() {
 		_ = listener.Close() //nolint:errcheck // test teardown
 		mu.Lock()
 		defer mu.Unlock()
+		closed = true
 		for _, c := range conns {
 			_ = c.Close() //nolint:errcheck // test teardown
 		}
@@ -38,6 +40,12 @@ func stallingServer(t *testing.T, greet bool) string {
 				return
 			}
 			mu.Lock()
+			if closed {
+				// Accepted as the test ended: nothing will close it later.
+				_ = conn.Close() //nolint:errcheck // test teardown
+				mu.Unlock()
+				return
+			}
 			conns = append(conns, conn)
 			mu.Unlock()
 			go stall(conn, greet)
@@ -118,9 +126,17 @@ func TestSMTPEmailProvider_NoDeadlineIsStillBounded(t *testing.T) {
 	err := sendWithin(t, context.Background(), stallingProvider(t, true))
 
 	require.Error(t, err)
-	var netErr net.Error
-	require.ErrorAs(t, err, &netErr)
-	assert.True(t, netErr.Timeout(), "the default deadline ended it: %v", err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded, "the default deadline ended it")
+}
+
+// A line break in an address is refused before anything is dialled, as
+// net/smtp.SendMail does: no half-built envelope reaches the server.
+func TestSMTPEmailProvider_LineBreakInAnAddressDialsNothing(t *testing.T) {
+	err := sendMailContext(context.Background(), "127.0.0.1:1", nil,
+		"from@example.test", []string{"ok@example.test", "bad@example.test\r\nRCPT TO:<x@y>"}, []byte("x"))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "CR or LF", "refused before the dial (port 1 would refuse the connection)")
 }
 
 func TestSMTPEmailProvider_DialFailureIsPrompt(t *testing.T) {
