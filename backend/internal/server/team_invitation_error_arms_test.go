@@ -112,7 +112,7 @@ func TestHandleAcceptInvitation_ErrorArms(t *testing.T) {
 				m.userRepo.On("GetByID", mock.Anything, errArmsUserID).Return(inviteeUser(), nil).Once()
 				m.memberRepo.On("GetByTeamAndUser", mock.Anything, confTeamID, errArmsUserID).
 					Return((*models.TeamMember)(nil), repositories.ErrUserNotFound).Once()
-				m.memberRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.TeamMember")).
+				m.invRepo.On("Accept", mock.Anything, mock.Anything, mock.AnythingOfType("*models.TeamMember")).
 					Return(stderrors.New("db write timeout")).Once()
 			},
 			wantStatus:     http.StatusInternalServerError,

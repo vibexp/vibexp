@@ -157,10 +157,34 @@ const githubWebhookPathPrefix = "/api/v1/webhooks/github/"
 // It lives here rather than in the server package because BOTH the request
 // logger and the error responder echo r.URL.Path, and one definition is what
 // keeps them from diverging.
+//
+// An invitation token is one too (#1435): whoever holds it can read the
+// invitation, and on a password-enabled instance create the invited account.
+// Its segment is replaced and the rest of the path kept, so the log still says
+// which invitation operation was called.
 func RedactSensitivePath(path string) string {
 	if strings.HasPrefix(path, githubWebhookPathPrefix) &&
 		len(path) > len(githubWebhookPathPrefix) {
-		return githubWebhookPathPrefix + "[redacted]"
+		return githubWebhookPathPrefix + redactedPathSegment
+	}
+	if rest, ok := strings.CutPrefix(path, invitationPathPrefix); ok && rest != "" {
+		token, suffix, _ := strings.Cut(rest, "/")
+		if token == invitationPendingSegment && suffix == "" {
+			return path // GET /invitations/pending carries no token
+		}
+		if suffix != "" {
+			return invitationPathPrefix + redactedPathSegment + "/" + suffix
+		}
+		return invitationPathPrefix + redactedPathSegment
 	}
 	return path
 }
+
+const (
+	redactedPathSegment = "[redacted]"
+	// invitationPathPrefix is the route prefix of the invitation operations
+	// that carry the invitation token as the next path segment.
+	invitationPathPrefix = "/api/v1/invitations/"
+	// invitationPendingSegment is the one static segment under that prefix.
+	invitationPendingSegment = "pending"
+)

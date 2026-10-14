@@ -531,6 +531,7 @@ func (s *Server) setupRoutes() {
 	s.setupAuthRoutes()
 	s.setupSetupRoutes()
 	s.setupPasswordAuthRoutes()
+	s.setupInvitationRegistrationRoutes()
 	s.setupSiteInfoRoutes()
 	s.setupProtectedRoutes()
 	s.setupAdminRoutes()

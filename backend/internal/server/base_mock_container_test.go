@@ -431,6 +431,12 @@ func (b *BaseMockContainer) AccountTokenService() services.AccountTokenServiceIn
 	return nil
 }
 
+// InvitationRegistrationService returns nil; the suite that exercises the
+// public invitation operations installs its own.
+func (b *BaseMockContainer) InvitationRegistrationService() services.InvitationRegistrationServiceInterface {
+	return nil
+}
+
 // noSetupMode is a SetupModeService for an instance that is not, and never
 // was, in authentication setup mode.
 type noSetupMode struct{}

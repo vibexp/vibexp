@@ -47,3 +47,33 @@ func TestWriteJSONError_RedactsTokenFromInstance(t *testing.T) {
 		"the routing token must never be echoed back in an error body")
 	assert.Contains(t, w.Body.String(), "/api/v1/webhooks/github/[redacted]")
 }
+
+// An invitation token is a bearer credential in a path segment (#1435): it is
+// replaced, and the operation after it kept.
+func TestRedactSensitivePath_InvitationToken(t *testing.T) {
+	const token = "test-invitation-token"
+
+	for path, want := range map[string]string{
+		"/api/v1/invitations/" + token:               "/api/v1/invitations/[redacted]",
+		"/api/v1/invitations/" + token + "/preview":  "/api/v1/invitations/[redacted]/preview",
+		"/api/v1/invitations/" + token + "/register": "/api/v1/invitations/[redacted]/register",
+		"/api/v1/invitations/" + token + "/accept":   "/api/v1/invitations/[redacted]/accept",
+		"/api/v1/invitations/" + token + "/reject":   "/api/v1/invitations/[redacted]/reject",
+		// A token that happens to be the word "pending" is still a token here.
+		"/api/v1/invitations/pending/accept": "/api/v1/invitations/[redacted]/accept",
+	} {
+		got := RedactSensitivePath(path)
+		assert.Equal(t, want, got)
+		assert.NotContains(t, got, token)
+	}
+
+	// No token in these: they stay verbatim.
+	for _, path := range []string{
+		"/api/v1/invitations/pending",
+		"/api/v1/invitations/",
+		"/api/v1/invitations",
+		"/api/v1/teams/team-1/invitations/inv-1",
+	} {
+		assert.Equal(t, path, RedactSensitivePath(path))
+	}
+}

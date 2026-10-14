@@ -529,13 +529,17 @@ func (s *TeamInvitationService) AcceptInvitation(
 		UpdatedAt: now,
 	}
 
-	if err := s.teamMemberRepo.Create(ctx, member); err != nil {
-		return "", fmt.Errorf("failed to create team member: %w", err)
-	}
-
-	// Update invitation status
-	if err := s.invitationRepo.UpdateStatus(ctx, invitation.ID, models.InvitationStatusAccepted); err != nil {
-		return "", fmt.Errorf("failed to update invitation status: %w", err)
+	// The member row and the status change are one transaction (#1435): a
+	// failure leaves neither. The pre-checks above give the usual answers; the
+	// repository's own conditions decide a race with another accept.
+	err = s.invitationRepo.Accept(ctx, invitation.ID, member)
+	switch {
+	case errors.Is(err, repositories.ErrTeamMemberExists):
+		return "", fmt.Errorf("user is already a member of this team")
+	case errors.Is(err, repositories.ErrTeamInvitationNotPending):
+		return "", fmt.Errorf("invitation is not pending")
+	case err != nil:
+		return "", fmt.Errorf("failed to accept invitation: %w", err)
 	}
 
 	s.logger.With(

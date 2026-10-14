@@ -79,32 +79,29 @@ func pendingInvitationFixture() *models.TeamInvitation {
 // acceptInvitationCase drives one AcceptInvitation scenario. All cases share
 // the same wiring; the flags say how far execution must get.
 type acceptInvitationCase struct {
-	name              string
-	mutate            func(*models.TeamInvitation)
-	userEmail         string
-	alreadyMember     bool
-	createErr         error
-	updateErr         error
-	wantErrContains   string
-	wantMemberCreated bool
-	wantStatusUpdated bool
+	name            string
+	mutate          func(*models.TeamInvitation)
+	userEmail       string
+	alreadyMember   bool
+	acceptErr       error
+	wantErrContains string
+	// wantAccepted: execution reached the repository's Accept.
+	wantAccepted bool
 }
 
 func acceptInvitationCases() []acceptInvitationCase {
 	return []acceptInvitationCase{
 		{
-			name:              "success with exact email match",
-			userEmail:         invActionEmail,
-			wantMemberCreated: true,
-			wantStatusUpdated: true,
+			name:         "success with exact email match",
+			userEmail:    invActionEmail,
+			wantAccepted: true,
 		},
 		{
 			// The comparison is strings.EqualFold: a case-different email is the
 			// SAME mailbox and must be accepted, not rejected.
-			name:              "success with case-different email",
-			userEmail:         "INVITEE@Example.COM",
-			wantMemberCreated: true,
-			wantStatusUpdated: true,
+			name:         "success with case-different email",
+			userEmail:    "INVITEE@Example.COM",
+			wantAccepted: true,
 		},
 		{
 			name:            "wrong email is rejected",
@@ -136,22 +133,27 @@ func acceptInvitationCases() []acceptInvitationCase {
 			wantErrContains: "already a member of this team",
 		},
 		{
-			name:              "member creation failure aborts the accept",
-			userEmail:         invActionEmail,
-			createErr:         stderrors.New("insert failed"),
-			wantErrContains:   "failed to create team member",
-			wantMemberCreated: true,
+			// The member row and the status change are ONE repository call
+			// (#1435): a failure writes neither.
+			name:            "a storage failure aborts the accept",
+			userEmail:       invActionEmail,
+			acceptErr:       stderrors.New("insert failed"),
+			wantErrContains: "failed to accept invitation",
+			wantAccepted:    true,
 		},
 		{
-			// Pinned semantics: a failed status update AFTER the member row was
-			// created PROPAGATES — the caller sees an error even though the
-			// membership already exists (there is no rollback in the service).
-			name:              "status update failure after member creation propagates",
-			userEmail:         invActionEmail,
-			updateErr:         stderrors.New("update failed"),
-			wantErrContains:   "failed to update invitation status",
-			wantMemberCreated: true,
-			wantStatusUpdated: true,
+			name:            "another request accepted it first",
+			userEmail:       invActionEmail,
+			acceptErr:       repositories.ErrTeamInvitationNotPending,
+			wantErrContains: "invitation is not pending",
+			wantAccepted:    true,
+		},
+		{
+			name:            "the user became a member in between",
+			userEmail:       invActionEmail,
+			acceptErr:       repositories.ErrTeamMemberExists,
+			wantErrContains: "already a member of this team",
+			wantAccepted:    true,
 		},
 	}
 }
@@ -159,7 +161,7 @@ func acceptInvitationCases() []acceptInvitationCase {
 // arrangeAcceptInvitation builds the service and wires every mock one
 // AcceptInvitation case needs: the (optionally mutated) pending invitation, the
 // caller's user row, the membership lookup chosen by tc.alreadyMember, and the
-// Create/UpdateStatus outcomes injected by tc.createErr/tc.updateErr. Which of
+// Accept outcome injected by tc.acceptErr. Which of
 // those calls actually happen is what the test body asserts per case.
 func arrangeAcceptInvitation(tc acceptInvitationCase) (*TeamInvitationService, *invitationActionMocks) {
 	svc, m := newInvitationActionMocks()
@@ -180,15 +182,13 @@ func arrangeAcceptInvitation(tc acceptInvitationCase) (*TeamInvitationService, *
 	}
 	// The role on the new member row must be the role from the
 	// invitation (admin here), never a default.
-	m.teamMemberRepo.On("Create", mock.Anything, mock.MatchedBy(func(member *models.TeamMember) bool {
+	m.invitationRepo.On("Accept", mock.Anything, invActionInvID, mock.MatchedBy(func(member *models.TeamMember) bool {
 		return member.TeamID == invActionTeamID &&
 			member.UserID == invActionUserID &&
 			member.Role == invitation.Role &&
 			!member.CreatedAt.IsZero() &&
 			!member.UpdatedAt.IsZero()
-	})).Return(tc.createErr)
-	m.invitationRepo.On("UpdateStatus", mock.Anything, invActionInvID, models.InvitationStatusAccepted).
-		Return(tc.updateErr)
+	})).Return(tc.acceptErr)
 
 	return svc, m
 }
@@ -209,17 +209,14 @@ func TestTeamInvitationService_AcceptInvitation(t *testing.T) {
 				assert.Equal(t, invActionTeamID, teamID)
 			}
 
-			if tc.wantMemberCreated {
-				m.teamMemberRepo.AssertCalled(t, "Create", mock.Anything, mock.Anything)
+			if tc.wantAccepted {
+				m.invitationRepo.AssertCalled(t, "Accept", mock.Anything, invActionInvID, mock.Anything)
 			} else {
-				m.teamMemberRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+				m.invitationRepo.AssertNotCalled(t, "Accept", mock.Anything, mock.Anything, mock.Anything)
 			}
-			if tc.wantStatusUpdated {
-				m.invitationRepo.AssertCalled(t, "UpdateStatus", mock.Anything, invActionInvID,
-					models.InvitationStatusAccepted)
-			} else {
-				m.invitationRepo.AssertNotCalled(t, "UpdateStatus", mock.Anything, mock.Anything, mock.Anything)
-			}
+			// The two writes never happen on their own any more.
+			m.teamMemberRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+			m.invitationRepo.AssertNotCalled(t, "UpdateStatus", mock.Anything, mock.Anything, mock.Anything)
 		})
 	}
 }

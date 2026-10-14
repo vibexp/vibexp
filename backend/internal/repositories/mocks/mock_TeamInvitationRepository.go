@@ -22,6 +22,54 @@ func (_m *MockTeamInvitationRepository) EXPECT() *MockTeamInvitationRepository_E
 	return &MockTeamInvitationRepository_Expecter{mock: &_m.Mock}
 }
 
+// Accept provides a mock function with given fields: ctx, invitationID, member
+func (_m *MockTeamInvitationRepository) Accept(ctx context.Context, invitationID string, member *models.TeamMember) error {
+	ret := _m.Called(ctx, invitationID, member)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Accept")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, *models.TeamMember) error); ok {
+		r0 = rf(ctx, invitationID, member)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockTeamInvitationRepository_Accept_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Accept'
+type MockTeamInvitationRepository_Accept_Call struct {
+	*mock.Call
+}
+
+// Accept is a helper method to define mock.On call
+//   - ctx context.Context
+//   - invitationID string
+//   - member *models.TeamMember
+func (_e *MockTeamInvitationRepository_Expecter) Accept(ctx interface{}, invitationID interface{}, member interface{}) *MockTeamInvitationRepository_Accept_Call {
+	return &MockTeamInvitationRepository_Accept_Call{Call: _e.mock.On("Accept", ctx, invitationID, member)}
+}
+
+func (_c *MockTeamInvitationRepository_Accept_Call) Run(run func(ctx context.Context, invitationID string, member *models.TeamMember)) *MockTeamInvitationRepository_Accept_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(*models.TeamMember))
+	})
+	return _c
+}
+
+func (_c *MockTeamInvitationRepository_Accept_Call) Return(_a0 error) *MockTeamInvitationRepository_Accept_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockTeamInvitationRepository_Accept_Call) RunAndReturn(run func(context.Context, string, *models.TeamMember) error) *MockTeamInvitationRepository_Accept_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Create provides a mock function with given fields: ctx, invitation
 func (_m *MockTeamInvitationRepository) Create(ctx context.Context, invitation *models.TeamInvitation) error {
 	ret := _m.Called(ctx, invitation)

@@ -1006,6 +1006,40 @@ func ProvideAccountTokenService(
 	})
 }
 
+// InvitationRegistrationDeps groups the dependencies of
+// ProvideInvitationRegistrationService. Wire fills it via wire.Struct (see the
+// container ProviderSet).
+type InvitationRegistrationDeps struct {
+	Invitations repositories.TeamInvitationRepository
+	Teams       repositories.TeamRepository
+	Users       repositories.UserRepository
+	Passwords   services.PasswordAuthServiceInterface
+	Policy      services.AuthPolicyResolver
+	Allowlist   services.AccessAllowlistResolver
+	Events      events.EventPublisher
+	Logger      *slog.Logger
+}
+
+// ProvideInvitationRegistrationService creates the public side of invitations
+// (#1435). It stores passwords through the password auth service only, shares
+// the policy and allowlist resolvers with sign-in, and publishes user.created
+// for the account it creates, so that account gets its workspace like any
+// other.
+func ProvideInvitationRegistrationService(
+	deps InvitationRegistrationDeps,
+) services.InvitationRegistrationServiceInterface {
+	return services.NewInvitationRegistrationService(services.InvitationRegistrationDeps{
+		Invitations: deps.Invitations,
+		Teams:       deps.Teams,
+		Users:       deps.Users,
+		Passwords:   deps.Passwords,
+		Policy:      deps.Policy,
+		Allowlist:   deps.Allowlist,
+		Events:      deps.Events,
+		Logger:      deps.Logger,
+	})
+}
+
 // ProvideBackofficeService creates a new BackofficeService
 func ProvideBackofficeService(
 	backofficeRepo repositories.BackofficeRepository,

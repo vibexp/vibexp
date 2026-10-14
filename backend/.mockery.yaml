@@ -21,6 +21,7 @@ packages:
       AccessAllowlistResolver:
       PasswordAuthServiceInterface:
       AccountTokenServiceInterface:
+      InvitationRegistrationServiceInterface:
       AuthPolicyResolver:
       ActiveEmbeddingProviderResolver:
       AdminServiceInterface:

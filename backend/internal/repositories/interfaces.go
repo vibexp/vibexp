@@ -129,6 +129,14 @@ var (
 	// (and future similar lookups) when no row matches the requested token/id.
 	// Callers detect it with errors.Is and map to 404 / a typed service error.
 	ErrTeamInvitationNotFound = errors.New("team invitation not found")
+	// ErrTeamInvitationNotPending is returned by TeamInvitationRepository.Accept
+	// when the invitation is no longer pending or has expired (including when
+	// another request accepted it first). Nothing is written.
+	ErrTeamInvitationNotPending = errors.New("team invitation is not pending")
+	// ErrTeamMemberExists is returned by TeamInvitationRepository.Accept when
+	// the user is already a member of the team. Nothing is written: the
+	// invitation stays pending.
+	ErrTeamMemberExists = errors.New("user is already a member of the team")
 
 	// ErrActivityNotFound is returned by ActivityRepository lookups/deletes when no
 	// activity row matches the given identifier.
@@ -683,6 +691,14 @@ type TeamInvitationRepository interface {
 	GetByTeamID(ctx context.Context, teamID string) ([]models.TeamInvitation, error)
 	GetPendingByEmail(ctx context.Context, email string) ([]models.TeamInvitation, error)
 	UpdateStatus(ctx context.Context, invitationID string, status models.InvitationStatus) error
+	// Accept marks the invitation accepted and creates member in ONE
+	// transaction (#1435), so a failure never leaves a member whose invitation
+	// is still pending, or an accepted invitation with no member. The
+	// invitation is flipped only while it is pending and unexpired, which also
+	// decides between two simultaneous accepts: the loser gets
+	// ErrTeamInvitationNotPending. A user who is already a member gets
+	// ErrTeamMemberExists. member's ID and timestamps are filled on success.
+	Accept(ctx context.Context, invitationID string, member *models.TeamMember) error
 	Delete(ctx context.Context, invitationID string) error
 }
 
