@@ -32,6 +32,12 @@ type fakeAuthPolicyStore struct {
 	emailProvider bool
 	emailErr      error
 	emailReads    int
+
+	// holdNextRowRead, when set, makes the next policy read take the row as
+	// it is, signal rowReadHeld, and return it only once released: a refresh
+	// caught in flight with the old policy.
+	holdNextRowRead chan struct{}
+	rowReadHeld     chan struct{}
 }
 
 // set stores a policy and bumps the version, as every audited write does.
@@ -68,15 +74,23 @@ type (
 
 func (r fakeAuthPolicyRepo) Get(context.Context) (*models.InstanceAuthPolicy, error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	r.rowReads++
 	if r.policyErr != nil {
+		r.mu.Unlock()
 		return nil, r.policyErr
 	}
 	if r.row == nil {
+		r.mu.Unlock()
 		return nil, repositories.ErrInstanceAuthPolicyNotFound
 	}
 	c := *r.row
+	hold, held := r.holdNextRowRead, r.rowReadHeld
+	r.holdNextRowRead = nil
+	r.mu.Unlock()
+	if hold != nil {
+		close(held)
+		<-hold
+	}
 	return &c, nil
 }
 
@@ -329,4 +343,62 @@ func TestNewAuthPolicyResolver_ProbeIntervalOverride(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, policy.PasswordLoginEnabled, "a nanosecond probe interval sees the change at once")
+}
+
+// #1485: a write in this process is seen by the next read at once, within the
+// probe interval.
+func TestAuthPolicyResolver_InvalidateIsSeenAtOnce(t *testing.T) {
+	ctx := context.Background()
+	store := &fakeAuthPolicyStore{}
+	store.set(false, models.RegistrationModeOpen)
+	r, _ := newTestAuthPolicyResolver(store)
+	policy, err := r.Policy(ctx)
+	require.NoError(t, err)
+	require.False(t, policy.PasswordLoginEnabled)
+
+	store.set(true, models.RegistrationModeOpen)
+	r.Invalidate()
+
+	policy, err = r.Policy(ctx)
+	require.NoError(t, err)
+	assert.True(t, policy.PasswordLoginEnabled, "no probe interval to wait out")
+}
+
+// #1485: a refresh that read the old policy before the write is in flight when
+// Invalidate runs. A reader that arrives afterwards does not join it, and its
+// stale result, once it lands, is not served as fresh.
+func TestAuthPolicyResolver_ARefreshInFlightAcrossInvalidateIsNotServed(t *testing.T) {
+	ctx := context.Background()
+	store := &fakeAuthPolicyStore{}
+	store.set(false, models.RegistrationModeOpen)
+	r, _ := newTestAuthPolicyResolver(store)
+
+	release, held := make(chan struct{}), make(chan struct{})
+	store.mu.Lock()
+	store.holdNextRowRead, store.rowReadHeld = release, held
+	store.mu.Unlock()
+	stale := make(chan models.InstanceAuthPolicy, 1)
+	go func() {
+		p, err := r.Policy(ctx)
+		assert.NoError(t, err)
+		stale <- p
+	}()
+	<-held // the refresh holds the old row
+
+	store.set(true, models.RegistrationModeOpen)
+	r.Invalidate()
+
+	// Bounded: a reader that joined the held refresh would wait for ever.
+	bounded, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	fresh, err := r.Policy(bounded)
+	require.NoError(t, err, "a reader after Invalidate must not join the refresh held with the old row")
+	assert.True(t, fresh.PasswordLoginEnabled)
+
+	close(release)
+	assert.False(t, (<-stale).PasswordLoginEnabled, "the reader that started before the write gets what it read")
+
+	after, err := r.Policy(ctx)
+	require.NoError(t, err)
+	assert.True(t, after.PasswordLoginEnabled, "the stale result that landed last is not served as fresh")
 }

@@ -614,6 +614,7 @@ func ProvideRootAdminPasswordService(
 	policies repositories.InstanceAuthPolicyRepository,
 	passwords services.PasswordAuthServiceInterface,
 	admins services.InstanceAdminResolver,
+	caches *services.AuthSettingsInvalidator,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 ) *services.RootAdminPasswordService {
@@ -623,9 +624,21 @@ func ProvideRootAdminPasswordService(
 		Policies:    policies,
 		Passwords:   passwords,
 		IsRootAdmin: admins.IsRootAdmin,
+		Caches:      caches,
 		Events:      eventManager,
 		Logger:      logger,
 	})
+}
+
+// ProvideAuthSettingsInvalidator creates what in-process auth settings writers
+// call after a write, so the policy and allowlist caches serve it at once
+// (#1485). The identity provider resolver reads the settings version on every
+// call and needs no invalidation.
+func ProvideAuthSettingsInvalidator(
+	policy services.AuthPolicyResolver,
+	allowlist services.AccessAllowlistResolver,
+) *services.AuthSettingsInvalidator {
+	return services.NewAuthSettingsInvalidator(policy, allowlist)
 }
 
 // ProvideIdentityProviderResolver creates the runtime sign-in provider resolver
@@ -863,6 +876,7 @@ type InstanceAuthSettingsServiceDeps struct {
 	WayIn             services.AuthWayIn
 	Credentials       repositories.UserCredentialRepository
 	RootPasswords     *services.RootAdminPasswordService
+	Caches            *services.AuthSettingsInvalidator
 	Enc               services.EncryptionServiceInterface
 	Cfg               *config.Config
 	Logger            *slog.Logger
@@ -888,6 +902,7 @@ func ProvideInstanceAuthSettingsService(
 		WayIn:             deps.WayIn,
 		Credentials:       deps.Credentials,
 		RootPasswords:     deps.RootPasswords,
+		Caches:            deps.Caches,
 		Enc:               deps.Enc,
 		CallbackURL:       deps.Cfg.AuthCallbackURL(),
 		Logger:            deps.Logger,

@@ -114,6 +114,8 @@ type AccessAllowlistResolverDeps struct {
 // compiledAllowlist is one immutable, matchable allowlist and the auth settings
 // version it was compiled at.
 type compiledAllowlist struct {
+	// gen is the invalidation generation the refresh started under.
+	gen     uint64
 	version int64
 	domains map[string]struct{}
 	emails  map[string]struct{}
@@ -187,12 +189,16 @@ type accessAllowlistResolver struct {
 
 	snap  atomic.Pointer[compiledAllowlist]
 	group singleflight.Group
+	settingsGeneration
 	// lastReadFailureLog is when a fail-open read failure was last logged, in
 	// Unix nanoseconds.
 	lastReadFailureLog atomic.Int64
 }
 
-var _ AccessAllowlistResolver = (*accessAllowlistResolver)(nil)
+var (
+	_ AccessAllowlistResolver = (*accessAllowlistResolver)(nil)
+	_ AuthSettingsCache       = (*accessAllowlistResolver)(nil)
+)
 
 // NewAccessAllowlistResolver creates the runtime access allowlist resolver.
 func NewAccessAllowlistResolver(deps AccessAllowlistResolverDeps) AccessAllowlistResolver {
@@ -264,13 +270,14 @@ func (r *accessAllowlistResolver) current(ctx context.Context) (*compiledAllowli
 	// One refresh at a time, shared by every caller that arrives meanwhile. It
 	// runs detached from the caller's cancellation, so one aborted request
 	// cannot fail the refresh for everyone waiting on it.
-	ch := r.group.DoChan("refresh", func() (any, error) {
+	gen := r.generation()
+	ch := r.group.DoChan(refreshKey(gen), func() (any, error) {
 		if s := r.snap.Load(); r.fresh(s) {
 			return s, nil
 		}
 		refreshCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), allowlistRefreshTimeout)
 		defer cancel()
-		return r.refresh(refreshCtx)
+		return r.refresh(refreshCtx, gen)
 	})
 	var refreshErr error
 	select {
@@ -287,19 +294,20 @@ func (r *accessAllowlistResolver) current(ctx context.Context) (*compiledAllowli
 
 // fresh reports whether s can be served without probing the version.
 func (r *accessAllowlistResolver) fresh(s *compiledAllowlist) bool {
-	return s != nil && r.now().Before(s.probedAt.Add(r.probeInterval))
+	return s != nil && s.gen == r.generation() && r.now().Before(s.probedAt.Add(r.probeInterval))
 }
 
 // refresh reads the auth settings version and recompiles the allowlist only
 // when it changed. An unchanged version re-stamps the cached list and reads
 // nothing else.
-func (r *accessAllowlistResolver) refresh(ctx context.Context) (*compiledAllowlist, error) {
+func (r *accessAllowlistResolver) refresh(ctx context.Context, gen uint64) (*compiledAllowlist, error) {
 	version, err := r.versions.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("read auth settings version: %w", err)
 	}
 	if s := r.snap.Load(); s != nil && s.version == version {
 		confirmed := *s
+		confirmed.gen = gen
 		confirmed.probedAt = r.now()
 		r.snap.Store(&confirmed)
 		return &confirmed, nil
@@ -316,6 +324,7 @@ func (r *accessAllowlistResolver) refresh(ctx context.Context) (*compiledAllowli
 		domains, emails = stored.Domains, stored.Emails
 	}
 	compiled := compileAllowlist(version, domains, emails)
+	compiled.gen = gen
 	compiled.probedAt = r.now()
 	r.snap.Store(compiled)
 	r.logger.With(

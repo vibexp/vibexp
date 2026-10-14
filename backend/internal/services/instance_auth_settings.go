@@ -185,7 +185,10 @@ type InstanceAuthSettingsDeps struct {
 	Credentials repositories.UserCredentialRepository
 	// RootPasswords sets a root admin's password for the setup session.
 	RootPasswords *RootAdminPasswordService
-	Enc           EncryptionServiceInterface
+	// Caches is told after every policy or allowlist write, so this process
+	// serves the new settings at once (#1485). Nil means no cache to tell.
+	Caches *AuthSettingsInvalidator
+	Enc    EncryptionServiceInterface
 	// CallbackURL is the derived redirect URI every provider is built with
 	// (config.Config.AuthCallbackURL).
 	CallbackURL string
@@ -600,6 +603,7 @@ func (s *InstanceAuthSettingsService) UpdateAllowlist(
 	if err := s.deps.Allowlists.UpsertAudited(ctx, allowlist, optionalActor(actorUserID), expectedVersion); err != nil {
 		return nil, fmt.Errorf("failed to store the access allowlist: %w", err)
 	}
+	s.deps.Caches.Invalidate()
 	return allowlist, nil
 }
 
@@ -608,6 +612,7 @@ func (s *InstanceAuthSettingsService) ResetAllowlist(ctx context.Context, actorU
 	if _, err := s.deps.Allowlists.DeleteAudited(ctx, optionalActor(actorUserID)); err != nil {
 		return fmt.Errorf("failed to reset the access allowlist: %w", err)
 	}
+	s.deps.Caches.Invalidate()
 	return nil
 }
 
@@ -656,6 +661,7 @@ func (s *InstanceAuthSettingsService) UpdatePolicy(
 	if err := s.deps.Policies.UpsertAudited(ctx, stored, optionalActor(actorUserID), expectedVersion); err != nil {
 		return nil, fmt.Errorf("failed to store the authentication policy: %w", err)
 	}
+	s.deps.Caches.Invalidate()
 	return stored, nil
 }
 

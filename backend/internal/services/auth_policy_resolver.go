@@ -88,6 +88,8 @@ type AuthPolicyResolverDeps struct {
 // resolvedAuthPolicy is one immutable policy and the auth settings version it
 // was read at.
 type resolvedAuthPolicy struct {
+	// gen is the invalidation generation the refresh started under.
+	gen     uint64
 	version int64
 	policy  models.InstanceAuthPolicy
 	// probedAt is when the version was last confirmed.
@@ -107,9 +109,13 @@ type authPolicyResolver struct {
 
 	snap  atomic.Pointer[resolvedAuthPolicy]
 	group singleflight.Group
+	settingsGeneration
 }
 
-var _ AuthPolicyResolver = (*authPolicyResolver)(nil)
+var (
+	_ AuthPolicyResolver = (*authPolicyResolver)(nil)
+	_ AuthSettingsCache  = (*authPolicyResolver)(nil)
+)
 
 // NewAuthPolicyResolver creates the runtime authentication policy resolver.
 func NewAuthPolicyResolver(deps AuthPolicyResolverDeps) AuthPolicyResolver {
@@ -140,13 +146,14 @@ func (r *authPolicyResolver) Policy(ctx context.Context) (models.InstanceAuthPol
 	// One refresh at a time, shared by every caller that arrives meanwhile. It
 	// runs detached from the caller's cancellation, so one aborted request
 	// cannot fail the refresh for everyone waiting on it.
-	ch := r.group.DoChan("refresh", func() (any, error) {
+	gen := r.generation()
+	ch := r.group.DoChan(refreshKey(gen), func() (any, error) {
 		if s := r.snap.Load(); r.fresh(s) {
 			return s, nil
 		}
 		refreshCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), authPolicyRefreshTimeout)
 		defer cancel()
-		return r.refresh(refreshCtx)
+		return r.refresh(refreshCtx, gen)
 	})
 	select {
 	case <-ctx.Done():
@@ -159,21 +166,23 @@ func (r *authPolicyResolver) Policy(ctx context.Context) (models.InstanceAuthPol
 	}
 }
 
-// fresh reports whether s can be served without probing the version.
+// fresh reports whether s can be served without probing the version: read
+// under the current generation and confirmed within probeInterval.
 func (r *authPolicyResolver) fresh(s *resolvedAuthPolicy) bool {
-	return s != nil && r.now().Before(s.probedAt.Add(r.probeInterval))
+	return s != nil && s.gen == r.generation() && r.now().Before(s.probedAt.Add(r.probeInterval))
 }
 
 // refresh reads the auth settings version and re-reads the policy only when it
 // changed. An unchanged version re-stamps the cached policy and reads nothing
 // else.
-func (r *authPolicyResolver) refresh(ctx context.Context) (*resolvedAuthPolicy, error) {
+func (r *authPolicyResolver) refresh(ctx context.Context, gen uint64) (*resolvedAuthPolicy, error) {
 	version, err := r.versions.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("read auth settings version: %w", err)
 	}
 	if s := r.snap.Load(); s != nil && s.version == version {
 		confirmed := *s
+		confirmed.gen = gen
 		confirmed.probedAt = r.now()
 		r.snap.Store(&confirmed)
 		return &confirmed, nil
@@ -189,7 +198,7 @@ func (r *authPolicyResolver) refresh(ctx context.Context) (*resolvedAuthPolicy, 
 	default:
 		policy = *stored
 	}
-	resolved := &resolvedAuthPolicy{version: version, policy: policy, probedAt: r.now()}
+	resolved := &resolvedAuthPolicy{gen: gen, version: version, policy: policy, probedAt: r.now()}
 	r.snap.Store(resolved)
 	r.logger.With(
 		"version", version,
