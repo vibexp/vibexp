@@ -50,7 +50,7 @@ type memLinks struct {
 	apply func(consumed *models.AccountToken, c repositories.AccountLinkCompletion) *repositories.CompletedAccountLink
 }
 
-func (m *memLinks) Replace(_ context.Context, token *models.AccountToken) error {
+func (m *memLinks) Replace(_ context.Context, token *models.AccountToken, _ time.Duration) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	kept := m.rows[:0]

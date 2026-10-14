@@ -984,6 +984,79 @@
         ]
       }
     },
+    "/api/v1/auth/password/forgot": {
+      "post": {
+        "summary": "Ask for a password reset email",
+        "description": "Asks for a link to reset a forgotten password to be emailed to an\naddress.\n\nThe answer is always the same 202, whether or not the address belongs\nto an account, and it is given before the address is looked up, so\nneither the response nor the time it takes says anything about the\naddress. If the address belongs to an account that can sign in here, a\nlink valid for 1 hour is emailed to it. The same link also lets a person\nwho has no password yet (for example because their setup link expired)\nset one.\n\nNo email is sent when the instance has no email provider (`password.reset`\non `GET /api/v1/auth/providers` is then `admin`: ask an administrator\nfor a link instead), when the account cannot receive one (for example an\nadministrator has disabled its password, or its address was never\nverified and it is already used with a sign-in provider), or when an\nemail for the same account was sent in the last 5 minutes. In that last\ncase the earlier link still works. An administrator can always issue a\nlink.\n\nThe body must be `application/json`. Available only while password\nlogin is switched on; otherwise 404. Rate-limited per client IP.\n",
+        "operationId": "requestPasswordReset",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountResetEmailRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The request was taken. Says nothing about the address.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountResetEmailAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request body, a missing or oversized email, or a request whose `Content-Type` is not `application/json`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Password login is not enabled on this instance",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests from this client",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The authentication policy could not be read",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Password Authentication"
+        ]
+      }
+    },
     "/api/v1/auth/me": {
       "get": {
         "summary": "Get current user information",
@@ -32932,6 +33005,43 @@
         "required": [
           "token",
           "password"
+        ]
+      },
+      "AccountResetEmailRequest": {
+        "type": "object",
+        "description": "Request body for POST /api/v1/auth/password/forgot.",
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 320,
+            "description": "The address of the account. Letter case and surrounding spaces are ignored.",
+            "example": "ada@example.com"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "AccountResetEmailAccepted": {
+        "type": "object",
+        "description": "The one answer to every forgot-password request. It says the request was\ntaken, and nothing about the address.\n",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Always `accepted`.",
+            "enum": [
+              "accepted"
+            ],
+            "x-enum-varnames": [
+              "AccountResetEmailStatusAccepted"
+            ],
+            "example": "accepted"
+          }
+        },
+        "required": [
+          "status"
         ]
       },
       "SetupStatusResponse": {

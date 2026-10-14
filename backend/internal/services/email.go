@@ -459,3 +459,156 @@ func (es *EmailService) extractFirstName(fullName string) string {
 
 	return fullName
 }
+
+// Account emails (#1433, epic #1426): the setup link, the reset link and the
+// password-changed notice. They are INSTANCE mail, like support mail: an
+// account belongs to the instance and not to a team, so they resolve with an
+// empty team ID.
+//
+// The two link emails carry a one-time link whose fragment is a bearer token.
+// Nothing here logs the link or the rendered body: logEmailSent records the
+// recipient and the subject only, and an error from the provider is wrapped
+// without the message.
+
+const (
+	setupLinkTemplate    = "templates/email/account-setup"
+	resetLinkTemplate    = "templates/email/password-reset"
+	changeNoticeTemplate = "templates/email/password-changed"
+	// accountNoticeTimeFormat is how the password-changed notice writes its
+	// time, always in UTC so it means the same to every reader.
+	accountNoticeTimeFormat = "2 January 2006 at 15:04 UTC"
+)
+
+// AccountEmailSender sends the account emails. *EmailService implements it. It
+// is its own interface, and not part of EmailServiceInterface, because only
+// the account services need it.
+type AccountEmailSender interface {
+	// SendAccountSetup emails the one-time link that sets an account's first
+	// password. The message contains a bearer link: pass it here and nowhere
+	// else.
+	SendAccountSetup(ctx context.Context, msg AccountLinkMessage) error
+	// SendPasswordReset emails the one-time link that replaces a forgotten
+	// password; the same care as SendAccountSetup.
+	SendPasswordReset(ctx context.Context, msg AccountLinkMessage) error
+	// SendPasswordChanged tells an account's owner that its password was set,
+	// changed or removed. It carries no link.
+	SendPasswordChanged(ctx context.Context, notice PasswordChangedNotice) error
+}
+
+var _ AccountEmailSender = (*EmailService)(nil)
+
+// AccountLinkMessage is what a setup or reset email needs.
+type AccountLinkMessage struct {
+	// To is the account's address; Name its display name, which may be empty.
+	To   string
+	Name string
+	// LinkURL is the complete one-time link. It contains the token.
+	LinkURL string
+	// ValidFor is how long the link works from now.
+	ValidFor time.Duration
+}
+
+// accountLinkTemplateData is the data of the two link templates. Name and
+// Email are user-controlled and Brand is admin-entered: the HTML templates
+// pass each through `html`, because text/template does not escape.
+type accountLinkTemplateData struct {
+	emailLayoutData
+	Name      string
+	Email     string
+	LinkURL   string
+	ExpiresIn string
+}
+
+// SendAccountSetup implements AccountEmailSender.
+func (es *EmailService) SendAccountSetup(ctx context.Context, msg AccountLinkMessage) error {
+	layout := es.layoutData(ctx)
+	subject := fmt.Sprintf("Set up your %s account", layout.Brand.DisplayName)
+	return es.sendAccountLink(ctx, setupLinkTemplate, subject, layout, msg)
+}
+
+// SendPasswordReset implements AccountEmailSender.
+func (es *EmailService) SendPasswordReset(ctx context.Context, msg AccountLinkMessage) error {
+	layout := es.layoutData(ctx)
+	subject := fmt.Sprintf("Reset your %s password", layout.Brand.DisplayName)
+	return es.sendAccountLink(ctx, resetLinkTemplate, subject, layout, msg)
+}
+
+func (es *EmailService) sendAccountLink(
+	ctx context.Context, templateBase, subject string, layout emailLayoutData, msg AccountLinkMessage,
+) error {
+	data := accountLinkTemplateData{
+		emailLayoutData: layout,
+		Name:            strings.TrimSpace(msg.Name),
+		Email:           msg.To,
+		LinkURL:         msg.LinkURL,
+		ExpiresIn:       durationInWords(msg.ValidFor),
+	}
+	return es.sendAccountEmail(ctx, templateBase, msg.To, subject, data)
+}
+
+// SendPasswordChanged implements AccountEmailSender.
+func (es *EmailService) SendPasswordChanged(ctx context.Context, notice PasswordChangedNotice) error {
+	layout := es.layoutData(ctx)
+	data := struct {
+		emailLayoutData
+		Name            string
+		Email           string
+		ChangedAt       string
+		CanResetByEmail bool
+	}{
+		emailLayoutData: layout,
+		Name:            strings.TrimSpace(notice.Name),
+		Email:           notice.To,
+		ChangedAt:       notice.ChangedAt.UTC().Format(accountNoticeTimeFormat),
+		CanResetByEmail: notice.CanResetByEmail,
+	}
+	subject := fmt.Sprintf("Your %s password was changed", layout.Brand.DisplayName)
+	return es.sendAccountEmail(ctx, changeNoticeTemplate, notice.To, subject, data)
+}
+
+// PasswordChangedNotice is what the password-changed email needs. It carries
+// no link.
+type PasswordChangedNotice struct {
+	To        string
+	Name      string
+	ChangedAt time.Time
+	// CanResetByEmail is whether the sign-in page offers "Forgot password" on
+	// this instance, so the notice only mentions it when it exists.
+	CanResetByEmail bool
+}
+
+// sendAccountEmail renders templateBase+".html" and ".txt" and sends them from
+// the instance.
+func (es *EmailService) sendAccountEmail(
+	ctx context.Context, templateBase, to, subject string, data interface{},
+) error {
+	htmlBody, err := es.renderTemplateFromFS(emailBaseTemplate, templateBase+".html", data)
+	if err != nil {
+		return fmt.Errorf("failed to render HTML template: %w", err)
+	}
+	textBody, err := es.renderTextTemplateFromFS(templateBase+".txt", data)
+	if err != nil {
+		return fmt.Errorf("failed to render text template: %w", err)
+	}
+	return es.sendEmail(ctx, "", to, subject, htmlBody, textBody)
+}
+
+// durationInWords writes a link's lifetime the way a person would: "1 hour",
+// "24 hours", "7 days". Whole days are days from two days up, so 24 hours stays
+// "24 hours".
+func durationInWords(d time.Duration) string {
+	plural := func(n int, unit string) string {
+		if n == 1 {
+			return fmt.Sprintf("1 %s", unit)
+		}
+		return fmt.Sprintf("%d %ss", n, unit)
+	}
+	switch {
+	case d >= 48*time.Hour && d%(24*time.Hour) == 0:
+		return plural(int(d/(24*time.Hour)), "day")
+	case d >= time.Hour && d%time.Hour == 0:
+		return plural(int(d/time.Hour), "hour")
+	default:
+		return plural(int(d.Round(time.Minute)/time.Minute), "minute")
+	}
+}

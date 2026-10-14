@@ -51,10 +51,16 @@ type MockAuthContainer struct {
 	passwordAuth services.PasswordAuthServiceInterface
 	// accountTokens is the one-time account link service, for the same suites.
 	accountTokens services.AccountTokenServiceInterface
+	// accountLinkMailer is the forgot-password mailer, for the same suites.
+	accountLinkMailer services.AccountLinkMailerInterface
 }
 
 func (m *MockAuthContainer) AccountTokenService() services.AccountTokenServiceInterface {
 	return m.accountTokens
+}
+
+func (m *MockAuthContainer) AccountLinkMailer() services.AccountLinkMailerInterface {
+	return m.accountLinkMailer
 }
 
 func (m *MockAuthContainer) PasswordAuthService() services.PasswordAuthServiceInterface {

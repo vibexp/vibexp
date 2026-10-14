@@ -56,11 +56,22 @@ func (m *memAccountTokens) fail(method string) error {
 	return nil
 }
 
-func (m *memAccountTokens) Replace(_ context.Context, token *models.AccountToken) error {
+func (m *memAccountTokens) Replace(
+	_ context.Context, token *models.AccountToken, unlessIssuedWithin time.Duration,
+) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if err := m.fail("Replace"); err != nil {
 		return err
+	}
+	// The new link is issued "now": its expiry minus its kind's lifetime.
+	issuedAt := token.ExpiresAt.Add(-models.AccountTokenLifetime(token.Purpose, token.Delivery))
+	for _, row := range m.rows {
+		sameKind := row.ConsumedAt == nil && row.UserID == token.UserID &&
+			row.Purpose == token.Purpose && row.Delivery == token.Delivery
+		if sameKind && unlessIssuedWithin > 0 && issuedAt.Sub(row.CreatedAt) < unlessIssuedWithin {
+			return repositories.ErrAccountTokenTooRecent
+		}
 	}
 	kept := m.rows[:0]
 	for _, row := range m.rows {
@@ -71,6 +82,7 @@ func (m *memAccountTokens) Replace(_ context.Context, token *models.AccountToken
 		}
 	}
 	token.ID = fmt.Sprintf("token-%d", len(m.rows)+1)
+	token.CreatedAt = issuedAt
 	stored := *token
 	kept = append(kept, &stored)
 	m.rows = kept
@@ -198,6 +210,9 @@ type linkPasswords struct {
 	mu     sync.Mutex
 	events *[]string
 	err    error
+	// status and statusErr are what PasswordStatus answers.
+	status    PasswordStatus
+	statusErr error
 }
 
 func (p *linkPasswords) HashNewPassword(ctx context.Context, plaintext, email string) (string, error) {
@@ -217,6 +232,14 @@ func (p *linkPasswords) HashNewPassword(ctx context.Context, plaintext, email st
 		*p.events = append(*p.events, "password hashed")
 	}
 	return "hash-of:" + plaintext, nil
+}
+
+// PasswordStatus reports the status the test set; the zero value is "no
+// password".
+func (p *linkPasswords) PasswordStatus(context.Context, string) (PasswordStatus, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.status, p.statusErr
 }
 
 // revocations is an APIAccessServiceInterface that records, for each call,

@@ -125,6 +125,9 @@ type Container interface {
 	// first password or reset a forgotten one (#1432).
 	AccountTokenService() services.AccountTokenServiceInterface
 	InvitationRegistrationService() services.InvitationRegistrationServiceInterface
+	// AccountLinkMailer emails one-time account links: the forgot-password
+	// request and the setup link (#1433).
+	AccountLinkMailer() services.AccountLinkMailerInterface
 	// SetupModeService owns first-run authentication setup: the one-time setup
 	// token and the scoped setup session (#1236).
 	SetupModeService() services.SetupModeService

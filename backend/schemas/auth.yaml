@@ -330,6 +330,37 @@ CompleteAccountResetRequest:
     - token
     - password
 
+AccountResetEmailRequest:
+  type: object
+  description: Request body for POST /api/v1/auth/password/forgot.
+  additionalProperties: false
+  properties:
+    email:
+      type: string
+      format: email
+      maxLength: 320
+      description: The address of the account. Letter case and surrounding spaces are ignored.
+      example: "ada@example.com"
+  required:
+    - email
+
+AccountResetEmailAccepted:
+  type: object
+  description: |
+    The one answer to every forgot-password request. It says the request was
+    taken, and nothing about the address.
+  properties:
+    status:
+      type: string
+      description: Always `accepted`.
+      enum:
+        - accepted
+      x-enum-varnames:
+        - AccountResetEmailStatusAccepted
+      example: "accepted"
+  required:
+    - status
+
 DevLoginRequest:
   type: object
   description: Request body for POST /api/v1/auth/dev/login (development environment only)

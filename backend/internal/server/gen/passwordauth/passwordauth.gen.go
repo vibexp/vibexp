@@ -33,6 +33,21 @@ func (e AccountLinkPreviewPurpose) Valid() bool {
 	}
 }
 
+// Defines values for AccountResetEmailAcceptedStatus.
+const (
+	AccountResetEmailStatusAccepted AccountResetEmailAcceptedStatus = "accepted"
+)
+
+// Valid indicates whether the value is a known member of the AccountResetEmailAcceptedStatus enum.
+func (e AccountResetEmailAcceptedStatus) Valid() bool {
+	switch e {
+	case AccountResetEmailStatusAccepted:
+		return true
+	default:
+		return false
+	}
+}
+
 // AccountLinkPreview What a one-time account link does and whose account it acts on.
 type AccountLinkPreview struct {
 	// Email The email address of the account, which is what the person signs in with.
@@ -65,6 +80,22 @@ type AccountLinkPreviewRequest struct {
 // AccountLinkToken The token of a one-time account link: the part after `#token=` in the link.
 // It is sent in request bodies only, never in a path or a query string.
 type AccountLinkToken = string
+
+// AccountResetEmailAccepted The one answer to every forgot-password request. It says the request was
+// taken, and nothing about the address.
+type AccountResetEmailAccepted struct {
+	// Status Always `accepted`.
+	Status AccountResetEmailAcceptedStatus `json:"status"`
+}
+
+// AccountResetEmailAcceptedStatus Always `accepted`.
+type AccountResetEmailAcceptedStatus string
+
+// AccountResetEmailRequest Request body for POST /api/v1/auth/password/forgot.
+type AccountResetEmailRequest struct {
+	// Email The address of the account. Letter case and surrounding spaces are ignored.
+	Email openapi_types.Email `json:"email"`
+}
 
 // CompleteAccountResetRequest Request body for POST /api/v1/auth/password/reset.
 type CompleteAccountResetRequest struct {
@@ -189,6 +220,9 @@ type bearerAuthContextKey string
 // cookieAuthContextKey is the context key for CookieAuth security scheme
 type cookieAuthContextKey string
 
+// RequestPasswordResetJSONRequestBody defines body for RequestPasswordReset for application/json ContentType.
+type RequestPasswordResetJSONRequestBody = AccountResetEmailRequest
+
 // PasswordLoginJSONRequestBody defines body for PasswordLogin for application/json ContentType.
 type PasswordLoginJSONRequestBody = PasswordLoginRequest
 
@@ -203,6 +237,9 @@ type PreviewAccountLinkJSONRequestBody = AccountLinkPreviewRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Ask for a password reset email
+	// (POST /api/v1/auth/password/forgot)
+	RequestPasswordReset(w http.ResponseWriter, r *http.Request)
 	// Sign in with email and password
 	// (POST /api/v1/auth/password/login)
 	PasswordLogin(w http.ResponseWriter, r *http.Request)
@@ -220,6 +257,12 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// Ask for a password reset email
+// (POST /api/v1/auth/password/forgot)
+func (_ Unimplemented) RequestPasswordReset(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // Sign in with email and password
 // (POST /api/v1/auth/password/login)
@@ -253,6 +296,20 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// RequestPasswordReset operation middleware
+func (siw *ServerInterfaceWrapper) RequestPasswordReset(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RequestPasswordReset(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // PasswordLogin operation middleware
 func (siw *ServerInterfaceWrapper) PasswordLogin(w http.ResponseWriter, r *http.Request) {
@@ -424,6 +481,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/auth/password/forgot", wrapper.RequestPasswordReset)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/auth/password/login", wrapper.PasswordLogin)
 	})
 	r.Group(func(r chi.Router) {
@@ -437,6 +497,84 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 
 	return r
+}
+
+type RequestPasswordResetRequestObject struct {
+	Body *RequestPasswordResetJSONRequestBody
+}
+
+type RequestPasswordResetResponseObject interface {
+	VisitRequestPasswordResetResponse(w http.ResponseWriter) error
+}
+
+type RequestPasswordReset202JSONResponse AccountResetEmailAccepted
+
+func (response RequestPasswordReset202JSONResponse) VisitRequestPasswordResetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RequestPasswordReset400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response RequestPasswordReset400ApplicationProblemPlusJSONResponse) VisitRequestPasswordResetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RequestPasswordReset404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response RequestPasswordReset404ApplicationProblemPlusJSONResponse) VisitRequestPasswordResetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RequestPasswordReset429ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response RequestPasswordReset429ApplicationProblemPlusJSONResponse) VisitRequestPasswordResetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RequestPasswordReset503ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response RequestPasswordReset503ApplicationProblemPlusJSONResponse) VisitRequestPasswordResetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type PasswordLoginRequestObject struct {
@@ -937,6 +1075,9 @@ func (response PreviewAccountLink503ApplicationProblemPlusJSONResponse) VisitPre
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// Ask for a password reset email
+	// (POST /api/v1/auth/password/forgot)
+	RequestPasswordReset(ctx context.Context, request RequestPasswordResetRequestObject) (RequestPasswordResetResponseObject, error)
 	// Sign in with email and password
 	// (POST /api/v1/auth/password/login)
 	PasswordLogin(ctx context.Context, request PasswordLoginRequestObject) (PasswordLoginResponseObject, error)
@@ -978,6 +1119,37 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// RequestPasswordReset operation middleware
+func (sh *strictHandler) RequestPasswordReset(w http.ResponseWriter, r *http.Request) {
+	var request RequestPasswordResetRequestObject
+
+	var body RequestPasswordResetJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RequestPasswordReset(ctx, request.(RequestPasswordResetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RequestPasswordReset")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RequestPasswordResetResponseObject); ok {
+		if err := validResponse.VisitRequestPasswordResetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // PasswordLogin operation middleware

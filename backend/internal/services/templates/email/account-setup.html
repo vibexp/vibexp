@@ -1,0 +1,21 @@
+{{define "content"}}
+<h1>Set up your {{html .Brand.DisplayName}} account</h1>
+<p>Hello{{if .Name}} {{html .Name}}{{end}},</p>
+<p>An account has been created for <strong>{{html .Email}}</strong> on {{html .Brand.DisplayName}}. Choose a password to start using it.</p>
+
+<div class="button-container">
+    <a href="{{html .LinkURL}}" class="button">
+        Choose a password
+    </a>
+</div>
+
+<p style="color: #64748b; font-size: 14px;">
+    If the button does not work, copy this address into your browser:<br>
+    <span style="word-break: break-all;">{{html .LinkURL}}</span>
+</p>
+
+<p style="color: #64748b; font-size: 14px; margin-top: 30px;">
+    This link works once and is valid for {{.ExpiresIn}}.<br>
+    If you did not expect this email, you can safely ignore it.
+</p>
+{{end}}

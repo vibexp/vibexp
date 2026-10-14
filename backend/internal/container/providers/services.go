@@ -940,14 +940,15 @@ type AccountServiceDeps struct {
 	Policy     services.AuthPolicyResolver
 	Providers  services.IdentityProviderResolver
 	APIAccess  services.APIAccessServiceInterface
+	Notifier   services.AccountNotifier
 	Logger     *slog.Logger
 }
 
 // ProvideAccountService creates the self-service account service (#1437). It
 // shares the password service, the policy resolver and the provider resolver
 // with sign-in, so "which methods can this account use" is answered from the
-// same sources sign-in itself reads. No notifier is installed yet: the
-// password-changed email is #1433.
+// same sources sign-in itself reads. The notifier sends the password-changed
+// email (#1433).
 func ProvideAccountService(deps AccountServiceDeps) services.AccountServiceInterface {
 	return services.NewAccountService(services.AccountServiceDeps{
 		Users:      deps.Users,
@@ -957,6 +958,7 @@ func ProvideAccountService(deps AccountServiceDeps) services.AccountServiceInter
 		Policy:     deps.Policy,
 		Providers:  deps.Providers,
 		APIAccess:  deps.APIAccess,
+		Notifier:   deps.Notifier,
 		Logger:     deps.Logger,
 	})
 }
@@ -993,6 +995,7 @@ func ProvideAccountTokenService(
 	passwords services.PasswordAuthServiceInterface,
 	apiAccess services.APIAccessServiceInterface,
 	allowlist services.AccessAllowlistResolver,
+	notifier services.AccountNotifier,
 	logger *slog.Logger,
 ) services.AccountTokenServiceInterface {
 	return services.NewAccountTokenService(services.AccountTokenDeps{
@@ -1001,6 +1004,7 @@ func ProvideAccountTokenService(
 		Passwords: passwords,
 		APIAccess: apiAccess,
 		Allowlist: allowlist,
+		Notifier:  notifier,
 		BaseURL:   cfg.Frontend.BaseURL,
 		Logger:    logger,
 	})
@@ -1039,6 +1043,65 @@ func ProvideInvitationRegistrationService(
 		IsRootAdmin: deps.Admins.IsRootAdmin,
 		Events:      deps.Events,
 		Logger:      deps.Logger,
+	})
+}
+
+// ProvideAccountEmailSender creates the sender of the account emails (#1433).
+// It is the email service under a narrower interface, built from the same
+// resolver and branding so account mail goes out exactly like other instance
+// mail.
+func ProvideAccountEmailSender(
+	resolver services.EmailSenderResolver,
+	siteInfo services.InstanceSiteInfoResolver,
+	cfg *config.Config,
+) services.AccountEmailSender {
+	return services.NewEmailService(resolver, siteInfo, cfg)
+}
+
+// ProvideAccountEmailRunners creates the two bounded background runners of the
+// account emails (#1433): one for forgot-password requests, one for
+// password-changed notices, so a flood of the first cannot crowd out the
+// second. The container shuts them down.
+func ProvideAccountEmailRunners(logger *slog.Logger) *services.AccountEmailRunners {
+	return services.NewAccountEmailRunners(logger)
+}
+
+// ProvideAccountNotifier creates the notifier that emails an account's owner
+// when its password changes (#1433). It depends on nothing that depends on
+// it, so both the account service and the link service can take it.
+func ProvideAccountNotifier(
+	users repositories.UserRepository,
+	policy services.AuthPolicyResolver,
+	email services.AccountEmailSender,
+	runners *services.AccountEmailRunners,
+	logger *slog.Logger,
+) services.AccountNotifier {
+	return services.NewAccountEmailNotifier(services.AccountEmailNotifierDeps{
+		Users: users, Policy: policy, Email: email, Runner: runners.Notices, Logger: logger,
+	})
+}
+
+// AccountLinkMailerDeps groups the dependencies of ProvideAccountLinkMailer.
+// Wire fills it via wire.Struct (see the container ProviderSet).
+type AccountLinkMailerDeps struct {
+	Tokens     services.AccountTokenServiceInterface
+	Users      repositories.UserRepository
+	Identities repositories.UserIdentityRepository
+	Passwords  services.PasswordAuthServiceInterface
+	Policy     services.AuthPolicyResolver
+	Allowlist  services.AccessAllowlistResolver
+	Email      services.AccountEmailSender
+	Runners    *services.AccountEmailRunners
+	Logger     *slog.Logger
+}
+
+// ProvideAccountLinkMailer creates the service that emails one-time account
+// links: the forgot-password request and the setup link (#1433).
+func ProvideAccountLinkMailer(deps AccountLinkMailerDeps) services.AccountLinkMailerInterface {
+	return services.NewAccountLinkMailer(services.AccountLinkMailerDeps{
+		Tokens: deps.Tokens, Users: deps.Users, Identities: deps.Identities, Passwords: deps.Passwords,
+		Policy: deps.Policy, Allowlist: deps.Allowlist, Email: deps.Email, Runner: deps.Runners.Requests,
+		Logger: deps.Logger,
 	})
 }
 

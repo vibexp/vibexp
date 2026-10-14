@@ -437,6 +437,12 @@ func (b *BaseMockContainer) InvitationRegistrationService() services.InvitationR
 	return nil
 }
 
+// AccountLinkMailer returns nil; suites that exercise the account emails
+// install their own.
+func (b *BaseMockContainer) AccountLinkMailer() services.AccountLinkMailerInterface {
+	return nil
+}
+
 // noSetupMode is a SetupModeService for an instance that is not, and never
 // was, in authentication setup mode.
 type noSetupMode struct{}
