@@ -121,9 +121,11 @@ type PasswordAuthServiceInterface interface {
 	Login(ctx context.Context, email, plaintext string) (*models.User, error)
 	// SetPassword gives the user a password, replacing any they had, after
 	// checking it against the password policy (a *password.PolicyError when it
-	// fails). Besides the completion of a one-time account link, which stores
-	// the hash HashNewPassword made inside its own transaction, it is the one
-	// way a password is stored. A new password
+	// fails). It is how a password is stored, with two exceptions that store
+	// the hash HashNewPassword made as part of a larger write: the completion
+	// of a one-time account link, inside its transaction (#1462), and a
+	// registration through an invitation, in the statement that creates the
+	// account (UserRepository.CreateWithCredential, #1435). A new password
 	// clears the sign-in throttle and a disabled mark. An unknown user returns
 	// repositories.ErrUserNotFound.
 	SetPassword(ctx context.Context, userID, plaintext string) error
@@ -131,8 +133,9 @@ type PasswordAuthServiceInterface interface {
 	// account with email and returns its encoded hash, storing nothing. It is
 	// for a caller that must write the credential as part of a larger
 	// statement or transaction (the completion of a one-time account link,
-	// #1462); every other caller uses SetPassword. A password that breaks the
-	// policy is a *password.PolicyError.
+	// #1462, and a registration through an invitation, #1435); every other
+	// caller uses SetPassword. A password that breaks the policy is a
+	// *password.PolicyError.
 	HashNewPassword(ctx context.Context, plaintext, email string) (string, error)
 	// RemovePassword deletes the user's password and reports whether they had
 	// one.

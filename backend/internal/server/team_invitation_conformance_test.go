@@ -184,9 +184,7 @@ func TestHandleAcceptInvitation_Conformance(t *testing.T) {
 	// Not yet a member → GetByTeamAndUser returns an error (the success path).
 	m.memberRepo.On("GetByTeamAndUser", mock.Anything, confTeamID, "user-1").
 		Return((*models.TeamMember)(nil), repositories.ErrUserNotFound).Once()
-	m.memberRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.TeamMember")).
-		Return(nil).Once()
-	m.invRepo.On("UpdateStatus", mock.Anything, confInvitationID, models.InvitationStatusAccepted).
+	m.invRepo.On("Accept", mock.Anything, confInvitationID, mock.AnythingOfType("*models.TeamMember")).
 		Return(nil).Once()
 	m.teamSvc.On("GetTeam", mock.Anything, "user-1", confTeamID).
 		Return(&models.Team{ID: confTeamID, Name: "Acme"}, nil).Once()

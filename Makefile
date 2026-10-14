@@ -306,6 +306,8 @@ backend-generate-openapi-server: backend-bundle-openapi
 	@cd backend && mkdir -p internal/server/gen/passwordauth && go tool oapi-codegen -config oapi-codegen-passwordauth.yaml dist/openapi.bundled.yaml
 	@echo "🧬 Generating OpenAPI strict-server code (Account)..."
 	@cd backend && mkdir -p internal/server/gen/account && go tool oapi-codegen -config oapi-codegen-account.yaml dist/openapi.bundled.yaml
+	@echo "🧬 Generating OpenAPI strict-server code (Invitation Registration)..."
+	@cd backend && mkdir -p internal/server/gen/invitationregistration && go tool oapi-codegen -config oapi-codegen-invitation-registration.yaml dist/openapi.bundled.yaml
 	@echo "🧬 Generating OpenAPI strict-server code (Site info)..."
 	@cd backend && mkdir -p internal/server/gen/siteinfo && go tool oapi-codegen -config oapi-codegen-siteinfo.yaml dist/openapi.bundled.yaml
 	@echo "🧬 Generating OpenAPI strict-server code (Embedding Providers)..."

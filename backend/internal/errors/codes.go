@@ -14,6 +14,14 @@ const (
 	// lowercase value is a stable contract shared with the frontend (the OAuth
 	// callback also redirects with ?error=access_restricted); keep it in sync.
 	CodeAccessRestricted = "access_restricted"
+	// CodeInvitationInvalid is the ONE answer of the public invitation
+	// operations for a link that cannot be used (unknown, expired, revoked,
+	// accepted or rejected). Stable: the invitation page branches on it (#1435).
+	CodeInvitationInvalid = "invitation_invalid"
+	// CodeAccountExists signals a registration through an invitation refused
+	// because an account already has the invited email: sign in instead.
+	// Stable, as above.
+	CodeAccountExists = "account_exists"
 
 	// Validation errors
 	CodeValidationFailed = "VALIDATION_FAILED"
@@ -152,6 +160,8 @@ var errorTitles = map[string]string{
 	CodeForbidden:                         "Forbidden",
 	CodeUnauthorized:                      "Unauthorized",
 	CodeAccessRestricted:                  "Access Restricted",
+	CodeInvitationInvalid:                 "Invitation Link Not Valid",
+	CodeAccountExists:                     "Account Already Exists",
 	CodeValidationFailed:                  "Validation Failed",
 	CodeInvalidRequest:                    "Invalid Request",
 	CodeInvalidFormat:                     "Invalid Format",

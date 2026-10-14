@@ -189,6 +189,8 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideAccountTokenService,
 	providers.ProvideAuthWayIn,
 	providers.ProvideRootAdminPasswordService,
+	wire.Struct(new(providers.InvitationRegistrationDeps), "*"),
+	providers.ProvideInvitationRegistrationService,
 	providers.ProvideSetupModeService,
 	providers.ProvideIdentityProviderResolver,
 	providers.ProvideInstanceAuthSettingsService,

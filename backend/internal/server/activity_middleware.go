@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/services/activities"
 )
 
@@ -37,7 +38,9 @@ func (ar *ActivityRecorder) RecordAuthActivity(
 	if metadata == nil {
 		metadata = make(map[string]interface{})
 	}
-	metadata["endpoint"] = r.URL.Path
+	// A path can carry a bearer credential (an invitation token); the stored
+	// activity must not.
+	metadata["endpoint"] = apierrors.RedactSensitivePath(r.URL.Path)
 	metadata["method"] = r.Method
 
 	err := ar.activityService.RecordAuthActivity(

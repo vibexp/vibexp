@@ -1,0 +1,100 @@
+# Joining through an invitation link without an account (#1435, epic #1426):
+# what a signed-out link holder may read, and the password registration.
+
+InvitationPreview:
+  type: object
+  description: |
+    What the holder of an invitation link may see before signing in. It
+    carries no identifier and no inviter email.
+  additionalProperties: false
+  required:
+    - team_name
+    - inviter_name
+    - email
+    - role
+    - expires_at
+    - account_exists
+    - password_registration
+  properties:
+    team_name:
+      type: string
+      description: Name of the team the invitation is for.
+      example: "Acme Engineering"
+    inviter_name:
+      type: string
+      nullable: true
+      description: Display name of the person who sent the invitation. Null when that account no longer exists or has no name.
+      example: "Ada Lovelace"
+    email:
+      type: string
+      format: email
+      description: The invited email address. An account that joins through this link has this address.
+      example: "grace@example.com"
+    role:
+      type: string
+      enum: [admin, member]
+      description: The role the invitation grants in the team.
+      example: "member"
+    expires_at:
+      type: string
+      format: date-time
+      description: When the invitation stops working.
+    account_exists:
+      type: boolean
+      description: |
+        Whether an account already has the invited email. When true the person
+        signs in and accepts the invitation; registration is refused.
+    password_registration:
+      type: boolean
+      description: |
+        Whether `POST /api/v1/invitations/{token}/register` can create an
+        account right now: email and password sign-in is switched on, no
+        account has the invited email, and the address is not a root instance
+        admin.
+
+InvitationRegisterRequest:
+  type: object
+  description: Request body for POST /api/v1/invitations/{token}/register.
+  additionalProperties: false
+  required:
+    - password
+  properties:
+    password:
+      type: string
+      format: password
+      minLength: 1
+      maxLength: 1024
+      description: |
+        The password for the new account, exactly as typed: it is not trimmed.
+        It must satisfy the password policy (at least 12 characters, not a
+        common password, not the email address).
+    name:
+      type: string
+      maxLength: 255
+      description: |
+        Display name for the new account. Surrounding spaces are removed. When
+        omitted or blank, the part of the email before the `@` is used.
+      example: "Grace Hopper"
+
+InvitationRegistration:
+  type: object
+  description: The account created through an invitation link. The session cookie is set on the same response.
+  additionalProperties: false
+  required:
+    - user
+    - team_id
+    - invitation_accepted
+  properties:
+    user:
+      $ref: '../openapi.yaml#/components/schemas/User'
+    team_id:
+      type: string
+      format: uuid
+      description: The team the invitation is for.
+    invitation_accepted:
+      type: boolean
+      description: |
+        Whether the account joined the team. False in the rare case that the
+        account was created but joining failed (for example the invitation was
+        revoked at that moment): the person is signed in, the invitation is
+        still pending when it can be, and they accept it in the app.

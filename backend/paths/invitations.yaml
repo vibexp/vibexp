@@ -219,3 +219,174 @@ api-v1-invitations-token-reject:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
     tags:
       - Team Invitations
+
+api-v1-invitations-token-preview:
+  get:
+    summary: Preview an invitation without signing in
+    description: |
+      Tells the holder of an invitation link what the invitation is, before
+      they have signed in or have an account at all: the team, who sent it,
+      the invited email, the role, when it expires, whether an account already
+      has that email, and whether an account can be created with a password
+      through the link.
+
+      Public. It returns no identifier and no inviter email, and nothing that
+      the authenticated `GET /api/v1/invitations/{token}` does not.
+
+      A link that cannot be used returns one and the same 404
+      (`invitation_invalid`) whether the token is unknown or the invitation has
+      expired or was revoked, accepted or rejected. Rate-limited per client IP.
+    operationId: previewInvitation
+    security: []  # Public: authenticated by the token in the path
+    parameters:
+      - name: token
+        in: path
+        required: true
+        description: Opaque invitation token from the invitation link
+        schema:
+          type: string
+    responses:
+      '200':
+        description: The invitation behind the link
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/InvitationPreview'
+      '400':
+        description: The token in the path is not validly percent-encoded
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: The invitation link is not valid (`invitation_invalid`), for every reason alike
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '429':
+        description: Too many requests from this client
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Invitation Registration
+
+api-v1-invitations-token-register:
+  post:
+    summary: Create an account with a password through an invitation
+    description: |
+      For a person who has an invitation link and no account. Creates the
+      account for the invited email with the given password, provisions its
+      private workspace, joins the team with the invited role and signs the
+      person in by setting the session cookie (`vx_session`), in one request.
+
+      Available only while an instance admin has switched password login on;
+      otherwise it returns 404. Refused, with nothing changed, when:
+
+      - the link cannot be used: 404 `invitation_invalid`, the same response
+        for an unknown token and an expired, revoked, accepted or rejected
+        invitation;
+      - an account already has the invited email: 409 `account_exists`. That
+        person signs in and accepts the invitation instead;
+      - the invited email is a root instance admin (an address in the server's
+        `auth.instance_admins`): 403 `access_restricted`. Such an account is
+        created by the operator or by its owner signing in through a provider,
+        never from a link;
+      - an active access allowlist does not admit the invited email: 403
+        `access_restricted`;
+      - the password breaks the password policy: 400 with one
+        `validation_errors` entry per rule on `password`.
+
+      The new account's email is **not** marked verified: an invitation link
+      can be copied, so using it does not prove the mailbox. If the same
+      address later signs in through an identity provider that verifies it,
+      that sign-in takes the account over and this password is removed.
+
+      The body must be sent as `application/json`; any other `Content-Type` is
+      rejected with 400. Rate-limited per client IP.
+    operationId: registerWithInvitation
+    security: []  # Public: authenticated by the token in the path
+    parameters:
+      - name: token
+        in: path
+        required: true
+        description: Opaque invitation token from the invitation link
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/InvitationRegisterRequest'
+    responses:
+      '200':
+        description: Account created and signed in — session cookie set
+        headers:
+          Set-Cookie:
+            description: Encrypted, HttpOnly, SameSite=Lax session cookie (`vx_session`)
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/InvitationRegistration'
+      '400':
+        description: |
+          The password breaks the password policy (`validation_errors` on
+          `password`), the body is malformed, carries an unknown field or a
+          value longer than the schema allows, the `Content-Type` is not
+          `application/json`, or the token in the path is not validly
+          percent-encoded. Nothing was changed
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: The invited email is not admitted by the access allowlist, or is a root instance admin (`access_restricted`); nothing was changed
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: |
+          The invitation link is not valid (`invitation_invalid`), for every
+          reason alike, or password login is not enabled on this instance
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: An account already exists for the invited email (`account_exists`); sign in instead. Nothing was changed
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '429':
+        description: Too many requests from this client
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '503':
+        description: Temporarily unavailable — whether password login is enabled could not be read; try again shortly
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Invitation Registration

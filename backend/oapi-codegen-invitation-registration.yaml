@@ -1,0 +1,17 @@
+# oapi-codegen configuration for the Invitation Registration domain (#1435):
+# the public preview of an invitation link and password registration through it.
+#
+# Its own package under internal/server/gen/invitationregistration, like every
+# other spec-first domain (see oapi-codegen-types.yaml for the rationale).
+#
+# Regenerate with: make backend-generate-openapi-server
+# CI fails the PR if this output is stale relative to the spec.
+package: invitationregistrationgen
+output: internal/server/gen/invitationregistration/invitationregistration.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  include-tags:
+    - Invitation Registration

@@ -7,6 +7,7 @@ import (
 	"runtime/debug"
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
+	apierrors "github.com/vibexp/vibexp/internal/errors"
 )
 
 // maxPanicStackBytes caps the stack trace logged per panic to avoid hitting Cloud Logging's
@@ -48,7 +49,7 @@ func panicLoggerMiddleware(logger *slog.Logger) func(http.Handler) http.Handler 
 						"panic.message", fmt.Sprintf("%v", rec),
 						"panic.stack", stack,
 						"request.method", r.Method,
-						"request.path", r.URL.Path,
+						"request.path", apierrors.RedactSensitivePath(r.URL.Path),
 					).Error("recovered from panic")
 					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				}

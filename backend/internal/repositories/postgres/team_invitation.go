@@ -2,7 +2,10 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -211,5 +214,56 @@ func (r *TeamInvitationRepository) Delete(ctx context.Context, invitationID stri
 		return repositories.ErrTeamInvitationNotFound
 	}
 
+	return nil
+}
+
+// Accept implements repositories.TeamInvitationRepository. The status update
+// carries the "pending and unexpired" condition itself, so it is the lock: of
+// two simultaneous accepts only one updates a row.
+func (r *TeamInvitationRepository) Accept(
+	ctx context.Context, invitationID string, member *models.TeamMember,
+) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin invitation acceptance: %w", err)
+	}
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			slog.Error("Failed to roll back an invitation acceptance", "error", rollbackErr)
+		}
+	}()
+
+	result, err := tx.ExecContext(ctx, `
+		UPDATE team_invitations
+		SET status = $2, updated_at = NOW()
+		WHERE id = $1 AND status = $3 AND expires_at > NOW()`,
+		invitationID, models.InvitationStatusAccepted, models.InvitationStatusPending)
+	if err != nil {
+		return fmt.Errorf("failed to accept invitation: %w", err)
+	}
+	accepted, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to accept invitation: %w", err)
+	}
+	if accepted == 0 {
+		return repositories.ErrTeamInvitationNotPending
+	}
+
+	err = tx.QueryRowContext(ctx, `
+		INSERT INTO team_members (team_id, user_id, role, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, created_at, updated_at`,
+		member.TeamID, member.UserID, member.Role, member.CreatedAt, member.UpdatedAt,
+	).Scan(&member.ID, &member.CreatedAt, &member.UpdatedAt)
+	if pqErr := uniqueViolation(err); pqErr != nil && pqErr.Constraint == "team_members_unique" {
+		return repositories.ErrTeamMemberExists
+	}
+	if err != nil {
+		return fmt.Errorf("failed to create team member: %w", err)
+	}
+
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit invitation acceptance: %w", err)
+	}
 	return nil
 }
