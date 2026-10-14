@@ -409,10 +409,12 @@ func (s *PasswordAuthService) HasPassword(ctx context.Context, userID string) (b
 // email claims an account whose own email was never verified, whatever the
 // holder of that account's one-time link set up before the mailbox's real owner
 // arrived has to go. AuthService ends the account's cookie sessions itself,
-// right after the hook; this removes the two things it does not know about:
-// the password, and every API key and MCP/OAuth grant (#1449), which the link's
-// holder could have minted while signed in.
+// right after the hook; this removes the three things it does not know about:
+// the account's outstanding one-time links (#1432), which would let their
+// holder set a password again; the password; and every API key and MCP/OAuth
+// grant (#1449), which the link's holder could have minted while signed in.
 type UnverifiedAccountCleanup struct {
+	tokens      repositories.AccountTokenRepository
 	credentials repositories.UserCredentialRepository
 	apiAccess   APIAccessServiceInterface
 	logger      *slog.Logger
@@ -422,20 +424,35 @@ var _ UnverifiedAccountClaimHook = (*UnverifiedAccountCleanup)(nil)
 
 // NewUnverifiedAccountCleanup creates the cleanup.
 func NewUnverifiedAccountCleanup(
-	credentials repositories.UserCredentialRepository, apiAccess APIAccessServiceInterface, logger *slog.Logger,
+	tokens repositories.AccountTokenRepository,
+	credentials repositories.UserCredentialRepository,
+	apiAccess APIAccessServiceInterface,
+	logger *slog.Logger,
 ) *UnverifiedAccountCleanup {
-	return &UnverifiedAccountCleanup{credentials: credentials, apiAccess: apiAccess, logger: logger}
+	return &UnverifiedAccountCleanup{tokens: tokens, credentials: credentials, apiAccess: apiAccess, logger: logger}
 }
 
-// OnUnverifiedAccountClaimed removes the account's password, then revokes its
-// API access. The password goes first: once it is gone nobody can sign in with
-// it to mint a new key or grant, so the revocation that follows is final.
+// OnUnverifiedAccountClaimed deletes the account's one-time links, removes its
+// password, then revokes its API access. The order closes each way back in
+// before removing what it could create: without a link no new password can be
+// set, and without a password nobody can sign in with one to mint a new key
+// or grant. A browser session that is still open could mint one until the
+// caller ends the account's sessions, which it does immediately after this
+// returns; the revocation is complete only from that point.
 //
 // Both steps are idempotent, as the hook's contract requires: a second run on
 // an account already cleaned up changes nothing. A failed step is returned and
 // aborts the sign-in, because linking the new owner to an account its previous
 // holder can still enter would defeat the point.
 func (c *UnverifiedAccountCleanup) OnUnverifiedAccountClaimed(ctx context.Context, userID string) error {
+	links, err := c.tokens.DeleteForUser(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("delete the one-time links of a claimed account: %w", err)
+	}
+	if links > 0 {
+		c.logger.With("user_id", userID, "links", links).
+			Warn("Deleted the one-time links of an unverified account claimed by a verified sign-in")
+	}
 	removed, err := c.credentials.Delete(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("remove the password of a claimed account: %w", err)

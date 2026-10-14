@@ -1758,13 +1758,26 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, resp, s.logger)
 }
 
-func (s *Server) Start(ctx context.Context) error {
+// startBackgroundWork starts what the server runs beside serving requests.
+// Everything it starts stops when ctx ends.
+func (s *Server) startBackgroundWork(ctx context.Context) error {
 	// Ensure an active OAuth AS signing key exists and start periodic rotation,
 	// tied to the server's shutdown context.
 	if s.oauthAS != nil {
 		if err := s.oauthAS.Start(ctx); err != nil {
 			return fmt.Errorf("failed to start OAuth authorization server: %w", err)
 		}
+	}
+
+	// Delete dead one-time account links hourly. Not part of the authorization
+	// server: it runs whether or not that is enabled.
+	go s.runAccountLinkSweep(ctx, accountLinkSweepInterval)
+	return nil
+}
+
+func (s *Server) Start(ctx context.Context) error {
+	if err := s.startBackgroundWork(ctx); err != nil {
+		return err
 	}
 
 	srv := &http.Server{

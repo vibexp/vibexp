@@ -152,6 +152,8 @@ type WireContainer struct {
 	passwordAuthService services.PasswordAuthServiceInterface
 	// Self-service account (#1437)
 	accountService services.AccountServiceInterface
+	// One-time account links: password setup and reset (#1432)
+	accountTokenService services.AccountTokenServiceInterface
 	// First-run authentication setup mode (#1236)
 	setupModeService services.SetupModeService
 
@@ -320,6 +322,11 @@ func (c *WireContainer) AccountService() services.AccountServiceInterface {
 // PasswordAuthService returns the email and password sign-in service (#1431).
 func (c *WireContainer) PasswordAuthService() services.PasswordAuthServiceInterface {
 	return c.passwordAuthService
+}
+
+// AccountTokenService returns the one-time account link service (#1432).
+func (c *WireContainer) AccountTokenService() services.AccountTokenServiceInterface {
+	return c.accountTokenService
 }
 
 // SetupModeService returns the authentication setup-mode service (#1236).

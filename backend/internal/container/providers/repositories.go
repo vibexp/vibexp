@@ -18,6 +18,11 @@ func ProvideUserCredentialRepository(db *database.DB) repositories.UserCredentia
 	return postgres.NewUserCredentialRepository(db)
 }
 
+// ProvideAccountTokenRepository creates a new AccountTokenRepository
+func ProvideAccountTokenRepository(db *database.DB) repositories.AccountTokenRepository {
+	return postgres.NewAccountTokenRepository(db)
+}
+
 // ProvideUserIdentityRepository creates a new UserIdentityRepository
 func ProvideUserIdentityRepository(db *database.DB) repositories.UserIdentityRepository {
 	return postgres.NewUserIdentityRepository(db)

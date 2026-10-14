@@ -49,6 +49,12 @@ type MockAuthContainer struct {
 	// passwordAuth is the password sign-in service, for the suites that mount
 	// its routes.
 	passwordAuth services.PasswordAuthServiceInterface
+	// accountTokens is the one-time account link service, for the same suites.
+	accountTokens services.AccountTokenServiceInterface
+}
+
+func (m *MockAuthContainer) AccountTokenService() services.AccountTokenServiceInterface {
+	return m.accountTokens
 }
 
 func (m *MockAuthContainer) PasswordAuthService() services.PasswordAuthServiceInterface {

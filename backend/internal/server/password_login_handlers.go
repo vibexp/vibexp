@@ -13,7 +13,6 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/vibexp/vibexp/internal/auth/password"
-	sesslib "github.com/vibexp/vibexp/internal/auth/session"
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
 	passwordauthgen "github.com/vibexp/vibexp/internal/server/gen/passwordauth"
@@ -177,35 +176,10 @@ func (h *passwordAuthStrictServer) PasswordLogin(
 		return nil, h.loginFailure(ctx, err)
 	}
 
-	now := time.Now()
-	sess := &sesslib.Session{
-		// Like dev login, the access token is a non-validating marker: nothing
-		// ever presents it to an identity provider. With no refresh token the
-		// session is a sliding one (30 days from its last use).
-		AccessToken:     "password:" + user.ID,
-		UserID:          user.ID,
-		AuthMethod:      sesslib.AuthMethodPassword,
-		AuthenticatedAt: now,
-		Epoch:           user.SessionEpoch,
-	}
-	sess.StartSliding(now)
-	cookie, err := h.s.sessionManager.Cookie(sess)
+	setCookie, err := h.signInWithPassword(ctx, signInHandlerName, user, "")
 	if err != nil {
-		h.s.logger.With("handler", signInHandlerName, "user_id", user.ID, "error", err.Error()).
-			Error("Failed to create the session of a password sign-in")
-		return nil, apierrors.NewInternalError(signInFailedDetail)
+		return nil, err
 	}
-
-	h.s.logger.With("handler", signInHandlerName, "user_id", user.ID).Info("Password sign-in successful")
-	if h.s.metrics != nil {
-		h.s.metrics.RecordUserLoginSuccessful(ctx)
-	}
-	h.recordAuthActivity(ctx, user.ID, activities.ActivityTypeAuthLogin, map[string]interface{}{
-		"provider": services.LocalSignInProvider,
-		"email":    user.Email,
-	})
-
-	setCookie := cookie.String()
 	return passwordauthgen.PasswordLogin200JSONResponse{
 		Body:    toGenPasswordAuthUser(user),
 		Headers: passwordauthgen.PasswordLogin200ResponseHeaders{SetCookie: &setCookie},
@@ -250,7 +224,8 @@ func (h *passwordAuthStrictServer) loginFailure(ctx context.Context, err error) 
 		// The client went away, or the request timed out, while it waited its
 		// turn to be checked. Expected under load, and not a fault of the
 		// policy or the database, so it is not logged as one.
-		h.s.logger.With("handler", signInHandlerName).Info("Password sign-in abandoned before it was checked")
+		h.s.logger.With("handler", signInHandlerName, "error", err.Error()).
+			Info("Password sign-in abandoned before it was checked")
 		return apierrors.NewServiceUnavailableError(signInUnavailableDetail)
 	default:
 		// The policy, the allowlist or the database could not be read. The

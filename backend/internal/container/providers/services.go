@@ -26,27 +26,31 @@ import (
 type AuthServiceDeps struct {
 	UserRepo     repositories.UserRepository
 	IdentityRepo repositories.UserIdentityRepository
-	// Credentials and APIAccess are what the account-claim cleanup removes.
-	Credentials  repositories.UserCredentialRepository
-	APIAccess    services.APIAccessServiceInterface
-	Resolver     services.IdentityProviderResolver
-	EventManager events.EventPublisher
-	Logger       *slog.Logger
-	Allowlist    services.AccessAllowlistResolver
+	// AccountTokens, Credentials and APIAccess are what the account-claim
+	// cleanup removes.
+	AccountTokens repositories.AccountTokenRepository
+	Credentials   repositories.UserCredentialRepository
+	APIAccess     services.APIAccessServiceInterface
+	Resolver      services.IdentityProviderResolver
+	EventManager  events.EventPublisher
+	Logger        *slog.Logger
+	Allowlist     services.AccessAllowlistResolver
 	// Gate enforces the registration mode for a new account (#1434).
 	Gate services.RegistrationGate
 }
 
 // ProvideAuthService creates a new AuthService. An unverified account claimed
-// by a verified provider sign-in loses its password (#1431) and its API access
-// (#1449): whoever set them up need not be the mailbox's owner. A sign-in that
-// would create an account goes through the registration gate (#1434).
+// by a verified provider sign-in loses its one-time links (#1432), its password
+// (#1431) and its API access (#1449): whoever set them up need not be the
+// mailbox's owner. A sign-in that would create an account goes through the
+// registration gate (#1434).
 func ProvideAuthService(deps AuthServiceDeps) services.AuthServiceInterface {
 	return services.NewAuthService(
 		deps.UserRepo, deps.IdentityRepo, deps.Resolver, deps.EventManager, deps.Logger, deps.Allowlist,
 		services.WithRegistrationGate(deps.Gate),
 		services.WithUnverifiedAccountClaimHook(
-			services.NewUnverifiedAccountCleanup(deps.Credentials, deps.APIAccess, deps.Logger)))
+			services.NewUnverifiedAccountCleanup(
+				deps.AccountTokens, deps.Credentials, deps.APIAccess, deps.Logger)))
 }
 
 // ProvideRegistrationGate creates the gate that enforces the instance's
@@ -931,6 +935,29 @@ func ProvidePasswordAuthService(
 		Hasher:      password.NewHasher(password.DefaultParams),
 		Lockout:     models.DefaultPasswordLockout,
 		Logger:      logger,
+	})
+}
+
+// ProvideAccountTokenService creates the one-time account link service
+// (#1432). Passwords are stored through the password auth service only, and the
+// allowlist resolver is the one every sign-in path shares.
+func ProvideAccountTokenService(
+	cfg *config.Config,
+	tokens repositories.AccountTokenRepository,
+	users repositories.UserRepository,
+	passwords services.PasswordAuthServiceInterface,
+	apiAccess services.APIAccessServiceInterface,
+	allowlist services.AccessAllowlistResolver,
+	logger *slog.Logger,
+) services.AccountTokenServiceInterface {
+	return services.NewAccountTokenService(services.AccountTokenDeps{
+		Tokens:    tokens,
+		Users:     users,
+		Passwords: passwords,
+		APIAccess: apiAccess,
+		Allowlist: allowlist,
+		BaseURL:   cfg.Frontend.BaseURL,
+		Logger:    logger,
 	})
 }
 

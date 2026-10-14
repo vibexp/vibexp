@@ -665,6 +665,321 @@
         ]
       }
     },
+    "/api/v1/auth/password/token/preview": {
+      "post": {
+        "summary": "Look up a one-time account link",
+        "description": "Returns what a one-time account link does (set a first password, or\nreset a forgotten one) and whose account it acts on, so the page behind\nthe link can show the right form. It changes nothing and does not use\nthe link up.\n\nIt is a POST so that the token travels in the body and reaches no access\nlog, proxy or `Referer` header. A link carries its token in the URL\nfragment (`/account/setup#token=...`, `/account/reset#token=...`), which\na browser never sends to a server.\n\nThe token is sent in the body, never in the URL, and the body must be\n`application/json`; any other `Content-Type` is rejected with 400.\nAvailable only while password login is switched on; otherwise 404.\nRate-limited per client IP.\n",
+        "operationId": "previewAccountLink",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountLinkPreviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The link is valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountLinkPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request body, a missing or oversized token, or a request\nwhose `Content-Type` is not `application/json`.\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The link is not valid (`AUTH_INVALID`). The response is the same for\na token that never existed, has expired, was already used, was replaced\nby a newer link, belongs to the other kind of link, or whose account\nis suspended or gone.\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The link is valid, but the access allowlist does not admit the\naccount's email address, so completing it would be refused too. The\nresponse `code` is the stable string `access_restricted`.\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Password login is not enabled on this instance",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests from this client",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The authentication policy or the database could not be read",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Password Authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/password/setup": {
+      "post": {
+        "summary": "Set the first password of an account from a setup link",
+        "description": "Completes a setup link: sets the account's password, optionally its\ndisplay name, and signs the person in by setting the session cookie.\n\nA setup link is issued when an administrator creates or invites a\nperson. It works once and for 7 days. Completing it ends every other\nbrowser session of the account. If the link was emailed to the account's\naddress, completing it also marks that address verified; a link an\nadministrator copied does not.\n\nThe token is sent in the body, never in the URL, and the body must be\n`application/json`; any other `Content-Type` is rejected with 400.\nAvailable only while password login is switched on; otherwise 404.\nRate-limited per client IP.\n",
+        "operationId": "completeAccountSetup",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteAccountSetupRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password set and signed in — session cookie set, user object returned",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Encrypted, HttpOnly, SameSite=Lax session cookie (`vx_session`)",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request body, a missing or oversized field, a request whose\n`Content-Type` is not `application/json`, or a password that does not\nmeet the password policy. For the policy the `code` is\n`VALIDATION_FAILED` and `validation_errors` holds one entry per\nbroken rule on the field `password`, with the code `too_short`,\n`too_long`, `common` or `matches_email`. The link stays usable after\na 400.\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The link is not valid (`AUTH_INVALID`). The response is the same for\na token that never existed, has expired, was already used, was replaced\nby a newer link, belongs to the other kind of link, or whose account\nis suspended or gone.\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Denied by the access allowlist: the account's email address is not\nadmitted. The response `code` is the stable string `access_restricted`.\nThe link stays usable.\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Password login is not enabled on this instance",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests from this client",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The request failed after the link was used up. The link no longer\nworks and trying again cannot succeed: a new link is needed.\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The authentication policy, the allowlist or the database could not be read",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Password Authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/password/reset": {
+      "post": {
+        "summary": "Set a new password from a reset link",
+        "description": "Completes a reset link: replaces the account's password and signs the\nperson in by setting the session cookie.\n\nA reset link works once: for 1 hour when it was emailed, for 24 hours\nwhen an administrator generated it. Completing it ends every other\nbrowser session of the account. API keys and MCP and OAuth grants are\nkept unless `revoke_api_access` is true. If the link was emailed to the\naccount's address, completing it also marks that address verified.\n\nThe token is sent in the body, never in the URL, and the body must be\n`application/json`; any other `Content-Type` is rejected with 400.\nAvailable only while password login is switched on; otherwise 404.\nRate-limited per client IP.\n",
+        "operationId": "completeAccountReset",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteAccountResetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password replaced and signed in — session cookie set, user object returned",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Encrypted, HttpOnly, SameSite=Lax session cookie (`vx_session`)",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request body, a missing or oversized field, a request whose\n`Content-Type` is not `application/json`, or a password that does not\nmeet the password policy. For the policy the `code` is\n`VALIDATION_FAILED` and `validation_errors` holds one entry per\nbroken rule on the field `password`, with the code `too_short`,\n`too_long`, `common` or `matches_email`. The link stays usable after\na 400.\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The link is not valid (`AUTH_INVALID`). The response is the same for\na token that never existed, has expired, was already used, was replaced\nby a newer link, belongs to the other kind of link, or whose account\nis suspended or gone.\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Denied by the access allowlist: the account's email address is not\nadmitted. The response `code` is the stable string `access_restricted`.\nThe link stays usable.\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Password login is not enabled on this instance",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests from this client",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The request failed after the link was used up. The link no longer\nworks and trying again cannot succeed: a new link is needed.\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The authentication policy, the allowlist or the database could not be read",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Password Authentication"
+        ]
+      }
+    },
     "/api/v1/auth/me": {
       "get": {
         "summary": "Get current user information",
@@ -32129,6 +32444,114 @@
           }
         }
       },
+      "AccountLinkPreviewRequest": {
+        "type": "object",
+        "description": "Request body for POST /api/v1/auth/password/token/preview.",
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "$ref": "#/components/schemas/AccountLinkToken"
+          }
+        },
+        "required": [
+          "token"
+        ]
+      },
+      "AccountLinkPreview": {
+        "type": "object",
+        "description": "What a one-time account link does and whose account it acts on.",
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "description": "What completing the link does: `setup` sets the first password of an\naccount (`POST /api/v1/auth/password/setup`), `reset` replaces a\nforgotten one (`POST /api/v1/auth/password/reset`).\n",
+            "enum": [
+              "setup",
+              "reset"
+            ],
+            "x-enum-varnames": [
+              "AccountLinkPurposeSetup",
+              "AccountLinkPurposeReset"
+            ],
+            "example": "setup"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "The email address of the account, which is what the person signs in with.",
+            "example": "ada@example.com"
+          },
+          "name": {
+            "type": "string",
+            "description": "The account's display name; empty when none has been set.",
+            "example": "Ada Lovelace"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the link stops working.",
+            "example": "2026-10-20T09:30:00Z"
+          }
+        },
+        "required": [
+          "purpose",
+          "email",
+          "name",
+          "expires_at"
+        ]
+      },
+      "CompleteAccountSetupRequest": {
+        "type": "object",
+        "description": "Request body for POST /api/v1/auth/password/setup.",
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "$ref": "#/components/schemas/AccountLinkToken"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "The password to set, exactly as typed: it is not trimmed. It must meet\nthe password policy (at least 12 characters, at most 128, not a\ncommonly used password, not the account's email address).\n"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "The display name to set on the account. Optional; surrounding spaces\nare removed, and an empty value leaves the name as it is.\n",
+            "example": "Ada Lovelace"
+          }
+        },
+        "required": [
+          "token",
+          "password"
+        ]
+      },
+      "CompleteAccountResetRequest": {
+        "type": "object",
+        "description": "Request body for POST /api/v1/auth/password/reset.",
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "$ref": "#/components/schemas/AccountLinkToken"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "The new password, exactly as typed: it is not trimmed. It must meet the\npassword policy (at least 12 characters, at most 128, not a commonly\nused password, not the account's email address).\n"
+          },
+          "revoke_api_access": {
+            "type": "boolean",
+            "default": false,
+            "description": "Also delete the account's API keys and its MCP and OAuth grants. The\naccount's other browser sessions are ended either way.\n"
+          }
+        },
+        "required": [
+          "token",
+          "password"
+        ]
+      },
       "SetupStatusResponse": {
         "type": "object",
         "description": "Whether this instance is in authentication setup mode. Deliberately a single boolean: the endpoint is public, so it says nothing about which providers exist, why setup is required or whether a setup token is outstanding.\n",
@@ -47201,6 +47624,13 @@
           "message",
           "code"
         ]
+      },
+      "AccountLinkToken": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "description": "The token of a one-time account link: the part after `#token=` in the link.\nIt is sent in request bodies only, never in a path or a query string.\n",
+        "example": "q1w2e3r4t5y6u7i8o9p0a1s2d3f4g5h6j7k8l9z0x1c"
       },
       "VersionAuthor": {
         "type": "object",

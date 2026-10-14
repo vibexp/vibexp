@@ -364,6 +364,11 @@ var (
 	ErrUserCredentialLocked   = fmt.Errorf("%w: locked", ErrUserCredentialUnavailable)
 	ErrUserCredentialDisabled = fmt.Errorf("%w: disabled", ErrUserCredentialUnavailable)
 
+	// ErrAccountTokenNotFound is returned by AccountTokenRepository when no
+	// link with the given token hash can be completed: it does not exist, has
+	// expired or was already consumed. The three are deliberately one answer.
+	ErrAccountTokenNotFound = errors.New("account token not found")
+
 	// ErrInstanceAuthSetupNotFound is returned by InstanceAuthSetupRepository.Get
 	// when no setup token was ever issued.
 	ErrInstanceAuthSetupNotFound = errors.New("instance auth setup not found")
@@ -2212,6 +2217,40 @@ type UserCredentialRepository interface {
 	RecordSuccess(ctx context.Context, userID string) error
 	// Delete removes the user's credential and reports whether there was one.
 	Delete(ctx context.Context, userID string) (deleted bool, err error)
+}
+
+// AccountTokenRepository stores one-time account links (#1432) by the SHA-256
+// of their token. It never sees a token.
+type AccountTokenRepository interface {
+	// Replace stores token as the user's one live link of its purpose AND
+	// delivery: in one transaction it deletes the user's unconsumed link of
+	// that purpose and delivery, if any, and inserts token, filling its ID and
+	// CreatedAt. So a new emailed link invalidates the previous emailed one and
+	// a new copied link the previous copied one, while one of each may be live
+	// together. An unknown user (or creator) returns ErrUserNotFound.
+	Replace(ctx context.Context, token *models.AccountToken) error
+	// GetLive returns the link with this token hash when it can still be
+	// completed at now, or ErrAccountTokenNotFound: unknown, expired and
+	// consumed are one answer.
+	GetLive(ctx context.Context, tokenHash []byte, now time.Time) (*models.AccountToken, error)
+	// Consume marks the link with this token hash consumed at now, deletes
+	// every OTHER live link of the same user, whatever its purpose or
+	// delivery, and returns the consumed link, all in one transaction. It
+	// matches only a link still live at now. Of any number of requests
+	// completing links of one user, the same link or different ones, exactly
+	// one gets its link; the rest get ErrAccountTokenNotFound.
+	Consume(ctx context.Context, tokenHash []byte, now time.Time) (*models.AccountToken, error)
+	// Delete removes the link with this token hash, live or not, and reports
+	// whether there was one. It is for withdrawing a link that could not be
+	// delivered.
+	Delete(ctx context.Context, tokenHash []byte) (deleted bool, err error)
+	// DeleteForUser removes every link of the user, live or not, and returns
+	// how many it removed. It is for an account whose outstanding links must
+	// stop working at once.
+	DeleteForUser(ctx context.Context, userID string) (int64, error)
+	// DeleteDead deletes every link that is consumed or expired at now and
+	// returns how many it removed.
+	DeleteDead(ctx context.Context, now time.Time) (int64, error)
 }
 
 // InstanceAuthSettingsVersionRepository reads the shared change counter every

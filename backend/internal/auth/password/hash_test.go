@@ -208,6 +208,34 @@ func TestHasher_AbandonedRequestNeverComputesEvenWithAFreeSlot(t *testing.T) {
 	}
 
 	assert.Zero(t, h.Derivations())
+	assert.Nil(t, h.dummyKey, "an abandoned first request does not make the dummy")
+}
+
+// The first check of a process pays for the dummy whichever kind it is, so a
+// first sign-in to a real account takes as long as a first sign-in to one that
+// does not exist.
+func TestHasher_FirstVerifyAndFirstDummyVerifyCostTheSame(t *testing.T) {
+	encoded, err := NewHasher(cheapParams).Hash(ctx, testPassword)
+	require.NoError(t, err)
+
+	checked := NewHasher(cheapParams)
+	_, _, err = checked.Verify(ctx, encoded, testPassword)
+	require.NoError(t, err)
+
+	absent := NewHasher(cheapParams)
+	require.NoError(t, absent.DummyVerify(ctx, testPassword))
+
+	assert.NotNil(t, checked.dummyKey, "the first Verify makes the dummy, as the first DummyVerify does")
+	assert.NotNil(t, absent.dummyKey)
+	assert.Equal(t, absent.Derivations(), checked.Derivations())
+
+	// An abandoned Verify, like an abandoned DummyVerify, makes nothing.
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	abandoned := NewHasher(cheapParams)
+	_, _, err = abandoned.Verify(cancelled, encoded, testPassword)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, abandoned.dummyKey)
 }
 
 // More callers than slots must all finish: the cap queues work, it does not
