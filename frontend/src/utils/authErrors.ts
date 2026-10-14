@@ -10,6 +10,9 @@ import { ApiError } from '../types/errors'
  */
 export const ACCESS_RESTRICTED_CODE = 'access_restricted'
 
+/** The recovery action of every sign-in refusal that sends the person back. */
+const BACK_TO_SIGN_IN = 'Back to sign in'
+
 /**
  * User-facing view for a failed sign-in: the alert wording plus the recovery
  * action rendered beneath it.
@@ -31,7 +34,7 @@ export const ACCESS_RESTRICTED_MESSAGE =
 export const ACCESS_RESTRICTED_ERROR: AuthErrorView = {
   title: 'Access restricted',
   description: ACCESS_RESTRICTED_MESSAGE,
-  actionLabel: 'Back to sign in',
+  actionLabel: BACK_TO_SIGN_IN,
   actionHref: '/login',
 }
 
@@ -48,7 +51,7 @@ export const EMAIL_NOT_VERIFIED_ERROR: AuthErrorView = {
   title: 'Email not verified',
   description:
     'An account with this email already exists, but your sign-in provider has not verified the address. Verify your email with the provider and try again, or sign in the way you did before.',
-  actionLabel: 'Back to sign in',
+  actionLabel: BACK_TO_SIGN_IN,
   actionHref: '/login',
 }
 
@@ -67,7 +70,7 @@ export const EXISTING_SIGN_IN_REQUIRED_ERROR: AuthErrorView = {
   title: 'Sign in the way you did before',
   description:
     'An account with this email already exists and uses a different sign-in method. Sign in with that method first. After that you can use this one too. If the account is not yours, contact your administrator.',
-  actionLabel: 'Back to sign in',
+  actionLabel: BACK_TO_SIGN_IN,
   actionHref: '/login',
 }
 
@@ -85,7 +88,7 @@ export const REGISTRATION_CLOSED_ERROR: AuthErrorView = {
   title: 'Sign-up is by invitation only',
   description:
     'You do not have an account here yet, and new accounts need an invitation. Ask a team admin to invite this email address, or ask your administrator to create an account for you, then sign in again.',
-  actionLabel: 'Back to sign in',
+  actionLabel: BACK_TO_SIGN_IN,
   actionHref: '/login',
 }
 
@@ -104,6 +107,22 @@ export const GENERIC_AUTH_ERROR: AuthErrorView = {
  * Map the `?error=` query param on `/auth/callback` to the alert to render.
  * Unknown and absent codes fall through to {@link GENERIC_AUTH_ERROR}.
  */
+/**
+ * Stable code the callback redirects with
+ * (`/auth/callback?error=identity_disconnected`) when the sign-in came through
+ * a provider account the account's owner disconnected (#1460). Mirrors
+ * `callbackErrorIdentityDisconnected` in `backend/internal/server/auth_handlers.go`.
+ */
+export const IDENTITY_DISCONNECTED_CODE = 'identity_disconnected'
+
+export const IDENTITY_DISCONNECTED_ERROR: AuthErrorView = {
+  title: 'This sign-in was disconnected',
+  description:
+    'The account you signed in with was disconnected from your account here, so it was not let in. Sign in another way, then allow it again under Sign-in methods in Account settings.',
+  actionLabel: BACK_TO_SIGN_IN,
+  actionHref: '/login',
+}
+
 export function mapAuthCallbackError(code: string | null): AuthErrorView {
   if (code === ACCESS_RESTRICTED_CODE) {
     return ACCESS_RESTRICTED_ERROR
@@ -116,6 +135,9 @@ export function mapAuthCallbackError(code: string | null): AuthErrorView {
   }
   if (code === REGISTRATION_CLOSED_CODE) {
     return REGISTRATION_CLOSED_ERROR
+  }
+  if (code === IDENTITY_DISCONNECTED_CODE) {
+    return IDENTITY_DISCONNECTED_ERROR
   }
   return GENERIC_AUTH_ERROR
 }

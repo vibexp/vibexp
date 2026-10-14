@@ -10,6 +10,8 @@ import {
   EXISTING_SIGN_IN_REQUIRED_CODE,
   EXISTING_SIGN_IN_REQUIRED_ERROR,
   GENERIC_AUTH_ERROR,
+  IDENTITY_DISCONNECTED_CODE,
+  IDENTITY_DISCONNECTED_ERROR,
   mapAuthCallbackError,
   mapSignInError,
   PASSWORD_SIGN_IN_FAILED_MESSAGE,
@@ -146,5 +148,15 @@ describe('passwordSignInErrorMessage (#1439)', () => {
     expect(passwordSignInErrorMessage(new Error('network'))).toContain(
       'Sign-in failed'
     )
+  })
+})
+
+describe('identity_disconnected (#1460)', () => {
+  it('explains the refusal and how to lift it', () => {
+    const view = mapAuthCallbackError(IDENTITY_DISCONNECTED_CODE)
+    expect(view).toBe(IDENTITY_DISCONNECTED_ERROR)
+    expect(view.description).toContain('Sign in another way')
+    expect(view.description).toContain('Account settings')
+    expect(view.actionHref).toBe('/login')
   })
 })

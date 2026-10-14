@@ -16,6 +16,7 @@ import { formatDate } from '@/lib/time'
 import { toast } from '@/lib/toast'
 import {
   type Account,
+  type AccountDisconnectedIdentity,
   type AccountIdentity,
   accountService,
 } from '@/services/accountService'
@@ -97,6 +98,78 @@ function identityDetail(identity: AccountIdentity): string {
   return `${connected} ${used}`
 }
 
+/**
+ * The provider accounts the owner disconnected (#1460). A sign-in through one
+ * of them is refused until it is allowed again here. These are not sign-in
+ * methods: nothing about removing a method reads this list.
+ */
+function DisconnectedList({
+  state,
+  account,
+  onError,
+}: Readonly<{
+  state: AccountState
+  account: Account
+  onError: (message: string | null) => void
+}>) {
+  const entries = account.disconnected_identities
+  if (entries.length === 0) return null
+
+  const allowAgain = async (entry: AccountDisconnectedIdentity) => {
+    onError(null)
+    try {
+      const sent = await state.change(() =>
+        accountService.allowIdentityAgain(entry.id)
+      )
+      if (sent) {
+        toast.success(
+          `${entry.display_name} can sign in again. Your next sign-in through it connects it.`
+        )
+      }
+    } catch (err) {
+      onError(accountErrorMessage(err, 'It was not allowed again'))
+    }
+  }
+
+  return (
+    <section
+      aria-labelledby="account-disconnected-heading"
+      className="space-y-2"
+      data-testid="account-disconnected"
+    >
+      <h3 id="account-disconnected-heading" className="font-medium">
+        Disconnected
+      </h3>
+      <p className="text-muted-foreground text-sm">
+        Signing in through these is refused until you allow it again.
+      </p>
+      <ul className="divide-y">
+        {entries.map(entry => (
+          <MethodRow
+            key={entry.id}
+            testId={`account-disconnected-${entry.provider}`}
+            title={entry.display_name}
+            detail={`Disconnected ${formatDate(entry.disconnected_at)}.`}
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={state.busy || state.needsSignIn}
+                aria-label={`Allow ${entry.display_name} again`}
+                onClick={() => {
+                  void allowAgain(entry)
+                }}
+              >
+                Allow again
+              </Button>
+            }
+          />
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 function removalCopy(removal: Removal): {
   title: string
   description: string
@@ -115,7 +188,7 @@ function removalCopy(removal: Removal): {
   const name = removal.identity.display_name
   return {
     title: `Disconnect ${name}?`,
-    description: `You will no longer sign in through ${name}, and your other devices are signed out. Signing in through ${name} again with this email address connects it again.`,
+    description: `You will no longer sign in through ${name}, and your other devices are signed out. This ${name} account stays out until you allow it again here.`,
     confirm: `Disconnect ${name}`,
     done: `${name} disconnected. Your other devices were signed out.`,
   }
@@ -275,6 +348,8 @@ export function SignInMethodsCard({
             )
           })}
         </ul>
+
+        <DisconnectedList state={state} account={account} onError={setError} />
 
         <section
           aria-labelledby="account-password-heading"

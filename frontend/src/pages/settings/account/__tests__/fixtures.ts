@@ -1,4 +1,8 @@
-import type { Account, AccountIdentity } from '@/services/accountService'
+import type {
+  Account,
+  AccountDisconnectedIdentity,
+  AccountIdentity,
+} from '@/services/accountService'
 import { ApiError } from '@/types/errors'
 
 export function identity(
@@ -15,6 +19,18 @@ export function identity(
   }
 }
 
+export function disconnectedIdentity(
+  overrides: Partial<AccountDisconnectedIdentity> = {}
+): AccountDisconnectedIdentity {
+  return {
+    id: '33333333-3333-4333-8333-333333333333',
+    provider: 'google',
+    display_name: 'Google',
+    disconnected_at: '2026-10-14T09:00:00Z',
+    ...overrides,
+  }
+}
+
 export function account(overrides: Partial<Account> = {}): Account {
   return {
     id: '22222222-2222-4222-8222-222222222222',
@@ -27,6 +43,7 @@ export function account(overrides: Partial<Account> = {}): Account {
       disabled: false,
     },
     identities: [identity()],
+    disconnected_identities: [],
     recent_sign_in: true,
     ...overrides,
   }

@@ -14,6 +14,7 @@ vi.mock('@/services/accountService', () => ({
     setPassword: vi.fn(),
     removePassword: vi.fn(),
     disconnectIdentity: vi.fn(),
+    allowIdentityAgain: vi.fn(),
   },
 }))
 
@@ -26,7 +27,13 @@ vi.mock('@/lib/toast', () => ({
 }))
 
 import { AccountSettings } from '../AccountSettings'
-import { account, apiError, identity, withPassword } from './fixtures'
+import {
+  account,
+  apiError,
+  disconnectedIdentity,
+  identity,
+  withPassword,
+} from './fixtures'
 
 const service = vi.mocked(accountService)
 const NEW_PASSWORD = 'a brand new passphrase'
@@ -68,6 +75,7 @@ beforeEach(() => {
   service.setPassword.mockResolvedValue(undefined)
   service.removePassword.mockResolvedValue(undefined)
   service.disconnectIdentity.mockResolvedValue(undefined)
+  service.allowIdentityAgain.mockResolvedValue(undefined)
 })
 
 describe('AccountSettings: loading', () => {
@@ -405,6 +413,9 @@ describe('AccountSettings: removing a sign-in method', () => {
     )
     const dialog = screen.getByRole('alertdialog')
     expect(dialog).toHaveTextContent('your other devices are signed out')
+    expect(dialog).toHaveTextContent(
+      'This Google account stays out until you allow it again here.'
+    )
     expect(service.disconnectIdentity).not.toHaveBeenCalled()
 
     await user.click(
@@ -865,5 +876,84 @@ describe('AccountSettings: a password an administrator disabled (#1443)', () => 
     expect(
       await screen.findByTestId('account-password-error')
     ).toHaveTextContent('An administrator disabled your password')
+  })
+})
+
+// #1460: provider accounts the owner disconnected.
+describe('AccountSettings: disconnected identities', () => {
+  it('lists them and allows one again, then reads the account again', async () => {
+    service.get
+      .mockResolvedValueOnce(
+        withPassword({
+          identities: [],
+          disconnected_identities: [disconnectedIdentity()],
+        })
+      )
+      .mockResolvedValueOnce(withPassword({ identities: [] }))
+    const user = renderPage()
+
+    const list = await screen.findByTestId('account-disconnected')
+    expect(list).toHaveTextContent('Google')
+    expect(list).toHaveTextContent('refused until you allow it again')
+    await user.click(
+      within(list).getByRole('button', { name: 'Allow Google again' })
+    )
+
+    await waitFor(() => {
+      expect(service.allowIdentityAgain).toHaveBeenCalledWith(
+        disconnectedIdentity().id
+      )
+    })
+    await waitFor(() => {
+      expect(screen.queryByTestId('account-disconnected')).toBeNull()
+    })
+    expect(toast.success).toHaveBeenCalledWith(
+      'Google can sign in again. Your next sign-in through it connects it.'
+    )
+  })
+
+  it('needs a recent sign-in, like the other sign-in method changes', async () => {
+    service.get.mockResolvedValue(
+      withPassword({
+        identities: [],
+        recent_sign_in: false,
+        disconnected_identities: [disconnectedIdentity()],
+      })
+    )
+    renderPage()
+
+    const list = await screen.findByTestId('account-disconnected')
+    expect(
+      within(list).getByRole('button', { name: 'Allow Google again' })
+    ).toBeDisabled()
+  })
+
+  it('shows nothing when there is nothing disconnected', async () => {
+    service.get.mockResolvedValue(withPassword())
+    renderPage()
+
+    await screen.findByTestId('account-sign-in-card')
+    expect(screen.queryByTestId('account-disconnected')).toBeNull()
+  })
+
+  it('says why when allowing again is refused', async () => {
+    service.get.mockResolvedValue(
+      withPassword({
+        identities: [],
+        disconnected_identities: [disconnectedIdentity()],
+      })
+    )
+    service.allowIdentityAgain.mockRejectedValue(
+      apiError(404, 'RESOURCE_NOT_FOUND', 'disconnected identity not found')
+    )
+    const user = renderPage()
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Allow Google again' })
+    )
+
+    expect(
+      await screen.findByTestId('account-method-error')
+    ).toBeInTheDocument()
   })
 })

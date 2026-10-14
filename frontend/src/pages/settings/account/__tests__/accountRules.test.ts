@@ -4,7 +4,13 @@ import {
   canRemovePassword,
   isReauthenticationRequired,
 } from '../accountRules'
-import { account, apiError, identity, withPassword } from './fixtures'
+import {
+  account,
+  apiError,
+  disconnectedIdentity,
+  identity,
+  withPassword,
+} from './fixtures'
 
 describe('account rules', () => {
   it('keeps the only sign-in method', () => {
@@ -75,5 +81,16 @@ describe('account rules', () => {
       )
     ).toBe(true)
     expect(isReauthenticationRequired(new Error('x'))).toBe(false)
+  })
+})
+
+// #1460: a disconnected provider account is not a way to sign in.
+describe('disconnected identities are not sign-in methods', () => {
+  it('a password with only a disconnected provider cannot be removed', () => {
+    const only = withPassword({
+      identities: [],
+      disconnected_identities: [disconnectedIdentity()],
+    })
+    expect(canRemovePassword(only)).toBe(false)
   })
 })
