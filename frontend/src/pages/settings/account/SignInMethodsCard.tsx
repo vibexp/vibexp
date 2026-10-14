@@ -106,28 +106,29 @@ function identityDetail(identity: AccountIdentity): string {
 function DisconnectedList({
   state,
   account,
-  onError,
 }: Readonly<{
   state: AccountState
   account: Account
-  onError: (message: string | null) => void
 }>) {
+  // Shown beside the list, where the person clicked: the card's alert is
+  // far above it on a long card.
+  const [error, setError] = useState<string | null>(null)
   const entries = account.disconnected_identities
   if (entries.length === 0) return null
 
   const allowAgain = async (entry: AccountDisconnectedIdentity) => {
-    onError(null)
+    setError(null)
     try {
       const sent = await state.change(() =>
         accountService.allowIdentityAgain(entry.id)
       )
       if (sent) {
         toast.success(
-          `${entry.display_name} can sign in again. Your next sign-in through it connects it.`
+          `${entry.display_name} can sign in again. Your next sign-in through it connects it again if it uses this email address.`
         )
       }
     } catch (err) {
-      onError(accountErrorMessage(err, 'It was not allowed again'))
+      setError(accountErrorMessage(err, 'It was not allowed again'))
     }
   }
 
@@ -143,6 +144,12 @@ function DisconnectedList({
       <p className="text-muted-foreground text-sm">
         Signing in through these is refused until you allow it again.
       </p>
+      {error && (
+        <Alert variant="destructive" data-testid="account-disconnected-error">
+          <AlertTitle>Nothing was changed</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
       <ul className="divide-y">
         {entries.map(entry => (
           <MethodRow
@@ -251,9 +258,9 @@ export function SignInMethodsCard({
             </AlertTitle>
             <AlertDescription className="space-y-2">
               <p>
-                Setting a first password, removing your password and
-                disconnecting a provider are only possible within 10 minutes of
-                signing in.
+                Setting a first password, removing your password, disconnecting
+                a provider and allowing a disconnected one again are only
+                possible within 10 minutes of signing in.
               </p>
               <Button asChild variant="outline" size="sm">
                 <Link to={SIGN_IN_AGAIN_HREF}>Sign in again</Link>
@@ -349,7 +356,7 @@ export function SignInMethodsCard({
           })}
         </ul>
 
-        <DisconnectedList state={state} account={account} onError={setError} />
+        <DisconnectedList state={state} account={account} />
 
         <section
           aria-labelledby="account-password-heading"

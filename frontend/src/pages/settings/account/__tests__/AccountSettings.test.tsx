@@ -908,7 +908,7 @@ describe('AccountSettings: disconnected identities', () => {
       expect(screen.queryByTestId('account-disconnected')).toBeNull()
     })
     expect(toast.success).toHaveBeenCalledWith(
-      'Google can sign in again. Your next sign-in through it connects it.'
+      'Google can sign in again. Your next sign-in through it connects it again if it uses this email address.'
     )
   })
 
@@ -925,6 +925,33 @@ describe('AccountSettings: disconnected identities', () => {
     const list = await screen.findByTestId('account-disconnected')
     expect(
       within(list).getByRole('button', { name: 'Allow Google again' })
+    ).toBeDisabled()
+    // A password-only account: allowing again is the one thing signing in
+    // again unlocks, so the page must say how.
+    expect(screen.getByTestId('account-reauth-note')).toHaveTextContent(
+      'allowing a disconnected one again'
+    )
+  })
+
+  it('a 403 asks to sign in again and disables the button', async () => {
+    service.get.mockResolvedValue(
+      withPassword({
+        identities: [],
+        disconnected_identities: [disconnectedIdentity()],
+      })
+    )
+    service.allowIdentityAgain.mockRejectedValue(
+      apiError(403, 'reauthentication_required', 'Sign in again')
+    )
+    const user = renderPage()
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Allow Google again' })
+    )
+
+    expect(await screen.findByTestId('account-reauth-note')).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Allow Google again' })
     ).toBeDisabled()
   })
 
@@ -952,8 +979,11 @@ describe('AccountSettings: disconnected identities', () => {
       await screen.findByRole('button', { name: 'Allow Google again' })
     )
 
+    const error = await screen.findByTestId('account-disconnected-error')
     expect(
-      await screen.findByTestId('account-method-error')
-    ).toBeInTheDocument()
+      within(screen.getByTestId('account-disconnected')).getByTestId(
+        'account-disconnected-error'
+      )
+    ).toBe(error)
   })
 })

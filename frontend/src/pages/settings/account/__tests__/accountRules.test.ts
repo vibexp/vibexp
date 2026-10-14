@@ -2,6 +2,7 @@ import {
   accountErrorMessage,
   canDisconnect,
   canRemovePassword,
+  hasGuardedAction,
   isReauthenticationRequired,
 } from '../accountRules'
 import {
@@ -92,5 +93,25 @@ describe('disconnected identities are not sign-in methods', () => {
       disconnected_identities: [disconnectedIdentity()],
     })
     expect(canRemovePassword(only)).toBe(false)
+  })
+
+  it('the last identity cannot be disconnected because something is disconnected', () => {
+    const lastIdentity = account({
+      disconnected_identities: [
+        disconnectedIdentity({ provider: 'github', display_name: 'GitHub' }),
+      ],
+    })
+    expect(canDisconnect(lastIdentity, identity())).toBe(false)
+  })
+
+  it('allowing one again is something signing in again unlocks', () => {
+    const passwordOnly = withPassword({ identities: [] })
+    expect(hasGuardedAction(passwordOnly)).toBe(false)
+    expect(
+      hasGuardedAction({
+        ...passwordOnly,
+        disconnected_identities: [disconnectedIdentity()],
+      })
+    ).toBe(true)
   })
 })

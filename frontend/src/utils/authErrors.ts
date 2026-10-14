@@ -104,10 +104,6 @@ export const GENERIC_AUTH_ERROR: AuthErrorView = {
 }
 
 /**
- * Map the `?error=` query param on `/auth/callback` to the alert to render.
- * Unknown and absent codes fall through to {@link GENERIC_AUTH_ERROR}.
- */
-/**
  * Stable code the callback redirects with
  * (`/auth/callback?error=identity_disconnected`) when the sign-in came through
  * a provider account the account's owner disconnected (#1460). Mirrors
@@ -123,6 +119,10 @@ export const IDENTITY_DISCONNECTED_ERROR: AuthErrorView = {
   actionHref: '/login',
 }
 
+/**
+ * Map the `?error=` query param on `/auth/callback` to the alert to render.
+ * Unknown and absent codes fall through to {@link GENERIC_AUTH_ERROR}.
+ */
 export function mapAuthCallbackError(code: string | null): AuthErrorView {
   if (code === ACCESS_RESTRICTED_CODE) {
     return ACCESS_RESTRICTED_ERROR
