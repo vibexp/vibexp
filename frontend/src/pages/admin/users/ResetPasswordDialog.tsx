@@ -24,8 +24,6 @@ import { type LinkDelivery, LinkDeliveryChoice } from './LinkDeliveryChoice'
 import { LinkReveal } from './LinkReveal'
 import { EMAIL_UNAVAILABLE_MESSAGE, isEmailUnavailable } from './setupOutcome'
 
-type Delivery = LinkDelivery
-
 function refusalMessage(err: unknown, invalidateNow: boolean): string {
   if (err instanceof ApiError) {
     if (isEmailUnavailable(err)) return EMAIL_UNAVAILABLE_MESSAGE
@@ -70,7 +68,7 @@ export function ResetPasswordDialog({
 }>) {
   const [invalidateNow, setInvalidateNow] = useState(false)
   // A disabling reset waiting for the admin's second yes.
-  const [confirming, setConfirming] = useState<Delivery | null>(null)
+  const [confirming, setConfirming] = useState<LinkDelivery | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<AdminUserResetLink | null>(null)
@@ -85,7 +83,7 @@ export function ResetPasswordDialog({
     onOpenChange(next)
   }
 
-  const issue = async (delivery: Delivery) => {
+  const issue = async (delivery: LinkDelivery) => {
     setBusy(true)
     setError(null)
     setConfirming(null)
@@ -103,7 +101,7 @@ export function ResetPasswordDialog({
     }
   }
 
-  const choose = (delivery: Delivery) => {
+  const choose = (delivery: LinkDelivery) => {
     if (invalidateNow) {
       setConfirming(delivery)
       return

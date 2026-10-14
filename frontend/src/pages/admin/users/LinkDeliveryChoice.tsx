@@ -1,6 +1,8 @@
+import { useId } from 'react'
 import { Link } from 'react-router'
 
 import { Button } from '@/components/ui/button'
+import { INSTANCE_EMAIL_SETTINGS_PATH } from '@/pages/admin/useInstanceEmailStatus'
 
 export type LinkDelivery = 'email' | 'link'
 
@@ -24,15 +26,16 @@ export function LinkDeliveryChoice({
   onChoose: (delivery: LinkDelivery) => void
 }>) {
   const noEmail = emailLinks === false
+  const reasonId = useId()
   const emailButton = (
     <Button
       type="button"
       variant={noEmail ? 'outline' : 'default'}
       disabled={busy || noEmail}
       // A long address must not widen the dialog past the screen: the label
-      // truncates, and the full address is in the title.
+      // truncates (the dialog's description carries the full address).
       className="min-w-0"
-      title={`Email it to ${email}`}
+      aria-describedby={noEmail ? reasonId : undefined}
       onClick={() => {
         onChoose('email')
       }}
@@ -69,13 +72,14 @@ export function LinkDeliveryChoice({
       </div>
       {noEmail && (
         <p
+          id={reasonId}
           className="text-muted-foreground text-sm"
           data-testid="link-delivery-no-email"
         >
           No email provider is configured, so the link cannot be emailed: show
           it here and hand it over.{' '}
           <Link
-            to="/admin/settings/email"
+            to={INSTANCE_EMAIL_SETTINGS_PATH}
             className="font-medium underline underline-offset-4"
           >
             Set up email

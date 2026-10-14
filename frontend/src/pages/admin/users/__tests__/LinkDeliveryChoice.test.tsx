@@ -44,6 +44,10 @@ describe('LinkDeliveryChoice (#1494)', () => {
     expect(showButton()).toBeEnabled()
     expect(screen.getAllByRole('button')[0]).toBe(showButton())
     const reason = screen.getByTestId('link-delivery-no-email')
+    // The disabled button points at the reason, for screen readers.
+    expect(emailButton()).toHaveAccessibleDescription(
+      expect.stringContaining('No email provider is configured')
+    )
     expect(reason).toHaveTextContent(
       'No email provider is configured, so the link cannot be emailed'
     )
