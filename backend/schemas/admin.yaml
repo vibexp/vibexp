@@ -3711,7 +3711,8 @@ AdminAuthProviderUpdate:
     string is rejected. It cannot be omitted when `issuer_url` changes: the
     stored secret is only ever kept for the issuer it was saved with.
 
-    A change that disables the last enabled provider, or the provider the
+    A change that disables the last enabled provider (while password sign-in is
+    not a working way in), or the provider the
     calling admin signed in with, is rejected with 409 `lockout_risk` unless
     `confirm_lockout_risk` is true.
   additionalProperties: false
@@ -3988,6 +3989,36 @@ AdminAuthPolicyUpdate:
         The `version` the caller last read. Send `0` when that `version` was
         null, to save only while nothing is stored. Omit it or send null for
         last-write-wins. A negative value matches nothing and is a 409.
+    confirm_lockout_risk:
+      type: boolean
+      default: false
+      description: Set to true to apply a change that was rejected with `lockout_risk`.
+
+AdminBootstrapPasswordRequest:
+  type: object
+  description: |
+    The root instance admin to give a password to, on a setup session. The
+    email must be listed in `auth.instance_admins`.
+  additionalProperties: false
+  required:
+    - email
+    - password
+  properties:
+    email:
+      type: string
+      format: email
+      maxLength: 320
+      description: A root instance admin's email address. Letter case is ignored.
+      example: "admin@example.com"
+    password:
+      type: string
+      format: password
+      minLength: 1
+      maxLength: 1024
+      description: |
+        The password, exactly as typed: it is not trimmed. It must satisfy the
+        password policy (at least 12 characters, not a common password, not the
+        email address).
 
 AdminAuthAllowlistPreviewRequest:
   type: object

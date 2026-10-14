@@ -2217,6 +2217,18 @@ type UserCredentialRepository interface {
 	RecordSuccess(ctx context.Context, userID string) error
 	// Delete removes the user's credential and reports whether there was one.
 	Delete(ctx context.Context, userID string) (deleted bool, err error)
+	// CountUsableForAdmins counts the instance admins who could sign in with a
+	// password if password login is on (#1438): accounts that are not
+	// suspended, whose credential is not disabled, and that are an instance
+	// admin either by rootEmails (the lower-case auth.instance_admins
+	// addresses) or by a stored grant. A lock from failed attempts does not
+	// count against an account: it ends by itself.
+	CountUsableForAdmins(ctx context.Context, rootEmails []string) (int, error)
+	// CountPasswordOnly counts the accounts whose only sign-in method is a
+	// password: a credential, and no identity from an identity provider. The
+	// dev-login identity is not a method outside local development and is
+	// ignored.
+	CountPasswordOnly(ctx context.Context) (int, error)
 }
 
 // AccountTokenRepository stores one-time account links (#1432) by the SHA-256

@@ -1331,6 +1331,9 @@ type AdminAuthPolicy struct {
 //   - a positive value: the save is rejected with 409 unless it equals the
 //     stored policy's `version`, and also when nothing is stored.
 type AdminAuthPolicyUpdate struct {
+	// ConfirmLockoutRisk Set to true to apply a change that was rejected with `lockout_risk`.
+	ConfirmLockoutRisk *bool `json:"confirm_lockout_risk,omitempty"`
+
 	// ExpectedVersion The `version` the caller last read. Send `0` when that `version` was
 	// null, to save only while nothing is stored. Omit it or send null for
 	// last-write-wins. A negative value matches nothing and is a 409.
@@ -1519,7 +1522,8 @@ type AdminAuthProviderType string
 // string is rejected. It cannot be omitted when `issuer_url` changes: the
 // stored secret is only ever kept for the issuer it was saved with.
 //
-// A change that disables the last enabled provider, or the provider the
+// A change that disables the last enabled provider (while password sign-in is
+// not a working way in), or the provider the
 // calling admin signed in with, is rejected with 409 `lockout_risk` unless
 // `confirm_lockout_risk` is true.
 type AdminAuthProviderUpdate struct {
@@ -1549,6 +1553,18 @@ type AdminAuthRegistrationMode string
 
 // AdminAuthSettingsAuditSetting Which authentication setting's audit log to read.
 type AdminAuthSettingsAuditSetting string
+
+// AdminBootstrapPasswordRequest The root instance admin to give a password to, on a setup session. The
+// email must be listed in `auth.instance_admins`.
+type AdminBootstrapPasswordRequest struct {
+	// Email A root instance admin's email address. Letter case is ignored.
+	Email openapi_types.Email `json:"email"`
+
+	// Password The password, exactly as typed: it is not trimmed. It must satisfy the
+	// password policy (at least 12 characters, not a common password, not the
+	// email address).
+	Password string `json:"password"`
+}
 
 // AdminBreakdownBucket One value of a grouped column plus how many rows carry it.
 type AdminBreakdownBucket struct {
@@ -4373,6 +4389,9 @@ type UpdateAdminAuthAllowlistJSONRequestBody = AdminAuthAllowlistUpdate
 // PreviewAdminAuthAllowlistJSONRequestBody defines body for PreviewAdminAuthAllowlist for application/json ContentType.
 type PreviewAdminAuthAllowlistJSONRequestBody = AdminAuthAllowlistPreviewRequest
 
+// BootstrapAdminPasswordJSONRequestBody defines body for BootstrapAdminPassword for application/json ContentType.
+type BootstrapAdminPasswordJSONRequestBody = AdminBootstrapPasswordRequest
+
 // UpdateAdminAuthPolicyJSONRequestBody defines body for UpdateAdminAuthPolicy for application/json ContentType.
 type UpdateAdminAuthPolicyJSONRequestBody = AdminAuthPolicyUpdate
 
@@ -4474,6 +4493,9 @@ type ServerInterface interface {
 	// List an authentication setting's audit log
 	// (GET /api/v1/admin/settings/auth/audit)
 	ListAdminAuthSettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminAuthSettingsAuditParams)
+	// Give a root admin a password during setup
+	// (PUT /api/v1/admin/settings/auth/bootstrap-admin)
+	BootstrapAdminPassword(w http.ResponseWriter, r *http.Request)
 	// Get the authentication policy
 	// (GET /api/v1/admin/settings/auth/policy)
 	GetAdminAuthPolicy(w http.ResponseWriter, r *http.Request)
@@ -4756,6 +4778,12 @@ func (_ Unimplemented) PreviewAdminAuthAllowlist(w http.ResponseWriter, r *http.
 // List an authentication setting's audit log
 // (GET /api/v1/admin/settings/auth/audit)
 func (_ Unimplemented) ListAdminAuthSettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminAuthSettingsAuditParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Give a root admin a password during setup
+// (PUT /api/v1/admin/settings/auth/bootstrap-admin)
+func (_ Unimplemented) BootstrapAdminPassword(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -6475,6 +6503,26 @@ func (siw *ServerInterfaceWrapper) ListAdminAuthSettingsAudit(w http.ResponseWri
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListAdminAuthSettingsAudit(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// BootstrapAdminPassword operation middleware
+func (siw *ServerInterfaceWrapper) BootstrapAdminPassword(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.BootstrapAdminPassword(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -10312,6 +10360,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/admin/settings/auth/audit", wrapper.ListAdminAuthSettingsAudit)
 	})
 	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/admin/settings/auth/bootstrap-admin", wrapper.BootstrapAdminPassword)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/settings/auth/policy", wrapper.GetAdminAuthPolicy)
 	})
 	r.Group(func(r chi.Router) {
@@ -11927,6 +11978,92 @@ func (response ListAdminAuthSettingsAudit404ApplicationProblemPlusJSONResponse) 
 type ListAdminAuthSettingsAudit500ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response ListAdminAuthSettingsAudit500ApplicationProblemPlusJSONResponse) VisitListAdminAuthSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BootstrapAdminPasswordRequestObject struct {
+	Body *BootstrapAdminPasswordJSONRequestBody
+}
+
+type BootstrapAdminPasswordResponseObject interface {
+	VisitBootstrapAdminPasswordResponse(w http.ResponseWriter) error
+}
+
+type BootstrapAdminPassword204Response struct {
+}
+
+func (response BootstrapAdminPassword204Response) VisitBootstrapAdminPasswordResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type BootstrapAdminPassword400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response BootstrapAdminPassword400ApplicationProblemPlusJSONResponse) VisitBootstrapAdminPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BootstrapAdminPassword403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response BootstrapAdminPassword403ApplicationProblemPlusJSONResponse) VisitBootstrapAdminPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BootstrapAdminPassword404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response BootstrapAdminPassword404ApplicationProblemPlusJSONResponse) VisitBootstrapAdminPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BootstrapAdminPassword409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response BootstrapAdminPassword409ApplicationProblemPlusJSONResponse) VisitBootstrapAdminPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BootstrapAdminPassword500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response BootstrapAdminPassword500ApplicationProblemPlusJSONResponse) VisitBootstrapAdminPasswordResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -15004,6 +15141,9 @@ type StrictServerInterface interface {
 	// List an authentication setting's audit log
 	// (GET /api/v1/admin/settings/auth/audit)
 	ListAdminAuthSettingsAudit(ctx context.Context, request ListAdminAuthSettingsAuditRequestObject) (ListAdminAuthSettingsAuditResponseObject, error)
+	// Give a root admin a password during setup
+	// (PUT /api/v1/admin/settings/auth/bootstrap-admin)
+	BootstrapAdminPassword(ctx context.Context, request BootstrapAdminPasswordRequestObject) (BootstrapAdminPasswordResponseObject, error)
 	// Get the authentication policy
 	// (GET /api/v1/admin/settings/auth/policy)
 	GetAdminAuthPolicy(ctx context.Context, request GetAdminAuthPolicyRequestObject) (GetAdminAuthPolicyResponseObject, error)
@@ -15785,6 +15925,37 @@ func (sh *strictHandler) ListAdminAuthSettingsAudit(w http.ResponseWriter, r *ht
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListAdminAuthSettingsAuditResponseObject); ok {
 		if err := validResponse.VisitListAdminAuthSettingsAuditResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// BootstrapAdminPassword operation middleware
+func (sh *strictHandler) BootstrapAdminPassword(w http.ResponseWriter, r *http.Request) {
+	var request BootstrapAdminPasswordRequestObject
+
+	var body BootstrapAdminPasswordJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.BootstrapAdminPassword(ctx, request.(BootstrapAdminPasswordRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "BootstrapAdminPassword")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(BootstrapAdminPasswordResponseObject); ok {
+		if err := validResponse.VisitBootstrapAdminPasswordResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

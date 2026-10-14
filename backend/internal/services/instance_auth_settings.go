@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/vibexp/vibexp/internal/auth/session"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
@@ -20,26 +21,50 @@ import (
 // session for the providers and the allowlist), while granting and revoking
 // admins is root-only and enforced here through InstanceAdminResolver.
 
-// Reasons the lockout guard refuses a provider change (ErrAuthLockoutRisk).
+// Reasons the lockout guard refuses a change (ErrAuthLockoutRisk).
 const (
-	// AuthLockoutNoEnabledProvider is a change that would leave no enabled
-	// provider, so nobody could sign in.
+	// AuthLockoutNoEnabledProvider is a provider change that would leave no
+	// enabled provider while password login is not a working way in either, so
+	// nobody could sign in.
 	AuthLockoutNoEnabledProvider = "no_enabled_provider"
 	// AuthLockoutOwnProvider is a change that takes away the provider the
 	// caller's own session was issued by.
 	AuthLockoutOwnProvider = "own_provider"
+	// AuthLockoutNoUsableMethod is switching password login off while it is
+	// the only working way in (#1438).
+	AuthLockoutNoUsableMethod = "no_usable_method"
+	// AuthLockoutOwnMethod is switching password login off from a session
+	// that signed in with a password.
+	AuthLockoutOwnMethod = "own_method"
+	// AuthLockoutPasswordOnlyAccounts is switching password login off while
+	// accounts exist whose only sign-in method is a password.
+	AuthLockoutPasswordOnlyAccounts = "password_only_accounts"
 )
 
-// ErrAuthLockoutRisk is returned when disabling or deleting a provider could
-// lock sign-in out and the caller did not confirm the risk.
+// ErrAuthLockoutRisk is returned when a provider or policy change could lock
+// sign-in out and the caller did not confirm the risk.
 type ErrAuthLockoutRisk struct {
-	// Reason is AuthLockoutNoEnabledProvider or AuthLockoutOwnProvider.
+	// Reason is one of the AuthLockout* constants.
 	Reason string
+	// PasswordOnlyAccounts is how many accounts have a password as their only
+	// sign-in method; set with AuthLockoutPasswordOnlyAccounts.
+	PasswordOnlyAccounts int
 }
 
 func (e *ErrAuthLockoutRisk) Error() string {
-	if e.Reason == AuthLockoutOwnProvider {
+	switch e.Reason {
+	case AuthLockoutOwnProvider:
 		return "this change disables the sign-in provider your own session was issued by"
+	case AuthLockoutNoUsableMethod:
+		return "this change switches off the only sign-in method that works"
+	case AuthLockoutOwnMethod:
+		return "this change switches off password sign-in, which your own session used"
+	case AuthLockoutPasswordOnlyAccounts:
+		if e.PasswordOnlyAccounts == 1 {
+			return "this change leaves 1 account, whose only sign-in method is a password, unable to sign in"
+		}
+		return fmt.Sprintf("this change leaves %d accounts, whose only sign-in method is a password, unable to sign in",
+			e.PasswordOnlyAccounts)
 	}
 	return "this change leaves no enabled sign-in provider"
 }
@@ -95,8 +120,19 @@ type InstanceAuthSettingsServiceInterface interface {
 	// UpdatePolicy validates and stores a whole replacement of the policy. A
 	// non-nil expectedVersion is compared with the stored policy's own version;
 	// repositories.InstanceSettingsNoStoredVersion expects none stored.
+	//
+	// Switching password login off is subject to the lockout guard
+	// (ErrAuthLockoutRisk): it is refused, unless lockout.Confirmed, while
+	// password login is the only working way in, when the caller's own session
+	// signed in with a password, and while accounts exist whose only sign-in
+	// method is a password. Stored passwords are kept either way.
 	UpdatePolicy(ctx context.Context, actorUserID string, policy models.InstanceAuthPolicy,
-		expectedVersion *int64) (*models.InstanceAuthPolicy, error)
+		expectedVersion *int64, lockout models.InstanceAuthLockoutContext) (*models.InstanceAuthPolicy, error)
+	// BootstrapAdminPassword gives the root admin with email a password and
+	// switches password login on (RootAdminPasswordService.Set). It is the
+	// setup session's way to make a password-only instance usable; the caller
+	// decides who may reach it.
+	BootstrapAdminPassword(ctx context.Context, email, plaintext string) (*RootAdminPasswordResult, error)
 
 	// ListAdmins returns the root admins' emails and the DB-granted admins.
 	ListAdmins(ctx context.Context) (*models.InstanceAdminList, error)
@@ -122,7 +158,13 @@ type InstanceAuthSettingsDeps struct {
 	// AllowlistResolver previews a candidate allowlist's impact.
 	AllowlistResolver AccessAllowlistResolver
 	Admins            InstanceAdminResolver
-	Enc               EncryptionServiceInterface
+	// WayIn tells the lockout guard whether password login is a working way in.
+	WayIn AuthWayIn
+	// Credentials counts the accounts a policy change would lock out.
+	Credentials repositories.UserCredentialRepository
+	// RootPasswords sets a root admin's password for the setup session.
+	RootPasswords *RootAdminPasswordService
+	Enc           EncryptionServiceInterface
 	// CallbackURL is the derived redirect URI every provider is built with
 	// (config.Config.AuthCallbackURL).
 	CallbackURL string
@@ -268,7 +310,7 @@ func (s *InstanceAuthSettingsService) UpdateProvider(
 	if err != nil {
 		return nil, err
 	}
-	if err = checkAuthLockoutRisk(rows, id, next.Enabled, req.Lockout); err != nil {
+	if err = s.guardProviderChange(ctx, rows, id, next.Enabled, req.Lockout); err != nil {
 		return nil, err
 	}
 
@@ -312,7 +354,7 @@ func (s *InstanceAuthSettingsService) DeleteProvider(
 	if err != nil {
 		return err
 	}
-	if err := checkAuthLockoutRisk(rows, id, false, req.Lockout); err != nil {
+	if err := s.guardProviderChange(ctx, rows, id, false, req.Lockout); err != nil {
 		return err
 	}
 	if err := s.deps.Providers.Delete(ctx, id, optionalActor(actorUserID), &version); err != nil {
@@ -388,18 +430,36 @@ func (s *InstanceAuthSettingsService) encryptClientSecret(secret string) (string
 	return encrypted, nil
 }
 
+// guardProviderChange runs checkAuthLockoutRisk, asking whether password login
+// is a working way in only when the answer can matter.
+func (s *InstanceAuthSettingsService) guardProviderChange(
+	ctx context.Context, current []*models.InstanceAuthProvider, targetID string, enabledAfter bool,
+	caller models.InstanceAuthLockoutContext,
+) error {
+	if caller.Confirmed || enabledAfter {
+		return nil
+	}
+	passwordWorks, err := s.deps.WayIn.PasswordWorks(ctx)
+	if err != nil {
+		return err
+	}
+	return checkAuthLockoutRisk(current, targetID, enabledAfter, caller, passwordWorks)
+}
+
 // checkAuthLockoutRisk is the save guard on a provider change (epic #1230,
 // decision 13). current is every stored provider; the change leaves the
 // provider with targetID enabled or not (enabledAfter; false for a delete).
 //
 // Only a change that takes an ENABLED provider away is judged, and it is
 // judged on the enabled set that results, not on the single row: it is refused
-// when no enabled provider would remain, or when the provider is the one the
+// when no enabled provider would remain and password login is not a working
+// way in either (passwordWorks, #1438), or when the provider is the one the
 // caller's own session was issued by. Enabled is the stored flag, not the
 // resolver's health, so an identity provider outage never reads as "none
 // enabled". A confirmed change is never refused.
 func checkAuthLockoutRisk(
-	current []*models.InstanceAuthProvider, targetID string, enabledAfter bool, caller models.InstanceAuthLockoutContext,
+	current []*models.InstanceAuthProvider, targetID string, enabledAfter bool,
+	caller models.InstanceAuthLockoutContext, passwordWorks bool,
 ) error {
 	if caller.Confirmed || enabledAfter {
 		return nil
@@ -417,7 +477,7 @@ func checkAuthLockoutRisk(
 	if target == nil || !target.Enabled {
 		return nil
 	}
-	if remaining == 0 {
+	if remaining == 0 && !passwordWorks {
 		return &ErrAuthLockoutRisk{Reason: AuthLockoutNoEnabledProvider}
 	}
 	if caller.SessionProvider != "" && caller.SessionProvider == target.Slug {
@@ -558,9 +618,15 @@ func (s *InstanceAuthSettingsService) GetPolicy(ctx context.Context) (*models.In
 // what the write returns.
 func (s *InstanceAuthSettingsService) UpdatePolicy(
 	ctx context.Context, actorUserID string, policy models.InstanceAuthPolicy, expectedVersion *int64,
+	lockout models.InstanceAuthLockoutContext,
 ) (*models.InstanceAuthPolicy, error) {
 	if err := ValidateInstanceAuthPolicy(policy); err != nil {
 		return nil, err
+	}
+	if !policy.PasswordLoginEnabled && !lockout.Confirmed {
+		if err := s.guardPasswordLoginOff(ctx, lockout); err != nil {
+			return nil, err
+		}
 	}
 	stored := &models.InstanceAuthPolicy{
 		PasswordLoginEnabled: policy.PasswordLoginEnabled,
@@ -570,6 +636,57 @@ func (s *InstanceAuthSettingsService) UpdatePolicy(
 		return nil, fmt.Errorf("failed to store the authentication policy: %w", err)
 	}
 	return stored, nil
+}
+
+// guardPasswordLoginOff is the save guard on a policy that leaves password
+// login off (#1438). It judges only a change that takes password login AWAY,
+// and refuses it, in this order: while password login is the only working way
+// in; when the caller's own session signed in with a password; and while
+// accounts exist whose only sign-in method is a password. The stored
+// passwords are not touched by the change, so switching it back on restores
+// every one of them.
+func (s *InstanceAuthSettingsService) guardPasswordLoginOff(
+	ctx context.Context, caller models.InstanceAuthLockoutContext,
+) error {
+	current, err := s.GetPolicy(ctx)
+	if err != nil {
+		return err
+	}
+	if !current.PasswordLoginEnabled {
+		return nil // already off: nothing is taken away
+	}
+
+	providerEnabled, err := hasEnabledAuthProvider(ctx, s.deps.Providers)
+	if err != nil {
+		return err
+	}
+	if !providerEnabled {
+		passwordWorks, worksErr := s.deps.WayIn.PasswordWorks(ctx)
+		if worksErr != nil {
+			return worksErr
+		}
+		if passwordWorks {
+			return &ErrAuthLockoutRisk{Reason: AuthLockoutNoUsableMethod}
+		}
+	}
+	if caller.AuthMethod == session.AuthMethodPassword {
+		return &ErrAuthLockoutRisk{Reason: AuthLockoutOwnMethod}
+	}
+	passwordOnly, err := s.deps.Credentials.CountPasswordOnly(ctx)
+	if err != nil {
+		return err
+	}
+	if passwordOnly > 0 {
+		return &ErrAuthLockoutRisk{Reason: AuthLockoutPasswordOnlyAccounts, PasswordOnlyAccounts: passwordOnly}
+	}
+	return nil
+}
+
+// BootstrapAdminPassword implements InstanceAuthSettingsServiceInterface.
+func (s *InstanceAuthSettingsService) BootstrapAdminPassword(
+	ctx context.Context, email, plaintext string,
+) (*RootAdminPasswordResult, error) {
+	return s.deps.RootPasswords.Set(ctx, email, plaintext, true)
 }
 
 // --- instance admins ----------------------------------------------------------

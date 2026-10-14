@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vibexp/vibexp/internal/auth/password"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -36,6 +38,30 @@ type fakeAuthRecovery struct {
 	rearms   int
 	released int
 	deadline bool
+
+	// passwordResult and passwordErr are what SetRootAdminPassword replays;
+	// passwordCalls records what it was asked.
+	passwordResult *services.RootAdminPasswordResult
+	passwordErr    error
+	passwordCalls  []passwordCall
+}
+
+type passwordCall struct {
+	email, plaintext string
+	enableLogin      bool
+}
+
+func (f *fakeAuthRecovery) SetRootAdminPassword(
+	_ context.Context, email, plaintext string, enableLogin bool,
+) (*services.RootAdminPasswordResult, error) {
+	f.passwordCalls = append(f.passwordCalls, passwordCall{email, plaintext, enableLogin})
+	if f.passwordErr != nil {
+		return nil, f.passwordErr
+	}
+	if f.passwordResult != nil {
+		return f.passwordResult, nil
+	}
+	return &services.RootAdminPasswordResult{Email: email}, nil
 }
 
 func (f *fakeAuthRecovery) ListProviders(ctx context.Context) ([]*models.InstanceAuthProvider, error) {
@@ -64,7 +90,16 @@ func (f *fakeAuthRecovery) RearmSetup(context.Context) (string, error) {
 // the command error.
 func runAdmin(t *testing.T, fake *fakeAuthRecovery, openErr error, args ...string) (string, string, error) {
 	t.Helper()
+	return runAdminWithStdin(t, fake, openErr, "", args...)
+}
+
+// runAdminWithStdin is runAdmin with stdin holding the given text.
+func runAdminWithStdin(
+	t *testing.T, fake *fakeAuthRecovery, openErr error, stdin string, args ...string,
+) (string, string, error) {
+	t.Helper()
 	root := &cobra.Command{Use: "vibexp"}
+	root.SetIn(strings.NewReader(stdin))
 	root.AddCommand(newAdminCmd(func(context.Context) (authRecovery, func(), error) {
 		if openErr != nil {
 			return nil, nil, openErr
@@ -320,4 +355,173 @@ func TestWarnRecoveryMode(t *testing.T) {
 	assert.Contains(t, buf.String(), "level=WARN")
 	assert.Contains(t, buf.String(), "AUTH_SETTINGS_RECOVERY_MODE")
 	assert.Contains(t, buf.String(), "auth.recovery_mode")
+}
+
+// With password sign-in still working, disabling the last provider must not
+// send the operator to re-arm setup (#1438).
+func TestAdminAuth_ProviderDisable_NamesSetupModeOnlyWhenNothingWorks(t *testing.T) {
+	works := &fakeAuthRecovery{toggle: services.ProviderToggle{Changed: true, NoneEnabled: true, PasswordLoginWorks: true}}
+	stdout, _, err := runAdmin(t, works, nil, "admin", "auth", "providers", "disable", "google")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "does not put the instance in setup mode")
+	assert.NotContains(t, stdout, "rearm")
+
+	nothing := &fakeAuthRecovery{toggle: services.ProviderToggle{Changed: true, NoneEnabled: true}}
+	stdout, _, err = runAdmin(t, nothing, nil, "admin", "auth", "providers", "disable", "google")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "vibexp admin auth setup rearm")
+}
+
+const cliTestPassphrase = "a long passphrase from stdin"
+
+func TestAdminAuth_PasswordSet(t *testing.T) {
+	set := []string{"admin", "auth", "password", "set", "--email", "root@example.com"}
+
+	t.Run("reads the password from stdin and never prints it", func(t *testing.T) {
+		for name, stdin := range map[string]string{
+			"no line break": cliTestPassphrase, "unix line break": cliTestPassphrase + "\n",
+			"windows line break": cliTestPassphrase + "\r\n",
+		} {
+			fake := &fakeAuthRecovery{}
+
+			stdout, stderr, err := runAdminWithStdin(t, fake, nil, stdin, set...)
+
+			require.NoError(t, err, name)
+			assert.Equal(t, []passwordCall{{"root@example.com", cliTestPassphrase, false}}, fake.passwordCalls, name)
+			assert.Contains(t, stdout, "Password set for root@example.com")
+			assert.Contains(t, stdout, "--enable-login", "it says sign-in was not switched on")
+			assert.NotContains(t, stdout+stderr, cliTestPassphrase)
+			assert.Equal(t, 1, fake.released)
+		}
+	})
+
+	t.Run("spaces at either end are part of the password", func(t *testing.T) {
+		fake := &fakeAuthRecovery{}
+
+		_, _, err := runAdminWithStdin(t, fake, nil, "  spaced out passphrase  \n", set...)
+
+		require.NoError(t, err)
+		assert.Equal(t, "  spaced out passphrase  ", fake.passwordCalls[0].plaintext)
+	})
+
+	t.Run("--enable-login switches sign-in on and says what happened", func(t *testing.T) {
+		for name, tc := range map[string]struct {
+			result *services.RootAdminPasswordResult
+			want   string
+		}{
+			"switched on": {&services.RootAdminPasswordResult{Email: "root@example.com", LoginSwitchedOn: true},
+				"is now switched on"},
+			"already on": {&services.RootAdminPasswordResult{Email: "root@example.com"}, "was already switched on"},
+			"replaced": {&services.RootAdminPasswordResult{Email: "root@example.com", PasswordReplaced: true},
+				"Password replaced for root@example.com"},
+		} {
+			fake := &fakeAuthRecovery{passwordResult: tc.result}
+
+			stdout, _, err := runAdminWithStdin(t, fake, nil, cliTestPassphrase, append(set, "--enable-login")...)
+
+			require.NoError(t, err, name)
+			assert.True(t, fake.passwordCalls[0].enableLogin)
+			assert.Contains(t, stdout, tc.want, name)
+		}
+	})
+
+	t.Run("refusals exit non-zero, say why, and say nothing was changed", func(t *testing.T) {
+		for name, tc := range map[string]struct {
+			err  error
+			want string
+		}{
+			"not a root admin": {services.ErrNotRootAdmin, "auth.instance_admins"},
+			"no account":       {services.ErrRootAdminAccountMissing, "vibexp admin auth setup rearm"},
+			"suspended":        {services.ErrRootAdminSuspended, "suspended"},
+			"weak password":    {password.Validate("short", "root@example.com"), "at least 12 characters"},
+		} {
+			fake := &fakeAuthRecovery{passwordErr: tc.err}
+
+			stdout, _, err := runAdminWithStdin(t, fake, nil, cliTestPassphrase, set...)
+
+			require.Error(t, err, name)
+			assert.Contains(t, err.Error(), tc.want, name)
+			assert.Contains(t, strings.ToLower(err.Error()), "nothing was changed", name)
+			assert.NotContains(t, err.Error(), cliTestPassphrase, name)
+			assert.Empty(t, stdout, name)
+		}
+	})
+
+	t.Run("an unexpected failure is returned as it is", func(t *testing.T) {
+		fake := &fakeAuthRecovery{passwordErr: errors.New("pq: down")}
+
+		_, _, err := runAdminWithStdin(t, fake, nil, cliTestPassphrase, set...)
+
+		require.ErrorContains(t, err, "pq: down")
+	})
+
+	t.Run("nothing on stdin, or too much, never reaches the database", func(t *testing.T) {
+		for name, stdin := range map[string]string{
+			"empty": "", "only a line break": "\n", "too long": strings.Repeat("x", passwordInputLimit+1),
+		} {
+			fake := &fakeAuthRecovery{}
+
+			_, _, err := runAdminWithStdin(t, fake, nil, stdin, set...)
+
+			require.Error(t, err, name)
+			assert.Empty(t, fake.passwordCalls, name)
+			assert.Zero(t, fake.released, "the database was never opened: "+name)
+		}
+	})
+
+	t.Run("the password cannot be an argument or a flag, and the email is required", func(t *testing.T) {
+		for name, args := range map[string][]string{
+			"positional": append(append([]string{}, set...), cliTestPassphrase),
+			"as a flag":  append(append([]string{}, set...), "--password", cliTestPassphrase),
+			"no email":   {"admin", "auth", "password", "set"},
+		} {
+			fake := &fakeAuthRecovery{}
+
+			_, _, err := runAdminWithStdin(t, fake, nil, cliTestPassphrase, args...)
+
+			require.Error(t, err, name)
+			assert.Empty(t, fake.passwordCalls, name)
+			if name == "positional" {
+				assert.NotContains(t, err.Error(), cliTestPassphrase, "a password passed by mistake is not echoed back")
+			}
+		}
+	})
+}
+
+// On a terminal the password is asked for, not read to the end of input. The
+// terminal itself cannot be faked, so the reader is.
+func TestAdminAuth_PasswordSet_UsesTheSecretReader(t *testing.T) {
+	original := secretReader
+	t.Cleanup(func() { secretReader = original })
+	secretReader = func(io.Reader, io.Writer) (string, error) { return "typed at the prompt!", nil }
+	fake := &fakeAuthRecovery{}
+
+	_, _, err := runAdminWithStdin(t, fake, nil, "ignored", "admin", "auth", "password", "set", "--email", "a@b.c")
+
+	require.NoError(t, err)
+	assert.Equal(t, "typed at the prompt!", fake.passwordCalls[0].plaintext)
+
+	secretReader = func(io.Reader, io.Writer) (string, error) { return "", errors.New("the two passwords do not match") }
+	_, _, err = runAdminWithStdin(t, fake, nil, "", "admin", "auth", "password", "set", "--email", "a@b.c")
+	require.ErrorContains(t, err, "do not match")
+	assert.Len(t, fake.passwordCalls, 1, "nothing was asked of the database")
+}
+
+// The recovery service built over the database sets passwords only for
+// addresses in auth.instance_admins: the gate is checked before any query.
+func TestNewAuthRecoveryService_PasswordIsRootAdminOnly(t *testing.T) {
+	sqlDB, mock, err := sqlmock.NewWithDSN("admin-auth?case=" + t.Name())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, sqlDB.Close())
+	})
+	cfg := &config.Config{}
+	cfg.Auth.InstanceAdmins = config.EnvStringSlice{"root@example.com"}
+	svc := newAuthRecoveryService(&database.DB{DB: sqlDB}, cfg)
+
+	_, err = svc.SetRootAdminPassword(context.Background(), "someone@example.com", cliTestPassphrase, true)
+
+	require.ErrorIs(t, err, services.ErrNotRootAdmin)
+	require.NoError(t, mock.ExpectationsWereMet(), "no query ran")
 }

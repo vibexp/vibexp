@@ -161,8 +161,13 @@ func TestIntegrationAuthRecovery_RearmSetup(t *testing.T) {
 	ciphertext := providerCiphertext
 	require.NoError(t, providers.Create(ctx, googleProviderFixture(&ciphertext), nil, nil)) // enabled
 	server := services.NewSetupModeService(services.SetupModeDeps{
-		Setup:       NewInstanceAuthSetupRepository(integrationDB),
-		Providers:   providers,
+		Setup: NewInstanceAuthSetupRepository(integrationDB),
+		WayIn: services.NewAuthWayIn(services.AuthWayInDeps{
+			Providers:       providers,
+			Policies:        NewInstanceAuthPolicyRepository(integrationDB),
+			Credentials:     NewUserCredentialRepository(integrationDB),
+			RootAdminEmails: func() []string { return nil },
+		}),
 		IsRootAdmin: func(string) bool { return false },
 		BaseURL:     recoveryBaseURL,
 		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),

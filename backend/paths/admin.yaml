@@ -4845,8 +4845,9 @@ api-v1-admin-settings-auth-providers-id:
       appends one entry (`action: upsert`) to the `auth_providers` audit log in the
       same transaction. Omitting `client_secret` keeps the stored one.
 
-      Lockout guard: a change that disables the last enabled provider, or the
-      provider the calling admin's session was issued by, is rejected with 409
+      Lockout guard: a change that disables the last enabled provider while
+      password sign-in is not a working way in (it is off, or no instance admin
+      has a password), or the provider the calling admin's session was issued by, is rejected with 409
       `lockout_risk` (the problem's `metadata.reason` is `no_enabled_provider` or
       `own_provider`) unless the body sets `confirm_lockout_risk: true`.
       Instance admin or a first-run setup session; every other request receives 404.
@@ -4914,8 +4915,9 @@ api-v1-admin-settings-auth-providers-id:
       entry (`action: delete`) to the `auth_providers` audit log in the same
       transaction.
 
-      Lockout guard: deleting the last enabled provider, or the provider the
-      calling admin's session was issued by, is rejected with 409 `lockout_risk`
+      Lockout guard: deleting the last enabled provider while password sign-in
+      is not a working way in (it is off, or no instance admin has a password),
+      or the provider the calling admin's session was issued by, is rejected with 409 `lockout_risk`
       unless `confirm_lockout_risk=true` is passed.
       Instance admin or a first-run setup session; every other request receives 404.
     operationId: deleteAdminAuthProvider
@@ -5335,6 +5337,19 @@ api-v1-admin-settings-auth-policy:
       authentication services within seconds, with no restart. A body that
       omits a setting, sends one as null, names an unknown registration mode,
       or carries an unknown field is rejected with 400.
+
+      Switching password sign-in off is rejected with 409 `lockout_risk` unless
+      the body sets `confirm_lockout_risk: true`, in three cases. The problem's
+      `metadata.reason` names the first that applies:
+
+      - `no_usable_method`: no identity provider is enabled, so password
+        sign-in is the only method that works.
+      - `own_method`: the calling admin's session signed in with a password.
+      - `password_only_accounts`: accounts exist whose only sign-in method is
+        a password; `metadata.password_only_accounts` is how many.
+
+      Stored passwords are kept while password sign-in is off, and work again
+      when it is switched back on.
       Instance-admin only (a setup session is not admitted); non-admin and unauthenticated requests receive 404.
     operationId: updateAdminAuthPolicy
     tags:
@@ -5372,7 +5387,85 @@ api-v1-admin-settings-auth-policy:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '409':
-        description: Conflict — `expected_version` does not match the stored version (`INSTANCE_SETTINGS_VERSION_CONFLICT`); nothing was changed
+        description: |
+          Conflict — `expected_version` does not match the stored version
+          (`INSTANCE_SETTINGS_VERSION_CONFLICT`), or the change switches password
+          sign-in off where that could lock people out (`lockout_risk`); nothing
+          was changed
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-settings-auth-bootstrap-admin:
+  put:
+    summary: Give a root admin a password during setup
+    description: |
+      Makes a password-only instance usable: gives the root instance admin with
+      this email a password and switches email and password sign-in on, in one
+      step. The account is created when none has the email. It is the "Use
+      email and password" option of the setup page.
+
+      **Setup session only.** A signed-in instance admin receives 403: the
+      operation sets another account's password without that account's
+      consent, which only the holder of the setup URL may do. Without a valid
+      setup session the answer is 404, like every other setup route.
+
+      The email must be listed in `auth.instance_admins`. On an account that
+      already exists the password is replaced and every session of the account
+      is ended; its API keys are kept. The email is marked verified, so a later
+      sign-in through an identity provider that reports the same address links
+      to the account and keeps the password. The change is recorded in the
+      `auth_policy` audit log when it switches password sign-in on, and in the
+      account's activity when the account already existed.
+
+      `GET /api/v1/setup/status` reports `setup_required: false` from then on.
+      The setup session itself stays valid, so a mistyped password can be set
+      again, until that admin signs in with the password.
+    operationId: bootstrapAdminPassword
+    tags:
+      - Admin
+    security:
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/AdminBootstrapPasswordRequest'
+    responses:
+      '204':
+        description: The password is set and password sign-in is on
+      '400':
+        description: |
+          Bad request — the email is not a root instance admin (`validation_errors`
+          on `email`, code `not_root_admin`), the password breaks the password
+          policy (`validation_errors` on `password`), or the body is malformed,
+          omits a field or carries an unknown one. Nothing was changed
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — the caller is a signed-in admin, not a setup session
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller has no valid setup session
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Conflict — the account with this email is suspended; nothing was changed
         content:
           application/problem+json:
             schema:

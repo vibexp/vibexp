@@ -570,22 +570,62 @@ func ProvideInstanceAdminResolver(
 }
 
 // ProvideSetupModeService creates the authentication setup-mode service
-// (#1236). Setup mode follows the stored provider rows unless auth.recovery_mode
-// forces it on (#1237).
+// (#1236). Setup mode is active while no sign-in method works (AuthWayIn,
+// #1438) unless auth.recovery_mode forces it on (#1237).
 func ProvideSetupModeService(
 	setup repositories.InstanceAuthSetupRepository,
-	providerRepo repositories.InstanceAuthProviderRepository,
+	wayIn services.AuthWayIn,
 	admins services.InstanceAdminResolver,
 	cfg *config.Config,
 	logger *slog.Logger,
 ) services.SetupModeService {
 	return services.NewSetupModeService(services.SetupModeDeps{
 		Setup:        setup,
-		Providers:    providerRepo,
+		WayIn:        wayIn,
 		IsRootAdmin:  admins.IsRootAdmin,
 		BaseURL:      cfg.Frontend.BaseURL,
 		RecoveryMode: bool(cfg.Auth.RecoveryMode),
 		Logger:       logger,
+	})
+}
+
+// ProvideAuthWayIn creates the check setup mode and the lockout guard share
+// (#1438): an identity provider is enabled, or password login is on and an
+// instance admin has a usable password.
+func ProvideAuthWayIn(
+	providerRepo repositories.InstanceAuthProviderRepository,
+	policies repositories.InstanceAuthPolicyRepository,
+	credentials repositories.UserCredentialRepository,
+	admins services.InstanceAdminResolver,
+) services.AuthWayIn {
+	return services.NewAuthWayIn(services.AuthWayInDeps{
+		Providers:       providerRepo,
+		Policies:        policies,
+		Credentials:     credentials,
+		RootAdminEmails: admins.RootAdminEmails,
+	})
+}
+
+// ProvideRootAdminPasswordService creates the service behind the setup
+// session's password bootstrap (#1438). It publishes user.created for an
+// account it creates, so the account gets its workspace like any other.
+func ProvideRootAdminPasswordService(
+	users repositories.UserRepository,
+	credentials repositories.UserCredentialRepository,
+	policies repositories.InstanceAuthPolicyRepository,
+	passwords services.PasswordAuthServiceInterface,
+	admins services.InstanceAdminResolver,
+	eventManager events.EventPublisher,
+	logger *slog.Logger,
+) *services.RootAdminPasswordService {
+	return services.NewRootAdminPasswordService(services.RootAdminPasswordDeps{
+		Users:       users,
+		Credentials: credentials,
+		Policies:    policies,
+		Passwords:   passwords,
+		IsRootAdmin: admins.IsRootAdmin,
+		Events:      eventManager,
+		Logger:      logger,
 	})
 }
 
@@ -821,6 +861,9 @@ type InstanceAuthSettingsServiceDeps struct {
 	Resolver          services.IdentityProviderResolver
 	AllowlistResolver services.AccessAllowlistResolver
 	Admins            services.InstanceAdminResolver
+	WayIn             services.AuthWayIn
+	Credentials       repositories.UserCredentialRepository
+	RootPasswords     *services.RootAdminPasswordService
 	Enc               services.EncryptionServiceInterface
 	Cfg               *config.Config
 	Logger            *slog.Logger
@@ -843,6 +886,9 @@ func ProvideInstanceAuthSettingsService(
 		Resolver:          deps.Resolver,
 		AllowlistResolver: deps.AllowlistResolver,
 		Admins:            deps.Admins,
+		WayIn:             deps.WayIn,
+		Credentials:       deps.Credentials,
+		RootPasswords:     deps.RootPasswords,
 		Enc:               deps.Enc,
 		CallbackURL:       deps.Cfg.AuthCallbackURL(),
 		Logger:            deps.Logger,

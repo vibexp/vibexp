@@ -649,7 +649,7 @@ func (as *AuthService) GetUserByID(ctx context.Context, userID string) (*models.
 // identity. Dev users are resolved by email (never by identity or the
 // bearer-token verifier), so this value is purely a stable, self-describing
 // marker.
-const devIDPProvider = "dev"
+const devIDPProvider = models.DevIdentityProvider
 
 func (as *AuthService) createDevUser(ctx context.Context, email, name string) (*models.User, error) {
 	devProvider := devIDPProvider

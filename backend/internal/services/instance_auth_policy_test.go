@@ -15,7 +15,11 @@ import (
 	repo_mocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 )
 
-func newAuthPolicyService(policies repositories.InstanceAuthPolicyRepository) *InstanceAuthSettingsService {
+// newAuthPolicyService is the settings service over policies alone. Nothing is
+// stored unless a test says otherwise, so a policy that leaves password login
+// off takes nothing away and the lockout guard has nothing to judge.
+func newAuthPolicyService(policies *repo_mocks.MockInstanceAuthPolicyRepository) *InstanceAuthSettingsService {
+	policies.On("Get", mock.Anything).Return(nil, repositories.ErrInstanceAuthPolicyNotFound).Maybe()
 	return NewInstanceAuthSettingsService(InstanceAuthSettingsDeps{
 		Policies: policies, Logger: slog.New(slog.DiscardHandler),
 	})
@@ -97,7 +101,7 @@ func TestInstanceAuthSettingsService_UpdatePolicy(t *testing.T) {
 		policy, err := newAuthPolicyService(policies).UpdatePolicy(ctx, "admin-1", models.InstanceAuthPolicy{
 			PasswordLoginEnabled: true, RegistrationMode: models.RegistrationModeInviteOnly,
 			Version: 99, UpdatedBy: &someoneElse,
-		}, &expected)
+		}, &expected, models.InstanceAuthLockoutContext{})
 
 		require.NoError(t, err)
 		assert.Equal(t, int64(4), policy.Version)
@@ -108,7 +112,7 @@ func TestInstanceAuthSettingsService_UpdatePolicy(t *testing.T) {
 		policies := repo_mocks.NewMockInstanceAuthPolicyRepository(t)
 
 		_, err := newAuthPolicyService(policies).UpdatePolicy(ctx, "admin-1",
-			models.InstanceAuthPolicy{RegistrationMode: "closed"}, nil)
+			models.InstanceAuthPolicy{RegistrationMode: "closed"}, nil, models.InstanceAuthLockoutContext{})
 
 		require.ErrorIs(t, err, ErrInvalidInstanceAuthPolicy)
 		policies.AssertNotCalled(t, "UpsertAudited")
@@ -120,7 +124,7 @@ func TestInstanceAuthSettingsService_UpdatePolicy(t *testing.T) {
 			Return(repositories.ErrInstanceSettingsVersionConflict)
 
 		_, err := newAuthPolicyService(policies).UpdatePolicy(ctx, "admin-1",
-			models.InstanceAuthPolicy{RegistrationMode: models.RegistrationModeOpen}, &expected)
+			models.InstanceAuthPolicy{RegistrationMode: models.RegistrationModeOpen}, &expected, models.InstanceAuthLockoutContext{})
 
 		require.ErrorIs(t, err, repositories.ErrInstanceSettingsVersionConflict)
 	})
@@ -130,7 +134,7 @@ func TestInstanceAuthSettingsService_UpdatePolicy(t *testing.T) {
 		policies.On("UpsertAudited", ctx, mock.Anything, (*string)(nil), (*int64)(nil)).Return(nil)
 
 		_, err := newAuthPolicyService(policies).UpdatePolicy(ctx, "",
-			models.InstanceAuthPolicy{RegistrationMode: models.RegistrationModeOpen}, nil)
+			models.InstanceAuthPolicy{RegistrationMode: models.RegistrationModeOpen}, nil, models.InstanceAuthLockoutContext{})
 
 		require.NoError(t, err)
 	})

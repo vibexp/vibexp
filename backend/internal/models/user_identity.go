@@ -11,6 +11,11 @@ import (
 // slugs cannot contain an underscore, so it never collides with a real slug.
 const LegacyGoogleIdentityProvider = "legacy_google_id"
 
+// DevIdentityProvider is the user_identities.provider value of the
+// localhost-only dev login. It is not a sign-in method outside local
+// development.
+const DevIdentityProvider = "dev"
+
 // UserIdentity is one way a user can sign in: a (provider, subject) pair. A
 // user may hold several.
 type UserIdentity struct {

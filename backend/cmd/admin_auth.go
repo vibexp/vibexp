@@ -6,11 +6,15 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
+	"strings"
 	"text/tabwriter"
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
+	"github.com/vibexp/vibexp/internal/auth/password"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -30,6 +34,8 @@ type authRecovery interface {
 	SetProviderEnabled(ctx context.Context, slug string, enabled bool) (services.ProviderToggle, error)
 	ClearAllowlist(ctx context.Context) (bool, error)
 	RearmSetup(ctx context.Context) (string, error)
+	SetRootAdminPassword(ctx context.Context, email, plaintext string, enableLogin bool,
+	) (*services.RootAdminPasswordResult, error)
 }
 
 // authRecoveryOpener connects a command to the instance's auth settings. It
@@ -76,7 +82,10 @@ They never run database migrations: start the server once after an upgrade.`
 			runSetupRearm),
 	)
 
-	auth.AddCommand(providers, allowlist, setup)
+	passwords := groupCmd("password", "Set a root instance admin's password")
+	passwords.AddCommand(newPasswordSetCmd(open))
+
+	auth.AddCommand(providers, allowlist, setup, passwords)
 	admin.AddCommand(auth)
 	return admin
 }
@@ -175,18 +184,23 @@ func runProviderToggle(enabled bool) authRecoveryRun {
 			return err
 		}
 		if !result.Changed {
-			_, err := fmt.Fprintf(out, "Identity provider %q is already %s; no change.\n", slug, state)
+			_, err = fmt.Fprintf(out, "Identity provider %q is already %s; no change.\n", slug, state)
 			return err
 		}
-		if _, err := fmt.Fprintf(out, "Identity provider %q %s.\n", slug, state); err != nil {
+		if _, err = fmt.Fprintf(out, "Identity provider %q %s.\n", slug, state); err != nil {
 			return err
 		}
-		if result.NoneEnabled {
-			_, err := fmt.Fprintln(out, "No identity provider is enabled now, so the instance is in setup mode. "+
+		switch {
+		case result.NoneEnabled && result.PasswordLoginWorks:
+			// Not setup mode: re-arming here would only hand out a setup URL
+			// that can replace a root admin's password.
+			_, err = fmt.Fprintln(out, "No identity provider is enabled now. Email and password sign-in still works, "+
+				"so disabling it does not put the instance in setup mode.")
+		case result.NoneEnabled:
+			_, err = fmt.Fprintln(out, "No sign-in method works now, so the instance is in setup mode. "+
 				"Run `vibexp admin auth setup rearm` for a setup URL.")
-			return err
 		}
-		return nil
+		return err
 	}
 }
 
@@ -212,6 +226,189 @@ func runSetupRearm(ctx context.Context, recovery authRecovery, out io.Writer, _ 
 		"Open this URL within %d hours to configure sign-in:\n%s\n",
 		int(services.SetupTokenLifetime.Hours()), setupURL)
 	return err
+}
+
+// passwordInputLimit bounds what `password set` reads from stdin. It is above
+// the longest password the policy accepts, so an over-long one is still refused
+// by the policy with its own message.
+const passwordInputLimit = 4096
+
+// secretReader reads a password without it ever being an argument. It is a
+// variable so tests can replace the terminal.
+var secretReader = readSecret
+
+// newPasswordSetCmd builds `vibexp admin auth password set` (#1438): the way
+// back into a password-only instance nobody can sign in to.
+//
+// The password is never a flag or an argument (both end up in the shell
+// history and the process list): it is read from stdin when stdin is not a
+// terminal, and otherwise asked for twice with echo off. It is never printed
+// or logged.
+func newPasswordSetCmd(open authRecoveryOpener) *cobra.Command {
+	var email string
+	var enableLogin bool
+	cmd := &cobra.Command{
+		Use:   "set --email <root-admin-email>",
+		Short: "Set the password of a root instance admin (auth.instance_admins)",
+		Long: `Set the password of a root instance admin, to recover a password-only instance
+nobody can sign in to.
+
+The email must be listed in auth.instance_admins and its account must exist.
+The password is read from standard input when that is not a terminal:
+
+  printf '%s' "$NEW_PASSWORD" | vibexp admin auth password set --email admin@example.com
+
+Otherwise it is asked for twice, without echo. It must satisfy the password
+policy (at least 12 characters, not a common password, not the email address).
+It cannot be passed as a flag or an argument.
+
+The account's existing sessions are ended; its API keys are kept. With
+--enable-login, email and password sign-in is also switched on for the
+instance.`,
+		// Not cobra.NoArgs: its error quotes the argument, and the argument
+		// someone passes here is most likely the password.
+		Args: func(_ *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return errors.New("this command takes no arguments: the password is read from standard input " +
+					"or asked for, never taken from the command line")
+			}
+			return nil
+		},
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			// Read the password before the bounded context starts: a person
+			// typing must not race the command's timeout.
+			plaintext, err := secretReader(cmd.InOrStdin(), cmd.ErrOrStderr())
+			if err != nil {
+				return err
+			}
+			ctx, cancel := context.WithTimeout(cmd.Context(), adminCommandTimeout)
+			defer cancel()
+			recovery, release, err := open(ctx)
+			if err != nil {
+				return err
+			}
+			defer release()
+			return runPasswordSet(ctx, recovery, cmd.OutOrStdout(), email, plaintext, enableLogin)
+		},
+	}
+	cmd.Flags().StringVar(&email, "email", "", "email of the root instance admin (required)")
+	cmd.Flags().BoolVar(&enableLogin, "enable-login", false, "also switch email and password sign-in on")
+	if err := cmd.MarkFlagRequired("email"); err != nil {
+		panic(err) // the flag is defined two lines up
+	}
+	return cmd
+}
+
+// readSecret returns the password from in: asked for twice without echo when in
+// is a terminal, read whole otherwise. One trailing line break is dropped, so
+// `echo` and a here-string work; nothing else is trimmed, because a password
+// may begin or end with a space.
+func readSecret(in io.Reader, prompt io.Writer) (string, error) {
+	if file, ok := in.(*os.File); ok && term.IsTerminal(int(file.Fd())) {
+		return promptSecret(file, prompt)
+	}
+	// Said before reading: with an input that never closes (`docker exec -i`
+	// and no pipe) the command would otherwise wait without a word.
+	if _, err := fmt.Fprintln(prompt, "Reading the password from standard input..."); err != nil {
+		return "", err
+	}
+	raw, err := io.ReadAll(io.LimitReader(in, passwordInputLimit+1))
+	if err != nil {
+		return "", fmt.Errorf("failed to read the password from standard input: %w", err)
+	}
+	if len(raw) > passwordInputLimit {
+		return "", errors.New("the password on standard input is too long")
+	}
+	plaintext := strings.TrimSuffix(strings.TrimSuffix(string(raw), "\n"), "\r")
+	if plaintext == "" {
+		return "", errors.New("no password on standard input; pipe one in, or run the command in a terminal to be asked")
+	}
+	return plaintext, nil
+}
+
+// promptSecret asks for the password twice on the terminal, with echo off.
+func promptSecret(terminal *os.File, prompt io.Writer) (string, error) {
+	ask := func(label string) (string, error) {
+		if _, err := fmt.Fprint(prompt, label); err != nil {
+			return "", err
+		}
+		raw, err := term.ReadPassword(int(terminal.Fd()))
+		if _, nlErr := fmt.Fprintln(prompt); err == nil {
+			err = nlErr
+		}
+		if err != nil {
+			return "", fmt.Errorf("failed to read the password: %w", err)
+		}
+		return string(raw), nil
+	}
+	first, err := ask("New password: ")
+	if err != nil {
+		return "", err
+	}
+	second, err := ask("Repeat the password: ")
+	if err != nil {
+		return "", err
+	}
+	if first != second {
+		return "", errors.New("the two passwords do not match; nothing was changed")
+	}
+	if first == "" {
+		return "", errors.New("the password is empty; nothing was changed")
+	}
+	return first, nil
+}
+
+func runPasswordSet(
+	ctx context.Context, recovery authRecovery, out io.Writer, email, plaintext string, enableLogin bool,
+) error {
+	result, err := recovery.SetRootAdminPassword(ctx, email, plaintext, enableLogin)
+	var policyErr *password.PolicyError
+	switch {
+	case errors.Is(err, services.ErrNotRootAdmin):
+		return fmt.Errorf("%q is not a root instance admin: only an email listed in auth.instance_admins "+
+			"can be given a password this way; nothing was changed", email)
+	case errors.Is(err, services.ErrRootAdminAccountMissing):
+		return fmt.Errorf("no account exists for %q yet, and this command cannot create one; "+
+			"run `vibexp admin auth setup rearm` and create the account from the setup page; nothing was changed", email)
+	case errors.Is(err, services.ErrRootAdminSuspended):
+		return fmt.Errorf("the account of %q is suspended, so a password would not let it sign in; "+
+			"nothing was changed", email)
+	case errors.As(err, &policyErr):
+		return fmt.Errorf("the password does not meet the password policy: %s Nothing was changed",
+			policyViolations(policyErr))
+	case err != nil:
+		return err
+	}
+
+	action := "set"
+	if result.PasswordReplaced {
+		action = "replaced"
+	}
+	if _, err = fmt.Fprintf(out, "Password %s for %s. The account's existing sessions are ended.\n",
+		action, result.Email); err != nil {
+		return err
+	}
+	switch {
+	case result.LoginSwitchedOn:
+		_, err = fmt.Fprintln(out, "Email and password sign-in is now switched on.")
+	case enableLogin:
+		_, err = fmt.Fprintln(out, "Email and password sign-in was already switched on.")
+	default:
+		_, err = fmt.Fprintln(out, "Email and password sign-in was not changed: "+
+			"if it is switched off, run the command again with --enable-login.")
+	}
+	return err
+}
+
+// policyViolations lists what a refused password broke, as sentences.
+func policyViolations(err *password.PolicyError) string {
+	messages := make([]string, 0, len(err.Violations))
+	for _, violation := range err.Violations {
+		messages = append(messages, violation.Message())
+	}
+	return strings.Join(messages, " ")
 }
 
 // openAuthRecovery is the production authRecoveryOpener: it loads the same
@@ -247,11 +444,48 @@ func closeQuietly(db *database.DB) {
 // repositories the server uses.
 func newAuthRecoveryService(db *database.DB, cfg *config.Config) *services.AuthRecoveryService {
 	return services.NewAuthRecoveryService(services.AuthRecoveryDeps{
-		Providers: postgres.NewInstanceAuthProviderRepository(db),
-		Allowlist: postgres.NewInstanceAuthAllowlistRepository(db),
-		Setup:     postgres.NewInstanceAuthSetupRepository(db),
-		Version:   postgres.NewInstanceAuthSettingsVersionRepository(db),
-		BaseURL:   cfg.Frontend.BaseURL,
+		Providers:     postgres.NewInstanceAuthProviderRepository(db),
+		Allowlist:     postgres.NewInstanceAuthAllowlistRepository(db),
+		Setup:         postgres.NewInstanceAuthSetupRepository(db),
+		Version:       postgres.NewInstanceAuthSettingsVersionRepository(db),
+		WayIn:         newAuthWayIn(db, cfg),
+		RootPasswords: newRootAdminPasswordService(db, cfg),
+		BaseURL:       cfg.Frontend.BaseURL,
+	})
+}
+
+// newAuthWayIn builds the "does a sign-in method work" check the server uses,
+// over the database and the configured root admins.
+func newAuthWayIn(db *database.DB, cfg *config.Config) services.AuthWayIn {
+	admins := services.NewInstanceAdminService(cfg.Auth.InstanceAdmins, nil, nil, slog.New(slog.DiscardHandler))
+	return services.NewAuthWayIn(services.AuthWayInDeps{
+		Providers:       postgres.NewInstanceAuthProviderRepository(db),
+		Policies:        postgres.NewInstanceAuthPolicyRepository(db),
+		Credentials:     postgres.NewUserCredentialRepository(db),
+		RootAdminEmails: admins.RootAdminEmails,
+	})
+}
+
+// newRootAdminPasswordService builds the password recovery over the database,
+// with the server's hashing parameters. It has no event publisher, so it sets
+// passwords on existing accounts only. The password service is built for
+// SetPassword alone: it gets no policy or allowlist resolver, which only
+// sign-in reads.
+func newRootAdminPasswordService(db *database.DB, cfg *config.Config) *services.RootAdminPasswordService {
+	// The CLI's own output is the report; the services' log lines stay quiet.
+	logger := slog.New(slog.DiscardHandler)
+	users := postgres.NewUserRepository(db)
+	credentials := postgres.NewUserCredentialRepository(db)
+	admins := services.NewInstanceAdminService(cfg.Auth.InstanceAdmins, nil, nil, logger)
+	return services.NewRootAdminPasswordService(services.RootAdminPasswordDeps{
+		Users:       users,
+		Credentials: credentials,
+		Policies:    postgres.NewInstanceAuthPolicyRepository(db),
+		Passwords: services.NewPasswordAuthService(services.PasswordAuthDeps{
+			Users: users, Credentials: credentials, Hasher: password.NewHasher(password.DefaultParams), Logger: logger,
+		}),
+		IsRootAdmin: admins.IsRootAdmin,
+		Logger:      logger,
 	})
 }
 
@@ -262,6 +496,9 @@ var authSettingsTables = []string{
 	"instance_auth_setup",
 	"instance_auth_settings_version",
 	"instance_settings_audit",
+	"instance_auth_policy",
+	"users",
+	"user_credentials",
 }
 
 // requireAuthSettingsTables fails, naming the first missing table, unless the

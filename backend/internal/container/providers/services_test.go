@@ -82,8 +82,10 @@ func TestProvideSetupModeService_RecoveryModeFromConfig(t *testing.T) {
 		cfg := &config.Config{}
 		cfg.Auth.RecoveryMode = config.EnvBool(recovery)
 
-		svc := ProvideSetupModeService(setup, providerRepo,
-			services.NewInstanceAdminService(nil, nil, nil, slog.New(slog.DiscardHandler)),
+		admins := services.NewInstanceAdminService(nil, nil, nil, slog.New(slog.DiscardHandler))
+		policies := repomocks.NewMockInstanceAuthPolicyRepository(t)
+		wayIn := ProvideAuthWayIn(providerRepo, policies, repomocks.NewMockUserCredentialRepository(t), admins)
+		svc := ProvideSetupModeService(setup, wayIn, admins,
 			cfg, slog.New(slog.DiscardHandler))
 
 		active, err := svc.IsActive(context.Background())

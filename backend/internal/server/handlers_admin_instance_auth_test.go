@@ -8,16 +8,19 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
+	"github.com/vibexp/vibexp/internal/auth/password"
 	sesslib "github.com/vibexp/vibexp/internal/auth/session"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
@@ -27,12 +30,14 @@ import (
 	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
 	"github.com/vibexp/vibexp/internal/specconformance"
 	"github.com/vibexp/vibexp/internal/testutils/memauthsettings"
+	"github.com/vibexp/vibexp/pkg/events"
 )
 
 const (
 	authSettingsPath      = "/api/v1/admin/settings/auth"
 	authProvidersPath     = authSettingsPath + "/providers"
 	authAllowlistPath     = authSettingsPath + "/allowlist"
+	authBootstrapPath     = authSettingsPath + "/bootstrap-admin"
 	authPolicyPath        = authSettingsPath + "/policy"
 	authAdminsPath        = authSettingsPath + "/admins"
 	authAuditPath         = authSettingsPath + "/audit"
@@ -136,6 +141,104 @@ func (u *authTestUsers) GetByEmail(_ context.Context, email string) (*models.Use
 	return nil, repositories.ErrUserNotFound
 }
 
+func (u *authTestUsers) Create(_ context.Context, user *models.User) error {
+	user.ID = uuid.NewString()
+	user.Status = models.UserStatusActive
+	u.users = append(u.users, user)
+	return nil
+}
+
+func (u *authTestUsers) Update(_ context.Context, user *models.User) error {
+	for i := range u.users {
+		if u.users[i].ID == user.ID {
+			u.users[i] = user
+		}
+	}
+	return nil
+}
+
+func (u *authTestUsers) BumpSessionEpoch(_ context.Context, userID string) (int64, error) {
+	user, err := u.GetByID(context.Background(), userID)
+	if err != nil {
+		return 0, err
+	}
+	user.SessionEpoch++
+	return user.SessionEpoch, nil
+}
+
+func (u *authTestUsers) DeleteByID(_ context.Context, userID string) error {
+	for i := range u.users {
+		if u.users[i].ID == userID {
+			u.users = append(u.users[:i], u.users[i+1:]...)
+			return nil
+		}
+	}
+	return repositories.ErrUserNotFound
+}
+
+// memCredentialCounts is the password credential table as setup mode, the
+// lockout guard and the bootstrap see it: who has a password, and the two
+// counts. It also stands in for the password service's SetPassword.
+type memCredentialCounts struct {
+	repositories.UserCredentialRepository
+	users  *authTestUsers
+	hashes map[string]string
+	// passwordOnly is what CountPasswordOnly reports.
+	passwordOnly int
+}
+
+func (c *memCredentialCounts) Get(_ context.Context, userID string) (*models.UserCredential, error) {
+	hash, ok := c.hashes[userID]
+	if !ok {
+		return nil, repositories.ErrUserCredentialNotFound
+	}
+	return &models.UserCredential{UserID: userID, PasswordHash: hash}, nil
+}
+
+// SetPassword applies the real password policy and stores a marker, not a hash.
+func (c *memCredentialCounts) SetPassword(ctx context.Context, userID, plaintext string) error {
+	user, err := c.users.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if err = password.Validate(plaintext, user.Email); err != nil {
+		return err
+	}
+	c.hashes[userID] = "stored"
+	return nil
+}
+
+// CountUsableForAdmins counts the root admins (by email) and granted admins
+// are not modelled: the tests that need one give a root admin a password.
+func (c *memCredentialCounts) CountUsableForAdmins(_ context.Context, rootEmails []string) (int, error) {
+	count := 0
+	for userID := range c.hashes {
+		user, err := c.users.GetByID(context.Background(), userID)
+		if err == nil && !user.IsSuspended() && slices.Contains(rootEmails, user.Email) {
+			count++
+		}
+	}
+	return count, nil
+}
+
+func (c *memCredentialCounts) CountPasswordOnly(context.Context) (int, error) {
+	return c.passwordOnly, nil
+}
+
+// recordingPublisher records published events.
+type recordingPublisher struct {
+	published []events.Event
+	err       error
+}
+
+func (p *recordingPublisher) Publish(_ context.Context, event events.Event) error {
+	if p.err != nil {
+		return p.err
+	}
+	p.published = append(p.published, event)
+	return nil
+}
+
 func (u *authTestUsers) GetNamesByIDs(_ context.Context, ids []string) (map[string]string, error) {
 	names := map[string]string{}
 	for _, id := range ids {
@@ -157,6 +260,13 @@ type authSettingsFixture struct {
 	resolver *stubIDPResolver
 	setup    services.SetupModeService
 	enc      *services.EncryptionService
+	// creds and wayIn back the password side of setup mode and the lockout
+	// guard (#1438); events records what the bootstrap published.
+	creds  *memCredentialCounts
+	wayIn  services.AuthWayIn
+	events *recordingPublisher
+	// admin is the container, for a test that installs a collaborator.
+	admin *adminMockContainer
 	// setupCookie is the setup session's cookie, once primeSetupSession minted it.
 	setupCookie *http.Cookie
 }
@@ -179,9 +289,15 @@ func newAuthSettingsFixture(t *testing.T) *authSettingsFixture {
 	f := &authSettingsFixture{store: memauthsettings.New(), users: newAuthTestUsers(), enc: enc}
 	f.resolver = &stubIDPResolver{store: f.store}
 	admins := services.NewInstanceAdminService([]string{authTestRootEmail}, f.store.Grants(), f.users, logger)
+	f.creds = &memCredentialCounts{users: f.users, hashes: map[string]string{}}
+	f.events = &recordingPublisher{}
+	f.wayIn = services.NewAuthWayIn(services.AuthWayInDeps{
+		Providers: f.store.Providers(), Policies: f.store.Policy(), Credentials: f.creds,
+		RootAdminEmails: admins.RootAdminEmails,
+	})
 	f.setup = services.NewSetupModeService(services.SetupModeDeps{
 		Setup:       &memSetupState{},
-		Providers:   f.store.Providers(),
+		WayIn:       f.wayIn,
 		IsRootAdmin: admins.IsRootAdmin,
 		BaseURL:     authTestBaseURL,
 		Logger:      logger,
@@ -220,11 +336,18 @@ func newAuthSettingsFixture(t *testing.T) *authSettingsFixture {
 				Allowlists: f.store.Allowlist(), Versions: f.store.Versions(), RootAdmins: admins, Logger: logger,
 			}),
 			Admins:      admins,
+			WayIn:       f.wayIn,
+			Credentials: f.creds,
+			RootPasswords: services.NewRootAdminPasswordService(services.RootAdminPasswordDeps{
+				Users: f.users, Credentials: f.creds, Policies: f.store.Policy(), Passwords: f.creds,
+				IsRootAdmin: admins.IsRootAdmin, Events: f.events, Logger: logger,
+			}),
 			Enc:         enc,
 			CallbackURL: authTestCallbackURL,
 			Logger:      logger,
 		}),
 	}
+	f.admin = admin
 	f.srv = newAdminTestServer(cfg, admin)
 	f.srv.container = &authSettingsContainer{adminMockContainer: admin, setup: f.setup}
 	return f
@@ -1276,7 +1399,7 @@ func TestAdminSetupSessionRoutesPattern(t *testing.T) {
 
 // TestAdminSetupSessionRoutes_MatchExactlyTheMountedSetupRoutes walks the
 // mounted route table: of every admin route, exactly the provider and allowlist
-// operations match adminSetupSessionRoutes. A route added under either prefix
+// operations and the password bootstrap match adminSetupSessionRoutes. A route added under either prefix
 // fails here until it is deliberately admitted (or left admin-only).
 func TestAdminSetupSessionRoutes_MatchExactlyTheMountedSetupRoutes(t *testing.T) {
 	srv := New("8080", nil, "test-api-key", &config.Config{}, slog.New(slog.DiscardHandler))
@@ -1303,6 +1426,8 @@ func TestAdminSetupSessionRoutes_MatchExactlyTheMountedSetupRoutes(t *testing.T)
 		"PUT " + authProvidersPath + "/{id}", "DELETE " + authProvidersPath + "/{id}",
 		"GET " + authAllowlistPath, "PUT " + authAllowlistPath, "DELETE " + authAllowlistPath,
 		"POST " + authAllowlistPath + "/preview",
+		// Setup session ONLY: the handler refuses a signed-in admin (#1438).
+		"PUT " + authBootstrapPath,
 	}, admitted)
 }
 

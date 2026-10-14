@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"regexp"
 
+	"github.com/vibexp/vibexp/internal/auth/password"
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	"github.com/vibexp/vibexp/internal/services"
+	"github.com/vibexp/vibexp/internal/services/activities"
 )
 
 // Instance authentication settings for instance admins (#1238, epic #1230):
@@ -40,14 +42,16 @@ const (
 
 // adminSetupSessionRoutes matches exactly the instance authentication settings
 // paths a setup session may reach: /providers, /providers/test,
-// /providers/{uuid}, /allowlist and /allowlist/preview. Each sub-path is spelled
+// /providers/{uuid}, /allowlist, /allowlist/preview and /bootstrap-admin (which
+// admits a setup session ONLY, see BootstrapAdminPassword). Each sub-path is spelled
 // out, so nothing else on the admin surface matches — not the admin list, not
 // the audit log, and not a route added later under either prefix.
 // TestAdminSetupSessionRoutes_MatchExactlyTheMountedSetupRoutes pins the
 // pattern against the mounted route table.
 var adminSetupSessionRoutes = regexp.MustCompile(`^/api/v1/admin/settings/auth/(` +
 	`providers(/test|/` + uuidPattern + `)?|` +
-	`allowlist(/preview)?` +
+	`allowlist(/preview)?|` +
+	`bootstrap-admin` +
 	`)$`)
 
 // uuidPattern matches one UUID in its canonical textual form.
@@ -248,6 +252,7 @@ func (a *adminStrictServer) TestAdminAuthProvider(
 func lockoutContext(ctx context.Context, confirmed *bool) models.InstanceAuthLockoutContext {
 	return models.InstanceAuthLockoutContext{
 		SessionProvider: sessionProviderFromContext(ctx),
+		AuthMethod:      contextkeys.GetAuthMethod(ctx),
 		Confirmed:       confirmed != nil && *confirmed,
 	}
 }
@@ -331,9 +336,9 @@ func (a *adminStrictServer) PreviewAdminAuthAllowlist(
 // with nothing stored the defaults are returned, with no version.
 //
 // The policy routes are instance-admin only. They are deliberately absent from
-// adminSetupSessionRoutes: a setup session exists to configure a sign-in
-// provider before anyone can sign in, and whether it may also switch password
-// login on is decided with password-only bootstrap (#1438), not here.
+// adminSetupSessionRoutes: a setup session switches password login on only
+// together with giving a root admin a password (BootstrapAdminPassword, #1438),
+// never on its own, and never changes the registration mode.
 func (a *adminStrictServer) GetAdminAuthPolicy(
 	ctx context.Context, _ admingen.GetAdminAuthPolicyRequestObject,
 ) (admingen.GetAdminAuthPolicyResponseObject, error) {
@@ -363,7 +368,7 @@ func (a *adminStrictServer) UpdateAdminAuthPolicy(
 		models.InstanceAuthPolicy{
 			PasswordLoginEnabled: request.Body.PasswordLoginEnabled,
 			RegistrationMode:     string(request.Body.RegistrationMode),
-		}, request.Body.ExpectedVersion)
+		}, request.Body.ExpectedVersion, lockoutContext(ctx, request.Body.ConfirmLockoutRisk))
 	if err != nil {
 		return nil, a.mapInstanceAuthError(handler, adminMsgAuthPolicyInvalid, err)
 	}
@@ -522,6 +527,87 @@ func (a *adminStrictServer) ListAdminAuthSettingsAudit(
 	return admingen.ListAdminAuthSettingsAudit200JSONResponse(page), nil
 }
 
+// --- password bootstrap ---------------------------------------------------------
+
+const (
+	adminMsgBootstrapSetupOnly = "Only a setup session may set a root admin's password"
+	adminMsgNotRootAdmin       = "The email is not a root instance admin (auth.instance_admins)"
+	adminMsgBootstrapFailed    = "The password could not be set"
+)
+
+// BootstrapAdminPassword gives a root instance admin a password and switches
+// password login on, for a setup session ONLY (#1438).
+//
+// The route is in adminSetupSessionRoutes, whose guard also admits a signed-in
+// instance admin. That admin is refused here: the operation sets another
+// account's password without that account's consent, so a granted admin could
+// otherwise take a root admin's account over. The holder of the setup URL can
+// already point sign-in at a provider of their own, so nothing is lost to them.
+func (a *adminStrictServer) BootstrapAdminPassword(
+	ctx context.Context, request admingen.BootstrapAdminPasswordRequestObject,
+) (admingen.BootstrapAdminPasswordResponseObject, error) {
+	const handler = "BootstrapAdminPassword"
+	if !isSetupSessionRequest(ctx) {
+		return nil, apierrors.NewForbiddenError(adminMsgBootstrapSetupOnly)
+	}
+	if request.Body == nil {
+		return nil, apierrors.NewBadRequestError(msgInvalidBodyWellFormedJSON)
+	}
+	email, plaintext := string(request.Body.Email), request.Body.Password
+	// The bounds the spec declares; nothing else enforces them, and an
+	// unbounded password would be hashed whole.
+	if len(email) > maxSignInEmailBytes || len(plaintext) > maxSignInPasswordBytes {
+		return nil, apierrors.NewBadRequestError("email or password is too long")
+	}
+
+	result, err := a.s.container.InstanceAuthSettingsService().BootstrapAdminPassword(ctx, email, plaintext)
+	if err != nil {
+		return nil, a.mapBootstrapError(handler, err)
+	}
+	if !result.AccountCreated {
+		// The account's owner did not do this; leave them a trace of it,
+		// whether a password was replaced or a first one added.
+		a.recordBootstrapActivity(ctx, handler, result)
+	}
+	return admingen.BootstrapAdminPassword204Response{}, nil
+}
+
+// recordBootstrapActivity leaves the owner of an existing account a trace
+// that a password was set on it without them. A failure is logged, not
+// returned: the password is already changed.
+func (a *adminStrictServer) recordBootstrapActivity(
+	ctx context.Context, handler string, result *services.RootAdminPasswordResult,
+) {
+	activityService := a.s.container.ActivityService()
+	if activityService == nil {
+		return
+	}
+	err := activityService.RecordAuthActivity(ctx, result.UserID, activities.ActivityTypeAuthAdminBootstrap, nil,
+		map[string]interface{}{"replaced": result.PasswordReplaced, "source": "setup_session"}, nil, nil)
+	if err != nil {
+		a.s.logger.With("handler", handler, "user_id", result.UserID, "error", err).
+			Error("Failed to record the password bootstrap activity")
+	}
+}
+
+// mapBootstrapError turns a bootstrap refusal into its HTTP shape. The error is
+// logged, never the request body.
+func (a *adminStrictServer) mapBootstrapError(handler string, err error) error {
+	var policyErr *password.PolicyError
+	switch {
+	case errors.Is(err, services.ErrNotRootAdmin):
+		return apierrors.NewValidationError(adminMsgNotRootAdmin, []apierrors.ValidationError{
+			apierrors.NewFieldValidationError("email", adminMsgNotRootAdmin, "not_root_admin"),
+		})
+	case errors.As(err, &policyErr):
+		return passwordPolicyProblem(policyErr)
+	case errors.Is(err, services.ErrRootAdminSuspended):
+		return adminConflictError("The account with this email is suspended")
+	}
+	a.s.logger.With("handler", handler, "error", err).Error("Failed to bootstrap a root admin's password")
+	return apierrors.NewInternalError(adminMsgBootstrapFailed)
+}
+
 // --- errors -------------------------------------------------------------------
 
 // mapInstanceAuthError turns a provider or allowlist error into its HTTP
@@ -546,7 +632,11 @@ func (a *adminStrictServer) mapInstanceAuthError(handler, invalidMsg string, err
 	case errors.Is(err, repositories.ErrInstanceAuthProviderConflict):
 		return apierrors.NewInstanceAuthProviderConflictError()
 	case errors.As(err, &lockout):
-		return apierrors.NewLockoutRiskError(lockout.Reason, lockout.Error()+adminMsgLockoutConfirm)
+		problem := apierrors.NewLockoutRiskError(lockout.Reason, lockout.Error()+adminMsgLockoutConfirm)
+		if lockout.Reason == services.AuthLockoutPasswordOnlyAccounts {
+			problem.Metadata["password_only_accounts"] = lockout.PasswordOnlyAccounts
+		}
+		return problem
 	default:
 		return a.adminInternalError(handler, err)
 	}

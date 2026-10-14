@@ -100,6 +100,29 @@ type authSettingsFixture struct {
 	resolver *fakeAuthResolver
 	users    *authSettingsUsers
 	enc      *EncryptionService
+	wayIn    *staticWayIn
+	counts   *credentialCounts
+}
+
+// staticWayIn is an AuthWayIn with fixed answers.
+type staticWayIn struct {
+	password bool
+	err      error
+}
+
+func (w *staticWayIn) PasswordWorks(context.Context) (bool, error) { return w.password, w.err }
+
+func (w *staticWayIn) Any(context.Context) (bool, error) { return w.password, w.err }
+
+// credentialCounts is the credential repository as the lockout guard sees it.
+type credentialCounts struct {
+	repositories.UserCredentialRepository
+	passwordOnly int
+	err          error
+}
+
+func (c *credentialCounts) CountPasswordOnly(context.Context) (int, error) {
+	return c.passwordOnly, c.err
 }
 
 func newAuthSettingsFixture(t *testing.T) *authSettingsFixture {
@@ -112,6 +135,8 @@ func newAuthSettingsFixture(t *testing.T) *authSettingsFixture {
 		store:    memauthsettings.New(),
 		resolver: &fakeAuthResolver{},
 		enc:      enc,
+		wayIn:    &staticWayIn{},
+		counts:   &credentialCounts{},
 		users: &authSettingsUsers{users: []*models.User{
 			{ID: authSettingsRootID, Email: authSettingsRootEmail, Name: "Root", Status: models.UserStatusActive},
 			{ID: authSettingsDBAdminID, Email: "delegate@example.com", Status: models.UserStatusActive},
@@ -121,12 +146,15 @@ func newAuthSettingsFixture(t *testing.T) *authSettingsFixture {
 	}
 	admins := NewInstanceAdminService([]string{authSettingsRootEmail}, f.store.Grants(), f.users, logger)
 	f.svc = NewInstanceAuthSettingsService(InstanceAuthSettingsDeps{
-		Providers:  f.store.Providers(),
-		Allowlists: f.store.Allowlist(),
-		Versions:   f.store.Versions(),
-		Grants:     f.store.Grants(),
-		Users:      f.users,
-		Resolver:   f.resolver,
+		Providers:   f.store.Providers(),
+		Allowlists:  f.store.Allowlist(),
+		Policies:    f.store.Policy(),
+		WayIn:       f.wayIn,
+		Credentials: f.counts,
+		Versions:    f.store.Versions(),
+		Grants:      f.store.Grants(),
+		Users:       f.users,
+		Resolver:    f.resolver,
 		AllowlistResolver: NewAccessAllowlistResolver(AccessAllowlistResolverDeps{
 			Allowlists: f.store.Allowlist(), Versions: f.store.Versions(), RootAdmins: admins, Logger: logger,
 		}),
@@ -379,8 +407,17 @@ func TestCheckAuthLockoutRisk(t *testing.T) {
 		target       string
 		enabledAfter bool
 		caller       models.InstanceAuthLockoutContext
-		want         string
+		// passwordWorks: password login is a working way in (#1438).
+		passwordWorks bool
+		want          string
 	}{
+		{name: "disabling the last enabled provider while password login works", current: rows(true, false),
+			target: "id-a", passwordWorks: true},
+		{name: "deleting the only provider while password login works", current: rows(true), target: "id-a",
+			passwordWorks: true},
+		{name: "the caller's own provider is still flagged when password login works", current: rows(true),
+			target: "id-a", passwordWorks: true,
+			caller: models.InstanceAuthLockoutContext{SessionProvider: "a"}, want: AuthLockoutOwnProvider},
 		{name: "disabling the last enabled provider", current: rows(true, false), target: "id-a",
 			want: AuthLockoutNoEnabledProvider},
 		{name: "deleting the only provider", current: rows(true), target: "id-a",
@@ -402,7 +439,7 @@ func TestCheckAuthLockoutRisk(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := checkAuthLockoutRisk(tc.current, tc.target, tc.enabledAfter, tc.caller)
+			err := checkAuthLockoutRisk(tc.current, tc.target, tc.enabledAfter, tc.caller, tc.passwordWorks)
 			if tc.want == "" {
 				require.NoError(t, err)
 				return

@@ -24,6 +24,66 @@ func (_m *MockInstanceAuthSettingsServiceInterface) EXPECT() *MockInstanceAuthSe
 	return &MockInstanceAuthSettingsServiceInterface_Expecter{mock: &_m.Mock}
 }
 
+// BootstrapAdminPassword provides a mock function with given fields: ctx, email, plaintext
+func (_m *MockInstanceAuthSettingsServiceInterface) BootstrapAdminPassword(ctx context.Context, email string, plaintext string) (*services.RootAdminPasswordResult, error) {
+	ret := _m.Called(ctx, email, plaintext)
+
+	if len(ret) == 0 {
+		panic("no return value specified for BootstrapAdminPassword")
+	}
+
+	var r0 *services.RootAdminPasswordResult
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*services.RootAdminPasswordResult, error)); ok {
+		return rf(ctx, email, plaintext)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) *services.RootAdminPasswordResult); ok {
+		r0 = rf(ctx, email, plaintext)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*services.RootAdminPasswordResult)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, email, plaintext)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInstanceAuthSettingsServiceInterface_BootstrapAdminPassword_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'BootstrapAdminPassword'
+type MockInstanceAuthSettingsServiceInterface_BootstrapAdminPassword_Call struct {
+	*mock.Call
+}
+
+// BootstrapAdminPassword is a helper method to define mock.On call
+//   - ctx context.Context
+//   - email string
+//   - plaintext string
+func (_e *MockInstanceAuthSettingsServiceInterface_Expecter) BootstrapAdminPassword(ctx interface{}, email interface{}, plaintext interface{}) *MockInstanceAuthSettingsServiceInterface_BootstrapAdminPassword_Call {
+	return &MockInstanceAuthSettingsServiceInterface_BootstrapAdminPassword_Call{Call: _e.mock.On("BootstrapAdminPassword", ctx, email, plaintext)}
+}
+
+func (_c *MockInstanceAuthSettingsServiceInterface_BootstrapAdminPassword_Call) Run(run func(ctx context.Context, email string, plaintext string)) *MockInstanceAuthSettingsServiceInterface_BootstrapAdminPassword_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockInstanceAuthSettingsServiceInterface_BootstrapAdminPassword_Call) Return(_a0 *services.RootAdminPasswordResult, _a1 error) *MockInstanceAuthSettingsServiceInterface_BootstrapAdminPassword_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInstanceAuthSettingsServiceInterface_BootstrapAdminPassword_Call) RunAndReturn(run func(context.Context, string, string) (*services.RootAdminPasswordResult, error)) *MockInstanceAuthSettingsServiceInterface_BootstrapAdminPassword_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateProvider provides a mock function with given fields: ctx, actorUserID, req
 func (_m *MockInstanceAuthSettingsServiceInterface) CreateProvider(ctx context.Context, actorUserID string, req models.CreateInstanceAuthProviderRequest) (*models.InstanceAuthProviderSaved, error) {
 	ret := _m.Called(ctx, actorUserID, req)
@@ -701,9 +761,9 @@ func (_c *MockInstanceAuthSettingsServiceInterface_UpdateAllowlist_Call) RunAndR
 	return _c
 }
 
-// UpdatePolicy provides a mock function with given fields: ctx, actorUserID, policy, expectedVersion
-func (_m *MockInstanceAuthSettingsServiceInterface) UpdatePolicy(ctx context.Context, actorUserID string, policy models.InstanceAuthPolicy, expectedVersion *int64) (*models.InstanceAuthPolicy, error) {
-	ret := _m.Called(ctx, actorUserID, policy, expectedVersion)
+// UpdatePolicy provides a mock function with given fields: ctx, actorUserID, policy, expectedVersion, lockout
+func (_m *MockInstanceAuthSettingsServiceInterface) UpdatePolicy(ctx context.Context, actorUserID string, policy models.InstanceAuthPolicy, expectedVersion *int64, lockout models.InstanceAuthLockoutContext) (*models.InstanceAuthPolicy, error) {
+	ret := _m.Called(ctx, actorUserID, policy, expectedVersion, lockout)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdatePolicy")
@@ -711,19 +771,19 @@ func (_m *MockInstanceAuthSettingsServiceInterface) UpdatePolicy(ctx context.Con
 
 	var r0 *models.InstanceAuthPolicy
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, models.InstanceAuthPolicy, *int64) (*models.InstanceAuthPolicy, error)); ok {
-		return rf(ctx, actorUserID, policy, expectedVersion)
+	if rf, ok := ret.Get(0).(func(context.Context, string, models.InstanceAuthPolicy, *int64, models.InstanceAuthLockoutContext) (*models.InstanceAuthPolicy, error)); ok {
+		return rf(ctx, actorUserID, policy, expectedVersion, lockout)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, models.InstanceAuthPolicy, *int64) *models.InstanceAuthPolicy); ok {
-		r0 = rf(ctx, actorUserID, policy, expectedVersion)
+	if rf, ok := ret.Get(0).(func(context.Context, string, models.InstanceAuthPolicy, *int64, models.InstanceAuthLockoutContext) *models.InstanceAuthPolicy); ok {
+		r0 = rf(ctx, actorUserID, policy, expectedVersion, lockout)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.InstanceAuthPolicy)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, models.InstanceAuthPolicy, *int64) error); ok {
-		r1 = rf(ctx, actorUserID, policy, expectedVersion)
+	if rf, ok := ret.Get(1).(func(context.Context, string, models.InstanceAuthPolicy, *int64, models.InstanceAuthLockoutContext) error); ok {
+		r1 = rf(ctx, actorUserID, policy, expectedVersion, lockout)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -741,13 +801,14 @@ type MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call struct {
 //   - actorUserID string
 //   - policy models.InstanceAuthPolicy
 //   - expectedVersion *int64
-func (_e *MockInstanceAuthSettingsServiceInterface_Expecter) UpdatePolicy(ctx interface{}, actorUserID interface{}, policy interface{}, expectedVersion interface{}) *MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call {
-	return &MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call{Call: _e.mock.On("UpdatePolicy", ctx, actorUserID, policy, expectedVersion)}
+//   - lockout models.InstanceAuthLockoutContext
+func (_e *MockInstanceAuthSettingsServiceInterface_Expecter) UpdatePolicy(ctx interface{}, actorUserID interface{}, policy interface{}, expectedVersion interface{}, lockout interface{}) *MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call {
+	return &MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call{Call: _e.mock.On("UpdatePolicy", ctx, actorUserID, policy, expectedVersion, lockout)}
 }
 
-func (_c *MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call) Run(run func(ctx context.Context, actorUserID string, policy models.InstanceAuthPolicy, expectedVersion *int64)) *MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call {
+func (_c *MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call) Run(run func(ctx context.Context, actorUserID string, policy models.InstanceAuthPolicy, expectedVersion *int64, lockout models.InstanceAuthLockoutContext)) *MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(models.InstanceAuthPolicy), args[3].(*int64))
+		run(args[0].(context.Context), args[1].(string), args[2].(models.InstanceAuthPolicy), args[3].(*int64), args[4].(models.InstanceAuthLockoutContext))
 	})
 	return _c
 }
@@ -757,7 +818,7 @@ func (_c *MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call) Return(_a0
 	return _c
 }
 
-func (_c *MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call) RunAndReturn(run func(context.Context, string, models.InstanceAuthPolicy, *int64) (*models.InstanceAuthPolicy, error)) *MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call {
+func (_c *MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call) RunAndReturn(run func(context.Context, string, models.InstanceAuthPolicy, *int64, models.InstanceAuthLockoutContext) (*models.InstanceAuthPolicy, error)) *MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }

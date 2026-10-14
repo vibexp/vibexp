@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/lib/pq"
+
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -190,4 +192,40 @@ func (r *UserCredentialRepository) Delete(ctx context.Context, userID string) (b
 		return false, fmt.Errorf("failed to delete user credential: %w", err)
 	}
 	return affected > 0, nil
+}
+
+// CountUsableForAdmins counts instance admins with a usable password; see the
+// interface. Admin-ness is passed in (the config addresses) or read from the
+// instance_admins grants; nothing here decides what an admin may do.
+func (r *UserCredentialRepository) CountUsableForAdmins(ctx context.Context, rootEmails []string) (int, error) {
+	query := `
+		SELECT count(*)
+		FROM user_credentials c
+		JOIN users u ON u.id = c.user_id
+		WHERE c.disabled_at IS NULL
+		  AND u.status IS DISTINCT FROM $1
+		  AND (u.email = ANY($2) OR EXISTS (SELECT 1 FROM instance_admins a WHERE a.user_id = u.id))`
+
+	var count int
+	err := r.db.QueryRowContext(ctx, query, models.UserStatusSuspended, pq.Array(rootEmails)).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count admins with a usable password: %w", err)
+	}
+	return count, nil
+}
+
+// CountPasswordOnly counts accounts whose only sign-in method is a password;
+// see the interface.
+func (r *UserCredentialRepository) CountPasswordOnly(ctx context.Context) (int, error) {
+	query := `
+		SELECT count(*)
+		FROM user_credentials c
+		WHERE NOT EXISTS (
+			SELECT 1 FROM user_identities i WHERE i.user_id = c.user_id AND i.provider <> $1)`
+
+	var count int
+	if err := r.db.QueryRowContext(ctx, query, models.DevIdentityProvider).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count password-only accounts: %w", err)
+	}
+	return count, nil
 }

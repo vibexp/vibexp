@@ -121,14 +121,54 @@ func (p *setupProviderRows) List(context.Context) ([]*models.InstanceAuthProvide
 }
 
 type setupFixture struct {
-	svc       *setupModeService
-	repo      *memSetupRepo
-	providers *setupProviderRows
-	logs      *bytes.Buffer
-	now       time.Time
+	// passwordWayIn: password login is on and an instance admin has a usable
+	// password. wayInErr fails that question.
+	passwordWayIn bool
+	wayInErr      error
+	svc           *setupModeService
+	repo          *memSetupRepo
+	providers     *setupProviderRows
+	logs          *bytes.Buffer
+	now           time.Time
 }
 
 const setupRootEmail = "root@example.com"
+
+// noStoredAuthPolicy is an instance that never saved a policy: password login
+// is off.
+type noStoredAuthPolicy struct {
+	repositories.InstanceAuthPolicyRepository
+}
+
+func (noStoredAuthPolicy) Get(context.Context) (*models.InstanceAuthPolicy, error) {
+	return nil, repositories.ErrInstanceAuthPolicyNotFound
+}
+
+// providersOnlyWayIn is the way-in check of an instance with no password
+// login: only the provider rows decide.
+func providersOnlyWayIn(providers repositories.InstanceAuthProviderRepository) AuthWayIn {
+	return NewAuthWayIn(AuthWayInDeps{Providers: providers, Policies: noStoredAuthPolicy{}})
+}
+
+// wayIn is the fixture's way-in check: its provider rows, and password login
+// as f.passwordWayIn says.
+func (f *setupFixture) wayIn() AuthWayIn {
+	return fixtureWayIn{f: f}
+}
+
+type fixtureWayIn struct{ f *setupFixture }
+
+func (w fixtureWayIn) PasswordWorks(context.Context) (bool, error) {
+	return w.f.passwordWayIn, w.f.wayInErr
+}
+
+func (w fixtureWayIn) Any(ctx context.Context) (bool, error) {
+	enabled, err := hasEnabledAuthProvider(ctx, w.f.providers)
+	if err != nil || enabled {
+		return enabled, err
+	}
+	return w.PasswordWorks(ctx)
+}
 
 func newSetupFixture(t *testing.T, recoveryMode bool) *setupFixture {
 	t.Helper()
@@ -138,7 +178,7 @@ func newSetupFixture(t *testing.T, recoveryMode bool) *setupFixture {
 	}
 	f.svc = newSetupModeService(SetupModeDeps{
 		Setup:        f.repo,
-		Providers:    f.providers,
+		WayIn:        f.wayIn(),
 		IsRootAdmin:  func(email string) bool { return strings.EqualFold(email, setupRootEmail) },
 		BaseURL:      "https://vibexp.example.com/",
 		RecoveryMode: recoveryMode,
@@ -617,11 +657,88 @@ func TestSetupMode_ForceRearm(t *testing.T) {
 
 func TestNewSetupModeService_ReturnsTheInterface(t *testing.T) {
 	svc := NewSetupModeService(SetupModeDeps{
-		Setup: &memSetupRepo{}, Providers: &setupProviderRows{},
+		Setup: &memSetupRepo{}, WayIn: providersOnlyWayIn(&setupProviderRows{}),
 		IsRootAdmin: func(string) bool { return false },
 		Logger:      slog.New(slog.DiscardHandler),
 	})
 	active, err := svc.IsActive(context.Background())
 	require.NoError(t, err)
 	assert.True(t, active)
+}
+
+// A password-only instance (#1438): password login with an instance admin who
+// has a usable password is a working way in, so setup mode is not active.
+func TestSetupMode_PasswordLoginIsAWayIn(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("it ends setup mode with no provider enabled", func(t *testing.T) {
+		f := newSetupFixture(t, false)
+		f.passwordWayIn = true
+
+		active, err := f.svc.IsActive(ctx)
+		require.NoError(t, err)
+		assert.False(t, active)
+		_, minted, err := f.svc.EnsureTokenAtBoot(ctx)
+		require.NoError(t, err)
+		assert.False(t, minted, "a boot mints no setup URL")
+	})
+
+	t.Run("losing it re-arms setup mode by itself", func(t *testing.T) {
+		f := newSetupFixture(t, false)
+		f.passwordWayIn = true
+		active, err := f.svc.IsActive(ctx)
+		require.NoError(t, err)
+		require.False(t, active)
+
+		f.passwordWayIn = false // the admin's password was disabled, or login switched off
+
+		active, err = f.svc.IsActive(ctx)
+		require.NoError(t, err)
+		assert.True(t, active)
+		setupURL, minted, err := f.svc.EnsureTokenAtBoot(ctx)
+		require.NoError(t, err)
+		assert.True(t, minted)
+		assert.NotEmpty(t, setupURL)
+		assert.Contains(t, f.logs.String(), "no sign-in method is usable")
+	})
+
+	t.Run("recovery mode and a re-arm still force setup mode", func(t *testing.T) {
+		recovery := newSetupFixture(t, true)
+		recovery.passwordWayIn = true
+		active, err := recovery.svc.IsActive(ctx)
+		require.NoError(t, err)
+		assert.True(t, active, "auth.recovery_mode")
+
+		rearmed := newSetupFixture(t, false)
+		rearmed.passwordWayIn = true
+		_, err = rearmed.svc.ForceRearm(ctx)
+		require.NoError(t, err)
+		active, err = rearmed.svc.IsActive(ctx)
+		require.NoError(t, err)
+		assert.True(t, active, "`vibexp admin auth setup rearm`")
+	})
+
+	t.Run("a failure to tell is an error, not a guess either way", func(t *testing.T) {
+		f := newSetupFixture(t, false)
+		f.wayInErr = errors.New("pq: down")
+
+		_, err := f.svc.IsActive(ctx)
+		require.Error(t, err)
+		_, _, err = f.svc.EnsureTokenAtBoot(ctx)
+		require.Error(t, err)
+	})
+
+	t.Run("a setup session stays valid after the bootstrap, until a root admin signs in", func(t *testing.T) {
+		f := newSetupFixture(t, false)
+		setupURL, _, err := f.svc.EnsureTokenAtBoot(ctx)
+		require.NoError(t, err)
+		sess, err := f.svc.ExchangeToken(ctx, strings.TrimPrefix(setupURL, "https://vibexp.example.com/setup?token="))
+		require.NoError(t, err)
+
+		f.passwordWayIn = true // the bootstrap happened
+		require.NoError(t, f.svc.ValidateSession(ctx, sess), "a mistyped password can still be corrected")
+
+		require.NoError(t, f.svc.ConsumeOnRootLogin(ctx, &models.User{ID: "u-root", Email: setupRootEmail}))
+		require.ErrorIs(t, f.svc.ValidateSession(ctx, sess), ErrSetupSessionInvalid)
+	})
 }
