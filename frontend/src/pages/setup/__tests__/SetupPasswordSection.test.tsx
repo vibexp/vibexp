@@ -233,6 +233,23 @@ describe('SetupPasswordSection', () => {
     expect(email()).toHaveValue('root@')
   })
 
+  it('accepts an address whose domain has no dot', async () => {
+    const user = renderSection()
+    await fill(user, {
+      email: 'root@localhost',
+      password: PASSPHRASE,
+      repeat: PASSPHRASE,
+    })
+    await user.click(submit())
+
+    await waitFor(() => {
+      expect(settings.bootstrapAdminPassword).toHaveBeenCalledWith({
+        email: 'root@localhost',
+        password: PASSPHRASE,
+      })
+    })
+  })
+
   it('says the account is ready when only the sign-in failed, and offers to try again', async () => {
     auth.passwordLogin.mockRejectedValue(new Error('Network Error'))
     const user = renderSection()

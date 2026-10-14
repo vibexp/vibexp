@@ -36,8 +36,11 @@ interface PartialOutcome {
   message: string
 }
 
-/** Enough to catch a slip; the server decides what an address is. */
-const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+/**
+ * Enough to catch a slip; the server decides what an address is. No dot is
+ * asked of the domain: `admin@localhost` is a valid root admin.
+ */
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+$/
 
 function clientErrors(
   email: string,
