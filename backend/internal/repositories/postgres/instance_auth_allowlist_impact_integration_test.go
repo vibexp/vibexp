@@ -32,7 +32,7 @@ func TestIntegrationInstanceAuthAllowlist_CountUsersOutside(t *testing.T) {
 	ctx := context.Background()
 	repo := NewInstanceAuthAllowlistRepository(integrationDB)
 
-	// Stored addresses are always lower case since migration 023
+	// Stored addresses are always lower case since migration 022_consolidated
 	// (users_email_lowercase), so the fixtures are too; padding is still
 	// representable and still has to be trimmed by the query.
 	for _, email := range []string{

@@ -24,7 +24,7 @@ import (
 // tests pin are the ones only the database can give: one live link per user,
 // purpose and delivery; a consume that exactly one of many simultaneous
 // requests wins and that ends every other link of the user; and the
-// constraints of migration 031.
+// constraints of migration 022_consolidated.
 
 var accountTokenTestNow = time.Date(2026, 10, 14, 9, 0, 0, 0, time.UTC)
 
@@ -907,7 +907,7 @@ func TestIntegrationAccountToken_DeleteDead(t *testing.T) {
 	assert.Zero(t, removed)
 }
 
-// The constraints of migration 031.
+// The constraints of migration 022_consolidated.
 func TestIntegrationAccountToken_Constraints(t *testing.T) {
 	resetIntegrationTables(t)
 	repo := NewAccountTokenRepository(integrationDB)

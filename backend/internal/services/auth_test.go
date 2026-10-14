@@ -1544,9 +1544,9 @@ func TestAuthService_LinkByVerifiedEmail_DecisionMatrix(t *testing.T) {
 }
 
 // The path of a user from before email verification was recorded (migration
-// 023 left email_verified_at NULL): a second provider is refused at first, one
-// sign-in with their own provider verifies the account, and the second
-// provider then links.
+// 022_consolidated left email_verified_at NULL): a second provider is refused
+// at first, one sign-in with their own provider verifies the account, and the
+// second provider then links.
 func TestAuthService_LinkByVerifiedEmail_PreVerificationUserPath(t *testing.T) {
 	ctx := context.Background()
 	account := &models.User{ID: "old-1", Email: "ada@example.com", Name: "Ada"}
