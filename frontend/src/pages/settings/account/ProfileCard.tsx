@@ -26,6 +26,7 @@ import { type Account, accountService } from '@/services/accountService'
 import { ApiError } from '@/types/errors'
 
 import { accountErrorMessage, NAME_MAX_LENGTH } from './accountRules'
+import type { AccountState } from './useAccount'
 
 const schema = z.object({
   name: z
@@ -38,15 +39,18 @@ const schema = z.object({
 type ProfileValues = z.infer<typeof schema>
 
 /**
- * The display name, and the email address shown read-only. `onSaved` receives
- * the updated account so the page and the user menu can follow.
+ * The display name, and the email address shown read-only. The save goes
+ * through the page's one gate (`state.exclusive`), together with the refresh
+ * of the signed-in user that makes the user menu follow.
  */
 export function ProfileCard({
+  state,
   account,
-  onSaved,
+  refreshUser,
 }: Readonly<{
+  state: AccountState
   account: Account
-  onSaved: (account: Account) => void | Promise<void>
+  refreshUser: () => Promise<void>
 }>) {
   const form = useForm<ProfileValues>({
     resolver: zodResolver(schema),
@@ -60,9 +64,11 @@ export function ProfileCard({
 
   const submit = async (values: ProfileValues) => {
     try {
-      const saved = await accountService.updateName(values.name)
-      toast.success('Name saved')
-      await onSaved(saved)
+      const sent = await state.exclusive(async () => {
+        state.setAccount(await accountService.updateName(values.name))
+        await refreshUser()
+      })
+      if (sent) toast.success('Name saved')
     } catch (err) {
       const onName =
         err instanceof ApiError ? err.getFieldErrors('name').at(0) : undefined
@@ -74,7 +80,8 @@ export function ProfileCard({
     }
   }
 
-  const { isDirty, isSubmitting } = form.formState
+  const { isDirty } = form.formState
+  const disabled = state.busy
 
   return (
     <Card data-testid="account-profile-card">
@@ -101,11 +108,7 @@ export function ProfileCard({
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input
-                      {...field}
-                      autoComplete="name"
-                      disabled={isSubmitting}
-                    />
+                    <Input {...field} autoComplete="name" disabled={disabled} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -127,8 +130,8 @@ export function ProfileCard({
                 Your email address cannot be changed.
               </p>
             </div>
-            <Button type="submit" disabled={!isDirty || isSubmitting}>
-              {isSubmitting ? 'Saving…' : 'Save name'}
+            <Button type="submit" disabled={!isDirty || disabled}>
+              Save name
             </Button>
           </form>
         </Form>

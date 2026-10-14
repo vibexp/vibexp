@@ -24,6 +24,7 @@ import {
   accountErrorMessage,
   canDisconnect,
   canRemovePassword,
+  hasGuardedAction,
   SIGN_IN_AGAIN_HREF,
 } from './accountRules'
 import { PasswordForm } from './PasswordForm'
@@ -66,7 +67,11 @@ function MethodRow({
           {badge}
         </div>
         <p className="text-muted-foreground text-sm">{detail}</p>
-        {hint && <p className="text-muted-foreground text-sm">{hint}</p>}
+        {hint && (
+          <p id={`${testId}-hint`} className="text-muted-foreground text-sm">
+            {hint}
+          </p>
+        )}
       </div>
       {action}
     </li>
@@ -129,12 +134,12 @@ export function SignInMethodsCard({
     const copy = removalCopy(removal)
     setError(null)
     try {
-      await state.change(() =>
+      const sent = await state.change(() =>
         removal.kind === 'password'
           ? accountService.removePassword()
           : accountService.disconnectIdentity(removal.identity.id)
       )
-      toast.success(copy.done)
+      if (sent) toast.success(copy.done)
     } catch (err) {
       setError(accountErrorMessage(err, 'The sign-in method was not removed'))
     } finally {
@@ -146,6 +151,10 @@ export function SignInMethodsCard({
   // Removing a method and setting a first password need a recent sign-in;
   // changing a password needs the current one instead.
   const guarded = state.needsSignIn
+  // The note only when signing in again would unlock something, or the server
+  // has just asked for it.
+  const showSignInNote =
+    state.reauthRefused || (guarded && hasGuardedAction(account))
   const copy = removal ? removalCopy(removal) : null
 
   return (
@@ -157,7 +166,7 @@ export function SignInMethodsCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {guarded && (
+        {showSignInNote && (
           <Alert data-testid="account-reauth-note">
             <AlertTitle>
               Sign in again to change your sign-in methods
@@ -203,6 +212,11 @@ export function SignInMethodsCard({
                   variant="outline"
                   size="sm"
                   disabled={state.busy || guarded || !removePasswordAllowed}
+                  aria-describedby={
+                    removePasswordAllowed
+                      ? undefined
+                      : 'account-password-row-hint'
+                  }
                   onClick={() => {
                     setRemoval({ kind: 'password' })
                   }}
@@ -232,6 +246,11 @@ export function SignInMethodsCard({
                     size="sm"
                     disabled={state.busy || guarded || !allowed}
                     aria-label={`Disconnect ${identity.display_name}`}
+                    aria-describedby={
+                      allowed
+                        ? undefined
+                        : `account-identity-${identity.provider}-hint`
+                    }
                     onClick={() => {
                       setRemoval({ kind: 'identity', identity })
                     }}

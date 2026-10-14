@@ -70,6 +70,9 @@ function buildSchema(hasPassword: boolean) {
     })
 }
 
+const STALE_PASSWORD_MESSAGE =
+  'Your account already has a password. Enter it as the current password to change it.'
+
 /** What the success toast says: what changed and what else it ended. */
 function successMessage(hadPassword: boolean, revoked: boolean): string {
   const what = hadPassword ? 'Password changed.' : 'Password set.'
@@ -101,13 +104,14 @@ export function PasswordForm({
 
   const submit = async (values: PasswordValues) => {
     try {
-      await state.change(() =>
+      const sent = await state.change(() =>
         accountService.setPassword({
           ...(hasPassword ? { current_password: values.current_password } : {}),
           new_password: values.new_password,
           revoke_api_access: values.revoke_api_access,
         })
       )
+      if (!sent) return
       form.reset(EMPTY)
       toast.success(successMessage(hasPassword, values.revoke_api_access))
     } catch (err) {
@@ -115,10 +119,19 @@ export function PasswordForm({
       if (err instanceof ApiError) {
         for (const field of SERVER_FIELDS) {
           const first = err.getFieldErrors(field).at(0)
-          if (first) {
-            form.setError(field, { message: first.message })
+          if (!first) continue
+          if (field === 'current_password' && !hasPassword) {
+            // The page thought there was no password and the server has one
+            // (set in another tab, or by a change that was half applied).
+            // That field is not on screen: say it on the form and read the
+            // account again, which brings the right form.
+            form.setError('root', { message: STALE_PASSWORD_MESSAGE })
             placed = true
+            void state.reload()
+            continue
           }
+          form.setError(field, { message: first.message })
+          placed = true
         }
       }
       if (!placed) {

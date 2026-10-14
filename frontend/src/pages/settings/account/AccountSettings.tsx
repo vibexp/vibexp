@@ -11,9 +11,13 @@ import { useAccount } from './useAccount'
 /**
  * Settings → Account (#1441, epic #1426): the signed-in person's display name
  * and the ways they sign in, over the self-service account API (#1437).
+ *
+ * `leave` is injectable so a test does not navigate.
  */
-export function AccountSettings() {
-  const state = useAccount()
+export function AccountSettings({
+  leave,
+}: Readonly<{ leave?: (url: string) => void }> = {}) {
+  const state = useAccount(leave)
   const { refreshUser } = useAuth()
   const { account, loadError } = state
 
@@ -32,6 +36,7 @@ export function AccountSettings() {
             <Button
               variant="outline"
               size="sm"
+              disabled={state.busy}
               onClick={() => {
                 void state.reload()
               }}
@@ -43,6 +48,7 @@ export function AccountSettings() {
       )}
 
       {!account && !loadError && (
+        // Also while a failed load is being retried.
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
@@ -51,12 +57,9 @@ export function AccountSettings() {
       {account && (
         <>
           <ProfileCard
+            state={state}
             account={account}
-            onSaved={async saved => {
-              state.setAccount(saved)
-              // The user menu shows the name from the session's user.
-              await refreshUser()
-            }}
+            refreshUser={refreshUser}
           />
           <SignInMethodsCard state={state} account={account} />
         </>

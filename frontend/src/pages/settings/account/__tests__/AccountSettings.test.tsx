@@ -31,9 +31,31 @@ import { account, apiError, identity, withPassword } from './fixtures'
 const service = vi.mocked(accountService)
 const NEW_PASSWORD = 'a brand new passphrase'
 
+const leave = vi.fn()
+
 function renderPage() {
-  render(<AccountSettings />, { wrapper: MemoryRouter })
+  render(<AccountSettings leave={leave} />, { wrapper: MemoryRouter })
   return userEvent.setup()
+}
+
+/** A promise the test settles by hand, to hold a request in flight. */
+function deferred<T>() {
+  let resolve: (value: T) => void = () => {}
+  const promise = new Promise<T>(done => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
+async function fillChange(
+  user: ReturnType<typeof userEvent.setup>,
+  current = 'the old one'
+) {
+  const form = await passwordForm('Change password')
+  await user.type(form.getByLabelText('Current password'), current)
+  await user.type(form.getByLabelText('New password'), NEW_PASSWORD)
+  await user.type(form.getByLabelText('Repeat the new password'), NEW_PASSWORD)
+  return form
 }
 
 async function passwordForm(name: 'Set a password' | 'Change password') {
@@ -467,5 +489,303 @@ describe('AccountSettings: removing a sign-in method', () => {
     expect(
       await screen.findByRole('form', { name: 'Set a password' })
     ).toBeVisible()
+  })
+})
+
+describe('AccountSettings: one request at a time', () => {
+  it('stays busy through the re-read that follows a change', async () => {
+    const reread = deferred<ReturnType<typeof withPassword>>()
+    service.get
+      .mockResolvedValueOnce(withPassword())
+      .mockReturnValueOnce(reread.promise)
+    const user = renderPage()
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Remove password' })
+    )
+    await user.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', {
+        name: 'Remove password',
+      })
+    )
+    await waitFor(() => {
+      expect(service.get).toHaveBeenCalledTimes(2)
+    })
+
+    // The change answered and the re-read is in flight: a second click must
+    // not send another session-ending call, and nothing else may start.
+    const confirm = within(screen.getByRole('alertdialog')).getByRole(
+      'button',
+      { name: /Remove password|Working/ }
+    )
+    expect(confirm).toBeDisabled()
+    // The page behind the open dialog is hidden from the accessibility tree.
+    expect(screen.getByLabelText('Name')).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Change password', hidden: true })
+    ).toBeDisabled()
+    expect(service.removePassword).toHaveBeenCalledTimes(1)
+
+    reread.resolve(account())
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).toBeNull()
+    })
+    expect(
+      await screen.findByRole('form', { name: 'Set a password' })
+    ).toBeVisible()
+    expect(service.removePassword).toHaveBeenCalledTimes(1)
+  })
+
+  it('holds the sign-in controls while a name save and its user refresh are in flight', async () => {
+    service.get.mockResolvedValue(withPassword())
+    const saving = deferred<ReturnType<typeof withPassword>>()
+    const refreshing = deferred<undefined>()
+    service.updateName.mockReturnValue(saving.promise)
+    refreshUser.mockReturnValue(refreshing.promise)
+    const user = renderPage()
+    const form = await fillChange(user)
+
+    const name = screen.getByLabelText('Name')
+    await user.clear(name)
+    await user.type(name, 'Ada King')
+    await user.click(screen.getByRole('button', { name: 'Save name' }))
+
+    const change = form.getByRole('button', { name: 'Change password' })
+    expect(change).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Disconnect Google' })
+    ).toBeDisabled()
+
+    saving.resolve(withPassword({ name: 'Ada King' }))
+    await waitFor(() => {
+      expect(refreshUser).toHaveBeenCalledTimes(1)
+    })
+    // GET /auth/me is still out.
+    expect(change).toBeDisabled()
+    expect(service.setPassword).not.toHaveBeenCalled()
+
+    refreshing.resolve(undefined)
+    await waitFor(() => {
+      expect(change).toBeEnabled()
+    })
+    expect(toast.success).toHaveBeenCalledWith('Name saved')
+  })
+
+  it('holds the profile while a password change is in flight', async () => {
+    service.get.mockResolvedValue(withPassword())
+    const changing = deferred<undefined>()
+    service.setPassword.mockReturnValue(changing.promise)
+    const user = renderPage()
+    const form = await fillChange(user)
+
+    await user.click(form.getByRole('button', { name: 'Change password' }))
+    await waitFor(() => {
+      expect(service.setPassword).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.getByLabelText('Name')).toBeDisabled()
+    expect(service.get).toHaveBeenCalledTimes(1)
+
+    changing.resolve(undefined)
+    await waitFor(() => {
+      expect(screen.getByLabelText('Name')).toBeEnabled()
+    })
+  })
+})
+
+describe('AccountSettings: a signed-out or stale page', () => {
+  it('leaves for the sign-in page when a change answers 401', async () => {
+    service.get.mockResolvedValue(withPassword())
+    service.setPassword.mockRejectedValue(
+      apiError(401, 'AUTH_REQUIRED', 'Not signed in')
+    )
+    const user = renderPage()
+    const form = await fillChange(user)
+    await user.click(form.getByRole('button', { name: 'Change password' }))
+
+    await waitFor(() => {
+      expect(leave).toHaveBeenCalledWith('/login?return_to=/settings/account')
+    })
+    // A 401 is a real sign-out: nothing is retried or read again.
+    expect(service.get).toHaveBeenCalledTimes(1)
+    expect(service.setPassword).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves for the sign-in page when the account read answers 401', async () => {
+    service.get.mockRejectedValue(
+      apiError(401, 'AUTH_REQUIRED', 'Not signed in')
+    )
+    renderPage()
+
+    await waitFor(() => {
+      expect(leave).toHaveBeenCalledWith('/login?return_to=/settings/account')
+    })
+    expect(screen.queryByTestId('account-load-error')).toBeNull()
+  })
+
+  it('reads the account again after a failure that may have changed it', async () => {
+    // The password was changed but revoking the API access failed.
+    service.get
+      .mockResolvedValueOnce(account())
+      .mockResolvedValueOnce(withPassword())
+    service.setPassword.mockRejectedValue(
+      apiError(
+        500,
+        'INTERNAL',
+        'The password was changed, but API access could not be revoked'
+      )
+    )
+    const user = renderPage()
+    const form = await passwordForm('Set a password')
+    await user.type(form.getByLabelText('New password'), NEW_PASSWORD)
+    await user.type(
+      form.getByLabelText('Repeat the new password'),
+      NEW_PASSWORD
+    )
+    await user.click(form.getByRole('button', { name: 'Set password' }))
+
+    expect(
+      await screen.findByRole('form', { name: 'Change password' })
+    ).toBeVisible()
+    expect(screen.getByTestId('account-password-row')).toHaveTextContent('Set')
+    expect(screen.getByTestId('account-password-error')).toHaveTextContent(
+      'API access could not be revoked'
+    )
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('says so when the account turns out to have a password already', async () => {
+    // Set in another tab: the page still shows "Set a password".
+    service.get
+      .mockResolvedValueOnce(account())
+      .mockResolvedValueOnce(withPassword())
+    service.setPassword.mockRejectedValue(
+      apiError(400, 'VALIDATION_FAILED', 'Invalid', [
+        {
+          field: 'current_password',
+          message: 'The current password is required',
+          code: 'invalid_current_password',
+        },
+      ])
+    )
+    const user = renderPage()
+    const form = await passwordForm('Set a password')
+    await user.type(form.getByLabelText('New password'), NEW_PASSWORD)
+    await user.type(
+      form.getByLabelText('Repeat the new password'),
+      NEW_PASSWORD
+    )
+    await user.click(form.getByRole('button', { name: 'Set password' }))
+
+    expect(
+      await screen.findByTestId('account-password-error')
+    ).toHaveTextContent('Your account already has a password')
+    expect(
+      await screen.findByRole('form', { name: 'Change password' })
+    ).toBeVisible()
+  })
+
+  it('shows the administrator note when password sign-in was switched off meanwhile', async () => {
+    service.get.mockResolvedValueOnce(withPassword()).mockResolvedValueOnce(
+      account({
+        password: {
+          set: true,
+          changed_at: '2026-10-01T10:00:00Z',
+          login_enabled: false,
+        },
+      })
+    )
+    service.setPassword.mockRejectedValue(
+      apiError(409, 'password_login_disabled', 'Password sign-in is off')
+    )
+    const user = renderPage()
+    const form = await fillChange(user)
+    await user.click(form.getByRole('button', { name: 'Change password' }))
+
+    expect(await screen.findByTestId('account-password-disabled')).toBeVisible()
+    expect(screen.queryByRole('form', { name: 'Change password' })).toBeNull()
+  })
+
+  it('does not keep a stale account on screen when the re-read after a change fails', async () => {
+    service.get
+      .mockResolvedValueOnce(withPassword())
+      .mockRejectedValueOnce(new Error('Network Error'))
+      .mockResolvedValueOnce(withPassword({ identities: [] }))
+    const user = renderPage()
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Disconnect Google' })
+    )
+    await user.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', {
+        name: 'Disconnect Google',
+      })
+    )
+
+    expect(await screen.findByTestId('account-load-error')).toHaveTextContent(
+      'Network Error'
+    )
+    expect(screen.queryByTestId('account-sign-in-card')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByTestId('account-sign-in-card')).toBeVisible()
+    expect(screen.queryByTestId('account-identity-google')).toBeNull()
+  })
+
+  it('explains a refusal for a session that is not a browser session', async () => {
+    service.get.mockResolvedValue(withPassword())
+    service.removePassword.mockRejectedValue(
+      apiError(403, 'cookie_session_required', 'Cookie session required')
+    )
+    const user = renderPage()
+    await user.click(
+      await screen.findByRole('button', { name: 'Remove password' })
+    )
+    await user.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', {
+        name: 'Remove password',
+      })
+    )
+    expect(await screen.findByTestId('account-method-error')).toHaveTextContent(
+      'browser session'
+    )
+    // Not the recent sign-in refusal: no note.
+    expect(screen.queryByTestId('account-reauth-note')).toBeNull()
+  })
+})
+
+describe('AccountSettings: the sign-in-again note only where it helps', () => {
+  it('is not shown when signing in again would unlock nothing', async () => {
+    // One provider, password sign-in off: nothing can be set or removed.
+    service.get.mockResolvedValue(
+      account({
+        recent_sign_in: false,
+        password: { set: false, changed_at: null, login_enabled: false },
+      })
+    )
+    renderPage()
+
+    await screen.findByTestId('account-sign-in-card')
+    expect(screen.queryByTestId('account-reauth-note')).toBeNull()
+  })
+
+  it('is not shown to a password-only account, which can only change its password', async () => {
+    service.get.mockResolvedValue(
+      withPassword({ recent_sign_in: false, identities: [] })
+    )
+    renderPage()
+
+    const form = await passwordForm('Change password')
+    expect(screen.queryByTestId('account-reauth-note')).toBeNull()
+    expect(form.getByRole('button', { name: 'Change password' })).toBeEnabled()
+  })
+
+  it('ties the reason to the disabled control', async () => {
+    service.get.mockResolvedValue(account())
+    renderPage()
+
+    expect(
+      await screen.findByRole('button', { name: 'Disconnect Google' })
+    ).toHaveAccessibleDescription(
+      'This is your only way to sign in, so it cannot be removed.'
+    )
   })
 })

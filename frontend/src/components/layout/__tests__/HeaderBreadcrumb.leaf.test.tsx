@@ -78,6 +78,7 @@ describe('HeaderBreadcrumb — naming the resource', () => {
   describe('static sub-pages', () => {
     it.each([
       ['/settings/api-keys', 'Settings', '/settings', 'API keys'],
+      ['/settings/account', 'Settings', '/settings', 'Account settings'],
       ['/settings/activities', 'Settings', '/settings', 'Activities'],
       [
         '/settings/notifications',

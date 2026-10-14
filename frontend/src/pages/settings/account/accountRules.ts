@@ -7,7 +7,7 @@ import { ApiError } from '@/types/errors'
  * before the person runs into it.
  */
 
-/** The written password rule, the same wording as the setup page. */
+/** The written password rule, as the server's policy states it. */
 export const PASSWORD_RULE =
   'At least 12 characters. Not a common password, and not your email address.'
 
@@ -48,6 +48,20 @@ export function canDisconnect(
   )
 }
 
+/**
+ * Whether signing in again would unlock anything: a first password to set, a
+ * password that may be removed, or a provider that may be disconnected. When
+ * none exists the "sign in again" note would send the person nowhere.
+ */
+export function hasGuardedAction(account: Account): boolean {
+  const { password } = account
+  return (
+    (!password.set && password.login_enabled) ||
+    (password.set && canRemovePassword(account)) ||
+    account.identities.some(identity => canDisconnect(account, identity))
+  )
+}
+
 /** The stable `code` of an API error, or null for anything else. */
 export function errorCode(err: unknown): string | null {
   return err instanceof ApiError ? err.code : null
@@ -73,7 +87,7 @@ export function accountErrorMessage(err: unknown, fallback: string): string {
     case 'last_sign_in_method':
       return 'This is the only way left to sign in to your account, so it cannot be removed. Add another sign-in method first.'
     case 'too_many_attempts':
-      return 'Too many wrong passwords. Password sign-in for your account is locked for a short time; wait a few minutes and try again.'
+      return 'Too many wrong passwords. Password sign-in for your account is locked for a while, at most 15 minutes. Wait, then try again.'
     default:
       return err instanceof Error && err.message ? err.message : fallback
   }
