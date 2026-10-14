@@ -766,6 +766,12 @@ func TestAdminAuthProviders_LockoutGuard(t *testing.T) {
 		code, reason := problemCodeAndReason(t, rr)
 		assert.Equal(t, "lockout_risk", code)
 		assert.Equal(t, services.AuthLockoutOwnProvider, reason)
+		var problem struct {
+			Metadata map[string]any `json:"metadata"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &problem))
+		assert.Equal(t, []any{services.AuthLockoutOwnProvider}, problem.Metadata["reasons"],
+			"a provider lockout lists its one reason too (#1473)")
 
 		// Another provider than the caller's own is not at risk, and neither is
 		// the caller's own for an API key, which no provider issued.

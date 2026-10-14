@@ -102,8 +102,10 @@ function LockoutReasons({
   if (items.length === 1) return <>{items[0].description}</>
   return (
     <span className="block space-y-3" data-testid="lockout-reasons">
-      {items.map(item => (
-        <span key={item.title} className="block">
+      {items.map((item, index) => (
+        // The titles can repeat (two unknown reasons share the generic copy).
+
+        <span key={index} className="block">
           <span className="text-foreground block font-medium">
             {item.title}
           </span>

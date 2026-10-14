@@ -195,6 +195,31 @@ describe('AuthPolicySection', () => {
     expect(reasons).toHaveTextContent('Their passwords are kept')
   })
 
+  it('names all three reasons when they all apply', async () => {
+    service.updatePolicy.mockRejectedValueOnce(
+      lockoutRisk('no_usable_method', {
+        reasons: ['no_usable_method', 'own_method', 'password_only_accounts'],
+        password_only_accounts: 1,
+      })
+    )
+    const user = await renderSection(stored)
+    await user.click(passwordSwitch())
+    await user.click(save())
+
+    const reasons = within(await screen.findByRole('alertdialog')).getByTestId(
+      'lockout-reasons'
+    )
+    expect(
+      within(reasons)
+        .getAllByText(/./, { selector: '.font-medium' })
+        .map(el => el.textContent)
+    ).toEqual([
+      'This leaves no way to sign in',
+      'You signed in with a password',
+      '1 account can only sign in with a password',
+    ])
+  })
+
   it('reads a single reason from a server that sends no list', async () => {
     service.updatePolicy.mockRejectedValueOnce(lockoutRisk('own_method'))
     const user = await renderSection(stored)

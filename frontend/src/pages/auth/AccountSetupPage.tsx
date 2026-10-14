@@ -2,7 +2,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertCircle, KeyRound, Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Link } from 'react-router'
 import { z } from 'zod'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -213,9 +212,7 @@ export function AccountSetupPage({
                   the password you just chose.
                 </AlertDescription>
               </Alert>
-              <Button asChild>
-                <Link to="/login">Go to sign in</Link>
-              </Button>
+              <GoToSignIn variant="default" />
             </>
           )}
         </CardContent>

@@ -286,7 +286,8 @@ export function SetupPasswordSection({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {(isAuthenticated || signedInRefusal) && (
+        {((isAuthenticated && user?.is_instance_admin === true) ||
+          signedInRefusal) && (
           <SignedInNote email={user?.email ?? null} onSignedOut={reload} />
         )}
         <form

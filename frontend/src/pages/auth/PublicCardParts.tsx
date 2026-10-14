@@ -26,9 +26,11 @@ export function InstanceName() {
 }
 
 /** The way on from a link that cannot be used. */
-export function GoToSignIn() {
+export function GoToSignIn({
+  variant = 'outline',
+}: Readonly<{ variant?: 'outline' | 'default' }>) {
   return (
-    <Button asChild variant="outline">
+    <Button asChild variant={variant}>
       <Link to="/login">Go to sign in</Link>
     </Button>
   )

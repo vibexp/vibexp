@@ -16,7 +16,7 @@ vi.mock('@/services/authService', () => ({
 
 const authState = vi.hoisted(() => ({
   isAuthenticated: false,
-  user: null as { email: string } | null,
+  user: null as { email: string; is_instance_admin?: boolean } | null,
 }))
 vi.mock('@/contexts/useAuth', () => ({ useAuth: () => authState }))
 
@@ -337,7 +337,7 @@ describe('SetupPasswordSection in a signed-in browser (#1473)', () => {
 
   it('says beforehand that the signed-in session is used, and signs out here', async () => {
     authState.isAuthenticated = true
-    authState.user = { email: 'admin@example.com' }
+    authState.user = { email: 'admin@example.com', is_instance_admin: true }
     auth.logout.mockResolvedValue(undefined)
     const user = renderSignedIn()
 
@@ -377,8 +377,17 @@ describe('SetupPasswordSection in a signed-in browser (#1473)', () => {
     expect(screen.queryByText(/Only a setup session may set/)).toBeNull()
   })
 
+  it('says nothing to a signed-in person who is not an instance admin: their session does not get in the way', () => {
+    authState.isAuthenticated = true
+    authState.user = { email: 'member@example.com', is_instance_admin: false }
+    renderSignedIn()
+
+    expect(screen.queryByTestId('setup-signed-in-note')).toBeNull()
+  })
+
   it('keeps the page when signing out fails', async () => {
     authState.isAuthenticated = true
+    authState.user = { email: 'admin@example.com', is_instance_admin: true }
     auth.logout.mockRejectedValue(new Error('Network Error'))
     const user = renderSignedIn()
 
