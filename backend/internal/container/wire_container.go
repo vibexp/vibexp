@@ -161,7 +161,9 @@ type WireContainer struct {
 	accountTokenService           services.AccountTokenServiceInterface
 	invitationRegistrationService services.InvitationRegistrationServiceInterface
 	// Emailing account links, and the background runners its sends use (#1433)
-	accountLinkMailer   services.AccountLinkMailerInterface
+	accountLinkMailer services.AccountLinkMailerInterface
+	// Instance-admin management of how accounts sign in (#1436)
+	adminAccountService services.AdminAccountServiceInterface
 	accountEmailRunners *services.AccountEmailRunners
 	// First-run authentication setup mode (#1236)
 	setupModeService services.SetupModeService
@@ -342,6 +344,12 @@ func (c *WireContainer) AccountTokenService() services.AccountTokenServiceInterf
 // preview of a link and password registration through it (#1435).
 func (c *WireContainer) InvitationRegistrationService() services.InvitationRegistrationServiceInterface {
 	return c.invitationRegistrationService
+}
+
+// AdminAccountService returns the service through which instance admins give
+// accounts their way in (#1436).
+func (c *WireContainer) AdminAccountService() services.AdminAccountServiceInterface {
+	return c.adminAccountService
 }
 
 // AccountLinkMailer returns the service that emails account links (#1433).

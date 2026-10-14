@@ -63,7 +63,31 @@ AdminUserListItem:
     - team_count
     - project_count
     - resource_counts
+    - sign_in_methods
+    - has_password
+    - password_disabled
+    - pending_setup
   properties:
+    sign_in_methods:
+      type: array
+      description: |
+        The account's sign-in methods: `password` when it has a password
+        (disabled or not), then each identity provider it is linked to, sorted.
+        Internal bookkeeping identities are not listed.
+      items:
+        type: string
+      example: ["password", "google"]
+    has_password:
+      type: boolean
+      description: Whether the account has a password.
+    password_disabled:
+      type: boolean
+      description: Whether an administrator disabled the account's password.
+    pending_setup:
+      type: boolean
+      description: |
+        The account has no way to sign in yet: no password and no linked
+        identity. Derived from the account's sign-in methods, not a status.
     id:
       type: string
       format: uuid
@@ -238,7 +262,31 @@ AdminUserDetail:
     - status
     - created_at
     - memberships
+    - sign_in_methods
+    - has_password
+    - password_disabled
+    - pending_setup
   properties:
+    sign_in_methods:
+      type: array
+      description: |
+        The account's sign-in methods: `password` when it has a password
+        (disabled or not), then each identity provider it is linked to, sorted.
+        Internal bookkeeping identities are not listed.
+      items:
+        type: string
+      example: ["password", "google"]
+    has_password:
+      type: boolean
+      description: Whether the account has a password.
+    password_disabled:
+      type: boolean
+      description: Whether an administrator disabled the account's password.
+    pending_setup:
+      type: boolean
+      description: |
+        The account has no way to sign in yet: no password and no linked
+        identity. Derived from the account's sign-in methods, not a status.
     id:
       type: string
       format: uuid
@@ -871,12 +919,12 @@ AdminUserDeleteBlockedResponse:
 AdminUserCreateRequest:
   type: object
   description: |
-    A user to create directly, without waiting for them to complete an
-    identity-provider sign-in. No password is set: VibeXP has no password
-    provider, and the account's owner still signs in through the configured IdP.
+    A user to create directly, without waiting for them to sign in. With
+    password sign-in on, the account is created without a password and its
+    owner gets a setup link (see `setup` in the response); otherwise the owner
+    signs in through an identity provider.
   required:
     - email
-    - name
   additionalProperties: false
   properties:
     email:
@@ -886,8 +934,8 @@ AdminUserCreateRequest:
       example: "new.user@example.com"
     name:
       type: string
-      minLength: 1
       maxLength: 255
+      description: Optional display name. The owner can set or change it later.
       example: "New User"
     idp_provider:
       type: string
@@ -896,6 +944,133 @@ AdminUserCreateRequest:
         to sign in with (e.g. "google", "oidc"). Informational only — it does not
         pre-link an IdP identity, which is established on first sign-in.
       example: "oidc"
+    teams:
+      type: array
+      maxItems: 50
+      description: |
+        Existing teams to add the user to, each with a role. Personal workspaces
+        cannot be listed. The user still gets their own private workspace.
+      items:
+        $ref: '#/AdminUserTeamAssignment'
+
+AdminUserTeamAssignment:
+  type: object
+  additionalProperties: false
+  required:
+    - team_id
+    - role
+  properties:
+    team_id:
+      type: string
+      format: uuid
+    role:
+      type: string
+      enum:
+        - member
+        - admin
+      example: "member"
+
+AdminUserCreated:
+  description: The created user and how they will get in.
+  allOf:
+    - $ref: '#/AdminUserDetail'
+    - type: object
+      required:
+        - setup
+      properties:
+        setup:
+          $ref: '#/AdminUserSetup'
+
+AdminUserSetup:
+  type: object
+  description: |
+    How the new account's owner will set a password. `email`: a setup link was
+    emailed to them. `link`: no email provider is stored, so the setup link is
+    returned here, ONCE; hand it to them yourself. `none`: no link was made,
+    for the reason in `reason`.
+  required:
+    - delivery
+  properties:
+    delivery:
+      type: string
+      enum:
+        - email
+        - link
+        - none
+      x-enum-varnames:
+        - AdminUserSetupDeliveryEmail
+        - AdminUserSetupDeliveryLink
+        - AdminUserSetupDeliveryNone
+    link_url:
+      type: string
+      description: |
+        The one-time setup link, only when `delivery` is `link`. It is shown
+        here once and never returned again.
+    expires_at:
+      type: string
+      format: date-time
+      description: When the link stops working; absent for `none`.
+    reason:
+      type: string
+      enum:
+        - password_login_disabled
+        - root_admin_link_refused
+        - email_failed
+        - setup_failed
+      x-enum-varnames:
+        - AdminUserSetupReasonLocalSignInOff
+        - AdminUserSetupReasonRootAdmin
+        - AdminUserSetupReasonEmailFailed
+        - AdminUserSetupReasonSetupFailed
+      description: |
+        Why `delivery` is `none`. `password_login_disabled`: password sign-in is
+        off, the owner signs in through a provider. `root_admin_link_refused`:
+        the address is a root instance admin's and no email provider is stored;
+        no shareable link is issued for such an address, so its owner uses the
+        setup page or the recovery CLI. `email_failed`: the email could not be
+        sent; get a setup link from the user's page. `setup_failed`: the link
+        could not be made for another reason (logged on the server); try again
+        from the user's page.
+
+AdminUserSetupLinkRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - delivery
+  properties:
+    delivery:
+      type: string
+      enum:
+        - email
+        - link
+      x-enum-varnames:
+        - AdminUserSetupLinkDeliveryEmail
+        - AdminUserSetupLinkDeliveryLink
+      description: |
+        `email` sends a setup link to the account's address. `link` returns one
+        here, once, to hand over yourself.
+
+AdminUserSetupLink:
+  type: object
+  required:
+    - delivery
+    - expires_at
+  properties:
+    delivery:
+      type: string
+      enum:
+        - email
+        - link
+      x-enum-varnames:
+        - AdminUserSetupLinkResultEmail
+        - AdminUserSetupLinkResultLink
+    link_url:
+      type: string
+      description: The one-time setup link, only for `link`. Shown here once.
+    expires_at:
+      type: string
+      format: date-time
+      description: When the link stops working (7 days).
 
 # ---------------------------------------------------------------------------
 # Admin projects (#453)

@@ -159,6 +159,10 @@ type AdminService struct {
 	// allowlist is the access allowlist a created user's address must satisfy
 	// (#1434). Nil skips the check; the running server always sets it.
 	allowlist AccessAllowlistResolver
+	// teams and members add a created user to existing teams (#1436). Nil
+	// refuses a request that names teams.
+	teams   repositories.TeamRepository
+	members repositories.TeamMemberRepository
 
 	// exportCap overrides adminExportRowCap when positive; tests only.
 	exportCap int
@@ -194,6 +198,16 @@ func WithAdminAccessAllowlist(allowlist AccessAllowlistResolver) AdminServiceOpt
 		if allowlist != nil {
 			s.allowlist = allowlist
 		}
+	}
+}
+
+// WithAdminTeamAssignment lets user creation add the new user to existing
+// teams (#1436).
+func WithAdminTeamAssignment(
+	teams repositories.TeamRepository, members repositories.TeamMemberRepository,
+) AdminServiceOption {
+	return func(s *AdminService) {
+		s.teams, s.members = teams, members
 	}
 }
 

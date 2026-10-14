@@ -23,6 +23,7 @@ packages:
       AccountTokenServiceInterface:
       InvitationRegistrationServiceInterface:
       AccountLinkMailerInterface:
+      AdminAccountServiceInterface:
       AuthPolicyResolver:
       ActiveEmbeddingProviderResolver:
       AdminServiceInterface:

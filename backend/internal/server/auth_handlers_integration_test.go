@@ -59,6 +59,10 @@ func (m *MockAuthContainer) AccountTokenService() services.AccountTokenServiceIn
 	return m.accountTokens
 }
 
+func (m *MockAuthContainer) AdminAccountService() services.AdminAccountServiceInterface {
+	return nil
+}
+
 func (m *MockAuthContainer) AccountLinkMailer() services.AccountLinkMailerInterface {
 	return m.accountLinkMailer
 }

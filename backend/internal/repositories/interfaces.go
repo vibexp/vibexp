@@ -1309,11 +1309,14 @@ type BackofficeRepository interface {
 // repository, so an unrecognized value falls back to the default ordering
 // rather than reaching SQL text.
 type AdminUserFilters struct {
-	Search      *string
-	IDPProvider *string
-	Status      *string
-	CreatedFrom *time.Time
-	CreatedTo   *time.Time
+	Search *string
+	// PendingSetup, when set, keeps only accounts with (true) or without
+	// (false) a way to sign in yet (#1436).
+	PendingSetup *bool
+	IDPProvider  *string
+	Status       *string
+	CreatedFrom  *time.Time
+	CreatedTo    *time.Time
 	// Count ranges over the user's aggregates (#1133). A zero-value range is
 	// "no filter"; bounds are inclusive and already validated (non-negative,
 	// Min <= Max) by the handler.

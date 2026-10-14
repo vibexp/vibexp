@@ -68,6 +68,9 @@ func TestAdminService_ExportUsers_HeaderColumnsAndValues(t *testing.T) {
 		Feeds: 9, FeedItems: 10, Comments: 11, Attachments: 12, Total: 72,
 	}
 	u.LastResourceCreatedAt = &last
+	u.SignIn = models.AdminUserSignIn{
+		Methods: []string{"password", "github", "google"}, HasPassword: true, PasswordDisabled: true,
+	}
 	filters := repositories.AdminUserFilters{SortBy: "email"}
 	repo.On("CountUsers", mock.Anything, filters).Return(1, nil)
 	repo.On("StreamUsers", mock.Anything, filters, adminExportRowCap, mock.Anything).
@@ -89,11 +92,12 @@ func TestAdminService_ExportUsers_HeaderColumnsAndValues(t *testing.T) {
 		"id", "email", "name", "idp_provider", "status", "created_at", "team_count", "project_count",
 		"prompt_count", "memory_count", "artifact_count", "blueprint_count", "agent_count", "feed_count",
 		"feed_item_count", "comment_count", "attachment_count", "total_resource_count",
-		"last_resource_created_at",
+		"last_resource_created_at", "sign_in_methods", "has_password", "password_disabled", "pending_setup",
 	}, records[0])
 	assert.Equal(t, []string{
 		"u-1", "ada@example.com", "Ada", "google", "active", "2026-01-02T01:04:05Z", "2", "3",
 		"4", "5", "6", "7", "8", "9", "10", "11", "12", "72", "2026-09-01T12:00:00Z",
+		"password github google", "true", "true", "false",
 	}, records[1])
 }
 

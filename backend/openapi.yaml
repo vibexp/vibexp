@@ -987,6 +987,16 @@ components:
     # Admin user creation (#462)
     AdminUserCreateRequest:
       $ref: "./schemas/admin.yaml#/AdminUserCreateRequest"
+    AdminUserTeamAssignment:
+      $ref: "./schemas/admin.yaml#/AdminUserTeamAssignment"
+    AdminUserCreated:
+      $ref: "./schemas/admin.yaml#/AdminUserCreated"
+    AdminUserSetup:
+      $ref: "./schemas/admin.yaml#/AdminUserSetup"
+    AdminUserSetupLinkRequest:
+      $ref: "./schemas/admin.yaml#/AdminUserSetupLinkRequest"
+    AdminUserSetupLink:
+      $ref: "./schemas/admin.yaml#/AdminUserSetupLink"
     # Admin projects (#453)
     AdminProjectTeam:
       $ref: "./schemas/admin.yaml#/AdminProjectTeam"
@@ -1532,6 +1542,8 @@ paths:
     $ref: "./paths/admin.yaml#/api-v1-admin-dashboard-overview"
   /api/v1/admin/dashboard/timeseries:
     $ref: "./paths/admin.yaml#/api-v1-admin-dashboard-timeseries"
+  /api/v1/admin/users/{id}/setup-link:
+    $ref: "./paths/admin.yaml#/api-v1-admin-users-id-setup-link"
   /api/v1/admin/users/{id}/suspend:
     $ref: "./paths/admin.yaml#/api-v1-admin-users-id-suspend"
   /api/v1/admin/users/{id}/reactivate:

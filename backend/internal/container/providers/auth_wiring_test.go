@@ -69,7 +69,7 @@ func TestProvideAdminService_InstallsTheAccessAllowlist(t *testing.T) {
 	allowlist.On("IsEmailAllowed", mock.Anything, "outside@elsewhere.test").Return(false, true, nil)
 
 	admin := ProvideAdminService(repomocks.NewMockAdminRepository(t), repomocks.NewMockUserRepository(t),
-		eventmocks.NewMockEventPublisher(t), nil, allowlist)
+		eventmocks.NewMockEventPublisher(t), nil, allowlist, nil, nil)
 
 	_, err := admin.CreateUser(ctx, services.AdminUserCreateRequest{Email: "outside@elsewhere.test", Name: "O"})
 

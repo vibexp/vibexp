@@ -75,12 +75,13 @@ func validateAdminSortEnum(name, value string, valid bool) error {
 func toAdminUserFilters(p admingen.ListAdminUsersParams) (repositories.AdminUserFilters, error) {
 	page, limit := derefPageLimit(p.Page, p.Limit)
 	filters := repositories.AdminUserFilters{
-		Search:      p.Search,
-		IDPProvider: p.IdpProvider,
-		CreatedFrom: p.CreatedFrom,
-		CreatedTo:   p.CreatedTo,
-		Page:        page,
-		Limit:       limit,
+		Search:       p.Search,
+		IDPProvider:  p.IdpProvider,
+		CreatedFrom:  p.CreatedFrom,
+		CreatedTo:    p.CreatedTo,
+		PendingSetup: p.PendingSetup,
+		Page:         page,
+		Limit:        limit,
 	}
 
 	if p.Status != nil {
@@ -212,6 +213,10 @@ func toGenAdminUserListItem(u models.AdminUserListItem) (admingen.AdminUserListI
 		ProjectCount:          u.ProjectCount,
 		ResourceCounts:        toGenAdminResourceCounts(u.ResourceCounts),
 		LastResourceCreatedAt: u.LastResourceCreatedAt,
+		SignInMethods:         nonNilStrings(u.SignIn.Methods),
+		HasPassword:           u.SignIn.HasPassword,
+		PasswordDisabled:      u.SignIn.PasswordDisabled,
+		PendingSetup:          u.SignIn.PendingSetup,
 	}, nil
 }
 
@@ -279,6 +284,11 @@ func toGenAdminUserDetail(d *models.AdminUserDetail) (admingen.AdminUserDetail, 
 		Status:      admingen.AdminUserDetailStatus(d.Status),
 		CreatedAt:   d.CreatedAt,
 		Memberships: memberships,
+
+		SignInMethods:    nonNilStrings(d.SignIn.Methods),
+		HasPassword:      d.SignIn.HasPassword,
+		PasswordDisabled: d.SignIn.PasswordDisabled,
+		PendingSetup:     d.SignIn.PendingSetup,
 	}, nil
 }
 

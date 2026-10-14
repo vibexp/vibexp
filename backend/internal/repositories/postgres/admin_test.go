@@ -113,8 +113,10 @@ func defaultAdminTeamFilters() repositories.AdminTeamFilters {
 }
 
 // adminUserListFromRE matches the shared aggregate FROM of the admin user count
-// and page queries: users plus the eleven 1:1 LEFT JOINed stats CTEs.
-const adminUserListFromRE = `FROM users u LEFT JOIN tc ON tc.user_id = u.id .*LEFT JOIN att ON att.user_id = u.id`
+// and page queries: users plus the thirteen 1:1 LEFT JOINed stats CTEs (the
+// last two are the sign-in state, #1436).
+const adminUserListFromRE = `FROM users u LEFT JOIN tc ON tc.user_id = u.id .*LEFT JOIN att ON att.user_id = u.id ` +
+	`LEFT JOIN si ON si.user_id = u.id LEFT JOIN cr ON cr.user_id = u.id`
 
 // adminUserCountRE matches the unfiltered admin user count query.
 const adminUserCountRE = `^WITH .* SELECT COUNT\(\*\) ` + adminUserListFromRE + `$`
@@ -128,11 +130,12 @@ func adminUserRows() *sqlmock.Rows {
 		"prompt_count", "memory_count", "artifact_count", "blueprint_count", "agent_count",
 		"feed_count", "feed_item_count", "comment_count", "attachment_count", "total_resource_count",
 		"last_resource_created_at",
+		"has_password", "password_disabled", "identity_methods", "pending_setup",
 	}).
 		AddRow("u1", "a@example.com", "A", "oidc", "active", time.Now(), 2, 3,
-			1, 2, 3, 4, 5, 6, 7, 8, 9, 45, adminUserLastResourceAt).
+			1, 2, 3, 4, 5, 6, 7, 8, 9, 45, adminUserLastResourceAt, true, false, "{github,oidc}", false).
 		AddRow("u2", "b@example.com", "B", nil, "suspended", time.Now(), 0, 0,
-			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, nil)
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, nil, false, false, "{}", true)
 }
 
 // adminTeamListFromRE matches the shared FROM of the admin team count and page
@@ -195,7 +198,7 @@ func TestAdminRepository_ListUsers_ScansAggregates(t *testing.T) {
 
 	mock.ExpectQuery(adminUserCountRE).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
-	mock.ExpectQuery(`AS last_resource_created_at ` + adminUserListFromRE + ` ORDER BY`).
+	mock.ExpectQuery(`AS pending_setup ` + adminUserListFromRE + ` ORDER BY`).
 		WillReturnRows(adminUserRows())
 
 	users, _, err := repo.ListUsers(context.Background(), defaultAdminUserFilters())
@@ -266,7 +269,7 @@ func TestAdminRepository_ListUsers_AggregateFilters(t *testing.T) {
 			mock.ExpectQuery(`SELECT COUNT\(\*\) ` + adminUserListFromRE + ` WHERE \(` + tc.wantSQL + `\)$`).
 				WithArgs(tc.wantArgs...).
 				WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-			mock.ExpectQuery(`AS last_resource_created_at ` + adminUserListFromRE + ` WHERE \(` + tc.wantSQL + `\) ORDER BY`).
+			mock.ExpectQuery(`AS pending_setup ` + adminUserListFromRE + ` WHERE \(` + tc.wantSQL + `\) ORDER BY`).
 				WithArgs(tc.wantArgs...).
 				WillReturnRows(adminUserRows())
 
@@ -351,7 +354,7 @@ func TestAdminRepository_ListUsers_Filters(t *testing.T) {
 			mock.ExpectQuery(`SELECT COUNT\(\*\) ` + adminUserListFromRE + ` WHERE \(` + tc.wantSQL + `\)$`).
 				WithArgs(tc.wantArgs...).
 				WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-			mock.ExpectQuery(`AS last_resource_created_at ` + adminUserListFromRE + ` WHERE \(` + tc.wantSQL + `\) ORDER BY`).
+			mock.ExpectQuery(`AS pending_setup ` + adminUserListFromRE + ` WHERE \(` + tc.wantSQL + `\) ORDER BY`).
 				WithArgs(tc.wantArgs...).
 				WillReturnRows(adminUserRows())
 
@@ -449,12 +452,13 @@ func TestAdminRepository_GetUserDetail_Found(t *testing.T) {
 		}
 	}()
 
-	mock.ExpectQuery(`FROM users WHERE id = \$1`).
+	mock.ExpectQuery(`FROM users u .*WHERE u.id = \$1`).
 		WithArgs("u1").
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "email", "name", "idp_provider", "status", "created_at",
+			"has_password", "password_disabled", "identity_methods", "pending_setup",
 		}).
-			AddRow("u1", "a@example.com", "A", "oidc", "suspended", time.Now()))
+			AddRow("u1", "a@example.com", "A", "oidc", "suspended", time.Now(), true, true, "{oidc}", false))
 	mock.ExpectQuery(`FROM team_members tm`).
 		WithArgs("u1").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "role"}).
@@ -478,7 +482,7 @@ func TestAdminRepository_GetUserDetail_NotFound(t *testing.T) {
 		}
 	}()
 
-	mock.ExpectQuery(`FROM users WHERE id = \$1`).
+	mock.ExpectQuery(`FROM users u .*WHERE u.id = \$1`).
 		WithArgs("missing").
 		WillReturnError(sql.ErrNoRows)
 
@@ -526,7 +530,7 @@ func TestAdminRepository_GetUserDetail_QueryError(t *testing.T) {
 		}
 	}()
 
-	mock.ExpectQuery(`FROM users WHERE id = \$1`).WithArgs("u1").WillReturnError(errors.New("boom"))
+	mock.ExpectQuery(`FROM users u .*WHERE u.id = \$1`).WithArgs("u1").WillReturnError(errors.New("boom"))
 
 	_, err := repo.GetUserDetail(context.Background(), "u1")
 	require.Error(t, err)
@@ -540,11 +544,12 @@ func TestAdminRepository_GetUserDetail_MembershipError(t *testing.T) {
 		}
 	}()
 
-	mock.ExpectQuery(`FROM users WHERE id = \$1`).WithArgs("u1").
+	mock.ExpectQuery(`FROM users u .*WHERE u.id = \$1`).WithArgs("u1").
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "email", "name", "idp_provider", "status", "created_at",
+			"has_password", "password_disabled", "identity_methods", "pending_setup",
 		}).
-			AddRow("u1", "a@example.com", "A", nil, "active", time.Now()))
+			AddRow("u1", "a@example.com", "A", nil, "active", time.Now(), false, false, "{}", true))
 	mock.ExpectQuery(`FROM team_members tm`).WithArgs("u1").WillReturnError(errors.New("boom"))
 
 	_, err := repo.GetUserDetail(context.Background(), "u1")
@@ -867,7 +872,7 @@ func TestAdminRepository_ListUsers_StatusFilter(t *testing.T) {
 			mock.ExpectQuery(`SELECT COUNT\(\*\) ` + adminUserListFromRE + ` WHERE \(` + tc.wantSQL + `\)$`).
 				WithArgs(tc.wantArgs...).
 				WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-			mock.ExpectQuery(`AS last_resource_created_at ` + adminUserListFromRE + ` WHERE \(` + tc.wantSQL + `\) ORDER BY`).
+			mock.ExpectQuery(`AS pending_setup ` + adminUserListFromRE + ` WHERE \(` + tc.wantSQL + `\) ORDER BY`).
 				WithArgs(tc.wantArgs...).
 				WillReturnRows(adminUserRows())
 

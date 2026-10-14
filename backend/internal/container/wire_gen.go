@@ -260,7 +260,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	environmentService := providers.ProvideEnvironmentService(cfg)
 	usageAndGrowthGetter := providers.ProvideBackofficeService(backofficeRepository)
 	adminRepository := providers.ProvideAdminRepository(db)
-	adminServiceInterface := providers.ProvideAdminService(adminRepository, userRepository, eventManager, freshnessServiceInterface, accessAllowlistResolver)
+	adminServiceInterface := providers.ProvideAdminService(adminRepository, userRepository, eventManager, freshnessServiceInterface, accessAllowlistResolver, teamRepository, teamMemberRepository)
 	embeddingCoverageGetter := providers.ProvideEmbeddingStatusService(embeddingProviderRepository, embeddingBackfillRepository, logger)
 	embeddingBackfiller := providers.ProvideEmbeddingBackfillService(embeddingBackfillRepository, eventManager, promptServiceInterface, embeddingCoverageGetter, logger)
 	userPreferencesServiceInterface := providers.ProvideUserPreferencesService(userPreferencesRepository)
@@ -380,6 +380,16 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		Logger:     logger,
 	}
 	accountLinkMailerInterface := providers.ProvideAccountLinkMailer(accountLinkMailerDeps)
+	adminAccountServiceDeps := providers.AdminAccountServiceDeps{
+		Admin:      adminRepository,
+		Users:      userRepository,
+		Policy:     authPolicyResolver,
+		Tokens:     accountTokenServiceInterface,
+		Mailer:     accountLinkMailerInterface,
+		RootAdmins: instanceAdminResolver,
+		Logger:     logger,
+	}
+	adminAccountServiceInterface := providers.ProvideAdminAccountService(adminAccountServiceDeps)
 	instanceAuthSetupRepository := providers.ProvideInstanceAuthSetupRepository(db)
 	authWayIn := providers.ProvideAuthWayIn(instanceAuthProviderRepository, instanceAuthPolicyRepository, userCredentialRepository, instanceAdminResolver)
 	setupModeService := providers.ProvideSetupModeService(instanceAuthSetupRepository, authWayIn, instanceAdminResolver, cfg, logger)
@@ -533,6 +543,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		accountTokenService:              accountTokenServiceInterface,
 		invitationRegistrationService:    invitationRegistrationServiceInterface,
 		accountLinkMailer:                accountLinkMailerInterface,
+		adminAccountService:              adminAccountServiceInterface,
 		accountEmailRunners:              accountEmailRunners,
 		setupModeService:                 setupModeService,
 		instanceAuthSettingsService:      instanceAuthSettingsServiceInterface,
@@ -552,7 +563,7 @@ var ProviderSet = wire.NewSet(providers.ProvideMetrics, providers.ProvideEmailSe
 	new(*services.InstanceSiteInfoService)), providers.ProvideInstanceSearchSettingsService, wire.Bind(new(services.InstanceSearchSettingsResolver),
 	new(*services.InstanceSearchSettingsService)), wire.Bind(new(services.InstanceSearchSettingsReader),
 	new(*services.InstanceSearchSettingsService)), wire.Bind(new(services.InstanceSearchSettingsServiceInterface),
-	new(*services.InstanceSearchSettingsService)), providers.ProvideSearchSettingsResolver, providers.ProvideTeamEmailProviderService, providers.ProvideEmailSenderResolver, providers.ProvideInstanceEmailProviderService, providers.ProvideInstanceAdminResolver, providers.ProvideAccessAllowlistResolver, providers.ProvideAuthPolicyResolver, providers.ProvidePasswordAuthService, wire.Struct(new(providers.AccountServiceDeps), "*"), providers.ProvideAccountService, wire.Struct(new(providers.AccountTokenServiceDeps), "*"), providers.ProvideAccountTokenService, providers.ProvideAccountEmailRunners, providers.ProvideAccountEmailSender, providers.ProvideAccountNotifier, wire.Struct(new(providers.AccountLinkMailerDeps), "*"), providers.ProvideAccountLinkMailer, providers.ProvideAuthWayIn, providers.ProvideRootAdminPasswordService, wire.Struct(new(providers.InvitationRegistrationDeps), "*"), providers.ProvideInvitationRegistrationService, providers.ProvideSetupModeService, providers.ProvideIdentityProviderResolver, providers.ProvideInstanceAuthSettingsService, providers.ProvideTeamSearchSettingsService, providers.ProvideInstanceAISummarySettingsService, wire.Bind(new(services.InstanceAISummarySettingsResolver),
+	new(*services.InstanceSearchSettingsService)), providers.ProvideSearchSettingsResolver, providers.ProvideTeamEmailProviderService, providers.ProvideEmailSenderResolver, providers.ProvideInstanceEmailProviderService, providers.ProvideInstanceAdminResolver, providers.ProvideAccessAllowlistResolver, providers.ProvideAuthPolicyResolver, providers.ProvidePasswordAuthService, wire.Struct(new(providers.AccountServiceDeps), "*"), providers.ProvideAccountService, wire.Struct(new(providers.AccountTokenServiceDeps), "*"), providers.ProvideAccountTokenService, providers.ProvideAccountEmailRunners, providers.ProvideAccountEmailSender, providers.ProvideAccountNotifier, wire.Struct(new(providers.AccountLinkMailerDeps), "*"), providers.ProvideAccountLinkMailer, wire.Struct(new(providers.AdminAccountServiceDeps), "*"), providers.ProvideAdminAccountService, providers.ProvideAuthWayIn, providers.ProvideRootAdminPasswordService, wire.Struct(new(providers.InvitationRegistrationDeps), "*"), providers.ProvideInvitationRegistrationService, providers.ProvideSetupModeService, providers.ProvideIdentityProviderResolver, providers.ProvideInstanceAuthSettingsService, providers.ProvideTeamSearchSettingsService, providers.ProvideInstanceAISummarySettingsService, wire.Bind(new(services.InstanceAISummarySettingsResolver),
 	new(*services.InstanceAISummarySettingsService)), wire.Bind(new(services.InstanceAISummarySettingsReader),
 	new(*services.InstanceAISummarySettingsService)), wire.Bind(new(services.InstanceAISummarySettingsServiceInterface),
 	new(*services.InstanceAISummarySettingsService)), providers.ProvideTeamAISummarySettingsService, wire.Bind(new(services.TeamAISummarySettingsServiceInterface),

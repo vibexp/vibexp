@@ -120,7 +120,15 @@ func adminUserExportColumns() []adminCSVColumn[models.AdminUserListItem] {
 		adminCSVInt("project_count", func(x u) int64 { return x.ProjectCount }),
 	}
 	cols = append(cols, adminResourceCountColumns(func(x u) models.AdminResourceCounts { return x.ResourceCounts })...)
-	return append(cols, adminCSVTime("last_resource_created_at", func(x u) *time.Time { return x.LastResourceCreatedAt }))
+	return append(cols,
+		adminCSVTime("last_resource_created_at", func(x u) *time.Time { return x.LastResourceCreatedAt }),
+		// Sign-in state (#1436). The methods are joined with spaces: none of
+		// them contains one.
+		adminCSVText("sign_in_methods", func(x u) string { return strings.Join(x.SignIn.Methods, " ") }),
+		adminCSVBool("has_password", func(x u) bool { return x.SignIn.HasPassword }),
+		adminCSVBool("password_disabled", func(x u) bool { return x.SignIn.PasswordDisabled }),
+		adminCSVBool("pending_setup", func(x u) bool { return x.SignIn.PendingSetup }),
+	)
 }
 
 // adminTeamExportColumns mirrors the admin team list columns, flattening the

@@ -53,9 +53,18 @@ api-v1-admin-users:
       cannot be published at all, the user is not created and this returns 500,
       so an unprovisioned account is never left behind.
 
-      No password is set (VibeXP has no password provider); the account's owner
-      signs in through the configured identity provider. Instance-admin rights
-      are config-only and cannot be granted here.
+      `teams` adds the user to existing teams with the given roles in the same
+      operation; if any of them cannot be added, nothing is created.
+
+      With password sign-in on, the account is created without a password and
+      its owner gets a one-time setup link valid for 7 days. With an instance
+      email provider stored, it is emailed and NOT returned; otherwise it is
+      returned once in `setup.link_url` for you to hand over. A link to share
+      can also be requested later (`POST /api/v1/admin/users/{id}/setup-link`).
+      No shareable link is ever issued for a root instance admin's address.
+      With password sign-in off, the owner signs in through an identity
+      provider and `setup.delivery` is `none`. Instance-admin rights are
+      config-only and cannot be granted here.
 
       A duplicate email returns 409 and creates nothing. When the instance has
       an active access allowlist that does not admit the email (root instance
@@ -77,16 +86,18 @@ api-v1-admin-users:
             $ref: '../openapi.yaml#/components/schemas/AdminUserCreateRequest'
     responses:
       '201':
-        description: The created user
+        description: The created user, and how their owner will get in
         content:
           application/json:
             schema:
-              $ref: '../openapi.yaml#/components/schemas/AdminUserDetail'
+              $ref: '../openapi.yaml#/components/schemas/AdminUserCreated'
       '400':
         description: |
-          Bad request — missing or malformed email/name, an unknown field, or an
-          email the access allowlist does not admit (`validation_errors` entry on
-          `email` with code `email_not_allowed`; nothing is created)
+          Bad request — a missing or malformed email, an oversized name, an
+          unknown field, a team that does not exist or is a personal workspace
+          (`validation_errors` entry on `teams`; nothing is created), or an
+          email the access allowlist does not admit (`validation_errors` entry
+          on `email` with code `email_not_allowed`; nothing is created)
         content:
           application/problem+json:
             schema:
@@ -168,6 +179,14 @@ api-v1-admin-users:
         schema:
           type: string
           format: date-time
+      - name: pending_setup
+        in: query
+        description: |
+          Narrow to accounts that have no way to sign in yet (`true`), or to
+          those that do (`false`).
+        required: false
+        schema:
+          type: boolean
       - name: status
         in: query
         description: Narrow to accounts in this lifecycle state.
@@ -1150,6 +1169,82 @@ api-v1-admin-dashboard-timeseries:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '500':
         description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-users-id-setup-link:
+  post:
+    summary: Send or get a setup link for an account that cannot sign in yet
+    description: |
+      Issues a new one-time setup link, valid for 7 days, for an account that
+      has no way to sign in yet (`pending_setup`). With `delivery: email` it is
+      sent to the account's address; with `delivery: link` it is returned here,
+      once, for you to hand over. A new link of the same kind replaces the
+      previous one; an emailed and a shared link may both be live, and
+      completing either ends the other.
+
+      Refused (409, with a stable `code`) when password sign-in is off
+      (`password_login_disabled`), when the account already has a way to sign in
+      (`has_sign_in_method`), for a suspended account (`account_suspended`),
+      for your own account (`own_account`), for
+      `delivery: email` with no email provider stored (`email_unavailable`),
+      and for `delivery: link` to a root instance admin's address
+      (`root_admin_link_refused`: such an account gets an emailed link only,
+      or uses the setup page or the recovery CLI). Instance-admin only;
+      non-admin and unauthenticated requests receive 404.
+    operationId: issueAdminUserSetupLink
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: User identifier
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/AdminUserSetupLinkRequest'
+    responses:
+      '200':
+        description: The link was sent, or is returned here once
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminUserSetupLink'
+      '400':
+        description: |
+          Malformed body or an unknown `delivery`
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: |
+          No such user, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: |
+          Refused; `code` says why (see the description)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: |
+          Internal server error, or the email could not be sent; nothing usable was issued
         content:
           application/problem+json:
             schema:
@@ -2944,6 +3039,14 @@ api-v1-admin-users-export:
         schema:
           type: string
           format: date-time
+      - name: pending_setup
+        in: query
+        description: |
+          Narrow to accounts that have no way to sign in yet (`true`), or to
+          those that do (`false`).
+        required: false
+        schema:
+          type: boolean
       - name: status
         in: query
         description: Narrow to accounts in this lifecycle state.
