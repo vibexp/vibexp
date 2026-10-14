@@ -102,7 +102,7 @@ func newCapturingProvider(t *testing.T) (*SMTPEmailProvider, *capturedSend) {
 	require.True(t, ok)
 
 	captured := &capturedSend{}
-	provider.sendMail = func(addr string, _ smtp.Auth, from string, to []string, msg []byte) error {
+	provider.sendMail = func(_ context.Context, addr string, _ smtp.Auth, from string, to []string, msg []byte) error {
 		captured.addr = addr
 		captured.from = from
 		captured.recipients = to

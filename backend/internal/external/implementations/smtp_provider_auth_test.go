@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,13 +23,21 @@ type noAuthRelay struct {
 	authSeen bool
 	accepted bool
 	done     chan struct{}
+	// delay holds every reply back, to play a slow but healthy server.
+	delay time.Duration
 }
 
 func startNoAuthRelay(t *testing.T) *noAuthRelay {
 	t.Helper()
+	return startRelay(t, 0)
+}
+
+// startRelay starts the relay; delay holds every reply back.
+func startRelay(t *testing.T, delay time.Duration) *noAuthRelay {
+	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	relay := &noAuthRelay{listener: listener, done: make(chan struct{})}
+	relay := &noAuthRelay{listener: listener, done: make(chan struct{}), delay: delay}
 	t.Cleanup(func() {
 		if err := listener.Close(); err != nil && !strings.Contains(err.Error(), "use of closed") {
 			t.Logf("closing the fake relay: %v", err)
@@ -52,6 +61,7 @@ func (r *noAuthRelay) serveOne() {
 
 	reader := bufio.NewReader(conn)
 	reply := func(line string) bool {
+		time.Sleep(r.delay)
 		_, werr := conn.Write([]byte(line + "\r\n"))
 		return werr == nil
 	}
