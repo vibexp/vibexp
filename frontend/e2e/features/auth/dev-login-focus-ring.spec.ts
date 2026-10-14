@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 /**
- * Feature Test: the dev login fields' focus ring is not clipped (#1497)
+ * Feature Test: the dev login fields' focus ring is not clipped (#1498)
  *
  * The fields take the design-system input focus style, a ring drawn outside
  * the field's box. A clipping container around the form cut that ring into a

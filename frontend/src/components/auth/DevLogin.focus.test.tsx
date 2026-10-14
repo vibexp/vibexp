@@ -72,7 +72,7 @@ describe('DevLogin focus', () => {
   })
 
   // The fields' focus ring is drawn outside their box, so any clipping
-  // container around them cuts it into a stray line above and below (#1497).
+  // container around them cuts it into a stray line above and below (#1498).
   // jsdom cannot see clipping; the geometry is checked in
   // e2e/features/auth/dev-login-focus-ring.spec.ts. This pins the structure.
   it('puts no clipping container between the fields and the section', async () => {

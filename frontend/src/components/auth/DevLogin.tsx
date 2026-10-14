@@ -122,7 +122,7 @@ export function DevLogin({ returnTo }: Readonly<DevLoginProps>) {
 
       {/* Not `overflow-hidden`: nothing here animates, and the fields' focus
           ring is drawn outside their box, so clipping cut it into a stray
-          line above and below each field (#1497). */}
+          line above and below each field (#1498). */}
       <CollapsibleContent>
         <form
           onSubmit={e => void handleDevLogin(e)}
