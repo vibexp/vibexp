@@ -14,7 +14,7 @@ import (
 // invite_only, and the person was not invited. Nothing is written. It is also
 // returned in every mode for an unverified claim to a root instance admin's
 // address (#1467).
-var ErrRegistrationClosed = errors.New("registration is by invitation only")
+var ErrRegistrationClosed = errors.New("registration is closed to this sign-in")
 
 // RegistrationGate decides whether a sign-in may create a NEW account (#1434).
 // It is never asked about an existing account: the registration mode does not

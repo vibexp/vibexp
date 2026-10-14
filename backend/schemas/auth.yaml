@@ -88,9 +88,11 @@ CurrentUser:
         is_root_instance_admin:
           type: boolean
           description: |
-            Whether the authenticated user's email is in the configured
-            auth.instance_admins list (matched case-insensitively). Only root
-            admins may grant or revoke other instance admins. UI convenience
+            Whether the authenticated user is a root instance admin: their
+            email is in the configured auth.instance_admins list (matched
+            case-insensitively) AND has been verified (#1467). A listed but
+            unverified account is not a root admin. Only root admins may grant
+            or revoke other instance admins. UI convenience
             only; grant/revoke is authorized server-side.
           example: false
 

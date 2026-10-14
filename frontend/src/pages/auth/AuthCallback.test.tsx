@@ -119,10 +119,13 @@ describe('AuthCallback', () => {
 
     expect(screen.getByRole('alert')).toBeInTheDocument()
     expect(
-      screen.getByText('Sign-up is by invitation only')
+      screen.getByText('This sign-in cannot create an account')
     ).toBeInTheDocument()
     expect(
       screen.getByText(/new accounts need an invitation/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/did not verify this email address/i)
     ).toBeInTheDocument()
     expect(screen.queryByText('Authentication failed')).not.toBeInTheDocument()
 

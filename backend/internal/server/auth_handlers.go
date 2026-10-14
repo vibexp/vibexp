@@ -58,8 +58,9 @@ const (
 
 	// callbackErrorRegistrationClosed is the SPA callback error code for a
 	// sign-in that would have created an account while the registration mode
-	// is invite_only and the person was not invited (#1434). Mirrored by
-	// REGISTRATION_CLOSED_CODE in the frontend.
+	// is invite_only and the person was not invited (#1434), or, in any mode,
+	// with an unverified claim to a root instance admin's address (#1467).
+	// Mirrored by REGISTRATION_CLOSED_CODE in the frontend.
 	callbackErrorRegistrationClosed = "registration_closed"
 
 	// stateCookieMaxAge is 10 minutes — enough for a human to complete the
@@ -291,8 +292,9 @@ func (s *Server) handleCallbackFailure(w http.ResponseWriter, r *http.Request, s
 		s.redirectCallbackError(w, r, callbackErrorIdentityDisconnected)
 		return
 	}
-	// The sign-in would have created an account and registration is by
-	// invitation only (#1434). The service logged the reason.
+	// The sign-in would have created an account the registration gate refuses:
+	// not invited on an invite_only instance (#1434), or an unverified claim to
+	// a root admin's address (#1467). The service logged the reason.
 	if stderrors.Is(err, services.ErrRegistrationClosed) {
 		s.redirectCallbackError(w, r, callbackErrorRegistrationClosed)
 		return
