@@ -3,9 +3,13 @@ package implementations
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"errors"
 	"fmt"
+	"net"
 	"net/smtp"
 	"strconv"
+	"time"
 
 	"github.com/darkrockmountain/gomail"
 
@@ -28,13 +32,14 @@ var crlf = []byte("\r\n")
 // field. There is therefore no supported way to give it a display name — the
 // only way to put one in the From header is to own the message bytes here
 // (#549). The transport is otherwise the same call gomail's implicit-connection
-// path makes: net/smtp.SendMail, with PLAIN auth when a password is set.
+// path makes — net/smtp.SendMail's steps, with PLAIN auth when a password is
+// set — except that it honours the context (sendMailContext).
 type SMTPEmailProvider struct {
 	addr string
 	auth smtp.Auth
-	// sendMail is net/smtp.SendMail in production, replaced in tests so the
+	// sendMail is sendMailContext in production, replaced in tests so the
 	// assembled bytes can be asserted without a live SMTP server.
-	sendMail func(addr string, a smtp.Auth, from string, to []string, msg []byte) error
+	sendMail func(ctx context.Context, addr string, a smtp.Auth, from string, to []string, msg []byte) error
 }
 
 // NewSMTPEmailProvider creates a new SMTP email provider.
@@ -45,7 +50,7 @@ func NewSMTPEmailProvider(spec SMTPSpec) (external.EmailProvider, error) {
 	}
 
 	// No password means an unauthenticated relay (Mailpit, an internal relay;
-	// #1208): a nil auth makes net/smtp.SendMail skip AUTH, which such a server
+	// #1208): a nil auth makes sendMailContext skip AUTH, which such a server
 	// may not advertise at all. With a password it authenticates with PLAIN.
 	var auth smtp.Auth
 	if spec.Password != "" {
@@ -55,7 +60,7 @@ func NewSMTPEmailProvider(spec SMTPSpec) (external.EmailProvider, error) {
 	return &SMTPEmailProvider{
 		addr:     fmt.Sprintf("%s:%d", spec.Host, port),
 		auth:     auth,
-		sendMail: smtp.SendMail,
+		sendMail: sendMailContext,
 	}, nil
 }
 
@@ -65,10 +70,10 @@ func NewSMTPEmailProvider(spec SMTPSpec) (external.EmailProvider, error) {
 // display name — so nothing that validates the envelope sees a different value
 // than before.
 //
-// ctx is accepted for interface symmetry but unused: net/smtp.SendMail takes no
-// context, so there is nothing to propagate it to. gomail's sender ignored it
-// for the same reason.
-func (p *SMTPEmailProvider) SendEmail(_ context.Context, outgoing *external.OutgoingMessage) error {
+// ctx bounds the whole SMTP conversation (#1472): a server that accepts the
+// connection and then stalls fails the send when ctx ends, or after
+// smtpDefaultTimeout when ctx has no deadline.
+func (p *SMTPEmailProvider) SendEmail(ctx context.Context, outgoing *external.OutgoingMessage) error {
 	message := outgoing.Message
 
 	// The error is part of gomail's signature rather than a reachable outcome —
@@ -89,7 +94,7 @@ func (p *SMTPEmailProvider) SendEmail(_ context.Context, outgoing *external.Outg
 	recipients = append(recipients, message.GetCC()...)
 	recipients = append(recipients, message.GetBCC()...)
 
-	if err := p.sendMail(p.addr, p.auth, message.GetFrom(), recipients, mime); err != nil {
+	if err := p.sendMail(ctx, p.addr, p.auth, message.GetFrom(), recipients, mime); err != nil {
 		return fmt.Errorf("smtp: failed to send email: %w", err)
 	}
 
@@ -115,4 +120,113 @@ func replaceFromHeader(mime []byte, from string) []byte {
 	out = append(out, crlf...)
 
 	return append(out, rest...)
+}
+
+// smtpDefaultTimeout bounds a send whose context has no deadline. It matches
+// the per-task bound of the account email runner (#1433). A var so tests can
+// shorten it.
+var smtpDefaultTimeout = 30 * time.Second
+
+// errSMTPNoAuth is net/smtp.SendMail's refusal to send credentials to a server
+// that does not offer AUTH, kept word for word.
+var errSMTPNoAuth = errors.New("smtp: server doesn't support AUTH")
+
+// sendMailContext is net/smtp.SendMail with a context (#1472). It takes the
+// same steps — EHLO, STARTTLS when offered, AUTH when a is set, MAIL, RCPT,
+// DATA, QUIT — over a connection whose deadline is ctx's (or
+// smtpDefaultTimeout from now), and that is cut when ctx is cancelled, so a
+// stalled server cannot hold the caller.
+//
+// One difference: SendMail skips AUTH against a server that answers only HELO
+// (no extensions at all); here a set password against such a server is refused
+// like one that does not offer AUTH, rather than sent unauthenticated.
+func sendMailContext(
+	ctx context.Context, addr string, a smtp.Auth, from string, to []string, msg []byte,
+) (err error) {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("smtp: bad address %q: %w", addr, err)
+	}
+	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", addr)
+	if err != nil {
+		return err
+	}
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		deadline = time.Now().Add(smtpDefaultTimeout)
+	}
+	if err = conn.SetDeadline(deadline); err != nil {
+		_ = conn.Close() //nolint:errcheck // the deadline error is the one reported
+		return err
+	}
+	// A cancelled context fails the read or write in progress at once. Best
+	// effort: if it cannot be set, the deadline above still ends the send.
+	stop := context.AfterFunc(ctx, func() {
+		_ = conn.SetDeadline(time.Now()) //nolint:errcheck // see above
+	})
+	defer stop()
+	defer func() {
+		if err != nil && ctx.Err() != nil {
+			err = fmt.Errorf("%w (%w)", err, ctx.Err())
+		}
+	}()
+
+	c, err := smtp.NewClient(conn, host)
+	if err != nil {
+		_ = conn.Close() //nolint:errcheck // the greeting error is the one reported
+		return err
+	}
+	// After QUIT the connection is already closed; on failure the error that
+	// ended the conversation is the one reported.
+	defer func() { _ = c.Close() }() //nolint:errcheck // see above
+	if err = handshake(c, host, a); err != nil {
+		return err
+	}
+	return deliver(c, from, to, msg)
+}
+
+// handshake is the first half of net/smtp.SendMail's conversation: EHLO,
+// STARTTLS when the server offers it, and AUTH when a is set.
+func handshake(c *smtp.Client, host string, a smtp.Auth) error {
+	if err := c.Hello("localhost"); err != nil {
+		return err
+	}
+	if ok, _ := c.Extension("STARTTLS"); ok {
+		if err := c.StartTLS(&tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}); err != nil {
+			return err
+		}
+	}
+	if a != nil {
+		if ok, _ := c.Extension("AUTH"); !ok {
+			return errSMTPNoAuth
+		}
+		if err := c.Auth(a); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// deliver is the second half: the envelope, the message and QUIT.
+func deliver(c *smtp.Client, from string, to []string, msg []byte) error {
+	// Mail and Rcpt refuse an address containing CR or LF, as SendMail does.
+	if err := c.Mail(from); err != nil {
+		return err
+	}
+	for _, addr := range to {
+		if err := c.Rcpt(addr); err != nil {
+			return err
+		}
+	}
+	w, err := c.Data()
+	if err != nil {
+		return err
+	}
+	if _, err = w.Write(msg); err != nil {
+		return err
+	}
+	if err = w.Close(); err != nil {
+		return err
+	}
+	return c.Quit()
 }
