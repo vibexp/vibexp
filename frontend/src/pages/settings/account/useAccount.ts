@@ -45,6 +45,12 @@ export function useAccount(leave: (url: string) => void = leaveForSignIn) {
   // ten minutes can run out while the page is open.
   const [reauthRefused, setReauthRefused] = useState(false)
   const running = useRef(false)
+  // Held in a ref so the loader does not depend on the caller passing a
+  // stable function.
+  const leaveRef = useRef(leave)
+  useEffect(() => {
+    leaveRef.current = leave
+  }, [leave])
 
   /** Reads the account. On failure the stale one is not kept on screen. */
   const read = useCallback(async () => {
@@ -53,17 +59,18 @@ export function useAccount(leave: (url: string) => void = leaveForSignIn) {
       setAccount(await accountService.get())
     } catch (err) {
       if (statusOf(err) === 401) {
-        leave(SIGN_IN_AGAIN_HREF)
+        leaveRef.current(SIGN_IN_AGAIN_HREF)
         return
       }
       setAccount(null)
       setLoadError(accountErrorMessage(err, 'Your account could not be loaded'))
     }
-  }, [leave])
+  }, [])
 
   /**
    * Runs `work` with nothing else of this page in flight. Resolves to false,
-   * having done nothing, when something is already running.
+   * having done nothing, when something is already running. A 401 from any of
+   * the page's requests leaves for the sign-in page before it is rethrown.
    */
   const exclusive = useCallback(
     async (work: () => Promise<void>): Promise<boolean> => {
@@ -73,6 +80,9 @@ export function useAccount(leave: (url: string) => void = leaveForSignIn) {
       try {
         await work()
         return true
+      } catch (err) {
+        if (statusOf(err) === 401) leaveRef.current(SIGN_IN_AGAIN_HREF)
+        throw err
       } finally {
         running.current = false
         setBusy(false)
@@ -100,17 +110,15 @@ export function useAccount(leave: (url: string) => void = leaveForSignIn) {
           await call()
         } catch (err) {
           const status = statusOf(err)
-          if (status === 401) {
-            leave(SIGN_IN_AGAIN_HREF)
-            throw err
-          }
+          // A 401 is a sign-out (`exclusive` leaves); nothing to read.
+          if (status === 401) throw err
           if (isReauthenticationRequired(err)) setReauthRefused(true)
           if (status === null || !NOTHING_CHANGED.has(status)) await read()
           throw err
         }
         await read()
       }),
-    [exclusive, leave, read]
+    [exclusive, read]
   )
 
   return {

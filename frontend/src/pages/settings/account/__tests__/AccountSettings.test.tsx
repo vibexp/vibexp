@@ -610,6 +610,34 @@ describe('AccountSettings: a signed-out or stale page', () => {
     expect(service.setPassword).toHaveBeenCalledTimes(1)
   })
 
+  it('leaves for the sign-in page when the name save answers 401', async () => {
+    service.get.mockResolvedValue(account())
+    service.updateName.mockRejectedValue(
+      apiError(401, 'AUTH_REQUIRED', 'Authentication required')
+    )
+    const user = renderPage()
+    const name = await screen.findByLabelText('Name')
+    await user.clear(name)
+    await user.type(name, 'Ada King')
+    await user.click(screen.getByRole('button', { name: 'Save name' }))
+
+    await waitFor(() => {
+      expect(leave).toHaveBeenCalledWith('/login?return_to=/settings/account')
+    })
+    expect(refreshUser).not.toHaveBeenCalled()
+  })
+
+  it('reads the account once, whatever the caller passes as leave', async () => {
+    service.get.mockResolvedValue(account())
+    const { rerender } = render(<AccountSettings leave={url => leave(url)} />, {
+      wrapper: MemoryRouter,
+    })
+    await screen.findByTestId('account-profile-card')
+    rerender(<AccountSettings leave={url => leave(url)} />)
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(service.get).toHaveBeenCalledTimes(1)
+  })
+
   it('leaves for the sign-in page when the account read answers 401', async () => {
     service.get.mockRejectedValue(
       apiError(401, 'AUTH_REQUIRED', 'Not signed in')
