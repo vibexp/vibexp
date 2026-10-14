@@ -55,6 +55,13 @@ itself cannot be restored). Addresses are namespaced per run
 (`e2e-pw-<journey>-<who>-<run>@vibexp.test`). Mailpit is read through the app
 container (`execInApp`), because its API is not published on the host.
 
+**Reading a red run.** Because of the project dependencies, a test that still
+fails in any earlier project (chromium, smoke, journeys, features) means the
+password journeys do **not run at all**: the report lists them as "did not
+run", not as failed. A red run is then not a password regression, and green
+password journeys are absent from it rather than passing. Re-run them with
+`--no-deps` (below) to get their result.
+
 **Running them alone.** The project depends on the other four, so a plain
 `npx playwright test e2e/journeys/password-forgot.journey.spec.ts` first runs
 the whole suite, and a test failing elsewhere means the password journeys show
