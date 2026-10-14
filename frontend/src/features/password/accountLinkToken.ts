@@ -15,7 +15,12 @@ export function takeAccountLinkToken(): string | null {
   if (!hash) return null
   const token = new URLSearchParams(hash).get('token')
   const { pathname, search } = globalThis.location
-  globalThis.history.replaceState(null, '', pathname + search)
+  // Keep the router's entry state; only the URL changes.
+  globalThis.history.replaceState(
+    globalThis.history.state,
+    '',
+    pathname + search
+  )
   return token && token.length > 0 ? token : null
 }
 

@@ -1,4 +1,10 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 
@@ -267,5 +273,86 @@ describe('SignedOutInvitation', () => {
       await form.findByText('The two passwords do not match.')
     ).toBeVisible()
     expect(previews.register).not.toHaveBeenCalled()
+  })
+})
+
+describe('SignedOutInvitation: after review', () => {
+  it('drops the provider stash once the account is made, on both outcomes', async () => {
+    for (const accepted of [true, false]) {
+      sessionStore.set(STORAGE_KEYS.PENDING_INVITATION_TOKEN, 'tok+1/a')
+      previews.register.mockResolvedValueOnce({
+        user: { email: 'grace@example.com' },
+        team_id: 'team-1',
+        invitation_accepted: accepted,
+      } as never)
+      const user = renderView()
+      await register(user)
+      await waitFor(() => {
+        expect(
+          sessionStore.get(STORAGE_KEYS.PENDING_INVITATION_TOKEN)
+        ).toBeNull()
+      })
+      cleanup()
+    }
+  })
+
+  it('shows the invalid state when the invitation went away before the submit', async () => {
+    previews.register.mockRejectedValue(
+      apiError(404, 'invitation_invalid', 'not valid')
+    )
+    const user = renderView()
+    await register(user)
+
+    expect(await screen.findByTestId('invitation-invalid')).toBeVisible()
+    expect(screen.queryByRole('form')).toBeNull()
+  })
+
+  it('treats an undecodable token as an invalid link', async () => {
+    previews.preview.mockRejectedValue(
+      apiError(400, 'BAD_REQUEST', 'Invalid request')
+    )
+    renderView()
+
+    expect(await screen.findByTestId('invitation-invalid')).toHaveTextContent(
+      'This invitation link is not valid'
+    )
+  })
+
+  it('still shows the invitation when the provider list cannot be read', async () => {
+    auth.getSignInMethods.mockRejectedValue(new Error('Network Error'))
+    renderView()
+
+    expect(
+      await screen.findByRole('form', { name: 'Create your account' })
+    ).toBeVisible()
+    expect(screen.queryByTestId('provider-choices')).toBeNull()
+  })
+
+  it('says why when a provider sign-in cannot start, keeping the page', async () => {
+    login.mockRejectedValue(new Error('Sign-in is unavailable'))
+    const user = renderView()
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Continue with Mock SSO' })
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Sign-in is unavailable'
+    )
+    expect(screen.getByTestId('invitation-preview')).toBeVisible()
+  })
+
+  it('has one page heading in every state', async () => {
+    renderView()
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Team invitation' })
+    ).toBeVisible()
+    cleanup()
+
+    previews.preview.mockRejectedValue(
+      apiError(404, 'invitation_invalid', 'not valid')
+    )
+    renderView()
+    await screen.findByTestId('invitation-invalid')
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
   })
 })

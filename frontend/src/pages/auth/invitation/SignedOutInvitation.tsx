@@ -32,7 +32,7 @@ import {
 import { PublicCardPage } from '@/features/site-info/PublicPageBrand'
 import { useSiteInfo } from '@/features/site-info/useSiteInfo'
 import { formatDate } from '@/lib/time'
-import { type AuthProvider, authService } from '@/services/authService'
+import type { AuthProvider } from '@/services/authService'
 import {
   type InvitationPreview,
   publicInvitationService,
@@ -41,20 +41,10 @@ import { ApiError } from '@/types/errors'
 import { sessionStore } from '@/utils/storage'
 
 import { ProviderChoices } from '../ProviderChoices'
-
-const NAME_MAX_LENGTH = 255
+import { enabledProviders, messageOf, optionalNameField } from '../publicForms'
 
 const schema = z
-  .object({
-    name: z
-      .string()
-      .trim()
-      .max(
-        NAME_MAX_LENGTH,
-        `Use at most ${String(NAME_MAX_LENGTH)} characters.`
-      ),
-    ...newPasswordFields,
-  })
+  .object({ name: optionalNameField, ...newPasswordFields })
   .superRefine(passwordsMatch)
 
 type RegisterValues = z.infer<typeof schema>
@@ -75,8 +65,13 @@ function codeOf(err: unknown): string | null {
   return err instanceof ApiError ? err.code : null
 }
 
-function messageOf(err: unknown, fallback: string): string {
-  return err instanceof Error && err.message ? err.message : fallback
+function statusOf(err: unknown): number | null {
+  return err instanceof ApiError ? err.status : null
+}
+
+/** Clears the stash once it is no longer needed: the person is signed in. */
+function dropStash(): void {
+  sessionStore.remove(STORAGE_KEYS.PENDING_INVITATION_TOKEN)
 }
 
 /**
@@ -100,13 +95,14 @@ export function SignedOutInvitation({
   const load = useCallback(async () => {
     setView({ kind: 'loading' })
     try {
-      const [preview, methods] = await Promise.all([
+      const [preview, providers] = await Promise.all([
         publicInvitationService.preview(token),
-        authService.getSignInMethods(),
+        enabledProviders(),
       ])
-      setView({ kind: 'ready', preview, providers: methods.providers })
+      setView({ kind: 'ready', preview, providers })
     } catch (err) {
-      if (codeOf(err) === 'invitation_invalid') {
+      // 400: a token that cannot even be a token (bad encoding).
+      if (codeOf(err) === 'invitation_invalid' || statusOf(err) === 400) {
         setView({ kind: 'invalid' })
         return
       }
@@ -143,6 +139,7 @@ export function SignedOutInvitation({
       <PublicCardPage>
         <Card className="w-full max-w-md" data-testid="invitation-invalid">
           <CardContent className="flex flex-col gap-4 p-6">
+            <h1 className="sr-only">Team invitation</h1>
             <Alert variant="destructive">
               <AlertCircle className="size-4" />
               <AlertTitle>
@@ -175,7 +172,7 @@ export function SignedOutInvitation({
       <PublicCardPage>
         <Card className="w-full max-w-md" data-testid="invitation-waiting">
           <CardHeader>
-            <CardTitle>Your account is ready</CardTitle>
+            <CardTitle as="h1">Your account is ready</CardTitle>
             <CardDescription>
               You are signed in as {view.email}.
             </CardDescription>
@@ -219,6 +216,9 @@ export function SignedOutInvitation({
       onWaiting={email => {
         setView({ kind: 'waiting', email })
       }}
+      onInvalid={() => {
+        setView({ kind: 'invalid' })
+      }}
     />
   )
 }
@@ -231,6 +231,7 @@ function InvitationCard({
   go,
   onAccountExists,
   onWaiting,
+  onInvalid,
 }: Readonly<{
   preview: InvitationPreview
   providers: AuthProvider[]
@@ -239,6 +240,7 @@ function InvitationCard({
   go: (url: string) => void
   onAccountExists: () => void
   onWaiting: (email: string) => void
+  onInvalid: () => void
 }>) {
   const { displayName } = useSiteInfo()
 
@@ -249,7 +251,7 @@ function InvitationCard({
           <div className="bg-primary text-primary-foreground mx-auto mb-2 flex size-12 items-center justify-center rounded-full">
             <UserPlus className="size-6" />
           </div>
-          <CardTitle>Team invitation</CardTitle>
+          <CardTitle as="h1">Team invitation</CardTitle>
           <CardDescription>
             You&apos;ve been invited to join a team on {displayName}.
           </CardDescription>
@@ -300,6 +302,7 @@ function InvitationCard({
               go={go}
               onAccountExists={onAccountExists}
               onWaiting={onWaiting}
+              onInvalid={onInvalid}
             />
           )}
         </CardContent>
@@ -316,6 +319,7 @@ function CreateAccount({
   go,
   onAccountExists,
   onWaiting,
+  onInvalid,
 }: Readonly<{
   preview: InvitationPreview
   providers: AuthProvider[]
@@ -324,6 +328,7 @@ function CreateAccount({
   go: (url: string) => void
   onAccountExists: () => void
   onWaiting: (email: string) => void
+  onInvalid: () => void
 }>) {
   const form = useForm<RegisterValues>({
     resolver: zodResolver(schema),
@@ -338,6 +343,9 @@ function CreateAccount({
         password: values.password,
         ...(values.name ? { name: values.name } : {}),
       })
+      // Signed in now: a provider attempt's stash must not send the person
+      // back to this invitation (InvitationResumeAfterAuth).
+      dropStash()
       if (result.invitation_accepted) {
         // The in-app handshake switches to the team and welcomes the person.
         sessionStore.set(STORAGE_KEYS.INVITATION_JUST_ACCEPTED, {
@@ -356,7 +364,8 @@ function CreateAccount({
         return
       }
       if (code === 'invitation_invalid') {
-        form.setError('root', { message: INVALID_TEXT })
+        // Withdrawn or used since the preview: the form cannot succeed.
+        onInvalid()
         return
       }
       const onPassword =

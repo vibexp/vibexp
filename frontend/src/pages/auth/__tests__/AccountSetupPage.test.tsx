@@ -216,3 +216,37 @@ describe('AccountSetupPage', () => {
     expect(links.preview).toHaveBeenLastCalledWith('t')
   })
 })
+
+describe('AccountSetupPage: after review', () => {
+  it('says a valid link for an address the allowlist refuses cannot be used, with no retry', async () => {
+    links.preview.mockRejectedValue(
+      apiError(
+        403,
+        'access_restricted',
+        'Access to this instance is restricted.'
+      )
+    )
+    renderAt('/account/setup#token=t')
+
+    const state = await screen.findByTestId('account-setup-restricted')
+    expect(state).toHaveTextContent('Access to this instance is restricted.')
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+  })
+
+  it('treats a malformed token as an invalid link', async () => {
+    links.preview.mockRejectedValue(apiError(400, 'BAD_REQUEST', 'Invalid'))
+    renderAt('/account/setup#token=t')
+
+    expect(await screen.findByTestId('account-setup-invalid')).toBeVisible()
+  })
+
+  it('has one page heading in every state', async () => {
+    renderAt('/account/setup#token=t')
+    expect(
+      await screen.findByRole('heading', {
+        level: 1,
+        name: 'Set up your account',
+      })
+    ).toBeVisible()
+  })
+})

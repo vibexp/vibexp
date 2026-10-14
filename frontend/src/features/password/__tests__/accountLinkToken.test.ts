@@ -23,6 +23,16 @@ describe('account link token', () => {
     expect(takeAccountLinkToken()).toBeNull()
   })
 
+  it("keeps the router's history entry state", () => {
+    globalThis.history.replaceState(
+      { usr: null, key: 'k1', idx: 0 },
+      '',
+      '/account/setup#token=abc'
+    )
+    expect(takeAccountLinkToken()).toBe('abc')
+    expect(globalThis.history.state).toEqual({ usr: null, key: 'k1', idx: 0 })
+  })
+
   it('returns null when there is no token, and still clears a stray fragment', () => {
     globalThis.history.replaceState(null, '', '/account/setup')
     expect(takeAccountLinkToken()).toBeNull()

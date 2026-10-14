@@ -354,6 +354,8 @@ describe('AcceptInvitation', () => {
     // page's effect again: the stash must survive it.
     mockAuthLoading = true
     rerender(pageElement())
+    // Still mounted while the sign-in starts, so a failure to start can show.
+    expect(screen.getByTestId('signed-out-invitation')).toBeInTheDocument()
     mockAuthLoading = false
     rerender(pageElement())
     await screen.findByTestId('signed-out-invitation')

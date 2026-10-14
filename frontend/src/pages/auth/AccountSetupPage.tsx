@@ -37,24 +37,14 @@ import {
   type AccountLinkPreview,
   accountLinkService,
 } from '@/services/accountLinkService'
-import { type AuthProvider, authService } from '@/services/authService'
+import type { AuthProvider } from '@/services/authService'
 import { ApiError } from '@/types/errors'
 
 import { ProviderChoices } from './ProviderChoices'
-
-const NAME_MAX_LENGTH = 255
+import { enabledProviders, messageOf, optionalNameField } from './publicForms'
 
 const schema = z
-  .object({
-    name: z
-      .string()
-      .trim()
-      .max(
-        NAME_MAX_LENGTH,
-        `Use at most ${String(NAME_MAX_LENGTH)} characters.`
-      ),
-    ...newPasswordFields,
-  })
+  .object({ name: optionalNameField, ...newPasswordFields })
   .superRefine(passwordsMatch)
 
 type SetupValues = z.infer<typeof schema>
@@ -65,25 +55,16 @@ type View =
   | { kind: 'invalid' }
   /** Password sign-in is off on the instance. */
   | { kind: 'password-off'; providers: AuthProvider[] }
+  /** A passing failure: the link may still work. */
   | { kind: 'refused'; message: string }
+  /** The allowlist does not admit the account's email: retrying cannot help. */
+  | { kind: 'restricted'; message: string }
   | { kind: 'ready'; preview: AccountLinkPreview; providers: AuthProvider[] }
   /** The password was set but the request did not finish. */
   | { kind: 'set-not-signed-in'; email: string }
 
 function statusOf(err: unknown): number | null {
   return err instanceof ApiError ? err.status : null
-}
-
-function messageOf(err: unknown, fallback: string): string {
-  return err instanceof Error && err.message ? err.message : fallback
-}
-
-async function enabledProviders(): Promise<AuthProvider[]> {
-  try {
-    return (await authService.getSignInMethods()).providers
-  } catch {
-    return []
-  }
 }
 
 /**
@@ -120,7 +101,13 @@ export function AccountSetupPage({
       )
     } catch (err) {
       const status = statusOf(err)
-      if (status === 401) setView({ kind: 'invalid' })
+      // 400: a token that cannot be one (oversized, malformed).
+      if (status === 401 || status === 400) setView({ kind: 'invalid' })
+      else if (status === 403)
+        setView({
+          kind: 'restricted',
+          message: messageOf(err, 'Access to this instance is restricted.'),
+        })
       else if (status === 404)
         setView({ kind: 'password-off', providers: await enabledProviders() })
       else
@@ -170,10 +157,17 @@ export function AccountSetupPage({
         data-testid={`account-setup-${view.kind}`}
       >
         <CardContent className="flex flex-col gap-4 p-6">
+          <h1 className="sr-only">Set up your account</h1>
           {view.kind === 'invalid' && (
             <Notice
               title="This link is not valid"
               text="It may have expired or been used already. Ask your administrator for a new one."
+            />
+          )}
+          {view.kind === 'restricted' && (
+            <Notice
+              title="This account cannot be used here"
+              text={view.message}
             />
           )}
           {view.kind === 'refused' && (
@@ -304,7 +298,7 @@ function SetupForm({
           <div className="bg-primary text-primary-foreground mx-auto mb-2 flex size-12 items-center justify-center rounded-full">
             <KeyRound className="size-6" />
           </div>
-          <CardTitle>Set up your account</CardTitle>
+          <CardTitle as="h1">Set up your account</CardTitle>
           <CardDescription>
             Choose a password to sign in to {displayName}.
           </CardDescription>

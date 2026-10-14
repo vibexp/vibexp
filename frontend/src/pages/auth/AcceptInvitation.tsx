@@ -139,7 +139,9 @@ export function AcceptInvitation() {
     }
   }
 
-  if (signedOutToken && !authLoading && !isAuthenticated) {
+  // Not gated on the auth loading flag: starting a provider sign-in sets it,
+  // and the view must stay mounted to show a failure to start.
+  if (signedOutToken && !isAuthenticated) {
     return <SignedOutInvitation token={signedOutToken} />
   }
 
