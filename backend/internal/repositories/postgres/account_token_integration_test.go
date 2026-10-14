@@ -901,3 +901,55 @@ func TestIntegrationAccountToken_ConcurrentReplaceWithAnIntervalStoresOne(t *tes
 	assert.EqualValues(t, callers-1, refused.Load())
 	assert.Equal(t, 1, countAccountTokens(t, "user_id = $1", userID))
 }
+
+// #1466: the claim decides under the lock. Forced order: an emailed link is
+// completed (the mailbox's owner set a password and the address is now
+// verified), then a sign-in that read the account before that claims it.
+// The claim deletes nothing.
+func TestIntegrationAccountToken_ClearForClaimRefusesAnAccountThatChanged(t *testing.T) {
+	resetIntegrationTables(t)
+	repo := NewAccountTokenRepository(integrationDB)
+	ctx := context.Background()
+
+	t.Run("verified by an emailed link's completion", func(t *testing.T) {
+		userID := insertTestUser(t)
+		emailed := issueAccountToken(t, repo, userID, models.AccountTokenPurposeSetup, models.AccountTokenDeliveryEmail)
+		_, err := completeLink(repo, emailed, accountTokenTestNow)
+		require.NoError(t, err)
+		issueAccountToken(t, repo, userID, models.AccountTokenPurposeReset, models.AccountTokenDeliveryLink)
+		before := readAccountState(t, userID)
+		require.True(t, before.verified, "an emailed link verifies the address")
+
+		_, err = repo.ClearForClaim(ctx, userID)
+
+		require.ErrorIs(t, err, repositories.ErrAccountNoLongerClaimable)
+		assert.Equal(t, before, readAccountState(t, userID),
+			"the password, the links and the session epoch are untouched")
+	})
+
+	t.Run("given a sign-in identity", func(t *testing.T) {
+		userID := insertTestUser(t)
+		require.NoError(t, NewUserCredentialRepository(integrationDB).Upsert(ctx, userID, credentialTestHash))
+		_, err := integrationDB.ExecContext(ctx,
+			`INSERT INTO user_identities (user_id, provider, subject) VALUES ($1, 'google', $2)`,
+			userID, uuid.NewString())
+		require.NoError(t, err)
+		before := readAccountState(t, userID)
+
+		_, err = repo.ClearForClaim(ctx, userID)
+
+		require.ErrorIs(t, err, repositories.ErrAccountNoLongerClaimable)
+		assert.Equal(t, before, readAccountState(t, userID))
+	})
+
+	t.Run("still unverified with no identity: claimed as before", func(t *testing.T) {
+		userID := insertTestUser(t)
+		require.NoError(t, NewUserCredentialRepository(integrationDB).Upsert(ctx, userID, credentialTestHash))
+
+		cleared, err := repo.ClearForClaim(ctx, userID)
+
+		require.NoError(t, err)
+		assert.True(t, cleared.HadPassword)
+		assert.False(t, readAccountState(t, userID).hasPassword)
+	})
+}

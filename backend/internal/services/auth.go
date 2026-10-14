@@ -466,10 +466,14 @@ func (as *AuthService) linkIdentityByEmail(
 
 	now := time.Now()
 	if user.EmailVerifiedAt == nil {
-		if err := as.claimUnverifiedAccount(ctx, user, providerName); err != nil {
+		fresh, err := as.claimOrReload(ctx, user, providerName)
+		if err != nil {
 			return nil, false, err
 		}
-		user.EmailVerifiedAt = &now
+		user = fresh
+		if user.EmailVerifiedAt == nil {
+			user.EmailVerifiedAt = &now
+		}
 	}
 	fillProfileFromClaims(user, claims)
 	user.IDPProvider = &providerName
@@ -489,6 +493,35 @@ func (as *AuthService) linkIdentityByEmail(
 	).Info("Linked a new sign-in identity to an existing account by verified email")
 
 	return user, false, nil
+}
+
+// claimOrReload claims the unverified account, or, when the claim finds under
+// its lock that the account changed since it was read (#1466), re-reads it:
+// an account verified meanwhile (an emailed link was completed) is linked as
+// a verified account, keeping what its owner just set; one that gained a
+// sign-in identity is refused like any unverified account with one. It
+// returns the user to link, which carries the current version.
+func (as *AuthService) claimOrReload(
+	ctx context.Context, user *models.User, providerName string,
+) (*models.User, error) {
+	err := as.claimUnverifiedAccount(ctx, user, providerName)
+	if err == nil {
+		return user, nil
+	}
+	if !errors.Is(err, repositories.ErrAccountNoLongerClaimable) {
+		return nil, err
+	}
+	fresh, err := as.userRepo.GetByID(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to re-read an account that changed during sign-in: %w", err)
+	}
+	if fresh.EmailVerifiedAt == nil {
+		as.logLinkRefused(fresh, providerName, "unverified_account_has_identity")
+		return nil, ErrExistingSignInRequired
+	}
+	as.logger.With("user_id", fresh.ID, "provider", providerName).
+		Info("The account was verified during sign-in; linking it as a verified account")
+	return fresh, nil
 }
 
 // claimUnverifiedAccount prepares an account whose email was never verified for
