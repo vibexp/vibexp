@@ -826,7 +826,8 @@ paths:
         verified and it is already used with a sign-in provider), or when an
         email for the same account was sent in the last 5 minutes. In that last
         case the earlier link still works. An administrator can always issue a
-        link.
+        link. A new emailed link replaces only the earlier emailed one: a link
+        an administrator handed over keeps working.
 
         The body must be `application/json`. Available only while password
         login is switched on; otherwise 404. Rate-limited per client IP.
@@ -12311,9 +12312,8 @@ paths:
         Issues a new one-time setup link, valid for 7 days, for an account that
         has no way to sign in yet (`pending_setup`). With `delivery: email` it is
         sent to the account's address; with `delivery: link` it is returned here,
-        once, for you to hand over. A new link of the same kind replaces the
-        previous one; an emailed and a shared link may both be live, and
-        completing either ends the other.
+        once, for you to hand over. It replaces every earlier setup link of the
+        account, emailed or shared, so only the newest one works.
 
         Refused (409, with a stable `code`) when password sign-in is off
         (`password_login_disabled`), when the account already has a way to sign in
@@ -12386,7 +12386,8 @@ paths:
         Issues a one-time reset link: with `delivery: email` it is sent to the
         account's address and is valid for 1 hour; with `delivery: link` it is
         returned here, once, valid for 24 hours. Completing it sets a new
-        password. A new link of the same kind replaces the previous one.
+        password. It replaces every earlier reset link of the account, emailed
+        or shared, including one the owner requested with forgot-password.
 
         Without `invalidate_now` the current password and sessions keep working
         until the link is used. With it, the password is disabled, every session

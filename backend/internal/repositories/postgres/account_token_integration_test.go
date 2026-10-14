@@ -47,6 +47,20 @@ func issueAccountToken(
 	return hash
 }
 
+// issueAdminAccountToken stores a live link an administrator issued
+// (CreatedBy set) and returns its token hash.
+func issueAdminAccountToken(
+	t *testing.T, repo repositories.AccountTokenRepository, adminID, userID, purpose, delivery string,
+) []byte {
+	t.Helper()
+	hash := accountTokenHash(uuid.NewString())
+	require.NoError(t, repo.Replace(context.Background(), &models.AccountToken{
+		UserID: userID, Purpose: purpose, Delivery: delivery, TokenHash: hash,
+		ExpiresAt: accountTokenTestNow.Add(time.Hour), CreatedBy: &adminID,
+	}, 0))
+	return hash
+}
+
 // accountTokenTestHash is a hash-shaped fixture for the password a completion
 // stores. The repository never interprets it.
 const accountTokenTestHash = "$argon2id$v=19$m=64,t=1,p=1$c2FsdHNhbHRzYWx0c2FsdA$bGlua2xpbmtsaW5rbGlua2xpbmtsaW5rbGlua2xpbms"
@@ -158,6 +172,91 @@ func TestIntegrationAccountToken_ReplaceSupersedesPerPurposeAndDelivery(t *testi
 		assert.NoError(t, err, name)
 	}
 	assert.Equal(t, 4, countAccountTokens(t, "true"), "the replaced row is deleted, not kept")
+}
+
+// A link an administrator issues replaces every live link of its purpose,
+// whatever the delivery, in either order (#1490). Links of the other purpose
+// and other users' links are untouched.
+func TestIntegrationAccountToken_AdminLinkReplacesEveryDeliveryOfItsPurpose(t *testing.T) {
+	deliveries := []struct{ first, second string }{
+		{models.AccountTokenDeliveryLink, models.AccountTokenDeliveryEmail},
+		{models.AccountTokenDeliveryEmail, models.AccountTokenDeliveryLink},
+	}
+	for _, purpose := range []string{models.AccountTokenPurposeSetup, models.AccountTokenPurposeReset} {
+		for _, order := range deliveries {
+			t.Run(purpose+"/"+order.first+"-then-"+order.second, func(t *testing.T) {
+				resetIntegrationTables(t)
+				repo := NewAccountTokenRepository(integrationDB)
+				ctx := context.Background()
+				adminID, userID, otherUser := insertTestUser(t), insertTestUser(t), insertTestUser(t)
+				otherPurpose := models.AccountTokenPurposeReset
+				if purpose == models.AccountTokenPurposeReset {
+					otherPurpose = models.AccountTokenPurposeSetup
+				}
+
+				first := issueAdminAccountToken(t, repo, adminID, userID, purpose, order.first)
+				kept := issueAccountToken(t, repo, userID, otherPurpose, order.first)
+				others := issueAdminAccountToken(t, repo, adminID, otherUser, purpose, order.first)
+
+				second := issueAdminAccountToken(t, repo, adminID, userID, purpose, order.second)
+
+				_, err := repo.GetLive(ctx, first, accountTokenTestNow)
+				assert.ErrorIs(t, err, repositories.ErrAccountTokenNotFound,
+					"the earlier link of the other delivery is replaced")
+				_, err = completeLink(repo, first, accountTokenTestNow)
+				assert.ErrorIs(t, err, repositories.ErrAccountTokenNotFound)
+				for name, hash := range map[string][]byte{
+					"the new link":                  second,
+					"the link of the other purpose": kept,
+					"another user's link":           others,
+				} {
+					_, err = repo.GetLive(ctx, hash, accountTokenTestNow)
+					assert.NoError(t, err, name)
+				}
+			})
+		}
+	}
+}
+
+// An administrator's reset link also replaces the owner's own pending
+// forgot-password link (#1490).
+func TestIntegrationAccountToken_AdminResetLinkReplacesTheOwnersEmailedLink(t *testing.T) {
+	resetIntegrationTables(t)
+	repo := NewAccountTokenRepository(integrationDB)
+	adminID, userID := insertTestUser(t), insertTestUser(t)
+
+	ownRequest := issueAccountToken(t, repo, userID, models.AccountTokenPurposeReset, models.AccountTokenDeliveryEmail)
+	shown := issueAdminAccountToken(t, repo, adminID, userID, models.AccountTokenPurposeReset, models.AccountTokenDeliveryLink)
+
+	_, err := repo.GetLive(context.Background(), ownRequest, accountTokenTestNow)
+	assert.ErrorIs(t, err, repositories.ErrAccountTokenNotFound)
+	_, err = repo.GetLive(context.Background(), shown, accountTokenTestNow)
+	assert.NoError(t, err)
+}
+
+// The owner's own forgot-password request replaces only the earlier emailed
+// link: a link an administrator showed and handed over keeps working, so
+// anyone requesting resets for the address cannot kill it (#1490).
+func TestIntegrationAccountToken_SelfServiceResetKeepsTheAdminShownLink(t *testing.T) {
+	resetIntegrationTables(t)
+	repo := NewAccountTokenRepository(integrationDB)
+	ctx := context.Background()
+	adminID, userID := insertTestUser(t), insertTestUser(t)
+
+	shown := issueAdminAccountToken(t, repo, adminID, userID, models.AccountTokenPurposeReset, models.AccountTokenDeliveryLink)
+	firstRequest := issueAccountToken(t, repo, userID, models.AccountTokenPurposeReset, models.AccountTokenDeliveryEmail)
+	secondRequest := issueAccountToken(t, repo, userID, models.AccountTokenPurposeReset, models.AccountTokenDeliveryEmail)
+
+	_, err := repo.GetLive(ctx, shown, accountTokenTestNow)
+	assert.NoError(t, err, "the link the administrator showed still works")
+	_, err = repo.GetLive(ctx, firstRequest, accountTokenTestNow)
+	assert.ErrorIs(t, err, repositories.ErrAccountTokenNotFound, "the earlier emailed link is replaced")
+	_, err = repo.GetLive(ctx, secondRequest, accountTokenTestNow)
+	assert.NoError(t, err)
+
+	consumed, err := completeLink(repo, shown, accountTokenTestNow)
+	require.NoError(t, err, "the shown link completes")
+	assert.Equal(t, models.AccountTokenDeliveryLink, consumed.Delivery)
 }
 
 // Consuming a link ends every other live link of the user, whatever its

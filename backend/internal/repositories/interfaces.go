@@ -2352,6 +2352,11 @@ type AccountTokenRepository interface {
 	// that purpose and delivery, if any, and inserts token, filling its ID and
 	// CreatedAt. An unknown user returns ErrUserNotFound.
 	//
+	// A token with CreatedBy set (an administrator's link) deletes every live
+	// link of its purpose instead, whatever the delivery (#1490), so a link an
+	// administrator re-issues always ends the earlier ones. The owner's own
+	// request (no CreatedBy) leaves a link of the other delivery alone.
+	//
 	// With a positive unlessIssuedWithin it first checks, in the same
 	// transaction and under the user's lock, whether the live link it would
 	// replace was issued less than that long ago; if so it changes nothing

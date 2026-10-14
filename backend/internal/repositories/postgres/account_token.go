@@ -112,6 +112,13 @@ func (r *AccountTokenRepository) inUserTx(
 // delivery; see the interface. The delete and the insert share a transaction,
 // so there is never a moment with two live links of one kind, and never one
 // with none because the insert failed.
+//
+// An administrator's link (CreatedBy set) replaces every live link of its
+// purpose, whatever the delivery (#1490): an admin re-issuing a link that went
+// astray must be able to rely on the first one being dead. The owner's own
+// forgot-password request replaces only its delivery, because anyone can make
+// that request for any address and must not be able to kill a link an
+// administrator handed over in person.
 func (r *AccountTokenRepository) Replace(
 	ctx context.Context, token *models.AccountToken, unlessIssuedWithin time.Duration,
 ) error {
@@ -127,12 +134,8 @@ func (r *AccountTokenRepository) Replace(
 		if err := refuseWhileLiveLinkIsRecent(ctx, tx, token, unlessIssuedWithin); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `
-			DELETE FROM account_tokens
-			WHERE user_id = $1 AND purpose = $2 AND delivery = $3 AND consumed_at IS NULL`,
-			token.UserID, token.Purpose, token.Delivery,
-		); err != nil {
-			return fmt.Errorf("failed to remove the previous account token: %w", err)
+		if err := deleteReplacedAccountTokens(ctx, tx, token); err != nil {
+			return err
 		}
 
 		err := tx.QueryRowContext(ctx, `
@@ -169,6 +172,27 @@ func refuseSelfServiceResetWhileDisabled(ctx context.Context, tx *sql.Tx, token 
 	}
 	if disabled {
 		return repositories.ErrUserCredentialDisabled
+	}
+	return nil
+}
+
+// deleteReplacedAccountTokens removes the live links token replaces: of its
+// purpose, and also of its delivery unless an administrator issued it.
+func deleteReplacedAccountTokens(ctx context.Context, tx *sql.Tx, token *models.AccountToken) error {
+	var err error
+	if token.CreatedBy != nil {
+		_, err = tx.ExecContext(ctx, `
+			DELETE FROM account_tokens
+			WHERE user_id = $1 AND purpose = $2 AND consumed_at IS NULL`,
+			token.UserID, token.Purpose)
+	} else {
+		_, err = tx.ExecContext(ctx, `
+			DELETE FROM account_tokens
+			WHERE user_id = $1 AND purpose = $2 AND delivery = $3 AND consumed_at IS NULL`,
+			token.UserID, token.Purpose, token.Delivery)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to remove the previous account token: %w", err)
 	}
 	return nil
 }

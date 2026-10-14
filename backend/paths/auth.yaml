@@ -617,7 +617,8 @@ api-v1-auth-password-forgot:
       verified and it is already used with a sign-in provider), or when an
       email for the same account was sent in the last 5 minutes. In that last
       case the earlier link still works. An administrator can always issue a
-      link.
+      link. A new emailed link replaces only the earlier emailed one: a link
+      an administrator handed over keeps working.
 
       The body must be `application/json`. Available only while password
       login is switched on; otherwise 404. Rate-limited per client IP.
