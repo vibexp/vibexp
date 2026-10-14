@@ -23,6 +23,7 @@ import { AdminRoutes } from '@/pages/admin/AdminRoutes'
 import { AdminShell } from '@/pages/admin/AdminShell'
 import { RequireInstanceAdmin } from '@/pages/admin/RequireInstanceAdmin'
 import { AcceptInvitation } from '@/pages/auth/AcceptInvitation'
+import { AccountSetupPage } from '@/pages/auth/AccountSetupPage'
 import { AuthCallback } from '@/pages/auth/AuthCallback'
 import { OAuthConsentPage } from '@/pages/auth/OAuthConsentPage'
 import { SharedPrompt } from '@/pages/prompts/SharedPrompt'
@@ -153,6 +154,16 @@ function App() {
                       element={
                         <BareLayout>
                           <SharedPrompt />
+                        </BareLayout>
+                      }
+                    />
+                    {/* An admin-created account's first password (#1440). The
+                      token is in the URL fragment; the page strips it. */}
+                    <Route
+                      path="/account/setup"
+                      element={
+                        <BareLayout>
+                          <AccountSetupPage />
                         </BareLayout>
                       }
                     />

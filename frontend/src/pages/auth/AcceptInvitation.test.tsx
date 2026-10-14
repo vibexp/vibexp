@@ -24,6 +24,12 @@ vi.mock('react-router', async () => {
   }
 })
 
+vi.mock('./invitation/SignedOutInvitation', () => ({
+  SignedOutInvitation: ({ token }: { token: string }) => (
+    <div data-testid="signed-out-invitation">{token}</div>
+  ),
+}))
+
 const mockGetInvitationByToken = vi.hoisted(() => vi.fn())
 const mockAcceptInvitation = vi.hoisted(() => vi.fn())
 const mockRejectInvitation = vi.hoisted(() => vi.fn())
@@ -53,11 +59,13 @@ vi.mock('@/contexts/useAuth', () => ({
 
 const mockSessionStoreSet = vi.hoisted(() => vi.fn())
 const mockSessionStoreRemove = vi.hoisted(() => vi.fn())
+const mockSessionStoreGet = vi.hoisted(() => vi.fn((): string | null => null))
 
 vi.mock('@/utils/storage', () => ({
   sessionStore: {
     set: (...args: unknown[]) => mockSessionStoreSet(...args),
     remove: (...args: unknown[]) => mockSessionStoreRemove(...args),
+    get: () => mockSessionStoreGet(),
   },
 }))
 
@@ -113,12 +121,16 @@ const buildApiError = (
     ...overrides,
   })
 
-function renderPage() {
-  return render(
+function pageElement() {
+  return (
     <MemoryRouter>
       <AcceptInvitation />
     </MemoryRouter>
   )
+}
+
+function renderPage() {
+  return render(pageElement())
 }
 
 // ---------------------------------------------------------------------------
@@ -134,6 +146,7 @@ describe('AcceptInvitation', () => {
     mockAuthLoading = false
     mockTokenParam = 'token-abc'
     mockCheckPendingInvitation.mockReturnValue(null)
+    mockSessionStoreGet.mockReturnValue(null)
     // Component logs a console.error on every catch — intentionally silence
     // it in tests so failure noise stays readable.
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -310,20 +323,55 @@ describe('AcceptInvitation', () => {
     ).toBeInTheDocument()
   })
 
-  it('redirects to "/" and stashes token in sessionStore when unauthenticated', async () => {
+  it('shows the public invitation view, not a redirect, when signed out (#1440)', async () => {
     mockIsAuthenticated = false
     mockAuthLoading = false
 
     renderPage()
 
-    await waitFor(() => {
-      expect(mockSessionStoreSet).toHaveBeenCalledWith(
-        expect.any(String),
-        'token-abc'
-      )
-    })
-    expect(mockNavigate).toHaveBeenCalledWith('/')
+    expect(
+      await screen.findByTestId('signed-out-invitation')
+    ).toHaveTextContent('token-abc')
+    expect(mockNavigate).not.toHaveBeenCalled()
+    // The signed-out view stashes the token only when the person chooses to
+    // sign in; the signed-in API is never called.
+    expect(mockSessionStoreSet).not.toHaveBeenCalled()
     expect(mockGetInvitationByToken).not.toHaveBeenCalled()
+  })
+
+  it('keeps a stashed token while signed out, so a sign-in round trip can resume it (#1440)', async () => {
+    mockIsAuthenticated = false
+    mockAuthLoading = false
+    mockTokenParam = undefined
+    mockSessionStoreGet.mockReturnValue('stashed-token')
+
+    const { rerender } = renderPage()
+    expect(
+      await screen.findByTestId('signed-out-invitation')
+    ).toHaveTextContent('stashed-token')
+
+    // Starting a provider sign-in flips the auth loading flag and runs the
+    // page's effect again: the stash must survive it.
+    mockAuthLoading = true
+    rerender(pageElement())
+    // Still mounted while the sign-in starts, so a failure to start can show.
+    expect(screen.getByTestId('signed-out-invitation')).toBeInTheDocument()
+    mockAuthLoading = false
+    rerender(pageElement())
+    await screen.findByTestId('signed-out-invitation')
+    expect(mockCheckPendingInvitation).not.toHaveBeenCalled()
+    expect(mockSessionStoreRemove).not.toHaveBeenCalled()
+  })
+
+  it('shows "Invalid invitation link" when signed out with no token anywhere', async () => {
+    mockIsAuthenticated = false
+    mockAuthLoading = false
+    mockTokenParam = undefined
+    mockSessionStoreGet.mockReturnValue(null)
+
+    renderPage()
+
+    expect(await screen.findByText('Invalid invitation')).toBeInTheDocument()
   })
 
   it('shows "Invalid invitation link" when no token is present in URL or session', async () => {
