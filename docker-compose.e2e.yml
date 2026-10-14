@@ -140,8 +140,12 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+    # The host port is overridable (E2E_APP_PORT, default 8080) so a second
+    # stack can run beside one already on :8080, under its own project name
+    # (COMPOSE_PROJECT_NAME / E2E_COMPOSE_PROJECT). The base URL follows it,
+    # because emailed links are built from FRONTEND_BASE_URL.
     ports:
-      - '8080:8080'
+      - '${E2E_APP_PORT:-8080}:8080'
     environment:
       PORT: 8080
       DB_HOST: postgres
@@ -158,14 +162,17 @@ services:
       # localhost origin → IsLocalDevelopment() true → dev login enabled, so the
       # Playwright auth fixture (/auth/dev/login) works. SPA + API are same-origin
       # from this combined image, so the suite targets this one port (:8080).
-      FRONTEND_BASE_URL: 'http://localhost:8080'
+      FRONTEND_BASE_URL: 'http://localhost:${E2E_APP_PORT:-8080}'
       DEV_LOGIN_ENABLED: 'true'
       LOG_LEVEL: warn
 
       # Instance-admin surface (#317): the admin e2e email dev-logs in as an
       # instance admin; any other email is a non-admin. Keep this address in sync
       # with ADMIN_EMAIL in e2e/features/admin/*.spec.ts.
-      INSTANCE_ADMIN_EMAILS: 'admin-e2e@vibexp.test'
+      # The second address is the password journeys' bootstrap admin (#1444):
+      # setting its first password from /setup leaves ADMIN_EMAIL, which every
+      # other spec dev-logs in as, untouched.
+      INSTANCE_ADMIN_EMAILS: 'admin-e2e@vibexp.test,root-password-e2e@vibexp.test'
 
       # The whole suite drives many fresh-user + resource-create requests from a
       # single source IP, which the per-IP rate limiter would read as abuse (429s

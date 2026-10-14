@@ -21,8 +21,44 @@ e2e/journeys/
 ├── custom-statuses.journey.spec.ts          # Custom status: create, apply, search, filter, delete
 ├── resource-locking.journey.spec.ts         # Lock, enforcement and unlock across three users
 ├── site-info.journey.spec.ts                # Company branding: sign-in, app shell, VibeXP footer mark, admin Site info page
+├── password-*.journey.spec.ts               # Password sign-in journeys (#1444), their own project, see below
 └── README.md                                # This file
 ```
+
+## Password journeys (`password-*.journey.spec.ts`)
+
+Seven journeys for email/password authentication (epic #1426), the first that
+sign in without dev login. They need the docker stack (`make e2e`): it has
+Mailpit and no identity provider.
+
+| File                          | What it proves                                                                                                                                                                   |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `password-bootstrap`          | `/setup` → "Use email and password" for the stack's second root admin (`root-password-e2e@…`), signed in, setup finished, the password signs in from another browser             |
+| `password-admin-creates-user` | New user with a team: the emailed setup link (read from Mailpit) and, with no email provider, the link shown once; both set a password and land in the team                      |
+| `password-invitation`         | An invited new address opens the emailed link signed out, creates a password and lands in the team with the welcome toast                                                        |
+| `password-forgot`             | "Forgot password?" by email: reset, signed in; the other browser is signed out; old password refused, new accepted                                                               |
+| `password-admin-reset`        | No email provider: "Ask your administrator"; the admin resets with "disable now", the old password stops at once, the handed-over link sets a new one                            |
+| `password-account-settings`   | A dev-login person sets a first password, signs in with it, changes it, cannot remove the last method                                                                            |
+| `password-invite-only`        | `invite_only`: no way to create an account on the sign-in page, an unknown address gets the generic refusal, an invited one still registers (password form, no provider choices) |
+
+**How they run.** They switch instance-wide settings (password sign-in, the
+registration mode, the instance email provider) that `admin-auth-settings` and
+`admin-email-settings` also change, so they are their own Playwright project,
+`password-journeys`, which runs after every other project with one worker.
+Every journey wraps its changes in `withInstanceAuthRestored`
+(`e2e/helpers/passwordAuth.ts`), which puts the policy and the email provider
+back as it found them, pass or fail. Addresses are namespaced per run
+(`e2e-pw-<journey>-<who>-<run>@vibexp.test`). Mailpit is read through the app
+container (`execInApp`), because its API is not published on the host.
+
+**Not covered:** a provider sign-up refused by `invite_only`
+(`registration_closed`). The stack has no identity provider, and that gate
+guards only a new account created by a provider sign-in; the backend tests of
+#1434 and #1430 cover it.
+
+**A second stack.** To run beside a stack already on :8080:
+`E2E_APP_PORT=8481 COMPOSE_PROJECT_NAME=vibexp-e2e-one E2E_COMPOSE_PROJECT=vibexp-e2e-one make e2e`.
+The app's base URL, and so the links it emails, follow `E2E_APP_PORT`.
 
 ## Site info branding (`site-info.journey.spec.ts`)
 

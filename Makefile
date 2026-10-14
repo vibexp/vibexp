@@ -539,7 +539,12 @@ build-combined: frontend-build
 # Absolute compose path: every e2e target must work regardless of the shell's
 # cwd, so a recipe that cd's somewhere first can never break the teardown (#598).
 E2E_COMPOSE := docker compose -f $(CURDIR)/docker-compose.e2e.yml
-E2E_BASE_URL ?= http://localhost:8080
+# Host port of the app (docker-compose.e2e.yml reads E2E_APP_PORT; default 8080).
+# Run a second stack beside one on :8080 with, e.g.,
+# `E2E_APP_PORT=8481 COMPOSE_PROJECT_NAME=vibexp-e2e-one E2E_COMPOSE_PROJECT=vibexp-e2e-one make e2e`.
+E2E_APP_PORT ?= 8080
+export E2E_APP_PORT
+E2E_BASE_URL ?= http://localhost:$(E2E_APP_PORT)
 # URL the BACKEND (app container) uses to reach the dummy A2A agent — the
 # compose service name, resolvable inside the vibexp-e2e network. The real-agent
 # journey spec registers this URL. Local dev runs default to loopback:9001.

@@ -61,6 +61,21 @@ export function e2eAppAvailable(): boolean {
  * `vibexp`), run from the image's working directory with the server's own
  * configuration.
  */
+/**
+ * Runs a command inside the app container and returns its stdout. The stack's
+ * Mailpit shares that container's network namespace, so its HTTP API is
+ * reachable from here at 127.0.0.1:8025 without being published on the host.
+ */
+export function execInApp(args: readonly string[]): string {
+  const containerId = appContainerId()
+  if (containerId === null) {
+    throw new Error(
+      `no running ${COMPOSE_PROJECT}/${APP_SERVICE} container: is the e2e stack up (make e2e)?`
+    )
+  }
+  return run('docker', ['exec', containerId, ...args])
+}
+
 export function rearmSetup(): string {
   const containerId = appContainerId()
   if (containerId === null) {

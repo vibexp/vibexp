@@ -93,7 +93,30 @@ export default defineConfig({
     {
       name: 'journeys',
       testMatch: '**/*.journey.spec.ts',
+      // The password journeys have their own project below.
+      testIgnore: '**/password-*.journey.spec.ts',
       retries: process.env.CI ? 2 : 1, // Allow retries for journey tests
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1920, height: 1080 },
+      },
+    },
+
+    /*
+     * Password journeys (#1444): they switch password sign-in, the registration
+     * mode and the instance email provider, which the other journeys also
+     * touch (admin-auth-settings, admin-email-settings). So they run LAST, one
+     * at a time, and put every setting back. A failure in an earlier project
+     * skips them (Playwright's project dependencies), which shows as skipped
+     * rather than as a confusing failure here.
+     */
+    {
+      name: 'password-journeys',
+      testMatch: '**/password-*.journey.spec.ts',
+      dependencies: ['chromium', 'smoke', 'journeys', 'features'],
+      fullyParallel: false,
+      workers: 1,
+      retries: process.env.CI ? 2 : 1,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1920, height: 1080 },
