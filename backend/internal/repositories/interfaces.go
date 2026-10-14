@@ -381,6 +381,13 @@ var (
 	// allows. Nothing was changed.
 	ErrAccountTokenTooRecent = errors.New("the account's live link was issued too recently")
 
+	// ErrAccountNoLongerClaimable is returned by
+	// AccountTokenRepository.ClearForClaim when, under the user's lock, the
+	// account turns out to be verified or to have a sign-in identity after
+	// all: something (an emailed link's completion, another sign-in) changed
+	// it since the caller read it. Nothing was deleted (#1466).
+	ErrAccountNoLongerClaimable = errors.New("the account is no longer claimable")
+
 	// ErrInstanceAuthSetupNotFound is returned by InstanceAuthSetupRepository.Get
 	// when no setup token was ever issued.
 	ErrInstanceAuthSetupNotFound = errors.New("instance auth setup not found")
@@ -2369,6 +2376,10 @@ type AccountTokenRepository interface {
 	// sign-in is about to claim: every link of the user, the user's password,
 	// and (by bumping the session epoch) every session. It is idempotent. An
 	// unknown user returns ErrUserNotFound.
+	//
+	// It decides under that lock whether the account can still be claimed: an
+	// account whose email is verified or that has a sign-in identity returns
+	// ErrAccountNoLongerClaimable and nothing is deleted.
 	ClearForClaim(ctx context.Context, userID string) (*ClearedAccountClaim, error)
 	// DisablePassword is an administrator's "invalidate now" (#1436): in one
 	// transaction under the same lock it marks the user's password disabled

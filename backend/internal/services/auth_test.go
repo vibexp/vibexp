@@ -1759,3 +1759,85 @@ func TestAuthService_HandleCallback_EmailNotVerifiedIsNotLoggedAsAnError(t *test
 	}
 	assert.Equal(t, 1, refusals, "the refusal is logged once, with its reason")
 }
+
+// #1466: the claim decides under the user's lock. When it finds the account
+// changed since the sign-in read it, the sign-in re-reads the account and
+// carries on from what is true now.
+func TestAuthService_LinkByVerifiedEmail_AccountChangedBeforeTheClaim(t *testing.T) {
+	stale := func(err error) error {
+		return fmt.Errorf("remove the one-time links and the password of a claimed account: %w", err)
+	}
+
+	t.Run("verified meanwhile: linked as a verified account, on the fresh row", func(t *testing.T) {
+		account := &models.User{ID: "pre-1", Email: "ada@example.com", Version: 3}
+		f := newLinkFixture(t, account, stale(repositories.ErrAccountNoLongerClaimable), nil)
+		verifiedAt := time.Now().Add(-time.Second)
+		f.users.On("GetByID", mock.Anything, "pre-1").Return(&models.User{
+			ID: "pre-1", Email: "ada@example.com", Name: "Ada", Version: 4, EmailVerifiedAt: &verifiedAt,
+		}, nil).Run(func(mock.Arguments) { f.log = append(f.log, "reload") })
+
+		user, _, err := f.signIn(idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: true})
+
+		require.NoError(t, err)
+		assert.Equal(t, "pre-1", user.ID)
+		assert.Equal(t, []string{"hook:pre-1", "reload", "update", "upsert"}, f.log,
+			"no session bump for a claim that did not happen")
+		assert.EqualValues(t, 4, f.written.Version, "the update carries the version the completion left")
+		assert.True(t, f.written.EmailVerifiedAt.Equal(verifiedAt), "the completion's verification is kept")
+		assert.Equal(t, "Ada", f.written.Name, "the name the owner set is kept")
+	})
+
+	t.Run("given an identity meanwhile: refused like any such account", func(t *testing.T) {
+		account := &models.User{ID: "pre-1", Email: "ada@example.com"}
+		f := newLinkFixture(t, account, stale(repositories.ErrAccountNoLongerClaimable), nil)
+		f.users.On("GetByID", mock.Anything, "pre-1").Return(&models.User{ID: "pre-1", Email: "ada@example.com"}, nil)
+
+		user, _, err := f.signIn(idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: true})
+
+		require.ErrorIs(t, err, ErrExistingSignInRequired)
+		assert.Nil(t, user)
+		f.users.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+		f.identities.AssertNotCalled(t, "Upsert", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("suspended meanwhile: returned untouched, nothing linked", func(t *testing.T) {
+		account := &models.User{ID: "pre-1", Email: "ada@example.com"}
+		f := newLinkFixture(t, account, stale(repositories.ErrAccountNoLongerClaimable), nil)
+		verifiedAt := time.Now()
+		f.users.On("GetByID", mock.Anything, "pre-1").Return(&models.User{
+			ID: "pre-1", Email: "ada@example.com", EmailVerifiedAt: &verifiedAt, Status: models.UserStatusSuspended,
+		}, nil)
+
+		user, _, err := f.signIn(idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: true})
+
+		require.NoError(t, err)
+		assert.True(t, user.IsSuspended(), "the caller's suspension gate refuses it")
+		f.users.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+		f.identities.AssertNotCalled(t, "Upsert", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("email changed meanwhile: refused, nothing linked", func(t *testing.T) {
+		account := &models.User{ID: "pre-1", Email: "ada@example.com"}
+		f := newLinkFixture(t, account, stale(repositories.ErrAccountNoLongerClaimable), nil)
+		verifiedAt := time.Now()
+		f.users.On("GetByID", mock.Anything, "pre-1").Return(&models.User{
+			ID: "pre-1", Email: "someone.else@example.com", EmailVerifiedAt: &verifiedAt,
+		}, nil)
+
+		_, _, err := f.signIn(idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: true})
+
+		require.ErrorIs(t, err, ErrExistingSignInRequired)
+		f.users.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	})
+
+	t.Run("a failed re-read fails the sign-in and links nothing", func(t *testing.T) {
+		account := &models.User{ID: "pre-1", Email: "ada@example.com"}
+		f := newLinkFixture(t, account, stale(repositories.ErrAccountNoLongerClaimable), nil)
+		f.users.On("GetByID", mock.Anything, "pre-1").Return(nil, errors.New("database unavailable"))
+
+		_, _, err := f.signIn(idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: true})
+
+		require.Error(t, err)
+		f.users.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	})
+}

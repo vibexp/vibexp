@@ -305,6 +305,32 @@ func completeAccountLinkTx(
 	return done, nil
 }
 
+// refuseUnlessClaimable returns ErrAccountNoLongerClaimable when the account
+// is verified or has a sign-in identity. The caller of ClearForClaim decided to
+// claim from a row it read before the lock; an emailed link completed in
+// between verified the address and set a password that belongs to the
+// mailbox's owner (#1466). Checked here, where nothing can change underneath.
+//
+// The identity half is as strong as its writers: a provider sign-in attaches
+// its identity outside this lock, so two sign-ins to one mailbox can both pass
+// here; the optimistic version check on the user row decides between them,
+// and the loser's retry finds the account verified.
+func refuseUnlessClaimable(ctx context.Context, tx *sql.Tx, userID string) error {
+	var verified, hasIdentity bool
+	err := tx.QueryRowContext(ctx, `
+		SELECT email_verified_at IS NOT NULL,
+		       EXISTS (SELECT 1 FROM user_identities WHERE user_id = $1)
+		FROM users WHERE id = $1`, userID).Scan(&verified, &hasIdentity)
+	if err != nil {
+		return mapNoRows(fmt.Errorf("failed to read whether the account can be claimed: %w", err),
+			repositories.ErrUserNotFound)
+	}
+	if verified || hasIdentity {
+		return repositories.ErrAccountNoLongerClaimable
+	}
+	return nil
+}
+
 // ClearForClaim removes what a link's holder could have set up on the account;
 // see the interface. One transaction under the user's sign-in method lock, the
 // lock Complete takes: a completion cannot land between the deletes, and one
@@ -314,6 +340,10 @@ func (r *AccountTokenRepository) ClearForClaim(
 ) (*repositories.ClearedAccountClaim, error) {
 	cleared := &repositories.ClearedAccountClaim{}
 	err := r.inUserTx(ctx, "clear for claim", userID, func(tx *sql.Tx) error {
+		if err := refuseUnlessClaimable(ctx, tx, userID); err != nil {
+			return err
+		}
+
 		links, err := tx.ExecContext(ctx, `DELETE FROM account_tokens WHERE user_id = $1`, userID)
 		if err != nil {
 			return fmt.Errorf("failed to delete the account tokens of a claimed account: %w", err)

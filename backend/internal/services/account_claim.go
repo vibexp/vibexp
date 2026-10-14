@@ -22,7 +22,12 @@ import "context"
 //     again on the next attempt;
 //   - it is not called for an account whose email is already verified, nor for
 //     one that already has a sign-in identity (that link is refused, see
-//     ErrExistingSignInRequired).
+//     ErrExistingSignInRequired);
+//   - the caller decides from a row read before the hook runs. A hook that
+//     finds, under its own lock, that the account changed since (verified, or
+//     given an identity) returns an error wrapping
+//     repositories.ErrAccountNoLongerClaimable and changes nothing; the caller
+//     re-reads the account and carries on from what is true now (#1466).
 type UnverifiedAccountClaimHook interface {
 	OnUnverifiedAccountClaimed(ctx context.Context, userID string) error
 }
