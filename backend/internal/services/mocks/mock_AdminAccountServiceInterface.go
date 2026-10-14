@@ -22,6 +22,67 @@ func (_m *MockAdminAccountServiceInterface) EXPECT() *MockAdminAccountServiceInt
 	return &MockAdminAccountServiceInterface_Expecter{mock: &_m.Mock}
 }
 
+// IssueResetLink provides a mock function with given fields: ctx, actorID, userID, req
+func (_m *MockAdminAccountServiceInterface) IssueResetLink(ctx context.Context, actorID string, userID string, req services.AdminResetLinkRequest) (*services.AdminResetLink, error) {
+	ret := _m.Called(ctx, actorID, userID, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for IssueResetLink")
+	}
+
+	var r0 *services.AdminResetLink
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, services.AdminResetLinkRequest) (*services.AdminResetLink, error)); ok {
+		return rf(ctx, actorID, userID, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, services.AdminResetLinkRequest) *services.AdminResetLink); ok {
+		r0 = rf(ctx, actorID, userID, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*services.AdminResetLink)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, services.AdminResetLinkRequest) error); ok {
+		r1 = rf(ctx, actorID, userID, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminAccountServiceInterface_IssueResetLink_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IssueResetLink'
+type MockAdminAccountServiceInterface_IssueResetLink_Call struct {
+	*mock.Call
+}
+
+// IssueResetLink is a helper method to define mock.On call
+//   - ctx context.Context
+//   - actorID string
+//   - userID string
+//   - req services.AdminResetLinkRequest
+func (_e *MockAdminAccountServiceInterface_Expecter) IssueResetLink(ctx interface{}, actorID interface{}, userID interface{}, req interface{}) *MockAdminAccountServiceInterface_IssueResetLink_Call {
+	return &MockAdminAccountServiceInterface_IssueResetLink_Call{Call: _e.mock.On("IssueResetLink", ctx, actorID, userID, req)}
+}
+
+func (_c *MockAdminAccountServiceInterface_IssueResetLink_Call) Run(run func(ctx context.Context, actorID string, userID string, req services.AdminResetLinkRequest)) *MockAdminAccountServiceInterface_IssueResetLink_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(services.AdminResetLinkRequest))
+	})
+	return _c
+}
+
+func (_c *MockAdminAccountServiceInterface_IssueResetLink_Call) Return(_a0 *services.AdminResetLink, _a1 error) *MockAdminAccountServiceInterface_IssueResetLink_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminAccountServiceInterface_IssueResetLink_Call) RunAndReturn(run func(context.Context, string, string, services.AdminResetLinkRequest) (*services.AdminResetLink, error)) *MockAdminAccountServiceInterface_IssueResetLink_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // IssueSetupLink provides a mock function with given fields: ctx, actorID, userID, delivery
 func (_m *MockAdminAccountServiceInterface) IssueSetupLink(ctx context.Context, actorID string, userID string, delivery services.AdminLinkDelivery) (*services.AdminSetupLink, error) {
 	ret := _m.Called(ctx, actorID, userID, delivery)
@@ -79,6 +140,65 @@ func (_c *MockAdminAccountServiceInterface_IssueSetupLink_Call) Return(_a0 *serv
 }
 
 func (_c *MockAdminAccountServiceInterface_IssueSetupLink_Call) RunAndReturn(run func(context.Context, string, string, services.AdminLinkDelivery) (*services.AdminSetupLink, error)) *MockAdminAccountServiceInterface_IssueSetupLink_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// RemovePassword provides a mock function with given fields: ctx, actorID, userID, allowLast
+func (_m *MockAdminAccountServiceInterface) RemovePassword(ctx context.Context, actorID string, userID string, allowLast bool) (string, error) {
+	ret := _m.Called(ctx, actorID, userID, allowLast)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RemovePassword")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, bool) (string, error)); ok {
+		return rf(ctx, actorID, userID, allowLast)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, bool) string); ok {
+		r0 = rf(ctx, actorID, userID, allowLast)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, bool) error); ok {
+		r1 = rf(ctx, actorID, userID, allowLast)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminAccountServiceInterface_RemovePassword_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RemovePassword'
+type MockAdminAccountServiceInterface_RemovePassword_Call struct {
+	*mock.Call
+}
+
+// RemovePassword is a helper method to define mock.On call
+//   - ctx context.Context
+//   - actorID string
+//   - userID string
+//   - allowLast bool
+func (_e *MockAdminAccountServiceInterface_Expecter) RemovePassword(ctx interface{}, actorID interface{}, userID interface{}, allowLast interface{}) *MockAdminAccountServiceInterface_RemovePassword_Call {
+	return &MockAdminAccountServiceInterface_RemovePassword_Call{Call: _e.mock.On("RemovePassword", ctx, actorID, userID, allowLast)}
+}
+
+func (_c *MockAdminAccountServiceInterface_RemovePassword_Call) Run(run func(ctx context.Context, actorID string, userID string, allowLast bool)) *MockAdminAccountServiceInterface_RemovePassword_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(bool))
+	})
+	return _c
+}
+
+func (_c *MockAdminAccountServiceInterface_RemovePassword_Call) Return(email string, err error) *MockAdminAccountServiceInterface_RemovePassword_Call {
+	_c.Call.Return(email, err)
+	return _c
+}
+
+func (_c *MockAdminAccountServiceInterface_RemovePassword_Call) RunAndReturn(run func(context.Context, string, string, bool) (string, error)) *MockAdminAccountServiceInterface_RemovePassword_Call {
 	_c.Call.Return(run)
 	return _c
 }

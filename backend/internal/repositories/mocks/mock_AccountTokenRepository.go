@@ -258,6 +258,65 @@ func (_c *MockAccountTokenRepository_DeleteDead_Call) RunAndReturn(run func(cont
 	return _c
 }
 
+// DisablePassword provides a mock function with given fields: ctx, userID
+func (_m *MockAccountTokenRepository) DisablePassword(ctx context.Context, userID string) (*repositories.DisabledAccountPassword, error) {
+	ret := _m.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DisablePassword")
+	}
+
+	var r0 *repositories.DisabledAccountPassword
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*repositories.DisabledAccountPassword, error)); ok {
+		return rf(ctx, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *repositories.DisabledAccountPassword); ok {
+		r0 = rf(ctx, userID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*repositories.DisabledAccountPassword)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAccountTokenRepository_DisablePassword_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DisablePassword'
+type MockAccountTokenRepository_DisablePassword_Call struct {
+	*mock.Call
+}
+
+// DisablePassword is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+func (_e *MockAccountTokenRepository_Expecter) DisablePassword(ctx interface{}, userID interface{}) *MockAccountTokenRepository_DisablePassword_Call {
+	return &MockAccountTokenRepository_DisablePassword_Call{Call: _e.mock.On("DisablePassword", ctx, userID)}
+}
+
+func (_c *MockAccountTokenRepository_DisablePassword_Call) Run(run func(ctx context.Context, userID string)) *MockAccountTokenRepository_DisablePassword_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockAccountTokenRepository_DisablePassword_Call) Return(_a0 *repositories.DisabledAccountPassword, _a1 error) *MockAccountTokenRepository_DisablePassword_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAccountTokenRepository_DisablePassword_Call) RunAndReturn(run func(context.Context, string) (*repositories.DisabledAccountPassword, error)) *MockAccountTokenRepository_DisablePassword_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetLive provides a mock function with given fields: ctx, tokenHash, now
 func (_m *MockAccountTokenRepository) GetLive(ctx context.Context, tokenHash []byte, now time.Time) (*models.AccountToken, error) {
 	ret := _m.Called(ctx, tokenHash, now)

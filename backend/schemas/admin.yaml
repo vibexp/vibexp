@@ -1072,6 +1072,59 @@ AdminUserSetupLink:
       format: date-time
       description: When the link stops working (7 days).
 
+AdminUserResetLinkRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - delivery
+  properties:
+    delivery:
+      type: string
+      enum:
+        - email
+        - link
+      x-enum-varnames:
+        - AdminUserResetLinkDeliveryEmail
+        - AdminUserResetLinkDeliveryLink
+      description: |
+        `email` sends the reset link to the account's address; `link` returns it
+        here once.
+    invalidate_now:
+      type: boolean
+      default: false
+      description: |
+        Stop the current password now: it is disabled, every session of the
+        user ends, and every live link of the user stops working, before the
+        new link is issued. Completing the new link sets a new password and
+        lifts the disable. Without it the current password and sessions keep
+        working until the link is used.
+
+AdminUserResetLink:
+  type: object
+  required:
+    - delivery
+    - expires_at
+    - invalidated
+  properties:
+    delivery:
+      type: string
+      enum:
+        - email
+        - link
+      x-enum-varnames:
+        - AdminUserResetLinkResultEmail
+        - AdminUserResetLinkResultLink
+    link_url:
+      type: string
+      description: The one-time reset link, only for `link`. Shown here once.
+    expires_at:
+      type: string
+      format: date-time
+      description: When the link stops working (1 hour emailed, 24 hours shared).
+    invalidated:
+      type: boolean
+      description: Whether the current password, sessions and links were stopped (`invalidate_now`).
+
 # ---------------------------------------------------------------------------
 # Admin projects (#453)
 # ---------------------------------------------------------------------------

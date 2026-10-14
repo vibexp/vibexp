@@ -98,6 +98,16 @@ func (noAccountSetup) IssueSetupLink(
 	return nil, services.ErrAdminLocalSignInOff
 }
 
+func (noAccountSetup) IssueResetLink(
+	context.Context, string, string, services.AdminResetLinkRequest,
+) (*services.AdminResetLink, error) {
+	return nil, services.ErrAdminLocalSignInOff
+}
+
+func (noAccountSetup) RemovePassword(context.Context, string, string, bool) (string, error) {
+	return "", services.ErrAdminUserNotFound
+}
+
 func (c *adminMockContainer) InstanceAdminResolver() services.InstanceAdminResolver {
 	return c.instanceAdminResolver
 }

@@ -149,6 +149,26 @@ func TestGetAccount(t *testing.T) {
 		specconformance.AssertConformsToSpec(t, req, rec)
 	})
 
+	t.Run("a password an administrator disabled says so", func(t *testing.T) {
+		f := newAccountFixture(t)
+		view := accountView()
+		changedAt := time.Date(2026, 9, 1, 8, 0, 0, 0, time.UTC)
+		view.Password = services.AccountPasswordView{Set: true, ChangedAt: &changedAt, LoginEnabled: true, Disabled: true}
+		f.account.On("Get", mock.Anything, epochUserID).Return(view, nil)
+
+		req, rec := f.do(http.MethodGet, "/api/v1/account", "", f.session(t, time.Hour))
+
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		var body struct {
+			Password struct {
+				Disabled bool `json:"disabled"`
+			} `json:"password"`
+		}
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+		assert.True(t, body.Password.Disabled)
+		specconformance.AssertConformsToSpec(t, req, rec)
+	})
+
 	t.Run("password and identities", func(t *testing.T) {
 		f := newAccountFixture(t)
 		changedAt := time.Date(2026, 9, 1, 8, 0, 0, 0, time.UTC)
@@ -366,6 +386,8 @@ func TestSetAccountPassword_Refusals(t *testing.T) {
 			status: http.StatusForbidden, code: apierrors.CodeReauthenticationRequired},
 		{name: "password sign-in is off", err: services.ErrPasswordLoginDisabled,
 			status: http.StatusConflict, code: apierrors.CodeLocalSignInDisabled},
+		{name: "an administrator disabled the password", err: services.ErrPasswordDisabled,
+			status: http.StatusConflict, code: apierrors.CodeDisabledByAdmin},
 		{name: "wrong current password", err: services.ErrCurrentPasswordInvalid,
 			status: http.StatusBadRequest, code: apierrors.CodeValidationFailed,
 			field: "current_password", fieldCode: "invalid_current_password"},
@@ -441,9 +463,10 @@ func TestDeleteAccountPassword(t *testing.T) {
 		status int
 		code   string
 	}{
-		"not a recent sign-in":        {services.ErrReauthenticationRequired, http.StatusForbidden, apierrors.CodeReauthenticationRequired},
-		"the last usable method":      {services.ErrLastSignInMethod, http.StatusConflict, apierrors.CodeLastSignInMethod},
-		"the account has no password": {services.ErrAccountPasswordNotSet, http.StatusNotFound, apierrors.CodeResourceNotFound},
+		"not a recent sign-in":         {services.ErrReauthenticationRequired, http.StatusForbidden, apierrors.CodeReauthenticationRequired},
+		"the last usable method":       {services.ErrLastSignInMethod, http.StatusConflict, apierrors.CodeLastSignInMethod},
+		"the account has no password":  {services.ErrAccountPasswordNotSet, http.StatusNotFound, apierrors.CodeResourceNotFound},
+		"an administrator disabled it": {services.ErrPasswordDisabled, http.StatusConflict, apierrors.CodeDisabledByAdmin},
 	} {
 		t.Run(name, func(t *testing.T) {
 			f := newAccountFixture(t)

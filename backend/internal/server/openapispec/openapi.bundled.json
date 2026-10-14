@@ -1226,7 +1226,7 @@
     "/api/v1/account/password": {
       "put": {
         "summary": "Set or change my password",
-        "description": "Sets the signed-in user's password, or changes it.\n\n- **Changing** a password requires `current_password`. A wrong one\n  answers 400 with a field error on `current_password` and counts toward\n  the account's sign-in throttle, exactly like a failed sign-in: after\n  several wrong attempts password sign-in for the account is locked for a\n  short time that grows to at most 15 minutes, and this operation answers\n  429 `too_many_attempts` with a `Retry-After` header until the lock ends.\n- **Setting a first** password (the account signs in through an identity\n  provider only) requires a recent sign-in: this browser session must\n  have signed in within the last 10 minutes, otherwise the answer is 403\n  `reauthentication_required`. Sign in again and repeat the request.\n\nOn success every OTHER browser session of the user is ended and this one\nstays signed in (its session cookie is re-issued). API keys and connected\nMCP and CLI tools keep working unless `revoke_api_access` is true.\n\nOnly a browser session may call this: an API key or a bearer token is\nanswered 403 `cookie_session_required`. While password sign-in is switched\noff on the instance the answer is 409 `password_login_disabled`.\n\n`reauthentication_required`, `cookie_session_required`,\n`password_login_disabled` and `too_many_attempts` are stable values of\n`code` that a client can branch on.\n",
+        "description": "Sets the signed-in user's password, or changes it.\n\n- **Changing** a password requires `current_password`. A wrong one\n  answers 400 with a field error on `current_password` and counts toward\n  the account's sign-in throttle, exactly like a failed sign-in: after\n  several wrong attempts password sign-in for the account is locked for a\n  short time that grows to at most 15 minutes, and this operation answers\n  429 `too_many_attempts` with a `Retry-After` header until the lock ends.\n- **Setting a first** password (the account signs in through an identity\n  provider only) requires a recent sign-in: this browser session must\n  have signed in within the last 10 minutes, otherwise the answer is 403\n  `reauthentication_required`. Sign in again and repeat the request.\n\nOn success every OTHER browser session of the user is ended and this one\nstays signed in (its session cookie is re-issued). API keys and connected\nMCP and CLI tools keep working unless `revoke_api_access` is true.\n\nOnly a browser session may call this: an API key or a bearer token is\nanswered 403 `cookie_session_required`. While password sign-in is switched\noff on the instance the answer is 409 `password_login_disabled`. While an\nadministrator has the password disabled (`password.disabled`) it cannot be\nchanged here: 409 `password_disabled`; a link from an administrator sets\na new one.\n\n`reauthentication_required`, `cookie_session_required`,\n`password_login_disabled` and `too_many_attempts` are stable values of\n`code` that a client can branch on.\n",
         "operationId": "setAccountPassword",
         "tags": [
           "Account"
@@ -1289,7 +1289,7 @@
             }
           },
           "409": {
-            "description": "`password_login_disabled` — password sign-in is switched off on this instance",
+            "description": "`password_login_disabled` — password sign-in is switched off on this\ninstance; `password_disabled` — an administrator disabled the password\n",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1330,7 +1330,7 @@
       },
       "delete": {
         "summary": "Remove my password",
-        "description": "Removes the signed-in user's password, leaving the account's identity\nproviders as its sign-in methods.\n\nRequires a recent sign-in (403 `reauthentication_required` otherwise), and\nis refused with 409 `last_sign_in_method` when the password is the\naccount's only usable sign-in method: an identity whose provider is not\ncurrently enabled does not count. Works whether or not password sign-in is\nswitched on for the instance.\n\nOn success every other browser session of the user is ended and this one\nstays signed in. Only a browser session may call this (403\n`cookie_session_required` otherwise). `last_sign_in_method` is a stable\nvalue of `code`.\n",
+        "description": "Removes the signed-in user's password, leaving the account's identity\nproviders as its sign-in methods.\n\nRequires a recent sign-in (403 `reauthentication_required` otherwise), and\nis refused with 409 `last_sign_in_method` when the password is the\naccount's only usable sign-in method: an identity whose provider is not\ncurrently enabled does not count. Works whether or not password sign-in is\nswitched on for the instance.\n\nOn success every other browser session of the user is ended and this one\nstays signed in. Only a browser session may call this (403\n`cookie_session_required` otherwise). A password an administrator disabled\ncannot be removed by its owner (409 `password_disabled`).\n`last_sign_in_method` and `password_disabled` are stable values of `code`.\n",
         "operationId": "deleteAccountPassword",
         "tags": [
           "Account"
@@ -1383,7 +1383,7 @@
             }
           },
           "409": {
-            "description": "`last_sign_in_method` — the password is the only usable sign-in method",
+            "description": "`last_sign_in_method` — the password is the only usable sign-in\nmethod; `password_disabled` — an administrator disabled the password\n",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -18380,6 +18380,183 @@
         }
       }
     },
+    "/api/v1/admin/users/{id}/reset-link": {
+      "post": {
+        "summary": "Send or get a password reset link",
+        "description": "Issues a one-time reset link: with `delivery: email` it is sent to the\naccount's address and is valid for 1 hour; with `delivery: link` it is\nreturned here, once, valid for 24 hours. Completing it sets a new\npassword. A new link of the same kind replaces the previous one.\n\nWithout `invalidate_now` the current password and sessions keep working\nuntil the link is used. With it, the password is disabled, every session\nof the user ends and every live link of the user stops working before\nthe new link is issued; the owner is told by email when the instance\nhas an email provider.\n\nRefused (409, with a stable `code`) when password sign-in is off\n(`password_login_disabled`), for a suspended account\n(`account_suspended`), for your own account (`own_account`), for\n`delivery: email` with no email provider stored (`email_unavailable`) or\nto an unverified address somebody signs in to with a provider\n(`email_unverified_shared`: share a link instead), and for\n`delivery: link` to a root instance admin's address\n(`root_admin_link_refused`). A refusal changes nothing, also with\n`invalidate_now`. Instance-admin only; non-admin and unauthenticated\nrequests receive 404.\n",
+        "operationId": "issueAdminUserResetLink",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "User identifier",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUserResetLinkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The link was sent, or is returned here once",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserResetLink"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed body or an unknown `delivery`\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such user, or the caller is not an instance admin\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused; `code` says why (see the description)\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error, or the email could not be sent. With\n`invalidate_now` the password may already be stopped; issue a link\nagain.\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{id}/password": {
+      "delete": {
+        "summary": "Remove a user's password",
+        "description": "Removes the account's password, a disabled one too. The owner is told by\nemail when the instance has an email provider.\n\nRefused with 409 `last_sign_in_method` when the password is the\naccount's only usable sign-in method, unless `confirm_last_method` is\ntrue: the account then has no way in until it gets a setup link. Refused\nwith 409 `own_account` for your own account. 404 when the user does not\nexist or has no password. Instance-admin only; non-admin and\nunauthenticated requests receive 404.\n",
+        "operationId": "deleteAdminUserPassword",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "User identifier",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "confirm_last_method",
+            "in": "query",
+            "required": false,
+            "description": "Remove the password even when it is the last way in.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The password was removed"
+          },
+          "400": {
+            "description": "Malformed parameter\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such user, the user has no password, or the caller is not an instance admin\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`last_sign_in_method` or `own_account`\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/users/{id}/suspend": {
       "post": {
         "summary": "Suspend a user",
@@ -32902,7 +33079,8 @@
         "required": [
           "set",
           "changed_at",
-          "login_enabled"
+          "login_enabled",
+          "disabled"
         ],
         "properties": {
           "set": {
@@ -32918,6 +33096,10 @@
           "login_enabled": {
             "type": "boolean",
             "description": "Whether password sign-in is switched on for this instance. While it is\noff a password cannot be set or changed (409 `password_login_disabled`)\nand an existing one cannot be used to sign in; it can still be removed.\n"
+          },
+          "disabled": {
+            "type": "boolean",
+            "description": "Whether an administrator disabled the password. A disabled password\ndoes not sign in, and its owner can neither change nor remove it (409\n`password_disabled`); completing a link from an administrator sets a new\none and clears this.\n"
           }
         }
       },
@@ -44365,6 +44547,66 @@
             "type": "string",
             "format": "date-time",
             "description": "When the link stops working (7 days)."
+          }
+        }
+      },
+      "AdminUserResetLinkRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "delivery"
+        ],
+        "properties": {
+          "delivery": {
+            "type": "string",
+            "enum": [
+              "email",
+              "link"
+            ],
+            "x-enum-varnames": [
+              "AdminUserResetLinkDeliveryEmail",
+              "AdminUserResetLinkDeliveryLink"
+            ],
+            "description": "`email` sends the reset link to the account's address; `link` returns it\nhere once.\n"
+          },
+          "invalidate_now": {
+            "type": "boolean",
+            "default": false,
+            "description": "Stop the current password now: it is disabled, every session of the\nuser ends, and every live link of the user stops working, before the\nnew link is issued. Completing the new link sets a new password and\nlifts the disable. Without it the current password and sessions keep\nworking until the link is used.\n"
+          }
+        }
+      },
+      "AdminUserResetLink": {
+        "type": "object",
+        "required": [
+          "delivery",
+          "expires_at",
+          "invalidated"
+        ],
+        "properties": {
+          "delivery": {
+            "type": "string",
+            "enum": [
+              "email",
+              "link"
+            ],
+            "x-enum-varnames": [
+              "AdminUserResetLinkResultEmail",
+              "AdminUserResetLinkResultLink"
+            ]
+          },
+          "link_url": {
+            "type": "string",
+            "description": "The one-time reset link, only for `link`. Shown here once."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the link stops working (1 hour emailed, 24 hours shared)."
+          },
+          "invalidated": {
+            "type": "boolean",
+            "description": "Whether the current password, sessions and links were stopped (`invalidate_now`)."
           }
         }
       },

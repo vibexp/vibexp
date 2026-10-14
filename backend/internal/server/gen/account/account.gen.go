@@ -73,6 +73,12 @@ type AccountPassword struct {
 	// ChangedAt When the password was last set or changed. Null when there is none.
 	ChangedAt *time.Time `json:"changed_at"`
 
+	// Disabled Whether an administrator disabled the password. A disabled password
+	// does not sign in, and its owner can neither change nor remove it (409
+	// `password_disabled`); completing a link from an administrator sets a new
+	// one and clears this.
+	Disabled bool `json:"disabled"`
+
 	// LoginEnabled Whether password sign-in is switched on for this instance. While it is
 	// off a password cannot be set or changed (409 `password_login_disabled`)
 	// and an existing one cannot be used to sign in; it can still be removed.

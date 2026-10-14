@@ -1145,6 +1145,9 @@ type AdminAccountServiceDeps struct {
 	Policy     services.AuthPolicyResolver
 	Tokens     services.AccountTokenServiceInterface
 	Mailer     services.AccountLinkMailerInterface
+	Store      repositories.AccountTokenRepository
+	Accounts   services.AccountServiceInterface
+	Notifier   services.AccountNotifier
 	RootAdmins services.InstanceAdminResolver
 	Logger     *slog.Logger
 }
@@ -1154,7 +1157,8 @@ type AdminAccountServiceDeps struct {
 func ProvideAdminAccountService(deps AdminAccountServiceDeps) services.AdminAccountServiceInterface {
 	return services.NewAdminAccountService(services.AdminAccountDeps{
 		Admin: deps.Admin, Users: deps.Users, Policy: deps.Policy, Tokens: deps.Tokens,
-		Mailer: deps.Mailer, RootAdmins: deps.RootAdmins, Logger: deps.Logger,
+		Mailer: deps.Mailer, Store: deps.Store, Accounts: deps.Accounts, Notifier: deps.Notifier,
+		RootAdmins: deps.RootAdmins, Logger: deps.Logger,
 	})
 }
 

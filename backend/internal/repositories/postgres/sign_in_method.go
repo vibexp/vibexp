@@ -58,23 +58,26 @@ func (r *SignInMethodRepository) locked(ctx context.Context, userID string, fn f
 
 // RemovePassword implements repositories.SignInMethodRepository.
 func (r *SignInMethodRepository) RemovePassword(
-	ctx context.Context, userID string, usable repositories.UsableSignInMethods,
+	ctx context.Context, userID string, usable repositories.UsableSignInMethods, opts repositories.RemovePasswordOptions,
 ) error {
 	return r.locked(ctx, userID, func(tx *sql.Tx) error {
-		var has bool
+		var has, disabled bool
 		var identities int
 		err := tx.QueryRowContext(ctx, `
 			SELECT EXISTS (SELECT 1 FROM user_credentials WHERE user_id = $1),
+			       EXISTS (SELECT 1 FROM user_credentials WHERE user_id = $1 AND disabled_at IS NOT NULL),
 			       (SELECT count(*) FROM user_identities
 			         WHERE user_id = $1 AND provider = ANY($2) AND provider <> ALL($3))`,
-			userID, pq.Array(usable.Providers), pq.Array(internalIdentityProviders)).Scan(&has, &identities)
+			userID, pq.Array(usable.Providers), pq.Array(internalIdentityProviders)).Scan(&has, &disabled, &identities)
 		if err != nil {
 			return fmt.Errorf("failed to read the account's sign-in methods: %w", err)
 		}
-		if !has {
+		switch {
+		case !has:
 			return repositories.ErrUserCredentialNotFound
-		}
-		if identities == 0 {
+		case disabled && !opts.AllowDisabled:
+			return repositories.ErrUserCredentialDisabled
+		case identities == 0 && !opts.AllowLast:
 			return repositories.ErrLastSignInMethod
 		}
 		if _, err = tx.ExecContext(ctx, `DELETE FROM user_credentials WHERE user_id = $1`, userID); err != nil {

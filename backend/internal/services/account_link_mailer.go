@@ -57,6 +57,13 @@ const (
 // The caller should offer a copied link instead.
 var ErrAccountEmailUnavailable = errors.New("the instance has no email provider")
 
+// ErrAccountEmailUnverifiedShared refuses to email a link to an account whose
+// address was never verified while somebody signs in to it with a provider:
+// the mailbox owner and that person may be two people (see
+// unverifiedWithIdentity). An administrator can share a link instead.
+var ErrAccountEmailUnverifiedShared = errors.New(
+	"the address is not verified and someone signs in to this account with a provider; share a link instead")
+
 // AccountEmailRunners are the two background runners of the account emails.
 // They are separate on purpose: Requests serves a public endpoint that anyone
 // can fill, and Notices carries the owner's only out-of-band signal that their
@@ -94,6 +101,15 @@ type AccountLinkMailerInterface interface {
 	// stored (nothing is issued). A failed send is returned and the link is
 	// withdrawn. createdBy is the administrator acting, or empty.
 	EmailSetupLink(ctx context.Context, userID, createdBy string) (time.Time, error)
+	// EmailResetLink issues a reset link for the user and emails it: an
+	// administrator's reset (#1436). It refuses as CheckResetEmail does; a
+	// failed send is returned and the link is withdrawn.
+	EmailResetLink(ctx context.Context, userID, createdBy string) (time.Time, error)
+	// CheckResetEmail issues and sends nothing: it reports why EmailResetLink
+	// would refuse the user (ErrAccountEmailUnavailable,
+	// ErrAccountEmailUnverifiedShared), or nil. It lets a caller refuse before
+	// it changes anything.
+	CheckResetEmail(ctx context.Context, userID string) error
 	// RequestPasswordReset is the forgot-password request for an address. It
 	// returns at once and never reports anything about the address: whether a
 	// reset email is sent is decided, and the email sent, in the background.
@@ -167,6 +183,43 @@ func (m *AccountLinkMailer) EmailSetupLink(ctx context.Context, userID, createdB
 		IssueAccountLinkParams{UserID: userID, Purpose: models.AccountTokenPurposeSetup, CreatedBy: createdBy},
 		func(ctx context.Context, link AccountLinkEmail) error {
 			return m.email.SendAccountSetup(ctx, accountLinkMessage(link, m.now()))
+		})
+}
+
+// CheckResetEmail implements AccountLinkMailerInterface.
+func (m *AccountLinkMailer) CheckResetEmail(ctx context.Context, userID string) error {
+	works, err := m.emailWorks(ctx)
+	if err != nil {
+		return err
+	}
+	if !works {
+		return ErrAccountEmailUnavailable
+	}
+	user, err := m.users.GetByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("load the account for a reset email: %w", err)
+	}
+	shared, err := m.unverifiedWithIdentity(ctx, user)
+	if err != nil {
+		return err
+	}
+	if shared {
+		return ErrAccountEmailUnverifiedShared
+	}
+	return nil
+}
+
+// EmailResetLink implements AccountLinkMailerInterface. Unlike a
+// forgot-password request it has no cooldown, and a disabled password does not
+// stop it: the administrator decides.
+func (m *AccountLinkMailer) EmailResetLink(ctx context.Context, userID, createdBy string) (time.Time, error) {
+	if err := m.CheckResetEmail(ctx, userID); err != nil {
+		return time.Time{}, err
+	}
+	return m.tokens.IssueByEmail(ctx,
+		IssueAccountLinkParams{UserID: userID, Purpose: models.AccountTokenPurposeReset, CreatedBy: createdBy},
+		func(ctx context.Context, link AccountLinkEmail) error {
+			return m.email.SendPasswordReset(ctx, accountLinkMessage(link, m.now()))
 		})
 }
 
@@ -348,10 +401,10 @@ func NewAccountEmailNotifier(deps AccountEmailNotifierDeps) AccountNotifier {
 }
 
 // PasswordChanged implements AccountNotifier.
-func (n *accountEmailNotifier) PasswordChanged(_ context.Context, userID string) {
+func (n *accountEmailNotifier) PasswordChanged(_ context.Context, userID string, kind AccountChangeKind) {
 	changedAt := n.now()
 	accepted := n.runner.Go(accountEmailTaskChanged, func(ctx context.Context) {
-		if err := n.sendPasswordChanged(ctx, userID, changedAt); err != nil {
+		if err := n.sendPasswordChanged(ctx, userID, kind, changedAt); err != nil {
 			n.logger.With("user_id", userID, "error", err.Error()).
 				Error("The password-changed notice could not be sent")
 		}
@@ -362,7 +415,9 @@ func (n *accountEmailNotifier) PasswordChanged(_ context.Context, userID string)
 	}
 }
 
-func (n *accountEmailNotifier) sendPasswordChanged(ctx context.Context, userID string, changedAt time.Time) error {
+func (n *accountEmailNotifier) sendPasswordChanged(
+	ctx context.Context, userID string, kind AccountChangeKind, changedAt time.Time,
+) error {
 	channel, err := n.policy.PasswordResetChannel(ctx)
 	if err != nil {
 		return fmt.Errorf("read whether the instance has email: %w", err)
@@ -379,7 +434,7 @@ func (n *accountEmailNotifier) sendPasswordChanged(ctx context.Context, userID s
 		return fmt.Errorf("load the account to notify: %w", err)
 	}
 	err = n.email.SendPasswordChanged(ctx, PasswordChangedNotice{
-		To: user.Email, Name: user.Name, ChangedAt: changedAt, CanResetByEmail: true,
+		To: user.Email, Name: user.Name, Kind: kind, ChangedAt: changedAt, CanResetByEmail: true,
 	})
 	if err != nil {
 		return fmt.Errorf("send the password-changed notice: %w", err)

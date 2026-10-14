@@ -81,17 +81,17 @@ func (_c *MockSignInMethodRepository_RemoveIdentity_Call) RunAndReturn(run func(
 	return _c
 }
 
-// RemovePassword provides a mock function with given fields: ctx, userID, usable
-func (_m *MockSignInMethodRepository) RemovePassword(ctx context.Context, userID string, usable repositories.UsableSignInMethods) error {
-	ret := _m.Called(ctx, userID, usable)
+// RemovePassword provides a mock function with given fields: ctx, userID, usable, opts
+func (_m *MockSignInMethodRepository) RemovePassword(ctx context.Context, userID string, usable repositories.UsableSignInMethods, opts repositories.RemovePasswordOptions) error {
+	ret := _m.Called(ctx, userID, usable, opts)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RemovePassword")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, repositories.UsableSignInMethods) error); ok {
-		r0 = rf(ctx, userID, usable)
+	if rf, ok := ret.Get(0).(func(context.Context, string, repositories.UsableSignInMethods, repositories.RemovePasswordOptions) error); ok {
+		r0 = rf(ctx, userID, usable, opts)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -108,13 +108,14 @@ type MockSignInMethodRepository_RemovePassword_Call struct {
 //   - ctx context.Context
 //   - userID string
 //   - usable repositories.UsableSignInMethods
-func (_e *MockSignInMethodRepository_Expecter) RemovePassword(ctx interface{}, userID interface{}, usable interface{}) *MockSignInMethodRepository_RemovePassword_Call {
-	return &MockSignInMethodRepository_RemovePassword_Call{Call: _e.mock.On("RemovePassword", ctx, userID, usable)}
+//   - opts repositories.RemovePasswordOptions
+func (_e *MockSignInMethodRepository_Expecter) RemovePassword(ctx interface{}, userID interface{}, usable interface{}, opts interface{}) *MockSignInMethodRepository_RemovePassword_Call {
+	return &MockSignInMethodRepository_RemovePassword_Call{Call: _e.mock.On("RemovePassword", ctx, userID, usable, opts)}
 }
 
-func (_c *MockSignInMethodRepository_RemovePassword_Call) Run(run func(ctx context.Context, userID string, usable repositories.UsableSignInMethods)) *MockSignInMethodRepository_RemovePassword_Call {
+func (_c *MockSignInMethodRepository_RemovePassword_Call) Run(run func(ctx context.Context, userID string, usable repositories.UsableSignInMethods, opts repositories.RemovePasswordOptions)) *MockSignInMethodRepository_RemovePassword_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(repositories.UsableSignInMethods))
+		run(args[0].(context.Context), args[1].(string), args[2].(repositories.UsableSignInMethods), args[3].(repositories.RemovePasswordOptions))
 	})
 	return _c
 }
@@ -124,7 +125,7 @@ func (_c *MockSignInMethodRepository_RemovePassword_Call) Return(_a0 error) *Moc
 	return _c
 }
 
-func (_c *MockSignInMethodRepository_RemovePassword_Call) RunAndReturn(run func(context.Context, string, repositories.UsableSignInMethods) error) *MockSignInMethodRepository_RemovePassword_Call {
+func (_c *MockSignInMethodRepository_RemovePassword_Call) RunAndReturn(run func(context.Context, string, repositories.UsableSignInMethods, repositories.RemovePasswordOptions) error) *MockSignInMethodRepository_RemovePassword_Call {
 	_c.Call.Return(run)
 	return _c
 }

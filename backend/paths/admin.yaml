@@ -1250,6 +1250,155 @@ api-v1-admin-users-id-setup-link:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
 
+api-v1-admin-users-id-reset-link:
+  post:
+    summary: Send or get a password reset link
+    description: |
+      Issues a one-time reset link: with `delivery: email` it is sent to the
+      account's address and is valid for 1 hour; with `delivery: link` it is
+      returned here, once, valid for 24 hours. Completing it sets a new
+      password. A new link of the same kind replaces the previous one.
+
+      Without `invalidate_now` the current password and sessions keep working
+      until the link is used. With it, the password is disabled, every session
+      of the user ends and every live link of the user stops working before
+      the new link is issued; the owner is told by email when the instance
+      has an email provider.
+
+      Refused (409, with a stable `code`) when password sign-in is off
+      (`password_login_disabled`), for a suspended account
+      (`account_suspended`), for your own account (`own_account`), for
+      `delivery: email` with no email provider stored (`email_unavailable`) or
+      to an unverified address somebody signs in to with a provider
+      (`email_unverified_shared`: share a link instead), and for
+      `delivery: link` to a root instance admin's address
+      (`root_admin_link_refused`). A refusal changes nothing, also with
+      `invalidate_now`. Instance-admin only; non-admin and unauthenticated
+      requests receive 404.
+    operationId: issueAdminUserResetLink
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: User identifier
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/AdminUserResetLinkRequest'
+    responses:
+      '200':
+        description: The link was sent, or is returned here once
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminUserResetLink'
+      '400':
+        description: |
+          Malformed body or an unknown `delivery`
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: |
+          No such user, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: |
+          Refused; `code` says why (see the description)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: |
+          Internal server error, or the email could not be sent. With
+          `invalidate_now` the password may already be stopped; issue a link
+          again.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-users-id-password:
+  delete:
+    summary: Remove a user's password
+    description: |
+      Removes the account's password, a disabled one too. The owner is told by
+      email when the instance has an email provider.
+
+      Refused with 409 `last_sign_in_method` when the password is the
+      account's only usable sign-in method, unless `confirm_last_method` is
+      true: the account then has no way in until it gets a setup link. Refused
+      with 409 `own_account` for your own account. 404 when the user does not
+      exist or has no password. Instance-admin only; non-admin and
+      unauthenticated requests receive 404.
+    operationId: deleteAdminUserPassword
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: User identifier
+        schema:
+          type: string
+          format: uuid
+      - name: confirm_last_method
+        in: query
+        required: false
+        description: Remove the password even when it is the last way in.
+        schema:
+          type: boolean
+          default: false
+    responses:
+      '204':
+        description: The password was removed
+      '400':
+        description: |
+          Malformed parameter
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: |
+          No such user, the user has no password, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: |
+          `last_sign_in_method` or `own_account`
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: |
+          Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
 api-v1-admin-users-id-suspend:
   post:
     summary: Suspend a user

@@ -52,6 +52,10 @@ var (
 	// ErrPasswordLoginDisabled is returned by Login while the instance
 	// authentication policy has password login switched off.
 	ErrPasswordLoginDisabled = errors.New("password login is disabled")
+	// ErrPasswordDisabled refuses the owner's change or removal of a password
+	// an administrator disabled (#1461): only a link from an administrator
+	// clears that mark.
+	ErrPasswordDisabled = errors.New("an administrator disabled this password; ask them for a link to set a new one")
 	// ErrInvalidCredentials is the one refusal for every account-dependent
 	// reason; see the comment at the top of this file. Login wraps it in a
 	// *PasswordLoginError that says why, for the audit trail only.
@@ -129,6 +133,10 @@ type PasswordAuthServiceInterface interface {
 	// clears the sign-in throttle and a disabled mark. An unknown user returns
 	// repositories.ErrUserNotFound.
 	SetPassword(ctx context.Context, userID, plaintext string) error
+	// ChangeOwnPassword is SetPassword for the owner's own change (the account
+	// page): it never clears an administrator's disabled mark. A disabled
+	// password is left as it is and ErrPasswordDisabled is returned (#1461).
+	ChangeOwnPassword(ctx context.Context, userID, plaintext string) error
 	// HashNewPassword checks plaintext against the password policy for an
 	// account with email and returns its encoded hash, storing nothing. It is
 	// for a caller that must write the credential as part of a larger
@@ -383,6 +391,27 @@ func (s *PasswordAuthService) SetPassword(ctx context.Context, userID, plaintext
 		return err
 	}
 	if err = s.credentials.Upsert(ctx, userID, hash); err != nil {
+		return fmt.Errorf("store the password credential: %w", err)
+	}
+	s.logger.With("user_id", userID).Info("Password set")
+	return nil
+}
+
+// ChangeOwnPassword implements PasswordAuthServiceInterface.
+func (s *PasswordAuthService) ChangeOwnPassword(ctx context.Context, userID, plaintext string) error {
+	user, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("load the account to change its password: %w", err)
+	}
+	hash, err := s.HashNewPassword(ctx, plaintext, user.Email)
+	if err != nil {
+		return err
+	}
+	err = s.credentials.ReplaceUnlessDisabled(ctx, userID, hash)
+	if errors.Is(err, repositories.ErrUserCredentialDisabled) {
+		return ErrPasswordDisabled
+	}
+	if err != nil {
 		return fmt.Errorf("store the password credential: %w", err)
 	}
 	s.logger.With("user_id", userID).Info("Password set")

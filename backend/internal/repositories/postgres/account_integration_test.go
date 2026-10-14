@@ -147,7 +147,7 @@ func TestIntegrationSignInMethod_RemovePassword(t *testing.T) {
 		f := newSignInMethodFixture(t)
 		userID := f.user(true, "google")
 
-		require.NoError(t, f.methods.RemovePassword(ctx, userID, usableMethods(true)))
+		require.NoError(t, f.methods.RemovePassword(ctx, userID, usableMethods(true), repositories.RemovePasswordOptions{}))
 
 		assert.False(t, f.hasPassword(userID))
 		assert.Equal(t, []string{"google"}, f.providersOf(userID))
@@ -157,7 +157,7 @@ func TestIntegrationSignInMethod_RemovePassword(t *testing.T) {
 		f := newSignInMethodFixture(t)
 		userID := f.user(true, "github")
 
-		require.NoError(t, f.methods.RemovePassword(ctx, userID, usableMethods(false)))
+		require.NoError(t, f.methods.RemovePassword(ctx, userID, usableMethods(false), repositories.RemovePasswordOptions{}))
 		assert.False(t, f.hasPassword(userID))
 	})
 
@@ -170,7 +170,7 @@ func TestIntegrationSignInMethod_RemovePassword(t *testing.T) {
 			f := newSignInMethodFixture(t)
 			userID := f.user(true, providers...)
 
-			err := f.methods.RemovePassword(ctx, userID, usableMethods(true))
+			err := f.methods.RemovePassword(ctx, userID, usableMethods(true), repositories.RemovePasswordOptions{})
 
 			require.ErrorIs(t, err, repositories.ErrLastSignInMethod)
 			assert.True(t, f.hasPassword(userID), "nothing was removed")
@@ -182,9 +182,9 @@ func TestIntegrationSignInMethod_RemovePassword(t *testing.T) {
 		userID := f.user(false, "google")
 		loner := f.user(true)
 
-		require.ErrorIs(t, f.methods.RemovePassword(ctx, userID, usableMethods(true)),
+		require.ErrorIs(t, f.methods.RemovePassword(ctx, userID, usableMethods(true), repositories.RemovePasswordOptions{}),
 			repositories.ErrUserCredentialNotFound)
-		require.ErrorIs(t, f.methods.RemovePassword(ctx, loner, usableMethods(true)),
+		require.ErrorIs(t, f.methods.RemovePassword(ctx, loner, usableMethods(true), repositories.RemovePasswordOptions{}),
 			repositories.ErrLastSignInMethod, "the first user's Google identity is not the loner's")
 	})
 }
@@ -321,7 +321,9 @@ func TestIntegrationSignInMethod_ConcurrentRemovalsKeepOneMethod(t *testing.T) {
 		identityID := f.identityID(userID, "google")
 		errs := make([]error, 2)
 		var wg sync.WaitGroup
-		wg.Go(func() { errs[0] = f.methods.RemovePassword(ctx, userID, usableMethods(true)) })
+		wg.Go(func() {
+			errs[0] = f.methods.RemovePassword(ctx, userID, usableMethods(true), repositories.RemovePasswordOptions{})
+		})
 		wg.Go(func() { _, errs[1] = f.methods.RemoveIdentity(ctx, userID, identityID, usableMethods(true)) })
 		wg.Wait()
 
@@ -417,7 +419,7 @@ func TestIntegrationSignInMethod_InternalRowsNeverCountAsRemaining(t *testing.T)
 		f := newSignInMethodFixture(t)
 		userID := f.user(true, "dev")
 
-		require.ErrorIs(t, f.methods.RemovePassword(ctx, userID, withDevProvider), repositories.ErrLastSignInMethod)
+		require.ErrorIs(t, f.methods.RemovePassword(ctx, userID, withDevProvider, repositories.RemovePasswordOptions{}), repositories.ErrLastSignInMethod)
 		assert.True(t, f.hasPassword(userID))
 	})
 

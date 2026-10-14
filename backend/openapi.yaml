@@ -997,6 +997,10 @@ components:
       $ref: "./schemas/admin.yaml#/AdminUserSetupLinkRequest"
     AdminUserSetupLink:
       $ref: "./schemas/admin.yaml#/AdminUserSetupLink"
+    AdminUserResetLinkRequest:
+      $ref: "./schemas/admin.yaml#/AdminUserResetLinkRequest"
+    AdminUserResetLink:
+      $ref: "./schemas/admin.yaml#/AdminUserResetLink"
     # Admin projects (#453)
     AdminProjectTeam:
       $ref: "./schemas/admin.yaml#/AdminProjectTeam"
@@ -1544,6 +1548,10 @@ paths:
     $ref: "./paths/admin.yaml#/api-v1-admin-dashboard-timeseries"
   /api/v1/admin/users/{id}/setup-link:
     $ref: "./paths/admin.yaml#/api-v1-admin-users-id-setup-link"
+  /api/v1/admin/users/{id}/reset-link:
+    $ref: "./paths/admin.yaml#/api-v1-admin-users-id-reset-link"
+  /api/v1/admin/users/{id}/password:
+    $ref: "./paths/admin.yaml#/api-v1-admin-users-id-password"
   /api/v1/admin/users/{id}/suspend:
     $ref: "./paths/admin.yaml#/api-v1-admin-users-id-suspend"
   /api/v1/admin/users/{id}/reactivate:

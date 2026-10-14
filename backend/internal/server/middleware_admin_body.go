@@ -70,6 +70,16 @@ var adminGuardedBodies = []adminGuardedBody{
 		hint:     adminIdentityFieldsHint,
 	},
 	{
+		method:   http.MethodPost,
+		path:     regexp.MustCompile(`^/api/v1/admin/users/[^/]+/setup-link$`),
+		bodyType: admingen.AdminUserSetupLinkRequest{},
+	},
+	{
+		method:   http.MethodPost,
+		path:     regexp.MustCompile(`^/api/v1/admin/users/[^/]+/reset-link$`),
+		bodyType: admingen.AdminUserResetLinkRequest{},
+	},
+	{
 		method:   http.MethodPatch,
 		path:     regexp.MustCompile(`^/api/v1/admin/users/[^/]+$`),
 		bodyType: admingen.AdminUserUpdateRequest{},

@@ -82,6 +82,16 @@ func (m *memCredentials) Upsert(_ context.Context, userID, hash string) error {
 	return nil
 }
 
+func (m *memCredentials) ReplaceUnlessDisabled(_ context.Context, userID, hash string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if row, ok := m.rows[userID]; ok && row.DisabledAt != nil {
+		return repositories.ErrUserCredentialDisabled
+	}
+	m.rows[userID] = &models.UserCredential{UserID: userID, PasswordHash: hash}
+	return nil
+}
+
 func (m *memCredentials) UpdateHash(_ context.Context, userID, currentHash, newHash string) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

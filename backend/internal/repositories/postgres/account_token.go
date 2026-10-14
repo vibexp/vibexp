@@ -313,6 +313,47 @@ func (r *AccountTokenRepository) ClearForClaim(
 	return cleared, nil
 }
 
+// DisablePassword is an administrator's "invalidate now"; see the interface.
+// One transaction under the user's sign-in method lock: a link issued, or
+// completed, concurrently lands wholly before (and is deleted or overridden
+// here) or wholly after.
+func (r *AccountTokenRepository) DisablePassword(
+	ctx context.Context, userID string,
+) (*repositories.DisabledAccountPassword, error) {
+	disabled := &repositories.DisabledAccountPassword{}
+	err := r.inUserTx(ctx, "disable password", userID, func(tx *sql.Tx) error {
+		err := tx.QueryRowContext(ctx, `
+			UPDATE user_credentials SET disabled_at = COALESCE(disabled_at, CURRENT_TIMESTAMP),
+				updated_at = CURRENT_TIMESTAMP
+			WHERE user_id = $1 RETURNING true`, userID).Scan(&disabled.HadPassword)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("failed to disable the password: %w", err)
+		}
+
+		links, err := tx.ExecContext(ctx,
+			`DELETE FROM account_tokens WHERE user_id = $1 AND consumed_at IS NULL`, userID)
+		if err != nil {
+			return fmt.Errorf("failed to delete the live account tokens of a disabled password: %w", err)
+		}
+		if disabled.Links, err = links.RowsAffected(); err != nil {
+			return fmt.Errorf("failed to count deleted account tokens: %w", err)
+		}
+
+		err = tx.QueryRowContext(ctx, `
+			UPDATE users SET session_epoch = session_epoch + 1 WHERE id = $1 RETURNING session_epoch`, userID,
+		).Scan(&disabled.SessionEpoch)
+		if err != nil {
+			return mapNoRows(fmt.Errorf("failed to end the sessions of a disabled password: %w", err),
+				repositories.ErrUserNotFound)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return disabled, nil
+}
+
 // Delete removes the link with this token hash; see the interface.
 func (r *AccountTokenRepository) Delete(ctx context.Context, tokenHash []byte) (bool, error) {
 	result, err := r.db.ExecContext(ctx, `DELETE FROM account_tokens WHERE token_hash = $1`, tokenHash)

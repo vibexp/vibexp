@@ -46,15 +46,36 @@ var (
 // hear about out of band. The default does nothing; the password-changed email
 // (#1433) implements it.
 type AccountNotifier interface {
-	// PasswordChanged is called after the user's password was set, changed or
-	// removed. It must not fail the operation: an error is logged by the
-	// implementation, not returned.
-	PasswordChanged(ctx context.Context, userID string)
+	// PasswordChanged is called after the user's password was set, changed,
+	// reset, removed or disabled; kind says which, and the notice says so. It
+	// must not fail the operation: an error is logged by the implementation,
+	// not returned.
+	PasswordChanged(ctx context.Context, userID string, kind AccountChangeKind)
 }
+
+// AccountChangeKind is what happened to an account's password, as its owner
+// is told.
+type AccountChangeKind string
+
+const (
+	// AccountChangeSet: a password was set where there was none (the account
+	// page, or a setup link).
+	AccountChangeSet AccountChangeKind = "set"
+	// AccountChangeChanged: the owner changed the password.
+	AccountChangeChanged AccountChangeKind = "changed"
+	// AccountChangeReset: a new password was set through a reset link.
+	AccountChangeReset AccountChangeKind = "reset"
+	// AccountChangeRemoved: the owner removed the password.
+	AccountChangeRemoved AccountChangeKind = "removed"
+	// AccountChangeRemovedByAdmin: an administrator removed the password.
+	AccountChangeRemovedByAdmin AccountChangeKind = "removed_by_admin"
+	// AccountChangeDisabledByAdmin: an administrator disabled the password.
+	AccountChangeDisabledByAdmin AccountChangeKind = "disabled_by_admin"
+)
 
 type noopAccountNotifier struct{}
 
-func (noopAccountNotifier) PasswordChanged(context.Context, string) {}
+func (noopAccountNotifier) PasswordChanged(context.Context, string, AccountChangeKind) {}
 
 // AccountView is an account as its owner sees it.
 type AccountView struct {
@@ -71,6 +92,8 @@ type AccountPasswordView struct {
 	ChangedAt *time.Time
 	// LoginEnabled reports whether password sign-in is on for the instance.
 	LoginEnabled bool
+	// Disabled reports whether an administrator disabled the password (#1461).
+	Disabled bool
 	// usable reports whether the password can actually sign in right now.
 	usable bool
 }
@@ -110,12 +133,19 @@ type AccountServiceInterface interface {
 	// reports which it was. Changing requires the current password
 	// (ErrCurrentPasswordInvalid, ErrPasswordAttemptsExceeded); a first
 	// password requires a recent sign-in (ErrReauthenticationRequired).
-	// ErrPasswordLoginDisabled while the instance has password sign-in off; a
+	// ErrPasswordLoginDisabled while the instance has password sign-in off;
+	// ErrPasswordDisabled while an administrator has the password disabled; a
 	// *password.PolicyError when the new password breaks the policy.
 	SetPassword(ctx context.Context, userID string, change AccountPasswordChange) (first bool, err error)
 	// RemovePassword removes the password. It requires a recent sign-in and
-	// another usable sign-in method.
+	// another usable sign-in method, and is refused (ErrPasswordDisabled) for a
+	// password an administrator disabled.
 	RemovePassword(ctx context.Context, userID string, recentSignIn bool) error
+	// AdminRemovePassword removes the password for an administrator (#1436):
+	// a disabled one too, and the last sign-in method when allowLast. The
+	// owner is told. ErrAccountPasswordNotSet when there is none,
+	// ErrLastSignInMethod when it is the last way in and not allowLast.
+	AdminRemovePassword(ctx context.Context, userID string, allowLast bool) error
 	// DisconnectIdentity removes one identity and returns its provider slug.
 	// It requires a recent sign-in and another usable sign-in method.
 	DisconnectIdentity(ctx context.Context, userID, identityID string, recentSignIn bool) (provider string, err error)
@@ -204,6 +234,7 @@ func (s *AccountService) passwordView(ctx context.Context, userID string) (Accou
 	view := AccountPasswordView{
 		Set:          status.Set,
 		LoginEnabled: policy.PasswordLoginEnabled,
+		Disabled:     status.Set && !status.Usable,
 		usable:       status.Usable && policy.PasswordLoginEnabled,
 	}
 	if status.Set {
@@ -282,6 +313,9 @@ func (s *AccountService) SetPassword(
 	if !passwordView.LoginEnabled {
 		return false, ErrPasswordLoginDisabled
 	}
+	if passwordView.Disabled {
+		return false, ErrPasswordDisabled
+	}
 
 	first := !passwordView.Set
 	if first {
@@ -302,10 +336,14 @@ func (s *AccountService) SetPassword(
 		}
 	}
 
-	if err = s.passwords.SetPassword(ctx, userID, change.New); err != nil {
+	if err = s.passwords.ChangeOwnPassword(ctx, userID, change.New); err != nil {
 		return false, err
 	}
-	s.notifier.PasswordChanged(ctx, userID)
+	kind := AccountChangeChanged
+	if first {
+		kind = AccountChangeSet
+	}
+	s.notifier.PasswordChanged(ctx, userID, kind)
 	return first, nil
 }
 
@@ -318,11 +356,27 @@ func (s *AccountService) RemovePassword(ctx context.Context, userID string, rece
 	if err != nil {
 		return err
 	}
-	if err = s.methods.RemovePassword(ctx, userID, usable); err != nil {
+	if err = s.methods.RemovePassword(ctx, userID, usable, repositories.RemovePasswordOptions{}); err != nil {
 		return removalError("remove the password", err)
 	}
 	s.logger.With("user_id", userID).Info("Password removed")
-	s.notifier.PasswordChanged(ctx, userID)
+	s.notifier.PasswordChanged(ctx, userID, AccountChangeRemoved)
+	return nil
+}
+
+// AdminRemovePassword implements AccountServiceInterface.
+func (s *AccountService) AdminRemovePassword(ctx context.Context, userID string, allowLast bool) error {
+	usable, err := s.usableMethods(ctx)
+	if err != nil {
+		return err
+	}
+	err = s.methods.RemovePassword(ctx, userID, usable,
+		repositories.RemovePasswordOptions{AllowLast: allowLast, AllowDisabled: true})
+	if err != nil {
+		return removalError("remove the password", err)
+	}
+	s.logger.With("user_id", userID, "allow_last", allowLast).Info("Password removed by an administrator")
+	s.notifier.PasswordChanged(ctx, userID, AccountChangeRemovedByAdmin)
 	return nil
 }
 
@@ -378,6 +432,8 @@ func removalError(action string, err error) error {
 		return ErrLastSignInMethod
 	case errors.Is(err, repositories.ErrUserCredentialNotFound):
 		return ErrAccountPasswordNotSet
+	case errors.Is(err, repositories.ErrUserCredentialDisabled):
+		return ErrPasswordDisabled
 	case errors.Is(err, repositories.ErrUserIdentityNotFound):
 		return ErrAccountIdentityNotFound
 	}

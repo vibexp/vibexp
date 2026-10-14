@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/config"
+	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
@@ -229,7 +230,7 @@ func TestIssueAdminUserSetupLink(t *testing.T) {
 	})
 
 	t.Run("400 for a bad delivery", func(t *testing.T) {
-		for _, body := range []string{`{"delivery":"sms"}`, `{}`, `{not json`} {
+		for _, body := range []string{`{"delivery":"sms"}`, `{}`, `{not json`, `{"delivery":"link","extra":1}`} {
 			rr := postSetupLink(t, servicesmocks.NewMockAdminAccountServiceInterface(t), userID, body)
 			assert.Equal(t, http.StatusBadRequest, rr.Code, body)
 		}
@@ -278,4 +279,153 @@ func TestCreateAdminUser_AuditsTheSetupLink(t *testing.T) {
 
 	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 	activitySvc.AssertExpectations(t)
+}
+
+func adminAccountRequest(
+	t *testing.T, account services.AdminAccountServiceInterface, activity *MockActivityService,
+	actingID, method, target, body string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	container := &adminMockContainer{adminAccount: account}
+	if activity != nil {
+		container.activityService = activity
+	}
+	srv := newAdminTestServer(&config.Config{}, container)
+	var reader *bytes.Buffer
+	if body != "" {
+		reader = bytes.NewBufferString(body)
+	} else {
+		reader = &bytes.Buffer{}
+	}
+	req := httptest.NewRequest(method, target, reader)
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, actingID))
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+	specconformance.AssertConformsToSpec(t, req, rr)
+	return rr
+}
+
+func TestIssueAdminUserResetLink(t *testing.T) {
+	userID := uuid.NewString()
+	actingID := uuid.NewString()
+	target := "/api/v1/admin/users/" + userID + "/reset-link"
+
+	t.Run("a copied link with invalidate now, audited without the link", func(t *testing.T) {
+		account := servicesmocks.NewMockAdminAccountServiceInterface(t)
+		account.On("IssueResetLink", mock.Anything, actingID, userID,
+			services.AdminResetLinkRequest{Delivery: services.AdminLinkByCopy, InvalidateNow: true}).
+			Return(&services.AdminResetLink{AdminSetupLink: services.AdminSetupLink{
+				Email: "ada@example.com", Delivery: services.AdminLinkByCopy,
+				LinkURL: "https://app.example.com/account/reset#token=COPIED", ExpiresAt: setupExpiry,
+			}, Invalidated: true}, nil)
+		activitySvc := &MockActivityService{}
+		activitySvc.On("RecordResourceActivity",
+			mock.Anything, actingID, activities.ActivityTypeAdminUserResetLinkIssued, activities.EntityTypeUser,
+			mock.MatchedBy(func(id *string) bool { return id != nil && *id == userID }), mock.Anything,
+			mock.MatchedBy(func(md map[string]interface{}) bool {
+				raw, err := json.Marshal(md)
+				require.NoError(t, err)
+				return md["delivery"] == "link" && md["invalidated"] == true && md["target_email"] == "ada@example.com" &&
+					!strings.Contains(string(raw), "token")
+			}),
+		).Return(nil).Once()
+
+		rr := adminAccountRequest(t, account, activitySvc, actingID, http.MethodPost, target,
+			`{"delivery":"link","invalidate_now":true}`)
+
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		assert.JSONEq(t, `{"delivery":"link","link_url":"https://app.example.com/account/reset#token=COPIED",`+
+			`"expires_at":"2026-10-21T09:00:00Z","invalidated":true}`, rr.Body.String())
+		activitySvc.AssertExpectations(t)
+	})
+
+	t.Run("by email; invalidate now defaults to false", func(t *testing.T) {
+		account := servicesmocks.NewMockAdminAccountServiceInterface(t)
+		account.On("IssueResetLink", mock.Anything, actingID, userID,
+			services.AdminResetLinkRequest{Delivery: services.AdminLinkByEmail}).
+			Return(&services.AdminResetLink{AdminSetupLink: services.AdminSetupLink{
+				Delivery: services.AdminLinkByEmail, ExpiresAt: setupExpiry,
+			}}, nil)
+
+		rr := adminAccountRequest(t, account, nil, actingID, http.MethodPost, target, `{"delivery":"email"}`)
+
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		assert.JSONEq(t, `{"delivery":"email","expires_at":"2026-10-21T09:00:00Z","invalidated":false}`, rr.Body.String())
+	})
+
+	for code, err := range map[string]error{
+		"own_account":             services.ErrAdminOwnAccount,
+		"password_login_disabled": services.ErrAdminLocalSignInOff,
+		"account_suspended":       services.ErrAdminAccountSuspended,
+		"email_unavailable":       services.ErrAccountEmailUnavailable,
+		"email_unverified_shared": services.ErrAccountEmailUnverifiedShared,
+		"root_admin_link_refused": services.ErrAdminRootAdminLinkRefused,
+	} {
+		t.Run("409 "+code, func(t *testing.T) {
+			account := servicesmocks.NewMockAdminAccountServiceInterface(t)
+			account.On("IssueResetLink", mock.Anything, mock.Anything, userID, mock.Anything).Return(nil, err)
+
+			rr := adminAccountRequest(t, account, nil, actingID, http.MethodPost, target, `{"delivery":"link"}`)
+
+			require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+			assert.Contains(t, rr.Body.String(), `"code":"`+code+`"`)
+		})
+	}
+
+	t.Run("400 for a bad delivery", func(t *testing.T) {
+		for _, body := range []string{`{"delivery":"sms"}`, `{}`, `{"delivery":"link","extra":1}`} {
+			rr := adminAccountRequest(t, servicesmocks.NewMockAdminAccountServiceInterface(t), nil, actingID,
+				http.MethodPost, target, body)
+			assert.Equal(t, http.StatusBadRequest, rr.Code, body)
+		}
+	})
+}
+
+func TestDeleteAdminUserPassword(t *testing.T) {
+	userID := uuid.NewString()
+	actingID := uuid.NewString()
+	target := "/api/v1/admin/users/" + userID + "/password"
+
+	t.Run("removed, confirmed as the last method, audited", func(t *testing.T) {
+		account := servicesmocks.NewMockAdminAccountServiceInterface(t)
+		account.On("RemovePassword", mock.Anything, actingID, userID, true).Return("ada@example.com", nil)
+		activitySvc := &MockActivityService{}
+		activitySvc.On("RecordResourceActivity",
+			mock.Anything, actingID, activities.ActivityTypeAdminUserLocalSignInRemoved, activities.EntityTypeUser,
+			mock.Anything, mock.Anything,
+			mock.MatchedBy(func(md map[string]interface{}) bool {
+				return md["target_email"] == "ada@example.com" && md["confirmed_last_method"] == true
+			}),
+		).Return(nil).Once()
+
+		rr := adminAccountRequest(t, account, activitySvc, actingID, http.MethodDelete,
+			target+"?confirm_last_method=true", "")
+
+		require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
+		activitySvc.AssertExpectations(t)
+	})
+
+	for name, tc := range map[string]struct {
+		err    error
+		status int
+		code   string
+	}{
+		"the last way in": {services.ErrLastSignInMethod, http.StatusConflict, apierrors.CodeLastSignInMethod},
+		"own account":     {services.ErrAdminOwnAccount, http.StatusConflict, apierrors.CodeOwnAccount},
+		"no password":     {services.ErrAccountPasswordNotSet, http.StatusNotFound, apierrors.CodeResourceNotFound},
+		"no such user":    {services.ErrAdminUserNotFound, http.StatusNotFound, apierrors.CodeResourceNotFound},
+	} {
+		t.Run(name, func(t *testing.T) {
+			account := servicesmocks.NewMockAdminAccountServiceInterface(t)
+			account.On("RemovePassword", mock.Anything, actingID, userID, false).Return("", tc.err)
+
+			rr := adminAccountRequest(t, account, nil, actingID, http.MethodDelete, target, "")
+
+			require.Equal(t, tc.status, rr.Code, rr.Body.String())
+			assert.Contains(t, rr.Body.String(), `"code":"`+tc.code+`"`)
+		})
+	}
 }

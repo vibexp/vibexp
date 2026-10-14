@@ -536,6 +536,42 @@ func (e AdminUserListItemStatus) Valid() bool {
 	}
 }
 
+// Defines values for AdminUserResetLinkDelivery.
+const (
+	AdminUserResetLinkResultEmail AdminUserResetLinkDelivery = "email"
+	AdminUserResetLinkResultLink  AdminUserResetLinkDelivery = "link"
+)
+
+// Valid indicates whether the value is a known member of the AdminUserResetLinkDelivery enum.
+func (e AdminUserResetLinkDelivery) Valid() bool {
+	switch e {
+	case AdminUserResetLinkResultEmail:
+		return true
+	case AdminUserResetLinkResultLink:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminUserResetLinkRequestDelivery.
+const (
+	AdminUserResetLinkDeliveryEmail AdminUserResetLinkRequestDelivery = "email"
+	AdminUserResetLinkDeliveryLink  AdminUserResetLinkRequestDelivery = "link"
+)
+
+// Valid indicates whether the value is a known member of the AdminUserResetLinkRequestDelivery enum.
+func (e AdminUserResetLinkRequestDelivery) Valid() bool {
+	switch e {
+	case AdminUserResetLinkDeliveryEmail:
+		return true
+	case AdminUserResetLinkDeliveryLink:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminUserResourceCreationMetricsGranularity.
 const (
 	AdminUserResourceCreationMetricsGranularityDay   AdminUserResourceCreationMetricsGranularity = "day"
@@ -3482,6 +3518,41 @@ type AdminUserProjectResourceCounts struct {
 	ProjectName string                     `json:"project_name"`
 }
 
+// AdminUserResetLink defines model for AdminUserResetLink.
+type AdminUserResetLink struct {
+	Delivery AdminUserResetLinkDelivery `json:"delivery"`
+
+	// ExpiresAt When the link stops working (1 hour emailed, 24 hours shared).
+	ExpiresAt time.Time `json:"expires_at"`
+
+	// Invalidated Whether the current password, sessions and links were stopped (`invalidate_now`).
+	Invalidated bool `json:"invalidated"`
+
+	// LinkUrl The one-time reset link, only for `link`. Shown here once.
+	LinkUrl *string `json:"link_url,omitempty"`
+}
+
+// AdminUserResetLinkDelivery defines model for AdminUserResetLink.Delivery.
+type AdminUserResetLinkDelivery string
+
+// AdminUserResetLinkRequest defines model for AdminUserResetLinkRequest.
+type AdminUserResetLinkRequest struct {
+	// Delivery `email` sends the reset link to the account's address; `link` returns it
+	// here once.
+	Delivery AdminUserResetLinkRequestDelivery `json:"delivery"`
+
+	// InvalidateNow Stop the current password now: it is disabled, every session of the
+	// user ends, and every live link of the user stops working, before the
+	// new link is issued. Completing the new link sets a new password and
+	// lifts the disable. Without it the current password and sessions keep
+	// working until the link is used.
+	InvalidateNow *bool `json:"invalidate_now,omitempty"`
+}
+
+// AdminUserResetLinkRequestDelivery `email` sends the reset link to the account's address; `link` returns it
+// here once.
+type AdminUserResetLinkRequestDelivery string
+
 // AdminUserResourceCreationMetrics Resources the user created per bucket, stacked by type
 // (GET /api/v1/admin/users/{id}/resource-creation-metrics). Every bucket in
 // the range is present with an explicit 0 for every type.
@@ -4604,6 +4675,12 @@ type ExportAdminUsersParamsSortBy string
 // ExportAdminUsersParamsSortOrder defines parameters for ExportAdminUsers.
 type ExportAdminUsersParamsSortOrder string
 
+// DeleteAdminUserPasswordParams defines parameters for DeleteAdminUserPassword.
+type DeleteAdminUserPasswordParams struct {
+	// ConfirmLastMethod Remove the password even when it is the last way in.
+	ConfirmLastMethod *bool `form:"confirm_last_method,omitempty" json:"confirm_last_method,omitempty"`
+}
+
 // GetAdminUserResourceAccessMetricsParams defines parameters for GetAdminUserResourceAccessMetrics.
 type GetAdminUserResourceAccessMetricsParams struct {
 	// From Inclusive start of the range. Defaults to 30 days before `to`.
@@ -4702,6 +4779,9 @@ type CreateAdminUserJSONRequestBody = AdminUserCreateRequest
 
 // UpdateAdminUserJSONRequestBody defines body for UpdateAdminUser for application/json ContentType.
 type UpdateAdminUserJSONRequestBody = AdminUserUpdateRequest
+
+// IssueAdminUserResetLinkJSONRequestBody defines body for IssueAdminUserResetLink for application/json ContentType.
+type IssueAdminUserResetLinkJSONRequestBody = AdminUserResetLinkRequest
 
 // IssueAdminUserSetupLinkJSONRequestBody defines body for IssueAdminUserSetupLink for application/json ContentType.
 type IssueAdminUserSetupLinkJSONRequestBody = AdminUserSetupLinkRequest
@@ -4903,9 +4983,15 @@ type ServerInterface interface {
 	// Get a user's notification preferences
 	// (GET /api/v1/admin/users/{id}/notification-preferences)
 	GetAdminUserNotificationPreferences(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Remove a user's password
+	// (DELETE /api/v1/admin/users/{id}/password)
+	DeleteAdminUserPassword(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteAdminUserPasswordParams)
 	// Reactivate a suspended user
 	// (POST /api/v1/admin/users/{id}/reactivate)
 	ReactivateAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Send or get a password reset link
+	// (POST /api/v1/admin/users/{id}/reset-link)
+	IssueAdminUserResetLink(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Get a user's resource access series by source
 	// (GET /api/v1/admin/users/{id}/resource-access-metrics)
 	GetAdminUserResourceAccessMetrics(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminUserResourceAccessMetricsParams)
@@ -5320,9 +5406,21 @@ func (_ Unimplemented) GetAdminUserNotificationPreferences(w http.ResponseWriter
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Remove a user's password
+// (DELETE /api/v1/admin/users/{id}/password)
+func (_ Unimplemented) DeleteAdminUserPassword(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteAdminUserPasswordParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Reactivate a suspended user
 // (POST /api/v1/admin/users/{id}/reactivate)
 func (_ Unimplemented) ReactivateAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Send or get a password reset link
+// (POST /api/v1/admin/users/{id}/reset-link)
+func (_ Unimplemented) IssueAdminUserResetLink(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -10137,6 +10235,56 @@ func (siw *ServerInterfaceWrapper) GetAdminUserNotificationPreferences(w http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteAdminUserPassword operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminUserPassword(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteAdminUserPasswordParams
+
+	// ------------- Optional query parameter "confirm_last_method" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "confirm_last_method", r.URL.Query(), &params.ConfirmLastMethod, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "confirm_last_method"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "confirm_last_method", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAdminUserPassword(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ReactivateAdminUser operation middleware
 func (siw *ServerInterfaceWrapper) ReactivateAdminUser(w http.ResponseWriter, r *http.Request) {
 
@@ -10162,6 +10310,40 @@ func (siw *ServerInterfaceWrapper) ReactivateAdminUser(w http.ResponseWriter, r 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ReactivateAdminUser(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// IssueAdminUserResetLink operation middleware
+func (siw *ServerInterfaceWrapper) IssueAdminUserResetLink(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.IssueAdminUserResetLink(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -10839,7 +11021,13 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/admin/users/{id}/notification-preferences", wrapper.GetAdminUserNotificationPreferences)
 	})
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/admin/users/{id}/password", wrapper.DeleteAdminUserPassword)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/admin/users/{id}/reactivate", wrapper.ReactivateAdminUser)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/admin/users/{id}/reset-link", wrapper.IssueAdminUserResetLink)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/users/{id}/resource-access-metrics", wrapper.GetAdminUserResourceAccessMetrics)
@@ -15024,6 +15212,79 @@ func (response GetAdminUserNotificationPreferences500ApplicationProblemPlusJSONR
 	return err
 }
 
+type DeleteAdminUserPasswordRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params DeleteAdminUserPasswordParams
+}
+
+type DeleteAdminUserPasswordResponseObject interface {
+	VisitDeleteAdminUserPasswordResponse(w http.ResponseWriter) error
+}
+
+type DeleteAdminUserPassword204Response struct {
+}
+
+func (response DeleteAdminUserPassword204Response) VisitDeleteAdminUserPasswordResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAdminUserPassword400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteAdminUserPassword400ApplicationProblemPlusJSONResponse) VisitDeleteAdminUserPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUserPassword404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteAdminUserPassword404ApplicationProblemPlusJSONResponse) VisitDeleteAdminUserPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUserPassword409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteAdminUserPassword409ApplicationProblemPlusJSONResponse) VisitDeleteAdminUserPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUserPassword500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteAdminUserPassword500ApplicationProblemPlusJSONResponse) VisitDeleteAdminUserPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ReactivateAdminUserRequestObject struct {
 	Id openapi_types.UUID `json:"id"`
 }
@@ -15077,6 +15338,85 @@ func (response ReactivateAdminUser404ApplicationProblemPlusJSONResponse) VisitRe
 type ReactivateAdminUser500ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response ReactivateAdminUser500ApplicationProblemPlusJSONResponse) VisitReactivateAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type IssueAdminUserResetLinkRequestObject struct {
+	Id   openapi_types.UUID `json:"id"`
+	Body *IssueAdminUserResetLinkJSONRequestBody
+}
+
+type IssueAdminUserResetLinkResponseObject interface {
+	VisitIssueAdminUserResetLinkResponse(w http.ResponseWriter) error
+}
+
+type IssueAdminUserResetLink200JSONResponse AdminUserResetLink
+
+func (response IssueAdminUserResetLink200JSONResponse) VisitIssueAdminUserResetLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type IssueAdminUserResetLink400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response IssueAdminUserResetLink400ApplicationProblemPlusJSONResponse) VisitIssueAdminUserResetLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type IssueAdminUserResetLink404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response IssueAdminUserResetLink404ApplicationProblemPlusJSONResponse) VisitIssueAdminUserResetLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type IssueAdminUserResetLink409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response IssueAdminUserResetLink409ApplicationProblemPlusJSONResponse) VisitIssueAdminUserResetLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type IssueAdminUserResetLink500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response IssueAdminUserResetLink500ApplicationProblemPlusJSONResponse) VisitIssueAdminUserResetLinkResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -15702,9 +16042,15 @@ type StrictServerInterface interface {
 	// Get a user's notification preferences
 	// (GET /api/v1/admin/users/{id}/notification-preferences)
 	GetAdminUserNotificationPreferences(ctx context.Context, request GetAdminUserNotificationPreferencesRequestObject) (GetAdminUserNotificationPreferencesResponseObject, error)
+	// Remove a user's password
+	// (DELETE /api/v1/admin/users/{id}/password)
+	DeleteAdminUserPassword(ctx context.Context, request DeleteAdminUserPasswordRequestObject) (DeleteAdminUserPasswordResponseObject, error)
 	// Reactivate a suspended user
 	// (POST /api/v1/admin/users/{id}/reactivate)
 	ReactivateAdminUser(ctx context.Context, request ReactivateAdminUserRequestObject) (ReactivateAdminUserResponseObject, error)
+	// Send or get a password reset link
+	// (POST /api/v1/admin/users/{id}/reset-link)
+	IssueAdminUserResetLink(ctx context.Context, request IssueAdminUserResetLinkRequestObject) (IssueAdminUserResetLinkResponseObject, error)
 	// Get a user's resource access series by source
 	// (GET /api/v1/admin/users/{id}/resource-access-metrics)
 	GetAdminUserResourceAccessMetrics(ctx context.Context, request GetAdminUserResourceAccessMetricsRequestObject) (GetAdminUserResourceAccessMetricsResponseObject, error)
@@ -17508,6 +17854,33 @@ func (sh *strictHandler) GetAdminUserNotificationPreferences(w http.ResponseWrit
 	}
 }
 
+// DeleteAdminUserPassword operation middleware
+func (sh *strictHandler) DeleteAdminUserPassword(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteAdminUserPasswordParams) {
+	var request DeleteAdminUserPasswordRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAdminUserPassword(ctx, request.(DeleteAdminUserPasswordRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAdminUserPassword")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAdminUserPasswordResponseObject); ok {
+		if err := validResponse.VisitDeleteAdminUserPasswordResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ReactivateAdminUser operation middleware
 func (sh *strictHandler) ReactivateAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	var request ReactivateAdminUserRequestObject
@@ -17527,6 +17900,39 @@ func (sh *strictHandler) ReactivateAdminUser(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ReactivateAdminUserResponseObject); ok {
 		if err := validResponse.VisitReactivateAdminUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// IssueAdminUserResetLink operation middleware
+func (sh *strictHandler) IssueAdminUserResetLink(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request IssueAdminUserResetLinkRequestObject
+
+	request.Id = id
+
+	var body IssueAdminUserResetLinkJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.IssueAdminUserResetLink(ctx, request.(IssueAdminUserResetLinkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "IssueAdminUserResetLink")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(IssueAdminUserResetLinkResponseObject); ok {
+		if err := validResponse.VisitIssueAdminUserResetLinkResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

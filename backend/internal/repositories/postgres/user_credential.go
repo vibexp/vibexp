@@ -85,6 +85,40 @@ func (r *UserCredentialRepository) Upsert(ctx context.Context, userID, passwordH
 	return nil
 }
 
+// replaceUnlessDisabledQuery is storeUserHashQuery for the owner's own change:
+// the update applies only while the credential is not disabled, so the insert
+// or update reports no row for a disabled one.
+const replaceUnlessDisabledQuery = `
+	INSERT INTO user_credentials (user_id, password_hash)
+	VALUES ($1, $2)
+	ON CONFLICT (user_id) DO UPDATE SET
+		password_hash = EXCLUDED.password_hash,
+		failed_attempts = 0,
+		locked_until = NULL,
+		password_changed_at = CURRENT_TIMESTAMP,
+		updated_at = CURRENT_TIMESTAMP
+	WHERE user_credentials.disabled_at IS NULL`
+
+// ReplaceUnlessDisabled stores a hash unless the password is disabled; see the
+// interface.
+func (r *UserCredentialRepository) ReplaceUnlessDisabled(ctx context.Context, userID, passwordHash string) error {
+	result, err := r.db.ExecContext(ctx, replaceUnlessDisabledQuery, userID, passwordHash)
+	if err != nil {
+		if isFKViolation(err) {
+			return fmt.Errorf("%w: %s", repositories.ErrUserNotFound, userID)
+		}
+		return fmt.Errorf("failed to store user credential: %w", err)
+	}
+	stored, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to count the stored credential: %w", err)
+	}
+	if stored == 0 {
+		return repositories.ErrUserCredentialDisabled
+	}
+	return nil
+}
+
 // UpdateHash replaces the hash only while it still equals currentHash, and
 // leaves the throttle alone; see the interface. The comparison is in the WHERE
 // clause, so a password changed between the caller's check and this write is

@@ -361,6 +361,54 @@ func (_c *MockUserCredentialRepository_RecordSuccess_Call) RunAndReturn(run func
 	return _c
 }
 
+// ReplaceUnlessDisabled provides a mock function with given fields: ctx, userID, passwordHash
+func (_m *MockUserCredentialRepository) ReplaceUnlessDisabled(ctx context.Context, userID string, passwordHash string) error {
+	ret := _m.Called(ctx, userID, passwordHash)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ReplaceUnlessDisabled")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
+		r0 = rf(ctx, userID, passwordHash)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockUserCredentialRepository_ReplaceUnlessDisabled_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReplaceUnlessDisabled'
+type MockUserCredentialRepository_ReplaceUnlessDisabled_Call struct {
+	*mock.Call
+}
+
+// ReplaceUnlessDisabled is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - passwordHash string
+func (_e *MockUserCredentialRepository_Expecter) ReplaceUnlessDisabled(ctx interface{}, userID interface{}, passwordHash interface{}) *MockUserCredentialRepository_ReplaceUnlessDisabled_Call {
+	return &MockUserCredentialRepository_ReplaceUnlessDisabled_Call{Call: _e.mock.On("ReplaceUnlessDisabled", ctx, userID, passwordHash)}
+}
+
+func (_c *MockUserCredentialRepository_ReplaceUnlessDisabled_Call) Run(run func(ctx context.Context, userID string, passwordHash string)) *MockUserCredentialRepository_ReplaceUnlessDisabled_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockUserCredentialRepository_ReplaceUnlessDisabled_Call) Return(_a0 error) *MockUserCredentialRepository_ReplaceUnlessDisabled_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockUserCredentialRepository_ReplaceUnlessDisabled_Call) RunAndReturn(run func(context.Context, string, string) error) *MockUserCredentialRepository_ReplaceUnlessDisabled_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateHash provides a mock function with given fields: ctx, userID, currentHash, newHash
 func (_m *MockUserCredentialRepository) UpdateHash(ctx context.Context, userID string, currentHash string, newHash string) (bool, error) {
 	ret := _m.Called(ctx, userID, currentHash, newHash)
