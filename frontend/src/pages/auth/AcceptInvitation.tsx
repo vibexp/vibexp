@@ -26,6 +26,8 @@ import {
 } from '@/utils/invitationErrors'
 import { sessionStore } from '@/utils/storage'
 
+import { SignedOutInvitation } from './invitation/SignedOutInvitation'
+
 export function AcceptInvitation() {
   const { token } = useParams<{ token: string }>()
   const {
@@ -43,10 +45,31 @@ export function AcceptInvitation() {
   const [loading, setLoading] = useState(true)
   const [errorView, setErrorView] = useState<InvitationErrorView | null>(null)
   const [processing, setProcessing] = useState(false)
+  // A signed-out visitor sees the invitation through its public preview
+  // (#1440) instead of being sent to sign in first.
+  const [signedOutToken, setSignedOutToken] = useState<string | null>(null)
   const { displayName } = useSiteInfo()
 
   useEffect(() => {
     const fetchInvitation = async () => {
+      if (authLoading) return
+
+      // Signed out: show the invitation through its public preview (#1440).
+      // The stashed token is only READ here, never consumed: the signed-out
+      // view stashes it on purpose before a sign-in round trip, and this
+      // effect runs again when that sign-in starts.
+      if (!isAuthenticated) {
+        const signedOut =
+          token ?? sessionStore.get(STORAGE_KEYS.PENDING_INVITATION_TOKEN)
+        if (signedOut) {
+          setSignedOutToken(signedOut)
+        } else {
+          setErrorView(INVALID_LINK_ERROR)
+        }
+        setLoading(false)
+        return
+      }
+
       const pendingToken = checkPendingInvitation()
       const invitationToken = token ?? pendingToken
 
@@ -56,26 +79,16 @@ export function AcceptInvitation() {
         return
       }
 
-      // If not authenticated, stash token and send them to sign in.
-      if (!authLoading && !isAuthenticated) {
-        sessionStore.set(STORAGE_KEYS.PENDING_INVITATION_TOKEN, invitationToken)
-        void navigate('/')
-        return
-      }
-
-      if (isAuthenticated) {
-        try {
-          setLoading(true)
-          const response =
-            await teamService.getInvitationByToken(invitationToken)
-          setInvitation(response.invitation)
-          setResolvedToken(invitationToken)
-        } catch (err) {
-          console.error('Failed to fetch invitation:', err)
-          setErrorView(mapInvitationError(err))
-        } finally {
-          setLoading(false)
-        }
+      try {
+        setLoading(true)
+        const response = await teamService.getInvitationByToken(invitationToken)
+        setInvitation(response.invitation)
+        setResolvedToken(invitationToken)
+      } catch (err) {
+        console.error('Failed to fetch invitation:', err)
+        setErrorView(mapInvitationError(err))
+      } finally {
+        setLoading(false)
       }
     }
 
@@ -124,6 +137,10 @@ export function AcceptInvitation() {
     } finally {
       setProcessing(false)
     }
+  }
+
+  if (signedOutToken && !authLoading && !isAuthenticated) {
+    return <SignedOutInvitation token={signedOutToken} />
   }
 
   if (loading || authLoading) {
