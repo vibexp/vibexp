@@ -48,7 +48,11 @@ export function useAdminTeamSearch(
   // newer query's results.
   const seqRef = useRef(0)
 
+  // Armed only when the typed query differs from the one searched. A timer armed
+  // at mount (or after typing back to the searched text) would reset `page` to 1
+  // for an unchanged query, throwing away the pages already scrolled in (#1448).
   useEffect(() => {
+    if (query === debouncedQuery) return
     const timer = setTimeout(() => {
       setDebouncedQuery(query)
       setPage(1)
@@ -56,7 +60,7 @@ export function useAdminTeamSearch(
     return () => {
       clearTimeout(timer)
     }
-  }, [query])
+  }, [query, debouncedQuery])
 
   useEffect(() => {
     const seq = ++seqRef.current
