@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/container/providers"
@@ -17,6 +18,10 @@ import (
 	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 	"github.com/vibexp/vibexp/pkg/events"
 )
+
+// accountEmailDrainTimeout is how long shutdown waits for account emails that
+// are being sent before cancelling them.
+const accountEmailDrainTimeout = 5 * time.Second
 
 // WireContainer is the Wire-based implementation of the Container interface
 type WireContainer struct {
@@ -155,6 +160,9 @@ type WireContainer struct {
 	// One-time account links: password setup and reset (#1432)
 	accountTokenService           services.AccountTokenServiceInterface
 	invitationRegistrationService services.InvitationRegistrationServiceInterface
+	// Emailing account links, and the background runners its sends use (#1433)
+	accountLinkMailer   services.AccountLinkMailerInterface
+	accountEmailRunners *services.AccountEmailRunners
 	// First-run authentication setup mode (#1236)
 	setupModeService services.SetupModeService
 
@@ -334,6 +342,11 @@ func (c *WireContainer) AccountTokenService() services.AccountTokenServiceInterf
 // preview of a link and password registration through it (#1435).
 func (c *WireContainer) InvitationRegistrationService() services.InvitationRegistrationServiceInterface {
 	return c.invitationRegistrationService
+}
+
+// AccountLinkMailer returns the service that emails account links (#1433).
+func (c *WireContainer) AccountLinkMailer() services.AccountLinkMailerInterface {
+	return c.accountLinkMailer
 }
 
 // SetupModeService returns the authentication setup-mode service (#1236).
@@ -699,6 +712,14 @@ func (c *WireContainer) Close() error {
 	// access events) in the same shutdown phase as the event manager.
 	if c.resourceAccessWorkerPool != nil {
 		c.resourceAccessWorkerPool.Stop()
+	}
+
+	// Let account emails that are being sent finish, briefly, then cancel
+	// them. They hold no state that a cancelled send corrupts.
+	if c.accountEmailRunners != nil {
+		drainCtx, cancel := context.WithTimeout(context.Background(), accountEmailDrainTimeout)
+		c.accountEmailRunners.Shutdown(drainCtx)
+		cancel()
 	}
 
 	// Stop the scheduler loop and wait for an in-flight job handler rather

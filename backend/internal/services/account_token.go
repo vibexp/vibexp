@@ -88,6 +88,10 @@ var (
 	// earlier sessions are ended, but the requested revocation of API access
 	// did not happen. Nothing can be retried with the link.
 	ErrAccountLinkSpent = errors.New("account link spent without completing")
+	// ErrAccountLinkTooRecent is returned by IssueLink and IssueByEmail when
+	// params.MinInterval is set and the user's live link of the same kind is
+	// younger than it. No link was issued and the earlier one still works.
+	ErrAccountLinkTooRecent = errors.New("an account link was issued too recently")
 	// ErrInvalidAccountTokenRequest is returned by IssueLink and IssueByEmail
 	// for a request that names no user, or a purpose that is not one.
 	ErrInvalidAccountTokenRequest = errors.New("invalid account link request")
@@ -105,6 +109,11 @@ type IssueAccountLinkParams struct {
 	// CreatedBy is the administrator issuing the link; empty for a link the
 	// system issues on the user's own request (forgot password).
 	CreatedBy string
+	// MinInterval, when positive, refuses to issue (ErrAccountLinkTooRecent)
+	// while the link this one would replace is younger than it. The check and
+	// the issue are one transaction, so simultaneous requests cannot each
+	// pass it. Zero issues unconditionally.
+	MinInterval time.Duration
 }
 
 // IssuedAccountLink is a link an administrator copies and hands over.
@@ -218,6 +227,8 @@ type AccountTokenDeps struct {
 	Passwords PasswordAuthServiceInterface
 	APIAccess APIAccessServiceInterface
 	Allowlist AccessAllowlistResolver
+	// Notifier is told when a completion has set a password. Nil means nobody.
+	Notifier AccountNotifier
 	// BaseURL is the web app's base URL (frontend.base_url); links point there.
 	BaseURL string
 	Logger  *slog.Logger
@@ -235,6 +246,7 @@ type AccountTokenService struct {
 	baseURL   string
 	logger    *slog.Logger
 	now       func() time.Time
+	notifier  AccountNotifier
 }
 
 var _ AccountTokenServiceInterface = (*AccountTokenService)(nil)
@@ -245,6 +257,10 @@ func NewAccountTokenService(deps AccountTokenDeps) *AccountTokenService {
 	if now == nil {
 		now = time.Now
 	}
+	notifier := deps.Notifier
+	if notifier == nil {
+		notifier = noopAccountNotifier{}
+	}
 	return &AccountTokenService{
 		tokens:    deps.Tokens,
 		users:     deps.Users,
@@ -253,6 +269,7 @@ func NewAccountTokenService(deps AccountTokenDeps) *AccountTokenService {
 		allowlist: deps.Allowlist,
 		baseURL:   deps.BaseURL,
 		logger:    deps.Logger,
+		notifier:  notifier,
 		now:       now,
 	}
 }
@@ -362,7 +379,11 @@ func (s *AccountTokenService) issue(
 		ExpiresAt: s.now().Add(models.AccountTokenLifetime(params.Purpose, delivery)),
 		CreatedBy: optionalActor(params.CreatedBy),
 	}
-	if err := s.tokens.Replace(ctx, stored); err != nil {
+	err = s.tokens.Replace(ctx, stored, params.MinInterval)
+	if errors.Is(err, repositories.ErrAccountTokenTooRecent) {
+		return "", nil, ErrAccountLinkTooRecent
+	}
+	if err != nil {
 		return "", nil, fmt.Errorf("store the account link: %w", err)
 	}
 	s.logger.With(
@@ -507,6 +528,12 @@ func (s *AccountTokenService) complete(
 	user.Version = done.Version
 	log := s.logger.With("user_id", user.ID, "purpose", done.Token.Purpose, "delivery", done.Token.Delivery,
 		"token", redactAccountToken(done.Token.TokenHash))
+
+	// The password is the new one from here on, whatever happens below, so the
+	// owner is told now. Never a reason to fail: the notifier sends in the
+	// background. It is the mailbox owner's signal that a password was set,
+	// which matters most when the link was a copied one.
+	s.notifier.PasswordChanged(ctx, user.ID)
 
 	if c.revokeAPIAccess {
 		revokeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), accountLinkCompletionTimeout)

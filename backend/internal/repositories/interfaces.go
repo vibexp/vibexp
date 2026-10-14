@@ -376,6 +376,10 @@ var (
 	// link with the given token hash can be completed: it does not exist, has
 	// expired or was already consumed. The three are deliberately one answer.
 	ErrAccountTokenNotFound = errors.New("account token not found")
+	// ErrAccountTokenTooRecent is returned by AccountTokenRepository.Replace
+	// when the live link it was asked to replace is younger than the caller
+	// allows. Nothing was changed.
+	ErrAccountTokenTooRecent = errors.New("the account's live link was issued too recently")
 
 	// ErrInstanceAuthSetupNotFound is returned by InstanceAuthSetupRepository.Get
 	// when no setup token was ever issued.
@@ -2292,12 +2296,18 @@ type ClearedAccountClaim struct {
 // of their token. It never sees a token.
 type AccountTokenRepository interface {
 	// Replace stores token as the user's one live link of its purpose AND
-	// delivery: in one transaction it deletes the user's unconsumed link of
+	// delivery: in one transaction it deletes the user's previous live link of
 	// that purpose and delivery, if any, and inserts token, filling its ID and
-	// CreatedAt. So a new emailed link invalidates the previous emailed one and
-	// a new copied link the previous copied one, while one of each may be live
-	// together. An unknown user (or creator) returns ErrUserNotFound.
-	Replace(ctx context.Context, token *models.AccountToken) error
+	// CreatedAt. An unknown user returns ErrUserNotFound.
+	//
+	// With a positive unlessIssuedWithin it first checks, in the same
+	// transaction and under the user's lock, whether the live link it would
+	// replace was issued less than that long ago; if so it changes nothing
+	// and returns ErrAccountTokenTooRecent. That is how a caller spaces out
+	// the links it emails: of any number of simultaneous requests, one is
+	// stored and the rest are refused. The age is measured on the database's
+	// clock.
+	Replace(ctx context.Context, token *models.AccountToken, unlessIssuedWithin time.Duration) error
 	// GetLive returns the link with this token hash when it can still be
 	// completed at now, or ErrAccountTokenNotFound: unknown, expired and
 	// consumed are one answer.

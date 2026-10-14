@@ -43,7 +43,7 @@ func issueAccountToken(
 	require.NoError(t, repo.Replace(context.Background(), &models.AccountToken{
 		UserID: userID, Purpose: purpose, Delivery: delivery, TokenHash: hash,
 		ExpiresAt: accountTokenTestNow.Add(time.Hour),
-	}))
+	}, 0))
 	return hash
 }
 
@@ -82,7 +82,7 @@ func TestIntegrationAccountToken_Lifecycle(t *testing.T) {
 		TokenHash: hash, ExpiresAt: accountTokenTestNow.Add(time.Hour), CreatedBy: &adminID,
 	}
 
-	require.NoError(t, repo.Replace(ctx, token))
+	require.NoError(t, repo.Replace(ctx, token, 0))
 	assert.NotEmpty(t, token.ID)
 	assert.False(t, token.CreatedAt.IsZero())
 
@@ -282,7 +282,7 @@ func TestIntegrationAccountToken_ConcurrentReplaceLeavesOneLiveLink(t *testing.T
 			assert.NoError(t, repo.Replace(context.Background(), &models.AccountToken{
 				UserID: userID, Purpose: models.AccountTokenPurposeReset, Delivery: models.AccountTokenDeliveryEmail,
 				TokenHash: accountTokenHash(uuid.NewString()), ExpiresAt: accountTokenTestNow.Add(time.Hour),
-			}))
+			}, 0))
 		}()
 	}
 	start.Done()
@@ -670,7 +670,7 @@ func TestIntegrationAccountToken_LockedOperationsDoNotStarveThePool(t *testing.T
 				err = repo.Replace(ctx, &models.AccountToken{
 					UserID: userID, Purpose: models.AccountTokenPurposeReset, Delivery: models.AccountTokenDeliveryLink,
 					TokenHash: accountTokenHash(uuid.NewString()), ExpiresAt: accountTokenTestNow.Add(time.Hour),
-				})
+				}, 0)
 			case 1:
 				_, err = repo.ClearForClaim(ctx, userID)
 			default:
@@ -678,7 +678,7 @@ func TestIntegrationAccountToken_LockedOperationsDoNotStarveThePool(t *testing.T
 				if err = repo.Replace(ctx, &models.AccountToken{
 					UserID: userID, Purpose: models.AccountTokenPurposeSetup, Delivery: models.AccountTokenDeliveryEmail,
 					TokenHash: hash, ExpiresAt: accountTokenTestNow.Add(time.Hour),
-				}); err == nil {
+				}, 0); err == nil {
 					_, err = completeLink(repo, hash, accountTokenTestNow)
 				}
 			}
@@ -727,7 +727,7 @@ func TestIntegrationAccountToken_UserDeleteDoesNotDeadlock(t *testing.T) {
 				opErr = repo.Replace(ctx, &models.AccountToken{
 					UserID: userID, Purpose: models.AccountTokenPurposeSetup, Delivery: models.AccountTokenDeliveryLink,
 					TokenHash: accountTokenHash(uuid.NewString()), ExpiresAt: accountTokenTestNow.Add(time.Hour),
-				})
+				}, 0)
 			}
 		}()
 		go func() {
@@ -756,7 +756,7 @@ func TestIntegrationAccountToken_DeleteDead(t *testing.T) {
 	require.NoError(t, repo.Replace(ctx, &models.AccountToken{
 		UserID: userID, Purpose: models.AccountTokenPurposeSetup, Delivery: models.AccountTokenDeliveryLink,
 		TokenHash: live, ExpiresAt: accountTokenTestNow.Add(7 * 24 * time.Hour),
-	}))
+	}, 0))
 	issueAccountToken(t, repo, userID, models.AccountTokenPurposeReset, models.AccountTokenDeliveryEmail) // expires in 1h
 	consumed := issueAccountToken(t, repo, otherUser, models.AccountTokenPurposeSetup, models.AccountTokenDeliveryLink)
 	_, err := completeLink(repo, consumed, accountTokenTestNow)
@@ -801,7 +801,7 @@ func TestIntegrationAccountToken_Constraints(t *testing.T) {
 	err := repo.Replace(ctx, &models.AccountToken{
 		UserID: uuid.NewString(), Purpose: models.AccountTokenPurposeSetup, Delivery: models.AccountTokenDeliveryLink,
 		TokenHash: accountTokenHash("e"), ExpiresAt: accountTokenTestNow,
-	})
+	}, 0)
 	assert.ErrorIs(t, err, repositories.ErrUserNotFound, "a link needs a user")
 
 	// Deleting the issuing administrator keeps the link; deleting the user
@@ -810,7 +810,7 @@ func TestIntegrationAccountToken_Constraints(t *testing.T) {
 	require.NoError(t, repo.Replace(ctx, &models.AccountToken{
 		UserID: userID, Purpose: models.AccountTokenPurposeReset, Delivery: models.AccountTokenDeliveryLink,
 		TokenHash: hash, ExpiresAt: accountTokenTestNow.Add(time.Hour), CreatedBy: &adminID,
-	}))
+	}, 0))
 	_, err = integrationDB.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, adminID)
 	require.NoError(t, err)
 	got, err := repo.GetLive(ctx, hash, accountTokenTestNow)
@@ -819,4 +819,85 @@ func TestIntegrationAccountToken_Constraints(t *testing.T) {
 	_, err = integrationDB.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, userID)
 	require.NoError(t, err)
 	assert.Equal(t, 0, countAccountTokens(t, "true"))
+}
+
+// The spacing of emailed links is decided where the link is stored: Replace
+// with an interval refuses while the live link of that kind is younger than
+// it, and leaves that link in place.
+func TestIntegrationAccountToken_ReplaceRefusesWhileTheLiveLinkIsTooRecent(t *testing.T) {
+	resetIntegrationTables(t)
+	repo := NewAccountTokenRepository(integrationDB)
+	ctx := context.Background()
+	userID, otherUser := insertTestUser(t), insertTestUser(t)
+	link := func(user, purpose, delivery string) *models.AccountToken {
+		return &models.AccountToken{
+			UserID: user, Purpose: purpose, Delivery: delivery,
+			TokenHash: accountTokenHash(uuid.NewString()), ExpiresAt: accountTokenTestNow.Add(time.Hour),
+		}
+	}
+	reset, email := models.AccountTokenPurposeReset, models.AccountTokenDeliveryEmail
+	first := link(userID, reset, email)
+	require.NoError(t, repo.Replace(ctx, first, 5*time.Minute), "nothing to be too recent yet")
+
+	err := repo.Replace(ctx, link(userID, reset, email), 5*time.Minute)
+	require.ErrorIs(t, err, repositories.ErrAccountTokenTooRecent)
+	_, err = repo.GetLive(ctx, first.TokenHash, accountTokenTestNow)
+	require.NoError(t, err, "the earlier link is still the live one")
+	assert.Equal(t, 1, countAccountTokens(t, "user_id = $1", userID))
+
+	// Other kinds, other users and an unconditional replace are not held back.
+	require.NoError(t, repo.Replace(ctx, link(userID, reset, models.AccountTokenDeliveryLink), 5*time.Minute))
+	require.NoError(t, repo.Replace(ctx, link(userID, models.AccountTokenPurposeSetup, email), 5*time.Minute))
+	require.NoError(t, repo.Replace(ctx, link(otherUser, reset, email), 5*time.Minute))
+	require.NoError(t, repo.Replace(ctx, link(userID, reset, email), 0), "no interval replaces at once")
+
+	// Once the live link is older than the interval, it is replaced.
+	_, err = integrationDB.ExecContext(ctx, `
+		UPDATE account_tokens SET created_at = CURRENT_TIMESTAMP - interval '6 minutes'
+		WHERE user_id = $1 AND purpose = $2 AND delivery = $3 AND consumed_at IS NULL`, userID, reset, email)
+	require.NoError(t, err)
+	require.NoError(t, repo.Replace(ctx, link(userID, reset, email), 5*time.Minute))
+
+	// A used link does not hold the next one back.
+	used := link(otherUser, models.AccountTokenPurposeSetup, email)
+	require.NoError(t, repo.Replace(ctx, used, 5*time.Minute))
+	_, err = completeLink(repo, used.TokenHash, accountTokenTestNow)
+	require.NoError(t, err)
+	require.NoError(t, repo.Replace(ctx, link(otherUser, models.AccountTokenPurposeSetup, email), 5*time.Minute))
+}
+
+// Simultaneous requests cannot each pass the check: one link is stored and
+// every other request is refused, so one email goes out.
+func TestIntegrationAccountToken_ConcurrentReplaceWithAnIntervalStoresOne(t *testing.T) {
+	resetIntegrationTables(t)
+	repo := NewAccountTokenRepository(integrationDB)
+	userID := insertTestUser(t)
+
+	const callers = 16
+	var stored, refused atomic.Int32
+	var start, done sync.WaitGroup
+	start.Add(1)
+	for range callers {
+		done.Add(1)
+		go func() {
+			defer done.Done()
+			start.Wait()
+			err := repo.Replace(context.Background(), &models.AccountToken{
+				UserID: userID, Purpose: models.AccountTokenPurposeReset, Delivery: models.AccountTokenDeliveryEmail,
+				TokenHash: accountTokenHash(uuid.NewString()), ExpiresAt: accountTokenTestNow.Add(time.Hour),
+			}, 5*time.Minute)
+			switch {
+			case err == nil:
+				stored.Add(1)
+			case assert.ErrorIs(t, err, repositories.ErrAccountTokenTooRecent):
+				refused.Add(1)
+			}
+		}()
+	}
+	start.Done()
+	done.Wait()
+
+	assert.EqualValues(t, 1, stored.Load())
+	assert.EqualValues(t, callers-1, refused.Load())
+	assert.Equal(t, 1, countAccountTokens(t, "user_id = $1", userID))
 }

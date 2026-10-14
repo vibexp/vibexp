@@ -50,6 +50,14 @@ const consumeAccountLink = `
 	RETURNING id, user_id, purpose, delivery, token_hash, expires_at, consumed_at,
 		created_by, created_at`
 
+// recentAccountLinkExists reports whether the user has an unconsumed link of
+// one purpose and delivery that was issued less than $4 seconds ago.
+const recentAccountLinkExists = `
+	SELECT EXISTS (
+		SELECT 1 FROM account_tokens
+		WHERE user_id = $1 AND purpose = $2 AND delivery = $3 AND consumed_at IS NULL
+		  AND created_at > CURRENT_TIMESTAMP - make_interval(secs => $4))`
+
 // inUserTx runs fn in a transaction that holds userID's sign-in method lock:
 // it takes the lock first, runs fn on the same connection, commits when fn
 // returns nil and rolls back otherwise. Every operation here that changes what
@@ -104,13 +112,30 @@ func (r *AccountTokenRepository) inUserTx(
 // delivery; see the interface. The delete and the insert share a transaction,
 // so there is never a moment with two live links of one kind, and never one
 // with none because the insert failed.
-func (r *AccountTokenRepository) Replace(ctx context.Context, token *models.AccountToken) error {
+func (r *AccountTokenRepository) Replace(
+	ctx context.Context, token *models.AccountToken, unlessIssuedWithin time.Duration,
+) error {
 	// Under the user's lock: two requests issuing the same kind of link for one
 	// user would otherwise both delete, both insert, and the second would fail
 	// on the one-live-link index; queued on the lock, the second simply
 	// replaces the first. It is the lock Complete and ClearForClaim take, so a
 	// link is never issued into the middle of either.
 	return r.inUserTx(ctx, "replace", token.UserID, func(tx *sql.Tx) error {
+		// The age check runs under the user's lock, in the transaction that
+		// replaces: of simultaneous requests the first stores its link and
+		// every later one sees it here. Both sides of the comparison are the
+		// database's clock.
+		if unlessIssuedWithin > 0 {
+			var tooRecent bool
+			err := tx.QueryRowContext(ctx, recentAccountLinkExists,
+				token.UserID, token.Purpose, token.Delivery, unlessIssuedWithin.Seconds()).Scan(&tooRecent)
+			if err != nil {
+				return fmt.Errorf("failed to read the age of the live account token: %w", err)
+			}
+			if tooRecent {
+				return repositories.ErrAccountTokenTooRecent
+			}
+		}
 		if _, err := tx.ExecContext(ctx, `
 			DELETE FROM account_tokens
 			WHERE user_id = $1 AND purpose = $2 AND delivery = $3 AND consumed_at IS NULL`,

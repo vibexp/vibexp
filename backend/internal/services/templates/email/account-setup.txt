@@ -1,0 +1,14 @@
+Set up your {{.Brand.DisplayName}} account
+
+Hello{{if .Name}} {{.Name}}{{end}},
+
+An account has been created for {{.Email}} on {{.Brand.DisplayName}}. Choose a password to start using it:
+
+{{.LinkURL}}
+
+This link works once and is valid for {{.ExpiresIn}}.
+If you did not expect this email, you can safely ignore it.
+
+---
+© {{.Year}} {{.Brand.DisplayName}}. All rights reserved.
+Powered by {{.ProductName}} - {{.ProductURL}}

@@ -318,17 +318,17 @@ func (_c *MockAccountTokenRepository_GetLive_Call) RunAndReturn(run func(context
 	return _c
 }
 
-// Replace provides a mock function with given fields: ctx, token
-func (_m *MockAccountTokenRepository) Replace(ctx context.Context, token *models.AccountToken) error {
-	ret := _m.Called(ctx, token)
+// Replace provides a mock function with given fields: ctx, token, unlessIssuedWithin
+func (_m *MockAccountTokenRepository) Replace(ctx context.Context, token *models.AccountToken, unlessIssuedWithin time.Duration) error {
+	ret := _m.Called(ctx, token, unlessIssuedWithin)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Replace")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *models.AccountToken) error); ok {
-		r0 = rf(ctx, token)
+	if rf, ok := ret.Get(0).(func(context.Context, *models.AccountToken, time.Duration) error); ok {
+		r0 = rf(ctx, token, unlessIssuedWithin)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -344,13 +344,14 @@ type MockAccountTokenRepository_Replace_Call struct {
 // Replace is a helper method to define mock.On call
 //   - ctx context.Context
 //   - token *models.AccountToken
-func (_e *MockAccountTokenRepository_Expecter) Replace(ctx interface{}, token interface{}) *MockAccountTokenRepository_Replace_Call {
-	return &MockAccountTokenRepository_Replace_Call{Call: _e.mock.On("Replace", ctx, token)}
+//   - unlessIssuedWithin time.Duration
+func (_e *MockAccountTokenRepository_Expecter) Replace(ctx interface{}, token interface{}, unlessIssuedWithin interface{}) *MockAccountTokenRepository_Replace_Call {
+	return &MockAccountTokenRepository_Replace_Call{Call: _e.mock.On("Replace", ctx, token, unlessIssuedWithin)}
 }
 
-func (_c *MockAccountTokenRepository_Replace_Call) Run(run func(ctx context.Context, token *models.AccountToken)) *MockAccountTokenRepository_Replace_Call {
+func (_c *MockAccountTokenRepository_Replace_Call) Run(run func(ctx context.Context, token *models.AccountToken, unlessIssuedWithin time.Duration)) *MockAccountTokenRepository_Replace_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*models.AccountToken))
+		run(args[0].(context.Context), args[1].(*models.AccountToken), args[2].(time.Duration))
 	})
 	return _c
 }
@@ -360,7 +361,7 @@ func (_c *MockAccountTokenRepository_Replace_Call) Return(_a0 error) *MockAccoun
 	return _c
 }
 
-func (_c *MockAccountTokenRepository_Replace_Call) RunAndReturn(run func(context.Context, *models.AccountToken) error) *MockAccountTokenRepository_Replace_Call {
+func (_c *MockAccountTokenRepository_Replace_Call) RunAndReturn(run func(context.Context, *models.AccountToken, time.Duration) error) *MockAccountTokenRepository_Replace_Call {
 	_c.Call.Return(run)
 	return _c
 }
