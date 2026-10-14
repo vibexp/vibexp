@@ -7,13 +7,6 @@ import { ApiError } from '@/types/errors'
  * before the person runs into it.
  */
 
-/** The written password rule, as the server's policy states it. */
-export const PASSWORD_RULE =
-  'At least 12 characters. Not a common password, and not your email address.'
-
-export const PASSWORD_MIN_LENGTH = 12
-/** The API's bound on a password field, in characters. */
-export const PASSWORD_MAX_LENGTH = 1024
 export const NAME_MAX_LENGTH = 255
 
 /** Sent to the sign-in page so signing in again comes back here. */

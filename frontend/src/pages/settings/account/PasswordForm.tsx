@@ -15,16 +15,16 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_RULE,
+} from '@/lib/passwordPolicy'
 import { toast } from '@/lib/toast'
 import { accountService } from '@/services/accountService'
 import { ApiError } from '@/types/errors'
 
-import {
-  accountErrorMessage,
-  PASSWORD_MAX_LENGTH,
-  PASSWORD_MIN_LENGTH,
-  PASSWORD_RULE,
-} from './accountRules'
+import { accountErrorMessage } from './accountRules'
 import type { AccountState } from './useAccount'
 
 interface PasswordValues {
