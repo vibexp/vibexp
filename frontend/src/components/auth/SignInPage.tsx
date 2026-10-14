@@ -318,6 +318,8 @@ export function SignInPage() {
   // signingIn holds the canonical name of the provider whose redirect is in
   // flight, so we can show a per-button spinner and disable the others.
   const [signingIn, setSigningIn] = useState<string | null>(null)
+  // A password sign-in in flight holds the provider buttons.
+  const [passwordBusy, setPasswordBusy] = useState(false)
   const [error, setError] = useState<string>('')
   // Whether the instance still has to be configured through /setup (#1239).
   const [setupRequired, setSetupRequired] = useState(false)
@@ -470,6 +472,7 @@ export function SignInPage() {
                   <PasswordSignInForm
                     returnTo={returnTo}
                     disabled={signingIn !== null}
+                    onBusyChange={setPasswordBusy}
                     go={hardRedirect}
                   />
                 </div>
@@ -511,7 +514,7 @@ export function SignInPage() {
                     onClick={() => {
                       void handleSignIn(provider)
                     }}
-                    disabled={signingIn !== null}
+                    disabled={signingIn !== null || passwordBusy}
                     className="w-full"
                   >
                     {signingIn === provider.name ? (

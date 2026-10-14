@@ -218,4 +218,17 @@ describe('AccountResetPage', () => {
     expect(await form.findByText('This password is too common')).toBeVisible()
     expect(form.getByLabelText('Password')).toHaveFocus()
   })
+
+  it('shows password sign-in as off when it was switched off after the check', async () => {
+    links.completeReset.mockRejectedValue(
+      apiError(404, 'NOT_FOUND', 'Not found')
+    )
+    const user = renderAt('/account/reset#token=t')
+    await submit(user)
+
+    expect(
+      await screen.findByTestId('account-reset-password-off')
+    ).toBeVisible()
+    expect(screen.queryByRole('form')).toBeNull()
+  })
 })

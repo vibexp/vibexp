@@ -137,6 +137,9 @@ export function AccountResetPage({
         onInvalid={() => {
           setView({ kind: 'invalid' })
         }}
+        onPasswordOff={() => {
+          setView({ kind: 'password-off' })
+        }}
         onSetNotSignedIn={email => {
           setView({ kind: 'set-not-signed-in', email })
         }}
@@ -226,12 +229,15 @@ function ResetForm({
   preview,
   go,
   onInvalid,
+  onPasswordOff,
   onSetNotSignedIn,
 }: Readonly<{
   token: string
   preview: AccountLinkPreview
   go: (url: string) => void
   onInvalid: () => void
+  /** Password sign-in was switched off after the link was checked. */
+  onPasswordOff: () => void
   onSetNotSignedIn: (email: string) => void
 }>) {
   const { displayName } = useSiteInfo()
@@ -263,6 +269,10 @@ function ResetForm({
       const status = statusOf(err)
       if (status === 401) {
         onInvalid()
+        return
+      }
+      if (status === 404) {
+        onPasswordOff()
         return
       }
       if (status === 500) {

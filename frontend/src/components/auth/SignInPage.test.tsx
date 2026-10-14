@@ -821,4 +821,27 @@ describe('SignInPage — password sign-in (#1439)', () => {
     expect(form.getByLabelText('Email')).toHaveAttribute('aria-invalid', 'true')
     expect(mockPasswordLogin).not.toHaveBeenCalled()
   })
+
+  it('holds the provider buttons while a password sign-in is in flight', async () => {
+    mockGetProviders.mockResolvedValue(PROVIDERS)
+    mockPasswordLogin.mockReturnValue(new Promise(() => {}))
+    renderSignInPage()
+
+    const form = within(
+      await screen.findByRole('form', { name: 'Password sign-in' })
+    )
+    fireEvent.change(form.getByLabelText('Email'), {
+      target: { value: 'ada@example.com' },
+    })
+    fireEvent.change(form.getByLabelText('Password'), {
+      target: { value: 'correct horse battery' },
+    })
+    fireEvent.submit(form.getByRole('button', { name: 'Sign in' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /continue with google/i })
+      ).toBeDisabled()
+    })
+  })
 })

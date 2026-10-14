@@ -130,6 +130,7 @@ describe('passwordSignInErrorMessage (#1439)', () => {
   })
 
   it.each([
+    [400, 'Check the email address and password'],
     [403, ACCESS_RESTRICTED_MESSAGE],
     [404, 'Password sign-in is switched off'],
     [429, 'Wait a minute'],

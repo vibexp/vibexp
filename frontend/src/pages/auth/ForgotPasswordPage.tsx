@@ -109,6 +109,9 @@ export function ForgotPasswordPage() {
               onSent={email => {
                 setView({ kind: 'sent', email })
               }}
+              onUnavailable={() => {
+                setView({ kind: 'unavailable' })
+              }}
             />
           )}
           {view.kind === 'sent' && <Sent email={view.email} />}
@@ -129,7 +132,14 @@ export function ForgotPasswordPage() {
   )
 }
 
-function ForgotForm({ onSent }: Readonly<{ onSent: (email: string) => void }>) {
+function ForgotForm({
+  onSent,
+  onUnavailable,
+}: Readonly<{
+  onSent: (email: string) => void
+  /** Password sign-in was switched off after the page loaded. */
+  onUnavailable: () => void
+}>) {
   const form = useForm<ForgotValues>({
     resolver: zodResolver(schema),
     defaultValues: { email: '' },
@@ -143,6 +153,10 @@ function ForgotForm({ onSent }: Readonly<{ onSent: (email: string) => void }>) {
       onSent(values.email)
     } catch (err) {
       setBusy(false)
+      if (err instanceof ApiError && err.status === 404) {
+        onUnavailable()
+        return
+      }
       form.setError('root', {
         message:
           err instanceof ApiError && err.status === 429

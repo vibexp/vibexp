@@ -146,4 +146,32 @@ describe('ForgotPasswordPage', () => {
       ).toHaveAttribute('href', '/login')
     })
   })
+
+  it('turns into the unavailable state when password sign-in was switched off meanwhile', async () => {
+    auth.getSignInMethods.mockResolvedValue(methods(true, 'email'))
+    auth.requestPasswordReset.mockRejectedValue(
+      new ApiError({
+        type: 'about:blank',
+        title: 'Not Found',
+        status: 404,
+        detail: 'x',
+        code: 'NOT_FOUND',
+        request_id: 'r',
+        timestamp: '2026-10-14T00:00:00Z',
+      })
+    )
+    const user = renderPage()
+
+    const form = within(
+      await screen.findByRole('form', { name: 'Request a password reset' })
+    )
+    await user.type(form.getByLabelText('Email'), 'ada@example.com')
+    await user.click(
+      form.getByRole('button', { name: 'Email me a reset link' })
+    )
+
+    expect(
+      await screen.findByTestId('forgot-password-unavailable')
+    ).toBeVisible()
+  })
 })

@@ -155,6 +155,8 @@ export function passwordSignInErrorMessage(err: unknown): string {
   switch (status) {
     case 401:
       return PASSWORD_SIGN_IN_FAILED_MESSAGE
+    case 400:
+      return 'Check the email address and password, then try again.'
     case 403:
       return ACCESS_RESTRICTED_MESSAGE
     case 404:

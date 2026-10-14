@@ -33,12 +33,16 @@ type SignInValues = z.infer<typeof schema>
 export function PasswordSignInForm({
   returnTo,
   disabled = false,
+  onBusyChange,
   go = url => {
     globalThis.location.assign(url)
   },
 }: Readonly<{
   returnTo: string
   disabled?: boolean
+  /** Told when a sign-in starts and when it fails, so the page can hold
+   *  the other ways in meanwhile. */
+  onBusyChange?: (busy: boolean) => void
   go?: (url: string) => void
 }>) {
   const form = useForm<SignInValues>({
@@ -49,11 +53,13 @@ export function PasswordSignInForm({
 
   const submit = async (values: SignInValues) => {
     setBusy(true)
+    onBusyChange?.(true)
     try {
       await authService.passwordLogin(values.email, values.password)
       go(returnTo)
     } catch (err) {
       setBusy(false)
+      onBusyChange?.(false)
       form.setError('root', { message: passwordSignInErrorMessage(err) })
       form.setFocus('password')
     }
