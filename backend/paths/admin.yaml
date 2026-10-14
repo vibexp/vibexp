@@ -1187,7 +1187,8 @@ api-v1-admin-users-id-setup-link:
 
       Refused (409, with a stable `code`) when password sign-in is off
       (`password_login_disabled`), when the account already has a way to sign in
-      (`has_sign_in_method`), for your own account (`own_account`), for
+      (`has_sign_in_method`), for a suspended account (`account_suspended`),
+      for your own account (`own_account`), for
       `delivery: email` with no email provider stored (`email_unavailable`),
       and for `delivery: link` to a root instance admin's address
       (`root_admin_link_refused`: such an account gets an emailed link only,

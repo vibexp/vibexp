@@ -47,6 +47,7 @@ const (
 	AdminSetupReasonLocalSignInOff = "password_login_disabled"
 	AdminSetupReasonRootAdmin      = "root_admin_link_refused"
 	AdminSetupReasonEmailFailed    = "email_failed"
+	AdminSetupReasonSetupFailed    = "setup_failed"
 )
 
 var (
@@ -56,6 +57,9 @@ var (
 	// ErrAdminAccountHasSignInMethod refuses a setup link for an account that
 	// can already sign in.
 	ErrAdminAccountHasSignInMethod = errors.New("the account can already sign in")
+	// ErrAdminAccountSuspended refuses a setup link for a suspended account:
+	// completing it would be refused, so the email would be a dead end.
+	ErrAdminAccountSuspended = errors.New("the account is suspended; reactivate it first")
 	// ErrAdminRootAdminLinkRefused refuses a link to share for a root instance
 	// admin's address.
 	ErrAdminRootAdminLinkRefused = errors.New(
@@ -81,6 +85,8 @@ type AdminUserSetup struct {
 
 // AdminSetupLink is a setup link issued on request.
 type AdminSetupLink struct {
+	// Email is the account's address, for the audit record.
+	Email     string
 	Delivery  AdminLinkDelivery
 	LinkURL   string
 	ExpiresAt time.Time
@@ -166,7 +172,7 @@ func (s *AdminAccountService) SetUpNewUser(ctx context.Context, actorID, userID 
 	on, err := s.localSignInOn(ctx)
 	if err != nil {
 		log.With("error", err.Error()).Error("A new account got no setup link: the policy could not be read")
-		return none(AdminSetupReasonEmailFailed)
+		return none(AdminSetupReasonSetupFailed)
 	}
 	if !on {
 		return none(AdminSetupReasonLocalSignInOff)
@@ -174,7 +180,7 @@ func (s *AdminAccountService) SetUpNewUser(ctx context.Context, actorID, userID 
 	works, err := s.emailWorks(ctx)
 	if err != nil {
 		log.With("error", err.Error()).Error("A new account got no setup link: email could not be checked")
-		return none(AdminSetupReasonEmailFailed)
+		return none(AdminSetupReasonSetupFailed)
 	}
 
 	if works {
@@ -190,7 +196,7 @@ func (s *AdminAccountService) SetUpNewUser(ctx context.Context, actorID, userID 
 	user, err := s.users.GetByID(ctx, userID)
 	if err != nil {
 		log.With("error", err.Error()).Error("A new account got no setup link: it could not be read")
-		return none(AdminSetupReasonEmailFailed)
+		return none(AdminSetupReasonSetupFailed)
 	}
 	if s.rootAdmins != nil && s.rootAdmins.IsRootAdmin(user.Email) {
 		return none(AdminSetupReasonRootAdmin)
@@ -200,7 +206,7 @@ func (s *AdminAccountService) SetUpNewUser(ctx context.Context, actorID, userID 
 	})
 	if err != nil {
 		log.With("error", err.Error()).Error("A new account's setup link could not be issued")
-		return none(AdminSetupReasonEmailFailed)
+		return none(AdminSetupReasonSetupFailed)
 	}
 	return AdminUserSetup{Delivery: AdminLinkByCopy, LinkURL: link.URL, ExpiresAt: link.ExpiresAt}
 }
@@ -231,6 +237,9 @@ func (s *AdminAccountService) setupLinkTarget(
 	if !detail.SignIn.PendingSetup {
 		return nil, ErrAdminAccountHasSignInMethod
 	}
+	if detail.Status == models.UserStatusSuspended {
+		return nil, ErrAdminAccountSuspended
+	}
 	return detail, nil
 }
 
@@ -251,7 +260,7 @@ func (s *AdminAccountService) IssueSetupLink(
 		if sendErr != nil {
 			return nil, sendErr
 		}
-		return &AdminSetupLink{Delivery: AdminLinkByEmail, ExpiresAt: expiresAt}, nil
+		return &AdminSetupLink{Email: detail.Email, Delivery: AdminLinkByEmail, ExpiresAt: expiresAt}, nil
 	}
 
 	if s.rootAdmins != nil && s.rootAdmins.IsRootAdmin(detail.Email) {
@@ -263,5 +272,7 @@ func (s *AdminAccountService) IssueSetupLink(
 	if err != nil {
 		return nil, fmt.Errorf("issue the setup link: %w", err)
 	}
-	return &AdminSetupLink{Delivery: AdminLinkByCopy, LinkURL: link.URL, ExpiresAt: link.ExpiresAt}, nil
+	return &AdminSetupLink{
+		Email: detail.Email, Delivery: AdminLinkByCopy, LinkURL: link.URL, ExpiresAt: link.ExpiresAt,
+	}, nil
 }

@@ -2,10 +2,12 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
+	"github.com/vibexp/vibexp/internal/services/activities"
 	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
 	"github.com/vibexp/vibexp/internal/specconformance"
 )
@@ -163,6 +166,7 @@ func TestIssueAdminUserSetupLink(t *testing.T) {
 		"own_account":             services.ErrAdminOwnAccount,
 		"password_login_disabled": services.ErrAdminLocalSignInOff,
 		"has_sign_in_method":      services.ErrAdminAccountHasSignInMethod,
+		"account_suspended":       services.ErrAdminAccountSuspended,
 		"email_unavailable":       services.ErrAccountEmailUnavailable,
 		"root_admin_link_refused": services.ErrAdminRootAdminLinkRefused,
 	} {
@@ -204,10 +208,74 @@ func TestIssueAdminUserSetupLink(t *testing.T) {
 		assert.NotContains(t, rr.Body.String(), "connection refused")
 	})
 
+	t.Run("the issue is audited with the delivery and never the link", func(t *testing.T) {
+		actingID := uuid.NewString()
+		account := servicesmocks.NewMockAdminAccountServiceInterface(t)
+		account.On("IssueSetupLink", mock.Anything, actingID, userID, services.AdminLinkByCopy).
+			Return(&services.AdminSetupLink{Email: "pending@example.com", Delivery: services.AdminLinkByCopy,
+				LinkURL: "https://app.example.com/account/setup#token=COPIED", ExpiresAt: setupExpiry}, nil)
+		activitySvc := expectSetupLinkAudit(t, actingID, userID, "pending@example.com", "link")
+		srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminAccount: account, activityService: activitySvc})
+
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/users/"+userID+"/setup-link",
+			bytes.NewBufferString(`{"delivery":"link"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, actingID))
+		rr := httptest.NewRecorder()
+		mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		activitySvc.AssertExpectations(t)
+	})
+
 	t.Run("400 for a bad delivery", func(t *testing.T) {
 		for _, body := range []string{`{"delivery":"sms"}`, `{}`, `{not json`} {
 			rr := postSetupLink(t, servicesmocks.NewMockAdminAccountServiceInterface(t), userID, body)
 			assert.Equal(t, http.StatusBadRequest, rr.Code, body)
 		}
 	})
+}
+
+// expectSetupLinkAudit expects exactly one setup-link activity for the user,
+// carrying the delivery and the address and no link or token.
+func expectSetupLinkAudit(t *testing.T, actingID, userID, email, delivery string) *MockActivityService {
+	t.Helper()
+	activitySvc := &MockActivityService{}
+	activitySvc.On("RecordResourceActivity",
+		mock.Anything, actingID, activities.ActivityTypeAdminUserSetupLinkIssued, activities.EntityTypeUser,
+		mock.MatchedBy(func(entityID *string) bool { return entityID != nil && *entityID == userID }),
+		mock.Anything,
+		mock.MatchedBy(func(md map[string]interface{}) bool {
+			raw, err := json.Marshal(md)
+			require.NoError(t, err)
+			return md["delivery"] == delivery && md["target_email"] == email && md["target_user_id"] == userID &&
+				!strings.Contains(string(raw), "token")
+		}),
+	).Return(nil).Once()
+	activitySvc.On("RecordResourceActivity", mock.Anything, mock.Anything, activities.ActivityTypeAdminUserCreated,
+		mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	return activitySvc
+}
+
+func TestCreateAdminUser_AuditsTheSetupLink(t *testing.T) {
+	id := uuid.NewString()
+	actingID := uuid.NewString()
+	admin := servicesmocks.NewMockAdminServiceInterface(t)
+	admin.On("CreateUser", mock.Anything, mock.Anything).Return(createdUserDetail(id), nil)
+	account := servicesmocks.NewMockAdminAccountServiceInterface(t)
+	account.On("SetUpNewUser", mock.Anything, actingID, id).Return(services.AdminUserSetup{
+		Delivery: services.AdminLinkByCopy, LinkURL: "https://app.example.com/account/setup#token=COPIED", ExpiresAt: setupExpiry,
+	})
+	activitySvc := expectSetupLinkAudit(t, actingID, id, "new.user@example.com", "link")
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{
+		adminService: admin, adminAccount: account, activityService: activitySvc,
+	})
+
+	req := postUserRequest(t, `{"email":"new.user@example.com"}`)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, actingID))
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+	activitySvc.AssertExpectations(t)
 }

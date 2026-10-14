@@ -295,9 +295,6 @@ func appendAdminCountRange(where squirrel.And, col string, r repositories.AdminC
 	return where
 }
 
-// buildAdminUserWhere builds the shared WHERE conditions for the admin user
-// listing. The count and page queries consume the same conditions over the same
-// FROM (adminUserListFrom), so the pagination envelope can never diverge from
 // appendPendingSetupFilter keeps only accounts with (true) or without (false)
 // a way to sign in yet; nil adds nothing.
 func appendPendingSetupFilter(where squirrel.And, pendingSetup *bool) squirrel.And {
@@ -311,6 +308,9 @@ func appendPendingSetupFilter(where squirrel.And, pendingSetup *bool) squirrel.A
 	}
 }
 
+// buildAdminUserWhere builds the shared WHERE conditions for the admin user
+// listing. The count and page queries consume the same conditions over the same
+// FROM (adminUserListFrom), so the pagination envelope can never diverge from
 // the returned rows.
 func buildAdminUserWhere(filters repositories.AdminUserFilters) squirrel.And {
 	where := squirrel.And{}

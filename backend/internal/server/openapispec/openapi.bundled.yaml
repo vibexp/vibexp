@@ -12251,7 +12251,8 @@ paths:
 
         Refused (409, with a stable `code`) when password sign-in is off
         (`password_login_disabled`), when the account already has a way to sign in
-        (`has_sign_in_method`), for your own account (`own_account`), for
+        (`has_sign_in_method`), for a suspended account (`account_suspended`),
+        for your own account (`own_account`), for
         `delivery: email` with no email provider stored (`email_unavailable`),
         and for `delivery: link` to a root instance admin's address
         (`root_admin_link_refused`: such an account gets an emailed link only,
@@ -31371,17 +31372,21 @@ components:
             - password_login_disabled
             - root_admin_link_refused
             - email_failed
+            - setup_failed
           x-enum-varnames:
             - AdminUserSetupReasonLocalSignInOff
             - AdminUserSetupReasonRootAdmin
             - AdminUserSetupReasonEmailFailed
+            - AdminUserSetupReasonSetupFailed
           description: |
             Why `delivery` is `none`. `password_login_disabled`: password sign-in is
             off, the owner signs in through a provider. `root_admin_link_refused`:
             the address is a root instance admin's and no email provider is stored;
             no shareable link is issued for such an address, so its owner uses the
             setup page or the recovery CLI. `email_failed`: the email could not be
-            sent; get a setup link from the user's page.
+            sent; get a setup link from the user's page. `setup_failed`: the link
+            could not be made for another reason (logged on the server); try again
+            from the user's page.
     AdminUserSetupLinkRequest:
       type: object
       additionalProperties: false

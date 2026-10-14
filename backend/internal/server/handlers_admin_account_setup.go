@@ -28,12 +28,12 @@ func (a *adminStrictServer) IssueAdminUserSetupLink(
 		return nil, a.mapAdminAccountError(err, "IssueAdminUserSetupLink")
 	}
 
-	a.recordUserMutationActivity(ctx, activities.ActivityTypeAdminUserSetupLinkIssued, userID, "",
+	a.recordUserMutationActivity(ctx, activities.ActivityTypeAdminUserSetupLinkIssued, userID, link.Email,
 		map[string]interface{}{"delivery": string(link.Delivery)})
 
 	out := admingen.IssueAdminUserSetupLink200JSONResponse{
 		Delivery:  admingen.AdminUserSetupLinkDelivery(link.Delivery),
-		ExpiresAt: link.ExpiresAt,
+		ExpiresAt: link.ExpiresAt.UTC(),
 	}
 	if link.LinkURL != "" {
 		url := link.LinkURL
@@ -51,6 +51,7 @@ var adminAccountRefusals = []struct {
 	{services.ErrAdminOwnAccount, apierrors.CodeOwnAccount},
 	{services.ErrAdminLocalSignInOff, apierrors.CodeLocalSignInDisabled},
 	{services.ErrAdminAccountHasSignInMethod, apierrors.CodeHasSignInMethod},
+	{services.ErrAdminAccountSuspended, apierrors.CodeAccountSuspended},
 	{services.ErrAccountEmailUnavailable, apierrors.CodeEmailUnavailable},
 	{services.ErrAdminRootAdminLinkRefused, apierrors.CodeRootAdminLinkRefused},
 }

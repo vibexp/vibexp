@@ -101,6 +101,7 @@ type adminSetupFixture struct {
 	links  *adminSetupLinks
 	mailer *adminSetupMailer
 	email  string
+	status string
 	signIn models.AdminUserSignIn
 }
 
@@ -114,6 +115,7 @@ func newAdminSetupFixture(t *testing.T) *adminSetupFixture {
 		links:  &adminSetupLinks{},
 		mailer: &adminSetupMailer{},
 		email:  "pending@example.com",
+		status: models.UserStatusActive,
 		signIn: models.AdminUserSignIn{PendingSetup: true, Methods: []string{}},
 	}
 	f.svc = NewAdminAccountService(AdminAccountDeps{
@@ -126,7 +128,7 @@ func newAdminSetupFixture(t *testing.T) *adminSetupFixture {
 		}).Maybe()
 	f.admin.On("GetUserDetail", mock.Anything, setupUserID).
 		Return(func(context.Context, string) (*models.AdminUserDetail, error) {
-			return &models.AdminUserDetail{ID: setupUserID, Email: f.email, SignIn: f.signIn}, nil
+			return &models.AdminUserDetail{ID: setupUserID, Email: f.email, Status: f.status, SignIn: f.signIn}, nil
 		}).Maybe()
 	f.admin.On("GetUserDetail", mock.Anything, mock.Anything).Return(nil, nil).Maybe()
 	return f
@@ -193,17 +195,21 @@ func TestAdminAccount_SetUpNewUser(t *testing.T) {
 	})
 
 	t.Run("a failure never fails the creation; it is reported", func(t *testing.T) {
-		for name, arrange := range map[string]func(f *adminSetupFixture){
-			"the email":  func(f *adminSetupFixture) { f.policy.email, f.mailer.err = true, errors.New("smtp down") },
-			"the link":   func(f *adminSetupFixture) { f.links.err = errors.New("connection refused") },
-			"the policy": func(f *adminSetupFixture) { f.policy.err = errors.New("connection refused") },
+		for name, tc := range map[string]struct {
+			arrange func(f *adminSetupFixture)
+			reason  string
+		}{
+			"the email": {func(f *adminSetupFixture) { f.policy.email, f.mailer.err = true, errors.New("smtp down") },
+				AdminSetupReasonEmailFailed},
+			"the link":   {func(f *adminSetupFixture) { f.links.err = errors.New("connection refused") }, AdminSetupReasonSetupFailed},
+			"the policy": {func(f *adminSetupFixture) { f.policy.err = errors.New("connection refused") }, AdminSetupReasonSetupFailed},
 		} {
 			f := newAdminSetupFixture(t)
-			arrange(f)
+			tc.arrange(f)
 
 			setup := f.svc.SetUpNewUser(ctx, setupAdminID, setupUserID)
 
-			assert.Equal(t, AdminUserSetup{Delivery: adminLinkNone, Reason: AdminSetupReasonEmailFailed}, setup, name)
+			assert.Equal(t, AdminUserSetup{Delivery: adminLinkNone, Reason: tc.reason}, setup, name)
 		}
 	})
 }
@@ -219,6 +225,7 @@ func TestAdminAccount_IssueSetupLink(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, AdminLinkByCopy, link.Delivery)
 		assert.Equal(t, "https://app.example.com/account/setup#token=COPIED", link.LinkURL)
+		assert.Equal(t, "pending@example.com", link.Email, "the audit record names the account")
 		require.Len(t, f.links.issued, 1)
 	})
 
@@ -231,6 +238,7 @@ func TestAdminAccount_IssueSetupLink(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, AdminLinkByEmail, link.Delivery)
 		assert.Empty(t, link.LinkURL)
+		assert.Equal(t, "pending@example.com", link.Email)
 		assert.Len(t, f.mailer.emailed, 1)
 		assert.Empty(t, f.links.issued)
 	})
@@ -260,6 +268,10 @@ func TestAdminAccount_IssueSetupLink(t *testing.T) {
 			want: ErrAdminRootAdminLinkRefused,
 		},
 		"an unknown delivery": {delivery: "carrier-pigeon", want: ErrInvalidAccountTokenRequest},
+		"a suspended account, by email": {
+			arrange:  func(f *adminSetupFixture) { f.status, f.policy.email = models.UserStatusSuspended, true },
+			delivery: AdminLinkByEmail, want: ErrAdminAccountSuspended,
+		},
 	}
 	for name, tc := range refusals {
 		t.Run("refuses "+name, func(t *testing.T) {

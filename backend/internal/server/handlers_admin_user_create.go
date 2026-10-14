@@ -110,18 +110,28 @@ func (a *adminStrictServer) mapCreateUserError(err error) error {
 	return apierrors.NewInternalError(adminMsgInternalError)
 }
 
+// maxAdminUserTeams mirrors the spec's maxItems on teams, which the generated
+// binding does not enforce.
+const maxAdminUserTeams = 50
+
 // toAdminTeamAssignments maps the request's teams onto the service's. The
 // generated binding does not enforce the role enum, so it is checked here.
 func toAdminTeamAssignments(teams *[]admingen.AdminUserTeamAssignment) ([]services.AdminTeamAssignment, error) {
 	if teams == nil {
 		return nil, nil
 	}
+	if len(*teams) > maxAdminUserTeams {
+		return nil, apierrors.NewValidationError("The user was not created: too many teams",
+			[]apierrors.ValidationError{{
+				Field: "teams", Message: fmt.Sprintf("at most %d teams", maxAdminUserTeams), Code: "too_many_teams",
+			}})
+	}
 	out := make([]services.AdminTeamAssignment, 0, len(*teams))
 	for i, t := range *teams {
 		if !t.Role.Valid() {
 			return nil, apierrors.NewValidationError("The user was not created: a team role is not valid",
 				[]apierrors.ValidationError{{
-					Field: fmt.Sprintf("teams[%d].role", i), Message: "the role must be member or admin",
+					Field: fmt.Sprintf("teams[%d]", i), Message: "the role must be member or admin",
 					Code: "team_invalid",
 				}})
 		}
@@ -146,7 +156,7 @@ func toGenAdminUserCreated(d admingen.AdminUserDetail, setup services.AdminUserS
 		out.Setup.LinkUrl = &link
 	}
 	if !setup.ExpiresAt.IsZero() {
-		expires := setup.ExpiresAt
+		expires := setup.ExpiresAt.UTC()
 		out.Setup.ExpiresAt = &expires
 	}
 	if setup.Reason != "" {

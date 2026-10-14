@@ -583,6 +583,7 @@ const (
 	AdminUserSetupReasonEmailFailed    AdminUserSetupReason = "email_failed"
 	AdminUserSetupReasonLocalSignInOff AdminUserSetupReason = "password_login_disabled"
 	AdminUserSetupReasonRootAdmin      AdminUserSetupReason = "root_admin_link_refused"
+	AdminUserSetupReasonSetupFailed    AdminUserSetupReason = "setup_failed"
 )
 
 // Valid indicates whether the value is a known member of the AdminUserSetupReason enum.
@@ -593,6 +594,8 @@ func (e AdminUserSetupReason) Valid() bool {
 	case AdminUserSetupReasonLocalSignInOff:
 		return true
 	case AdminUserSetupReasonRootAdmin:
+		return true
+	case AdminUserSetupReasonSetupFailed:
 		return true
 	default:
 		return false
@@ -3519,7 +3522,9 @@ type AdminUserSetup struct {
 	// the address is a root instance admin's and no email provider is stored;
 	// no shareable link is issued for such an address, so its owner uses the
 	// setup page or the recovery CLI. `email_failed`: the email could not be
-	// sent; get a setup link from the user's page.
+	// sent; get a setup link from the user's page. `setup_failed`: the link
+	// could not be made for another reason (logged on the server); try again
+	// from the user's page.
 	Reason *AdminUserSetupReason `json:"reason,omitempty"`
 }
 
@@ -3531,7 +3536,9 @@ type AdminUserSetupDelivery string
 // the address is a root instance admin's and no email provider is stored;
 // no shareable link is issued for such an address, so its owner uses the
 // setup page or the recovery CLI. `email_failed`: the email could not be
-// sent; get a setup link from the user's page.
+// sent; get a setup link from the user's page. `setup_failed`: the link
+// could not be made for another reason (logged on the server); try again
+// from the user's page.
 type AdminUserSetupReason string
 
 // AdminUserSetupLink defines model for AdminUserSetupLink.

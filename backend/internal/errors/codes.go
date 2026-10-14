@@ -82,6 +82,9 @@ const (
 	// CodeOwnAccount: an administrator cannot take this action on their own
 	// account through the admin API; the account page is for that.
 	CodeOwnAccount = "own_account"
+	// CodeAccountSuspended: the account is suspended, so it is not sent a way
+	// to sign in until it is reactivated.
+	CodeAccountSuspended = "account_suspended"
 	// CodeTooManyAttempts: too many wrong passwords; the account's password is
 	// temporarily locked. The response carries Retry-After.
 	CodeTooManyAttempts = "too_many_attempts"
@@ -191,6 +194,7 @@ var errorTitles = map[string]string{
 	CodeEmailUnavailable:                  "Email Unavailable",
 	CodeHasSignInMethod:                   "Has Sign-In Method",
 	CodeOwnAccount:                        "Own Account",
+	CodeAccountSuspended:                  "Account Suspended",
 	CodeLocalSignInDisabled:               "Password Sign-In Is Off",
 	CodeTooManyAttempts:                   "Too Many Attempts",
 	CodeRateLimitExceeded:                 "Rate Limit Exceeded",

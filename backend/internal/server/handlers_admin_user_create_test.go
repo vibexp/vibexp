@@ -107,6 +107,7 @@ func TestCreateAdminUser_InvalidBodyReturns400(t *testing.T) {
 			`{"email":"new.user@example.com","teams":[{"team_id":"` + uuid.NewString() + `","role":"owner"}]}`, ""},
 		{"team id that is not a UUID (binder)",
 			`{"email":"new.user@example.com","teams":[{"team_id":"x","role":"member"}]}`, ""},
+		{"more than 50 teams", `{"email":"new.user@example.com","teams":[` + teamsJSON(51) + `]}`, "at most 50 teams"},
 	}
 
 	for _, tc := range tests {
@@ -125,6 +126,15 @@ func TestCreateAdminUser_InvalidBodyReturns400(t *testing.T) {
 			specconformance.AssertConformsToSpec(t, req, rr)
 		})
 	}
+}
+
+// teamsJSON returns n distinct team assignments, comma-separated.
+func teamsJSON(n int) string {
+	parts := make([]string, n)
+	for i := range parts {
+		parts[i] = `{"team_id":"` + uuid.NewString() + `","role":"member"}`
+	}
+	return strings.Join(parts, ",")
 }
 
 // TestCreateAdminUser_DuplicateEmailReturns409.

@@ -1016,17 +1016,21 @@ AdminUserSetup:
         - password_login_disabled
         - root_admin_link_refused
         - email_failed
+        - setup_failed
       x-enum-varnames:
         - AdminUserSetupReasonLocalSignInOff
         - AdminUserSetupReasonRootAdmin
         - AdminUserSetupReasonEmailFailed
+        - AdminUserSetupReasonSetupFailed
       description: |
         Why `delivery` is `none`. `password_login_disabled`: password sign-in is
         off, the owner signs in through a provider. `root_admin_link_refused`:
         the address is a root instance admin's and no email provider is stored;
         no shareable link is issued for such an address, so its owner uses the
         setup page or the recovery CLI. `email_failed`: the email could not be
-        sent; get a setup link from the user's page.
+        sent; get a setup link from the user's page. `setup_failed`: the link
+        could not be made for another reason (logged on the server); try again
+        from the user's page.
 
 AdminUserSetupLinkRequest:
   type: object

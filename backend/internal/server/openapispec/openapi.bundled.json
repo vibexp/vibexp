@@ -18291,7 +18291,7 @@
     "/api/v1/admin/users/{id}/setup-link": {
       "post": {
         "summary": "Send or get a setup link for an account that cannot sign in yet",
-        "description": "Issues a new one-time setup link, valid for 7 days, for an account that\nhas no way to sign in yet (`pending_setup`). With `delivery: email` it is\nsent to the account's address; with `delivery: link` it is returned here,\nonce, for you to hand over. A new link of the same kind replaces the\nprevious one; an emailed and a shared link may both be live, and\ncompleting either ends the other.\n\nRefused (409, with a stable `code`) when password sign-in is off\n(`password_login_disabled`), when the account already has a way to sign in\n(`has_sign_in_method`), for your own account (`own_account`), for\n`delivery: email` with no email provider stored (`email_unavailable`),\nand for `delivery: link` to a root instance admin's address\n(`root_admin_link_refused`: such an account gets an emailed link only,\nor uses the setup page or the recovery CLI). Instance-admin only;\nnon-admin and unauthenticated requests receive 404.\n",
+        "description": "Issues a new one-time setup link, valid for 7 days, for an account that\nhas no way to sign in yet (`pending_setup`). With `delivery: email` it is\nsent to the account's address; with `delivery: link` it is returned here,\nonce, for you to hand over. A new link of the same kind replaces the\nprevious one; an emailed and a shared link may both be live, and\ncompleting either ends the other.\n\nRefused (409, with a stable `code`) when password sign-in is off\n(`password_login_disabled`), when the account already has a way to sign in\n(`has_sign_in_method`), for a suspended account (`account_suspended`),\nfor your own account (`own_account`), for\n`delivery: email` with no email provider stored (`email_unavailable`),\nand for `delivery: link` to a root instance admin's address\n(`root_admin_link_refused`: such an account gets an emailed link only,\nor uses the setup page or the recovery CLI). Instance-admin only;\nnon-admin and unauthenticated requests receive 404.\n",
         "operationId": "issueAdminUserSetupLink",
         "tags": [
           "Admin"
@@ -44305,14 +44305,16 @@
             "enum": [
               "password_login_disabled",
               "root_admin_link_refused",
-              "email_failed"
+              "email_failed",
+              "setup_failed"
             ],
             "x-enum-varnames": [
               "AdminUserSetupReasonLocalSignInOff",
               "AdminUserSetupReasonRootAdmin",
-              "AdminUserSetupReasonEmailFailed"
+              "AdminUserSetupReasonEmailFailed",
+              "AdminUserSetupReasonSetupFailed"
             ],
-            "description": "Why `delivery` is `none`. `password_login_disabled`: password sign-in is\noff, the owner signs in through a provider. `root_admin_link_refused`:\nthe address is a root instance admin's and no email provider is stored;\nno shareable link is issued for such an address, so its owner uses the\nsetup page or the recovery CLI. `email_failed`: the email could not be\nsent; get a setup link from the user's page.\n"
+            "description": "Why `delivery` is `none`. `password_login_disabled`: password sign-in is\noff, the owner signs in through a provider. `root_admin_link_refused`:\nthe address is a root instance admin's and no email provider is stored;\nno shareable link is issued for such an address, so its owner uses the\nsetup page or the recovery CLI. `email_failed`: the email could not be\nsent; get a setup link from the user's page. `setup_failed`: the link\ncould not be made for another reason (logged on the server); try again\nfrom the user's page.\n"
           }
         }
       },
