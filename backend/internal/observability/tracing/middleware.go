@@ -21,7 +21,7 @@ func HTTPMiddleware(tracer *Tracer) func(http.Handler) http.Handler {
 
 	// Use otelhttp middleware for automatic HTTP instrumentation
 	return func(next http.Handler) http.Handler {
-		return otelhttp.NewHandler(next, "vibexp-api",
+		return otelhttp.NewHandler(redactPathAttribute(next), "vibexp-api",
 			otelhttp.WithSpanNameFormatter(spanNameFormatter),
 			otelhttp.WithSpanOptions(
 				trace.WithAttributes(
@@ -30,6 +30,23 @@ func HTTPMiddleware(tracer *Tracer) func(http.Handler) http.Handler {
 			),
 		)
 	}
+}
+
+// urlPathAttribute is the semantic-convention attribute otelhttp sets from the
+// raw request path on every server span.
+const urlPathAttribute = "url.path"
+
+// redactPathAttribute overwrites the span's url.path with the redacted path.
+// otelhttp records the raw path there before the handler runs, and a path can
+// carry a bearer credential (an invitation token) that must not be exported to
+// the trace backend. For every other path the value is unchanged.
+func redactPathAttribute(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if redacted := apierrors.RedactSensitivePath(r.URL.Path); redacted != r.URL.Path {
+			trace.SpanFromContext(r.Context()).SetAttributes(attribute.String(urlPathAttribute, redacted))
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // spanNameFormatter formats the span name based on the HTTP request

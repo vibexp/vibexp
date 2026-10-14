@@ -120,3 +120,18 @@ func TestPanicLoggerMiddleware_NoPanic(t *testing.T) {
 	// No log entries when no panic occurs
 	assert.Empty(t, hook.AllEntries())
 }
+
+// A path can carry a bearer credential (an invitation token, #1435); the panic
+// log records the path, so it records it redacted.
+func TestPanicLoggerMiddleware_RedactsSensitivePaths(t *testing.T) {
+	nullLogger, hook := logtest.New()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/invitations/an-invitation-link-segment/preview", nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextkeys.Logger, nullLogger))
+
+	mw := panicLoggerMiddleware(nullLogger)
+	mw(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panic("boom") })).
+		ServeHTTP(httptest.NewRecorder(), req)
+
+	require.Len(t, hook.AllEntries(), 1)
+	assert.Equal(t, "/api/v1/invitations/[redacted]/preview", hook.AllEntries()[0].Data["request.path"])
+}

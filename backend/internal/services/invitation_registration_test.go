@@ -311,6 +311,21 @@ func TestInvitationRegistration_Register(t *testing.T) {
 		f.users.AssertNotCalled(t, "DeleteByID", mock.Anything, mock.Anything)
 	})
 
+	// The claim's writes are separate: password removed, epoch bumped, THEN the
+	// email marked verified. A read between the last two sees an unverified
+	// row whose epoch moved; a session minted from it would be valid on the
+	// owner's account.
+	t.Run("an account in the middle of being claimed is not handed over either", func(t *testing.T) {
+		midClaim := &models.User{ID: "user-new", Email: invRegEmail, SessionEpoch: 1}
+		f := arrange(t, midClaim)
+		f.invitations.On("Accept", mock.Anything, invRegInvID, mock.Anything).Return(nil).Once()
+
+		result, err := f.svc.Register(ctx, invRegToken, invRegPhrase, "")
+
+		require.ErrorIs(t, err, ErrInvitationAccountExists)
+		assert.Nil(t, result)
+	})
+
 	t.Run("a failed provisioning removes the account again", func(t *testing.T) {
 		f := arrange(t, nil)
 		f.events.err = errors.New("bus down")

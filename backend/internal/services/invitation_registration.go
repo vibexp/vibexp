@@ -235,11 +235,15 @@ func (s *InvitationRegistrationService) Register(
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the registered account: %w", err)
 	}
-	if user.EmailVerifiedAt != nil {
+	if user.EmailVerifiedAt != nil || user.SessionEpoch != created.SessionEpoch {
 		// The address's owner signed in through a provider while this request
 		// was running. That sign-in claimed the account and removed the
 		// password stored with it, so the account is theirs now: no session
-		// for the registrant.
+		// for the registrant. A claim removes the password, then bumps the
+		// session epoch, then marks the email verified, in separate writes: a
+		// read between the last two sees an unverified row, so the epoch is
+		// checked too. (A claim that bumps the epoch AFTER this read
+		// invalidates the cookie minted from it.)
 		log.Warn("Account registered through an invitation was claimed by a verified sign-in " +
 			"before the registration finished")
 		return nil, ErrInvitationAccountExists
