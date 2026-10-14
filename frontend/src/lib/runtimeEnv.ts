@@ -1,14 +1,16 @@
 /**
  * Runtime environment access (issue #57).
  *
- * In the single combined image (#61) the Go backend serves `/config.js`, which
- * sets `window.__VIBEXP_ENV__` from its own env vars BEFORE this app's module
- * bundle runs. `getEnv` prefers those runtime values and falls back to the
- * build-time `import.meta.env`, so:
+ * The Go backend renders `/config.js`, which sets `window.__VIBEXP_ENV__` from
+ * its own env vars BEFORE this app's module bundle runs. The single combined
+ * image (#61) serves it from the same origin; the Vite dev server forwards it
+ * to the backend. `getEnv` prefers those runtime values and falls back, key by
+ * key, to the build-time `import.meta.env`, so:
  *   - self-hosters can configure at deploy time (env var + restart), with no
  *     rebuild; and
- *   - local dev (Vite dev server, no backend-rendered `config.js`) keeps working
- *     off `import.meta.env`.
+ *   - local dev keeps working off `import.meta.env` for every key the local
+ *     backend leaves unset (it usually sends `{}`), or when the backend is
+ *     not running and `/config.js` cannot load.
  *
  * Only deploy-time-relevant, non-secret values flow through here — see the
  * backend `Config.RuntimeFrontendEnv()` allowlist.

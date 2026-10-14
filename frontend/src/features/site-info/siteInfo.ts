@@ -121,8 +121,8 @@ export function toSiteInfo(raw: unknown): SiteInfo {
 }
 
 /**
- * Reads the site info `/config.js` inlined. Absent (local dev with no backend
- * `config.js`, or a non-browser environment) is "nothing configured".
+ * Reads the site info `/config.js` inlined. Absent (`/config.js` could not be
+ * loaded, or a non-browser environment) is "nothing configured".
  */
 export function readInlinedSiteInfo(): SiteInfo {
   if (typeof window === 'undefined') return { ...EMPTY_SITE_INFO }
