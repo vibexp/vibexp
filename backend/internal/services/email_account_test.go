@@ -100,10 +100,8 @@ func TestAccountEmailsEscapeHostileValues(t *testing.T) {
 			}
 			assert.Contains(t, got.html, "Ada &lt;script&gt;alert(1)&lt;/script&gt;")
 			assert.Contains(t, got.html, "Acme &lt;img src=x onerror=alert(2)&gt;")
-			// The text part is plain text and carries no markup of ours; the
-			// mail library escapes what it hands back here, so only the absence
-			// of live markup is asserted.
-			assert.NotContains(t, got.text, "<script>")
+			// The text part is plain text: the name is there exactly as typed.
+			assert.Contains(t, got.text, hostileName)
 		})
 	}
 }

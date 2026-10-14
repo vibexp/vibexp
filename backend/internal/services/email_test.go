@@ -496,58 +496,14 @@ func TestEmailService_SendTeamInvitation(t *testing.T) {
 	}
 }
 
-// Test buildAdditionalInfo helper
-func TestEmailService_BuildAdditionalInfo(t *testing.T) {
-	service := createTestEmailService()
-
-	tests := []struct {
-		name           string
-		additionalInfo map[string]string
-		expectHTMLNil  bool
-		expectTextNil  bool
-	}{
-		{
-			name:           "empty additional info",
-			additionalInfo: map[string]string{},
-			expectHTMLNil:  true,
-			expectTextNil:  true,
-		},
-		{
-			name:           "nil additional info",
-			additionalInfo: nil,
-			expectHTMLNil:  true,
-			expectTextNil:  true,
-		},
-		{
-			name: "with additional info",
-			additionalInfo: map[string]string{
-				"browser": "Chrome",
-				"os":      "Windows",
-			},
-			expectHTMLNil: false,
-			expectTextNil: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			html, text := service.buildAdditionalInfo(tt.additionalInfo)
-
-			if tt.expectHTMLNil {
-				assert.Empty(t, html)
-			} else {
-				assert.NotEmpty(t, html)
-				assert.Contains(t, html, "Additional Information")
-			}
-
-			if tt.expectTextNil {
-				assert.Empty(t, text)
-			} else {
-				assert.NotEmpty(t, text)
-				assert.Contains(t, text, "ADDITIONAL INFORMATION")
-			}
-		})
-	}
+// The additional information of a support request is listed in key order, so
+// the email reads the same on every send.
+func TestSortedAdditionalInfo(t *testing.T) {
+	assert.Empty(t, sortedAdditionalInfo(nil))
+	assert.Empty(t, sortedAdditionalInfo(map[string]string{}))
+	assert.Equal(t,
+		[]additionalInfoEntry{{Key: "browser", Value: "Chrome"}, {Key: "os", Value: "Windows"}, {Key: "page", Value: "/x"}},
+		sortedAdditionalInfo(map[string]string{"page": "/x", "os": "Windows", "browser": "Chrome"}))
 }
 
 // Test extractFirstName helper

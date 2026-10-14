@@ -3,6 +3,7 @@ package channels
 import (
 	"context"
 	"fmt"
+	"html"
 	"log/slog"
 	"time"
 
@@ -84,8 +85,11 @@ func (c *EmailChannel) deliverInstant(
 
 	htmlBody := n.RenderedEmailHTML
 	if htmlBody == "" {
-		// Fallback: use plain-text body as pre-escaped HTML when no template was rendered
-		htmlBody = "<p>" + n.Body + "</p>"
+		// Fallback when no template was rendered: the plain-text body, escaped,
+		// in one paragraph. The body is user or agent text, and the email is
+		// sent exactly as built (#1470), so escaping it here is what keeps it
+		// inert.
+		htmlBody = "<p>" + html.EscapeString(n.Body) + "</p>"
 	}
 
 	// n.TeamID was previously discarded because the signature had nowhere to put

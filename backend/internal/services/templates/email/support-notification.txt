@@ -13,11 +13,11 @@ MESSAGE:
 --------
 {{.Text}}
 
-{{if .AdditionalInfoText}}
+{{if .AdditionalInfo}}
 ADDITIONAL INFORMATION:
 -----------------------
-{{.AdditionalInfoText}}
-{{end}}
+{{range .AdditionalInfo}}{{.Key}}: {{.Value}}
+{{end}}{{end}}
 
 Please review and respond to this request at your earliest convenience.
 

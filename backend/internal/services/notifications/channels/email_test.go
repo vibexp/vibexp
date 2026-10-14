@@ -67,13 +67,31 @@ func TestEmailChannel_Deliver_Instant_FallbackToTitleBody(t *testing.T) {
 	sender := new(mockEmailSender)
 	ch := channels.NewEmailChannel(sender, nil, nil)
 
-	// No RenderedEmailSubject/HTML — fallback to Title and escaped Body
+	// No RenderedEmailSubject/HTML: fall back to the title and the body
 	n := &notifications.Notification{ID: "n1", Title: "Subject", Body: "Body text"}
 	user := &models.User{ID: "user-1", Email: "user@example.com"}
 	prefs := &models.NotificationTypePreference{Email: "instant"}
 
 	sender.On("SendNotificationEmail", mock.Anything, mock.Anything,
 		"user@example.com", "Subject", "<p>Body text</p>").Return(nil)
+
+	result := ch.Deliver(ctx, n, user, prefs)
+
+	assert.Equal(t, notifications.StatusSent, result.Status)
+	sender.AssertExpectations(t)
+}
+
+// The fallback body is user or agent text and the email is sent as built, so
+// markup in it must arrive escaped.
+func TestEmailChannel_Deliver_Instant_FallbackEscapesTheBody(t *testing.T) {
+	ctx := context.Background()
+	sender := new(mockEmailSender)
+	ch := channels.NewEmailChannel(sender, nil, nil)
+	n := &notifications.Notification{ID: "n1", Title: "Subject", Body: `R&D <script>alert(1)</script> "x"`}
+	user := &models.User{ID: "user-1", Email: "user@example.com"}
+	prefs := &models.NotificationTypePreference{Email: "instant"}
+	sender.On("SendNotificationEmail", mock.Anything, mock.Anything, "user@example.com", "Subject",
+		"<p>R&amp;D &lt;script&gt;alert(1)&lt;/script&gt; &#34;x&#34;</p>").Return(nil)
 
 	result := ch.Deliver(ctx, n, user, prefs)
 

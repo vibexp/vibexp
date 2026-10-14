@@ -21,9 +21,11 @@
 <p><strong>Message:</strong></p>
 <div style="background-color: #f5f5f5; padding: 15px; border-left: 4px solid #000000; margin: 15px 0; white-space: pre-wrap;">{{.Text}}</div>
 
-{{if .AdditionalInfoHTML}}
+{{if .AdditionalInfo}}
 <p><strong>Additional Information:</strong></p>
-{{.AdditionalInfoHTML}}
+<ul style="list-style-type: none; padding: 0;">
+{{range .AdditionalInfo}}    <li style="margin-bottom: 8px;"><strong>{{.Key}}:</strong> {{.Value}}</li>
+{{end}}</ul>
 {{end}}
 
 <p>Please review and respond to this request at your earliest convenience.</p>

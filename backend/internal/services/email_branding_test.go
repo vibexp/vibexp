@@ -94,8 +94,8 @@ func sendNotification(es *EmailService) error {
 		&models.SupportRequest{Text: "Help"})
 }
 
-// The mail library sanitizes HTML bodies, adding rel="nofollow" to every link.
-const poweredByHTML = `Powered by <a href="https://vibexp.io" rel="nofollow">VibeXP</a>`
+// The footer's "Powered by" line as delivered.
+const poweredByHTML = `Powered by <a href="https://vibexp.io">VibeXP</a>`
 
 func TestEmailBranding_ConfiguredLayout(t *testing.T) {
 	got := sendWith(t, acmeSiteInfo(), sendInvitation)
@@ -104,9 +104,9 @@ func TestEmailBranding_ConfiguredLayout(t *testing.T) {
 	assert.Contains(t, got.html, `alt="Acme Inc."`)
 	assert.NotContains(t, got.html, "logo-dark", "a mail client cannot switch on theme")
 	assert.Contains(t, got.html, "Acme Inc.. All rights reserved.")
-	assert.Contains(t, got.html, `<a href="https://acme.test/help" rel="nofollow">Support</a>`)
-	assert.Contains(t, got.html, `<a href="https://acme.test/terms" rel="nofollow">Terms of Service</a>`)
-	assert.Contains(t, got.html, `<a href="https://acme.test/privacy" rel="nofollow">Privacy Policy</a>`,
+	assert.Contains(t, got.html, `<a href="https://acme.test/help">Support</a>`)
+	assert.Contains(t, got.html, `<a href="https://acme.test/terms">Terms of Service</a>`)
+	assert.Contains(t, got.html, `<a href="https://acme.test/privacy">Privacy Policy</a>`,
 		"the privacy link is the site info URL exactly as stored")
 	assert.Contains(t, got.html, poweredByHTML)
 
@@ -140,7 +140,7 @@ func TestEmailBranding_FooterLinksAreIndependent(t *testing.T) {
 		got := sendWith(t, fixedSiteInfo{CompanyEmail: "hello@acme.test", TermsURL: "https://acme.test/terms"},
 			sendInvitation)
 
-		assert.Contains(t, got.html, `<a href="mailto:hello@acme.test" rel="nofollow">Support</a>`)
+		assert.Contains(t, got.html, `<a href="mailto:hello@acme.test">Support</a>`)
 		assert.Contains(t, got.html, "Terms of Service")
 		assert.NotContains(t, got.html, "Privacy Policy")
 	})
@@ -148,7 +148,7 @@ func TestEmailBranding_FooterLinksAreIndependent(t *testing.T) {
 	t.Run("privacy only, with a query string of its own", func(t *testing.T) {
 		got := sendWith(t, fixedSiteInfo{PrivacyURL: "https://acme.test/legal?doc=privacy"}, sendInvitation)
 
-		assert.Contains(t, got.html, `<a href="https://acme.test/legal?doc=privacy" rel="nofollow">Privacy Policy</a>`,
+		assert.Contains(t, got.html, `<a href="https://acme.test/legal?doc=privacy">Privacy Policy</a>`,
 			"nothing is appended to the stored URL")
 		assert.NotContains(t, got.html, "Terms of Service")
 		assert.NotContains(t, got.html, ">Support</a>")
@@ -195,8 +195,7 @@ func TestEmailBranding_FooterCarriesCurrentYear(t *testing.T) {
 	}
 	for name, send := range senders {
 		t.Run(name, func(t *testing.T) {
-			// Read before the send; the mail library's sanitizer decodes the
-			// layout's &copy; entity, so both bodies carry the literal sign.
+			// Read before the send. Both bodies carry the literal sign.
 			footer := fmt.Sprintf("© %d Acme Inc.. All rights reserved.", time.Now().Year())
 			got := sendWith(t, acmeSiteInfo(), send)
 

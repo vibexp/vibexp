@@ -5,12 +5,16 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	htmltemplate "html/template"
 	"log/slog"
+	"sort"
 	"strings"
-	"text/template"
+	texttemplate "text/template"
 	"time"
+	"unicode"
 
 	"github.com/darkrockmountain/gomail"
+	"github.com/darkrockmountain/gomail/sanitizer"
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/external"
@@ -57,9 +61,8 @@ type emailLayoutData struct {
 	Year       int
 	AppBaseURL string
 	// Brand is the instance's company branding with every fallback applied.
-	// Its values are admin-entered text: the HTML templates here render
-	// through text/template, which does not escape, so each use passes
-	// through the `html` function.
+	// Its values are admin-entered text. The HTML templates render through
+	// html/template, which escapes each use for its context.
 	Brand models.EmailBranding
 	// ProductName and ProductURL back the "Powered by" line every email
 	// carries.
@@ -150,22 +153,12 @@ func (es *EmailService) sendEmail(ctx context.Context, teamID, to, subject, html
 		return fmt.Errorf("failed to resolve the email sender: %w", err)
 	}
 
-	message := gomail.NewFullEmailMessage(
-		// A BARE address only, deliberately. gomail validates this field with a
-		// plain email regex and silently substitutes "" for anything else, so an
-		// RFC-5322 `"Name" <addr>` form here would send with NO From header at
-		// all. The display name travels separately, on the OutgoingMessage
-		// below, and each provider applies it to the From header itself (#549).
-		sender.FromAddress,
-		[]string{to},
-		subject,
-		nil, // cc
-		nil, // bcc
-		sender.ReplyTo,
-		textBody,
-		htmlBody,
-		nil, // attachments
-	)
+	// A BARE from-address only, deliberately. gomail validates this field with
+	// a plain email regex and silently substitutes "" for anything else, so an
+	// RFC-5322 `"Name" <addr>` form here would send with NO From header at
+	// all. The display name travels separately, on the OutgoingMessage below,
+	// and each provider applies it to the From header itself (#549).
+	message := newEmailMessage(sender.FromAddress, to, subject, sender.ReplyTo, textBody, htmlBody)
 
 	// The caller's ctx reaches the provider, so a cancelled request no longer
 	// leaves a send running detached.
@@ -218,26 +211,25 @@ func (es *EmailService) sendSupportNotificationToAdmin(
 		return err
 	}
 
-	// Build additional info for both HTML and text
-	additionalInfoHTML, additionalInfoText := es.buildAdditionalInfo(req.AdditionalInfo)
+	additionalInfo := sortedAdditionalInfo(req.AdditionalInfo)
 
 	// Prepare template data
 	data := struct {
 		emailLayoutData
-		UserName           string
-		UserEmail          string
-		Text               string
-		Acknowledgement    bool
-		AdditionalInfoHTML string
-		AdditionalInfoText string
+		UserName        string
+		UserEmail       string
+		Text            string
+		Acknowledgement bool
+		// AdditionalInfo is user-supplied key/value text. The templates range
+		// over it, so the HTML part escapes each key and value.
+		AdditionalInfo []additionalInfoEntry
 	}{
-		emailLayoutData:    es.layoutData(ctx),
-		UserName:           userName,
-		UserEmail:          userEmail,
-		Text:               req.Text,
-		Acknowledgement:    req.Acknowledgement,
-		AdditionalInfoHTML: additionalInfoHTML,
-		AdditionalInfoText: additionalInfoText,
+		emailLayoutData: es.layoutData(ctx),
+		UserName:        userName,
+		UserEmail:       userEmail,
+		Text:            req.Text,
+		Acknowledgement: req.Acknowledgement,
+		AdditionalInfo:  additionalInfo,
 	}
 
 	// Render HTML template
@@ -374,8 +366,10 @@ func (es *EmailService) renderTemplateFromFS(basePath, contentPath string, data 
 		return "", fmt.Errorf("failed to read content template: %w", err)
 	}
 
-	// Parse and execute templates
-	tmpl, err := template.New("email").Parse(string(baseContent))
+	// html/template escapes every value for the place it lands in (text, an
+	// attribute, a URL), which is the escaping these emails rely on: the
+	// message is sent exactly as rendered (see newEmailMessage).
+	tmpl, err := htmltemplate.New("email").Parse(string(baseContent))
 	if err != nil {
 		return "", fmt.Errorf("failed to parse base template: %w", err)
 	}
@@ -401,8 +395,9 @@ func (es *EmailService) renderTextTemplateFromFS(templatePath string, data inter
 		return "", fmt.Errorf("failed to read template: %w", err)
 	}
 
-	// Parse and execute template
-	tmpl, err := template.New("text").Parse(string(content))
+	// Plain text is not HTML: nothing is escaped, and the message is sent as
+	// rendered.
+	tmpl, err := texttemplate.New("text").Parse(string(content))
 	if err != nil {
 		return "", fmt.Errorf("failed to parse template: %w", err)
 	}
@@ -415,35 +410,68 @@ func (es *EmailService) renderTextTemplateFromFS(templatePath string, data inter
 	return buf.String(), nil
 }
 
-func (es *EmailService) buildAdditionalInfo(additionalInfo map[string]string) (html, text string) {
-	if len(additionalInfo) == 0 {
-		return "", ""
-	}
+// additionalInfoEntry is one line of the "additional information" a support
+// request carries.
+type additionalInfoEntry struct {
+	Key   string
+	Value string
+}
 
-	// Build HTML version
-	htmlBuf := &strings.Builder{}
-	htmlBuf.WriteString(
-		"<p><strong>Additional Information:</strong></p><ul style=\"list-style-type: none; padding: 0;\">",
+// sortedAdditionalInfo returns the entries of a support request's additional
+// information in key order, so the email reads the same every time.
+func sortedAdditionalInfo(info map[string]string) []additionalInfoEntry {
+	entries := make([]additionalInfoEntry, 0, len(info))
+	for key, value := range info {
+		entries = append(entries, additionalInfoEntry{Key: key, Value: value})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Key < entries[j].Key })
+	return entries
+}
+
+// newEmailMessage builds the message every VibeXP email is sent as.
+//
+// The bodies are sent EXACTLY as given. gomail's default is to run its own
+// sanitizer over them when a provider reads them back: an HTML policy that
+// strips the <style> block and every class attribute, which left every email
+// unstyled, and an HTML-escape of the text part and the subject, which turned
+// quotation marks and ampersands into entities (#1470). Neither fits bodies
+// this service builds itself. Their safety comes from where they are built:
+// HTML parts are rendered by html/template, which escapes every value for its
+// context, and a text part is plain text, where there is nothing to escape.
+// A caller that passes a ready-made HTML body is responsible for having
+// rendered it the same way (the notification digest does).
+//
+// The subject becomes a header line, so a value in it must not be able to end
+// the line: cleanEmailSubject removes control characters.
+func newEmailMessage(from, to, subject, replyTo, textBody, htmlBody string) *gomail.EmailMessage {
+	message := gomail.NewFullEmailMessage(
+		from,
+		[]string{to},
+		cleanEmailSubject(subject),
+		nil, // cc
+		nil, // bcc
+		replyTo,
+		textBody,
+		htmlBody,
+		nil, // attachments
 	)
-	for key, value := range additionalInfo {
-		fmt.Fprintf(htmlBuf,
-			"<li style=\"margin-bottom: 8px;\"><strong>%s:</strong> %s</li>\n",
-			key, value,
-		)
-	}
-	htmlBuf.WriteString("</ul>")
-	html = htmlBuf.String()
+	message.SetCustomHtmlSanitizer(sanitizer.NonSanitizer())
+	message.SetCustomTextSanitizer(sanitizer.NonSanitizer())
+	return message
+}
 
-	// Build text version
-	textBuf := &strings.Builder{}
-	textBuf.WriteString("ADDITIONAL INFORMATION:\n")
-	textBuf.WriteString("-----------------------\n")
-	for key, value := range additionalInfo {
-		fmt.Fprintf(textBuf, "%s: %s\n", key, value)
-	}
-	text = strings.TrimRight(textBuf.String(), "\n")
-
-	return html, text
+// cleanEmailSubject makes a subject safe to write as a header line: every
+// control character (CR and LF above all) becomes a space, runs of spaces
+// collapse to one, and the ends are trimmed. Nothing is escaped: a subject is
+// text, not HTML.
+func cleanEmailSubject(subject string) string {
+	cleaned := strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, subject)
+	return strings.Join(strings.Fields(cleaned), " ")
 }
 
 func (es *EmailService) extractFirstName(fullName string) string {
@@ -509,8 +537,8 @@ type AccountLinkMessage struct {
 }
 
 // accountLinkTemplateData is the data of the two link templates. Name and
-// Email are user-controlled and Brand is admin-entered: the HTML templates
-// pass each through `html`, because text/template does not escape.
+// Email are user-controlled and Brand is admin-entered; html/template escapes
+// them in the HTML part.
 type accountLinkTemplateData struct {
 	emailLayoutData
 	Name      string
