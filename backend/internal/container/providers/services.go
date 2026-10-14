@@ -985,28 +985,33 @@ func ProvidePasswordAuthService(
 	})
 }
 
+// AccountTokenServiceDeps groups the dependencies of
+// ProvideAccountTokenService. Wire fills it via wire.Struct (see the container
+// ProviderSet).
+type AccountTokenServiceDeps struct {
+	Cfg       *config.Config
+	Tokens    repositories.AccountTokenRepository
+	Users     repositories.UserRepository
+	Passwords services.PasswordAuthServiceInterface
+	APIAccess services.APIAccessServiceInterface
+	Allowlist services.AccessAllowlistResolver
+	Notifier  services.AccountNotifier
+	Logger    *slog.Logger
+}
+
 // ProvideAccountTokenService creates the one-time account link service
 // (#1432). Passwords are stored through the password auth service only, and the
 // allowlist resolver is the one every sign-in path shares.
-func ProvideAccountTokenService(
-	cfg *config.Config,
-	tokens repositories.AccountTokenRepository,
-	users repositories.UserRepository,
-	passwords services.PasswordAuthServiceInterface,
-	apiAccess services.APIAccessServiceInterface,
-	allowlist services.AccessAllowlistResolver,
-	notifier services.AccountNotifier,
-	logger *slog.Logger,
-) services.AccountTokenServiceInterface {
+func ProvideAccountTokenService(deps AccountTokenServiceDeps) services.AccountTokenServiceInterface {
 	return services.NewAccountTokenService(services.AccountTokenDeps{
-		Tokens:    tokens,
-		Users:     users,
-		Passwords: passwords,
-		APIAccess: apiAccess,
-		Allowlist: allowlist,
-		Notifier:  notifier,
-		BaseURL:   cfg.Frontend.BaseURL,
-		Logger:    logger,
+		Tokens:    deps.Tokens,
+		Users:     deps.Users,
+		Passwords: deps.Passwords,
+		APIAccess: deps.APIAccess,
+		Allowlist: deps.Allowlist,
+		Notifier:  deps.Notifier,
+		BaseURL:   deps.Cfg.Frontend.BaseURL,
+		Logger:    deps.Logger,
 	})
 }
 

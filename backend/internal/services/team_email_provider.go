@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/darkrockmountain/gomail"
-
 	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/external"
@@ -376,16 +374,10 @@ func testSenderFromRequest(req models.UpsertTeamEmailProviderRequest) testSender
 // gomail From field stays a bare address while the name travels beside it.
 func testMessageFor(sender testSender, recipient string) *external.OutgoingMessage {
 	return &external.OutgoingMessage{
-		Message: gomail.NewFullEmailMessage(
-			sender.FromAddress,
-			[]string{recipient},
-			testEmailSubject,
-			nil, nil,
-			sender.ReplyTo,
-			testEmailBodyText,
-			testEmailBodyHTML,
-			nil,
-		),
+		// Built like every other email, so the preview is sent the way real
+		// mail is.
+		Message: newEmailMessage(
+			sender.FromAddress, recipient, testEmailSubject, sender.ReplyTo, testEmailBodyText, testEmailBodyHTML),
 		FromName: sender.FromName,
 	}
 }

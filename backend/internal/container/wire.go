@@ -186,6 +186,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvidePasswordAuthService,
 	wire.Struct(new(providers.AccountServiceDeps), "*"),
 	providers.ProvideAccountService,
+	wire.Struct(new(providers.AccountTokenServiceDeps), "*"),
 	providers.ProvideAccountTokenService,
 	providers.ProvideAccountEmailRunners,
 	providers.ProvideAccountEmailSender,
