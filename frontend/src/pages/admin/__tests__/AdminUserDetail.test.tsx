@@ -636,3 +636,39 @@ describe('password actions (#1443, #1436 part B)', () => {
     )
   })
 })
+
+describe('link actions for a suspended account or with password sign-in off (#1443)', () => {
+  it('offers no links to a suspended account, says why, and still allows removing the password', async () => {
+    mockAdminService.getUser.mockResolvedValue(
+      user({
+        status: 'suspended',
+        sign_in_methods: ['password'],
+        has_password: true,
+      })
+    )
+    renderDetail()
+
+    expect(await screen.findByTestId('sign-in-actions-note')).toHaveTextContent(
+      'cannot be sent to a suspended account'
+    )
+    expect(screen.queryByRole('button', { name: 'Reset password' })).toBeNull()
+    expect(
+      screen.getByRole('button', { name: 'Remove password' })
+    ).toBeEnabled()
+  })
+
+  it('writes the reason under the header while password sign-in is off', async () => {
+    signInMethods.mockResolvedValue({
+      providers: [],
+      password: { enabled: false, reset: 'email' },
+    })
+    mockAdminService.getUser.mockResolvedValue(
+      user({ sign_in_methods: ['password'], has_password: true })
+    )
+    renderDetail()
+
+    expect(await screen.findByTestId('sign-in-actions-note')).toHaveTextContent(
+      'Reset links need password sign-in'
+    )
+  })
+})

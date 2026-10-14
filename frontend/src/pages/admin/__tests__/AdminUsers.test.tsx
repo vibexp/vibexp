@@ -5,7 +5,7 @@
  * The assertions are about the query the page issues and the URL it keeps — a
  * filter that renders but sends nothing would otherwise pass unnoticed.
  */
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router'
 import type { Mocked } from 'vitest'
@@ -29,6 +29,7 @@ vi.mock('@/services/adminService', () => ({
     getSavedFilters: vi.fn(),
     replaceSavedFilters: vi.fn(),
     exportUsers: vi.fn(),
+    listTeams: vi.fn(),
   },
 }))
 
@@ -39,6 +40,7 @@ import { formatDate } from '@/lib/time'
 import { advancedKeys } from '@/pages/admin/filters/advancedFilterParams'
 import { USER_ADVANCED_FILTERS } from '@/pages/admin/users/userAdvancedFilters'
 import { adminService } from '@/services/adminService'
+import { ApiError } from '@/types/errors'
 import { storage, STORAGE_KEYS } from '@/utils/storage'
 
 import { AdminUsers } from '../AdminUsers'
@@ -380,7 +382,7 @@ describe('empty states', () => {
 })
 
 describe('pending setup (#1443)', () => {
-  it('marks a pending account and filters on it, also in the export', async () => {
+  it('marks a pending account and filters on it', async () => {
     mockAdminService.listUsers.mockResolvedValue({
       users: [listItem({ pending_setup: true, sign_in_methods: [] })],
       page: 1,
@@ -552,6 +554,74 @@ describe('creating a user', () => {
     await openDialog()
     expect(screen.queryByText(/secret-1/)).not.toBeInTheDocument()
     expect(screen.getByLabelText('Email')).toHaveValue('')
+  })
+
+  it('sends the chosen teams with their roles, and keeps a refusal on its own team', async () => {
+    mockAdminService.listTeams.mockResolvedValue({
+      teams: [
+        { id: 't-a', name: 'Alpha', slug: 'a', is_personal: false },
+        { id: 't-b', name: 'Beta', slug: 'b', is_personal: false },
+        { id: 't-c', name: 'Gamma', slug: 'c', is_personal: false },
+      ],
+      page: 1,
+      total_pages: 1,
+    } as never)
+    mockAdminService.createUser.mockRejectedValueOnce(
+      new ApiError({
+        type: 'about:blank',
+        title: 'Validation Failed',
+        status: 400,
+        detail: 'Invalid',
+        code: 'VALIDATION_FAILED',
+        request_id: 'r',
+        timestamp: '2026-10-14T00:00:00Z',
+        validation_errors: [
+          {
+            field: 'teams[1]',
+            message: 'Beta cannot be used',
+            code: 'team_invalid',
+          },
+        ],
+      })
+    )
+    renderUsers()
+    await screen.findByText('ada@example.com')
+    await openDialog()
+    await userEvent.type(screen.getByLabelText('Email'), 'new.user@example.com')
+    for (const name of ['Alpha', 'Beta', 'Gamma']) {
+      await userEvent.click(screen.getByRole('button', { name: 'Add a team' }))
+      await userEvent.click(await screen.findByRole('option', { name }))
+    }
+    await userEvent.click(
+      within(
+        screen.getByRole('radiogroup', { name: 'Role in Gamma' })
+      ).getByRole('radio', { name: 'Admin' })
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
+
+    await waitFor(() => {
+      expect(mockAdminService.createUser).toHaveBeenCalledWith({
+        email: 'new.user@example.com',
+        teams: [
+          { team_id: 't-a', role: 'member' },
+          { team_id: 't-b', role: 'member' },
+          { team_id: 't-c', role: 'admin' },
+        ],
+      })
+    })
+    expect(await screen.findByText('Beta cannot be used')).toBeVisible()
+    expect(
+      screen.getByText('Some teams cannot be used. Nothing was created.')
+    ).toBeVisible()
+
+    // Removing ANOTHER row keeps the message on Beta.
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Alpha' }))
+    const rows = within(screen.getByTestId('team-assignments')).getAllByRole(
+      'listitem'
+    )
+    expect(rows[0]).toHaveTextContent('Beta')
+    expect(rows[0]).toHaveTextContent('Beta cannot be used')
+    expect(rows[1]).not.toHaveTextContent('cannot be used')
   })
 
   it.each([
@@ -912,7 +982,7 @@ describe('CSV export (#1150)', () => {
       truncated: false,
     })
     renderUsers(
-      '/admin/users?page=2&search=ada&status=suspended&idp_provider=github&prompt_count_min=3&total_resource_count_max=9&last_resource_created_from=2026-07-01&last_resource_created_to=2026-07-24&sort_by=team_count&sort_order=asc'
+      '/admin/users?page=2&search=ada&status=suspended&setup=pending&idp_provider=github&prompt_count_min=3&total_resource_count_max=9&last_resource_created_from=2026-07-01&last_resource_created_to=2026-07-24&sort_by=team_count&sort_order=asc'
     )
 
     await waitFor(() => {
@@ -932,6 +1002,8 @@ describe('CSV export (#1150)', () => {
     expect(exported).toStrictEqual(listFilters)
     expect(exported).not.toHaveProperty('page')
     expect(exported).not.toHaveProperty('limit')
+    // The Setup filter (#1443) reaches the export too.
+    expect(exported.pending_setup).toBe(true)
     // Guard against both sides being empty: the URL's filters really are there.
     expect(exported).toMatchObject({
       search: 'ada',

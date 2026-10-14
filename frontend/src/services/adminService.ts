@@ -346,10 +346,6 @@ class AdminService {
     return unwrap(generatedClient.POST('/api/v1/admin/users', { body }))
   }
 
-  /**
-   * A new setup link for an account with no way to sign in yet (#1436). Any
-   * earlier link stops working. `link` returns it here, once.
-   */
   /** Update a user's display name. */
   async updateUser(
     id: string,

@@ -27,7 +27,8 @@ type Delivery = 'email' | 'link'
 function refusalMessage(err: unknown, invalidateNow: boolean): string {
   if (err instanceof ApiError) {
     if (err.code === 'email_unverified_shared') {
-      return `${err.message} Show the link here and hand it over instead.`
+      // The server's sentence already says what to do instead.
+      return err.message
     }
     if (err.status >= 500 && invalidateNow) {
       return 'The reset link could not be made. The current password may already be disabled: make a new link to be sure they can get back in.'

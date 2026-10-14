@@ -42,8 +42,8 @@ export interface UserFormDialogProps {
   submitting: boolean
   /** Server-side failure to show inline, e.g. a 409 for a duplicate email. */
   error?: string | null
-  /** The server's message per team row (`teams[i]`), on a refused create. */
-  teamErrors?: Readonly<Record<number, string>>
+  /** The server's message per team id, on a refused create. */
+  teamErrors?: Readonly<Record<string, string>>
   /** Set once the user exists: the dialog shows how they get in. */
   created?: CreatedUser | null
   /** "Open user" on the outcome panel. */

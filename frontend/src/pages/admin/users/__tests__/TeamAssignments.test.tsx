@@ -20,7 +20,7 @@ function Harness({
   errors,
   onValue,
 }: Readonly<{
-  errors?: Record<number, string>
+  errors?: Record<string, string>
   onValue?: (value: TeamAssignment[]) => void
 }>) {
   const [value, setValue] = useState<TeamAssignment[]>([])
@@ -74,6 +74,10 @@ describe('TeamAssignments', () => {
       await screen.findByRole('option', { name: 'Engineering' })
     ).toBeVisible()
     expect(screen.queryByRole('option', { name: 'Ada personal' })).toBeNull()
+    // The server leaves personal workspaces out.
+    expect(service.listTeams).toHaveBeenCalledWith(
+      expect.objectContaining({ is_personal: false })
+    )
     await user.click(screen.getByRole('option', { name: 'Engineering' }))
     await addTeam(user, 'Design')
 
@@ -106,7 +110,7 @@ describe('TeamAssignments', () => {
 
   it("shows the server's refusal on its row", async () => {
     const user = userEvent.setup()
-    render(<Harness errors={{ 0: 'This team cannot be used' }} />)
+    render(<Harness errors={{ 't-1': 'This team cannot be used' }} />)
     await addTeam(user, 'Engineering')
 
     expect(

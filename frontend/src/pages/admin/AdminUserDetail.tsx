@@ -21,7 +21,10 @@ import { UserTeamsTab } from '@/pages/admin/users/detail/UserTeamsTab'
 import { usePasswordLoginEnabled } from '@/pages/admin/users/usePasswordLoginEnabled'
 import type { UserFormValues } from '@/pages/admin/users/UserFormDialog'
 import { UserFormDialog } from '@/pages/admin/users/UserFormDialog'
-import { UserSignInActions } from '@/pages/admin/users/UserSignInActions'
+import {
+  signInActionsNote,
+  UserSignInActions,
+} from '@/pages/admin/users/UserSignInActions'
 import { UserSummaryCard } from '@/pages/admin/users/UserSummaryCard'
 import type {
   AdminUserDeleteBlockedResponse,
@@ -112,6 +115,9 @@ export function AdminUserDetail() {
   const actionable = canActOn(user, actingAdmin)
   const blockedReason = actionBlockedReason(user, actingAdmin)
   const passwordLogin = usePasswordLoginEnabled()
+  const signInNote = user
+    ? signInActionsNote(user, actionable, passwordLogin)
+    : null
 
   const handleEdit = (values: UserFormValues) => {
     if (!user) return
@@ -255,11 +261,12 @@ export function AdminUserDetail() {
           {blockedReason && (
             <p className="text-muted-foreground text-sm">{blockedReason}</p>
           )}
-          {user.pending_setup && passwordLogin === false && (
-            <p className="text-muted-foreground text-sm">
-              Setup links need password sign-in, which is switched off on this
-              instance. This person can sign in through an identity provider
-              with {user.email}.
+          {signInNote && (
+            <p
+              className="text-muted-foreground text-sm"
+              data-testid="sign-in-actions-note"
+            >
+              {signInNote}
             </p>
           )}
 

@@ -37,10 +37,11 @@ type Removal =
 
 const LAST_METHOD_HINT =
   'This is your only way to sign in, so it cannot be removed.'
-// Worded around what is missing: true also while password sign-in is off and
-// the password is not a way in itself.
+// An administrator disabled the password (#1436 part B).
 const PASSWORD_DISABLED_HINT =
   'It does not sign you in, and only an administrator can change it. Ask them for a link to set a new password.'
+// Worded around what is missing: true also while password sign-in is off and
+// the password is not a way in itself.
 const PASSWORD_KEPT_HINT =
   'No enabled sign-in provider is connected to your account, so the password cannot be removed.'
 

@@ -31,7 +31,11 @@ export interface AdminTeamSearchResult {
  * that grows without bound. Each query change resets to page 1 and accumulated
  * pages are appended, so the picker can scroll past the first page.
  */
-export function useAdminTeamSearch(): AdminTeamSearchResult {
+export function useAdminTeamSearch(
+  options: Readonly<{ sharedOnly?: boolean }> = {}
+): AdminTeamSearchResult {
+  // A primitive, so the effect below does not re-run on every render.
+  const sharedOnly = options.sharedOnly === true
   const [teams, setTeams] = useState<AdminTeamListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -66,6 +70,9 @@ export function useAdminTeamSearch(): AdminTeamSearchResult {
         page,
         limit: LIMIT,
         search: debouncedQuery || undefined,
+        // Personal workspaces run one per user and are all named alike; a
+        // picker that cannot use them asks the server to leave them out.
+        ...(sharedOnly ? { is_personal: false } : {}),
         sort_by: 'name',
         sort_order: 'asc',
       })
@@ -85,7 +92,7 @@ export function useAdminTeamSearch(): AdminTeamSearchResult {
         setLoading(false)
         setLoadingMore(false)
       })
-  }, [debouncedQuery, page])
+  }, [debouncedQuery, page, sharedOnly])
 
   const hasMore = page < totalPages
 

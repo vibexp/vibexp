@@ -12,6 +12,29 @@ import { SetupLinkDialog } from './SetupLinkDialog'
 const PASSWORD_OFF = 'Password sign-in is switched off on this instance.'
 
 /**
+ * Why the link actions are unavailable, as text under the page header: a
+ * disabled button's `title` reaches neither keyboard nor screen reader users.
+ */
+export function signInActionsNote(
+  user: AdminUserDetail,
+  actionable: boolean,
+  passwordLogin: boolean | null
+): string | null {
+  if (!actionable) return null
+  const wantsLink = user.pending_setup || user.has_password
+  if (!wantsLink) return null
+  if (user.status === 'suspended') {
+    return 'Setup and reset links cannot be sent to a suspended account. Reactivate it first.'
+  }
+  if (passwordLogin === false) {
+    return user.pending_setup
+      ? `Setup links need password sign-in, which is switched off on this instance. This person can sign in through an identity provider with ${user.email}.`
+      : 'Reset links need password sign-in, which is switched off on this instance.'
+  }
+  return null
+}
+
+/**
  * A user page's sign-in actions and their dialogs (#1443): "Get setup link"
  * for an account with no way in yet, "Reset password" and "Remove password"
  * for one with a password. Never for your own account (`actionable`). Links
@@ -35,10 +58,13 @@ export function UserSignInActions({
   if (!actionable) return null
 
   const linksOff = passwordLogin === false
+  // A suspended account cannot get a link (409 `account_suspended`); its
+  // password can still be removed.
+  const linksAllowed = user.status !== 'suspended'
 
   return (
     <>
-      {user.pending_setup && (
+      {user.pending_setup && linksAllowed && (
         <Button
           variant="outline"
           size="sm"
@@ -54,18 +80,20 @@ export function UserSignInActions({
       )}
       {user.has_password && (
         <>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={linksOff}
-            title={linksOff ? PASSWORD_OFF : undefined}
-            onClick={() => {
-              setResetOpen(true)
-            }}
-          >
-            <KeyRound className="mr-2 size-4" aria-hidden />
-            Reset password
-          </Button>
+          {linksAllowed && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={linksOff}
+              title={linksOff ? PASSWORD_OFF : undefined}
+              onClick={() => {
+                setResetOpen(true)
+              }}
+            >
+              <KeyRound className="mr-2 size-4" aria-hidden />
+              Reset password
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"

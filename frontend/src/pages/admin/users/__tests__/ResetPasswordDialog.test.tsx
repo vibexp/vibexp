@@ -100,7 +100,7 @@ describe('ResetPasswordDialog', () => {
     })
   })
 
-  it('suggests handing over a link when an email may not be sent', async () => {
+  it("shows the server's advice when an email may not be sent", async () => {
     service.issueResetLink.mockRejectedValue(
       refusal(
         409,
@@ -112,8 +112,9 @@ describe('ResetPasswordDialog', () => {
     await user.click(
       screen.getByRole('button', { name: 'Email it to grace@example.com' })
     )
+    // The server's sentence says what to do instead; it is shown as sent.
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Show the link here and hand it over instead'
+      'This address has not been verified'
     )
   })
 

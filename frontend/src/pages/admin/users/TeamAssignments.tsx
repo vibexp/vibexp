@@ -36,7 +36,9 @@ const SCROLL_LOAD_THRESHOLD = 48
  * every team). Personal workspaces are not offered: the API refuses them.
  * The role is a pair of radio buttons for the same reason.
  *
- * `errors` holds the server's message per row index (`teams[i]`).
+ * `errors` holds the server's message per team id: the caller maps the
+ * server's `teams[i]` back to the team it named, so removing another row does
+ * not move a message onto the wrong team.
  */
 export function TeamAssignments({
   value,
@@ -46,7 +48,7 @@ export function TeamAssignments({
 }: Readonly<{
   value: readonly TeamAssignment[]
   onChange: (next: TeamAssignment[]) => void
-  errors?: Readonly<Record<number, string>>
+  errors?: Readonly<Record<string, string>>
   disabled?: boolean
 }>) {
   const [open, setOpen] = useState(false)
@@ -58,7 +60,7 @@ export function TeamAssignments({
       <legend className="text-sm font-medium">Add to teams (optional)</legend>
       {value.length > 0 && (
         <ul className="space-y-2" data-testid="team-assignments">
-          {value.map((row, index) => (
+          {value.map(row => (
             <li key={row.team_id} className="rounded-md border p-2">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">
@@ -105,9 +107,9 @@ export function TeamAssignments({
                   <X className="size-4" />
                 </Button>
               </div>
-              {errors[index] && (
+              {errors[row.team_id] && (
                 <p className="text-destructive mt-1 text-xs" role="alert">
-                  {errors[index]}
+                  {errors[row.team_id]}
                 </p>
               )}
             </li>
@@ -162,7 +164,9 @@ function TeamSearchList({
     loadMore,
     query,
     setQuery,
-  } = useAdminTeamSearch()
+  } = useAdminTeamSearch({ sharedOnly: true })
+  // The server already leaves personal workspaces out; this keeps a stray one
+  // (and every chosen team) off the list.
   const offered = teams.filter(
     team => !team.is_personal && !exclude.has(team.id)
   )

@@ -16,7 +16,8 @@ export function useCreateUser(onCreated: () => void) {
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [teamErrors, setTeamErrors] = useState<Record<number, string>>({})
+  // Keyed by team id, not row: the admin may remove another row next.
+  const [teamErrors, setTeamErrors] = useState<Record<string, string>>({})
   const [created, setCreated] = useState<(CreatedUser & { id: string }) | null>(
     null
   )
@@ -59,7 +60,12 @@ export function useCreateUser(onCreated: () => void) {
         // Inline rather than a toast: a duplicate email or a bad team is a
         // correction to make in the form, which stays open.
         const rows = teamRowErrors(err)
-        setTeamErrors(rows)
+        const byTeam: Record<string, string> = {}
+        for (const [index, message] of Object.entries(rows)) {
+          const team = values.teams.at(Number(index))
+          if (team) byTeam[team.team_id] = message
+        }
+        setTeamErrors(byTeam)
         setError(
           Object.keys(rows).length > 0
             ? 'Some teams cannot be used. Nothing was created.'
