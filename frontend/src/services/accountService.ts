@@ -12,6 +12,8 @@ import { generatedClient, unwrap } from '../lib/apiClientGenerated'
 // nothing else in flight and re-reads the account only afterwards.
 export type Account = components['schemas']['Account']
 export type AccountIdentity = components['schemas']['AccountIdentity']
+export type AccountDisconnectedIdentity =
+  components['schemas']['AccountDisconnectedIdentity']
 export type AccountPasswordRequest =
   components['schemas']['AccountPasswordRequest']
 
@@ -39,6 +41,19 @@ class AccountService {
   /** Remove the password. Ends the other browser sessions. */
   async removePassword(): Promise<void> {
     await unwrap(generatedClient.DELETE(PASSWORD_PATH))
+  }
+
+  /**
+   * Let a disconnected provider account sign in again (#1460): the next
+   * sign-in through it links to this account by email as before. Needs a
+   * recent sign-in; no session changes.
+   */
+  async allowIdentityAgain(id: string): Promise<void> {
+    await unwrap(
+      generatedClient.DELETE('/api/v1/account/disconnected-identities/{id}', {
+        params: { path: { id } },
+      })
+    )
   }
 
   /** Disconnect one identity provider. Ends the other browser sessions. */

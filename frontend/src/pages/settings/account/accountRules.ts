@@ -53,8 +53,10 @@ export function canDisconnect(
 
 /**
  * Whether signing in again would unlock anything: a first password to set, a
- * password that may be removed, or a provider that may be disconnected. When
- * none exists the "sign in again" note would send the person nowhere.
+ * password that may be removed, a provider that may be disconnected, or a
+ * disconnected provider account to allow again (#1460; that is an action, not
+ * a sign-in method). When none exists the "sign in again" note would send the
+ * person nowhere.
  */
 export function hasGuardedAction(account: Account): boolean {
   const { password } = account
@@ -62,7 +64,8 @@ export function hasGuardedAction(account: Account): boolean {
     (!password.set && password.login_enabled) ||
     // A disabled password is out of the owner's hands, so it unlocks nothing.
     (password.set && canRemovePassword(account)) ||
-    account.identities.some(identity => canDisconnect(account, identity))
+    account.identities.some(identity => canDisconnect(account, identity)) ||
+    account.disconnected_identities.length > 0
   )
 }
 
