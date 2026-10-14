@@ -89,6 +89,7 @@ export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap(g => g.items)
  */
 export const STATIC_PAGE_LEAVES: ReadonlyMap<string, string> = new Map([
   ['/notifications', 'Notifications'],
+  ['/settings/account', 'Account settings'],
   ['/settings/activities', 'Activities'],
   ['/settings/notifications', 'Notification preferences'],
   ['/settings/api-keys', 'API keys'],

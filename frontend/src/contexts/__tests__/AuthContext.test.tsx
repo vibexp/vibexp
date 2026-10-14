@@ -95,6 +95,35 @@ describe('AuthContext (cookie-based auth)', () => {
         expect(mockAuthService.getCurrentUser).toHaveBeenCalledTimes(1)
       })
 
+      it('refreshUser reads the signed-in user again and keeps the old one when that fails', async () => {
+        mockAuthService.getCurrentUser.mockResolvedValueOnce(mockUser)
+        const { result } = renderHook(() => useAuth(), {
+          wrapper: AuthProvider,
+        })
+        await waitFor(() => {
+          expect(result.current.isLoading).toBe(false)
+        })
+
+        mockAuthService.getCurrentUser.mockResolvedValueOnce({
+          ...mockUser,
+          name: 'Renamed Person',
+        })
+        await act(async () => {
+          await result.current.refreshUser()
+        })
+        expect(result.current.user?.name).toBe('Renamed Person')
+        expect(result.current.isAuthenticated).toBe(true)
+
+        mockAuthService.getCurrentUser.mockRejectedValueOnce(
+          new Error('Network Error')
+        )
+        await act(async () => {
+          await result.current.refreshUser()
+        })
+        expect(result.current.user?.name).toBe('Renamed Person')
+        expect(result.current.isAuthenticated).toBe(true)
+      })
+
       it('preserves is_instance_admin when completing onboarding', async () => {
         // /auth/me returns a CurrentUser (admin, onboarding not yet done)...
         const adminUser: CurrentUser = {

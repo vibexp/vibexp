@@ -107,6 +107,7 @@ describe('useDocumentTitle', () => {
     ['/notifications', 'Notifications · VibeXP'],
     ['/settings', 'Settings · VibeXP'],
     ['/settings/api-keys', 'API keys · Settings · VibeXP'],
+    ['/settings/account', 'Account settings · Settings · VibeXP'],
     ['/settings/activities', 'Activities · Settings · VibeXP'],
     ['/somewhere/unknown', 'VibeXP'],
   ])('titles %s as %j', (path, title) => {

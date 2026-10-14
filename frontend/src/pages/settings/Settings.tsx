@@ -1,4 +1,4 @@
-import { Activity, Bell, Key, Users } from 'lucide-react'
+import { Activity, Bell, Key, UserCog, Users } from 'lucide-react'
 
 import { PageHeader } from '@/components/PageHeader'
 import {
@@ -18,6 +18,13 @@ import { useTeam } from '@/contexts/TeamContext'
  * against — it asserts the exact set.
  */
 const ACCOUNT: SettingItem[] = [
+  {
+    title: 'Account settings',
+    description:
+      'Change your name and password, and manage the ways you sign in.',
+    icon: UserCog,
+    href: '/settings/account',
+  },
   {
     title: 'Activities',
     description:

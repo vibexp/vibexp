@@ -24,6 +24,12 @@ export interface AuthContextType {
   isLoading: boolean
   checkPendingInvitation: () => string | null
   markOnboardingComplete: () => Promise<void>
+  /**
+   * Read the signed-in user again, after something changed what the session
+   * shows of them (e.g. their name on the account page). A failure leaves the
+   * current user in place.
+   */
+  refreshUser: () => Promise<void>
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -189,6 +195,14 @@ export function AuthProvider({ children }: Readonly<AuthProviderProps>) {
     }
   }, [])
 
+  const refreshUser = useCallback(async () => {
+    try {
+      setUser(await authService.getCurrentUser())
+    } catch (error) {
+      console.error('Failed to refresh the signed-in user:', error)
+    }
+  }, [])
+
   const value = useMemo<AuthContextType>(
     () => ({
       user,
@@ -198,6 +212,7 @@ export function AuthProvider({ children }: Readonly<AuthProviderProps>) {
       isLoading,
       checkPendingInvitation,
       markOnboardingComplete,
+      refreshUser,
     }),
     [
       user,
@@ -207,6 +222,7 @@ export function AuthProvider({ children }: Readonly<AuthProviderProps>) {
       isLoading,
       checkPendingInvitation,
       markOnboardingComplete,
+      refreshUser,
     ]
   )
 
