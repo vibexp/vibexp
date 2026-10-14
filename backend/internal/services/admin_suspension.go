@@ -32,19 +32,27 @@ func (e *ErrAdminSuspendInstanceAdmin) Error() string {
 	return fmt.Sprintf("%s is a configured instance admin and cannot be suspended", e.Email)
 }
 
-// InstanceAdminPredicate reports whether an email is a ROOT instance admin
-// (config-listed in auth.instance_admins): InstanceAdminResolver.IsRootAdmin.
-// Only root admins are protected from suspension and deletion; a DB-granted
-// admin (#1233) can be suspended or deleted like any user, and suspension also
-// removes their admin access.
-type InstanceAdminPredicate func(email string) bool
+// InstanceAdminPredicate reports whether a user holds ROOT instance admin power
+// (config-listed in auth.instance_admins AND email verified, #1467):
+// InstanceAdminResolver.IsVerifiedRootAdmin. Only root admins are protected
+// from suspension and deletion; a DB-granted admin (#1233), or an unverified
+// account sitting at a root admin's address, can be suspended or deleted like
+// any user, and suspension also removes a DB admin's access.
+type InstanceAdminPredicate func(user *models.User) bool
+
+// isProtectedRootAdmin applies the predicate to the target's detail.
+func isProtectedRootAdmin(isRootAdmin InstanceAdminPredicate, target *models.AdminUserDetail) bool {
+	return isRootAdmin != nil && isRootAdmin(&models.User{
+		ID: target.ID, Email: target.Email, EmailVerifiedAt: target.EmailVerifiedAt,
+	})
+}
 
 // SuspendUser blocks an account at every authentication entry point.
 //
 // Guards, in order:
 //  1. unknown id → (nil, nil), which the handler maps to 404;
 //  2. self-suspension → *ErrAdminSuspendSelf;
-//  3. root (config-listed) instance admin → *ErrAdminSuspendInstanceAdmin.
+//  3. root (config-listed, email verified) instance admin → *ErrAdminSuspendInstanceAdmin.
 //
 // Because auth.instance_admins is CONFIG rather than data, guard 3 also means an
 // operator can always recover from a lockout by editing config — there is no
@@ -66,7 +74,7 @@ func (s *AdminService) SuspendUser(
 	if targetID == actingAdminID {
 		return nil, &ErrAdminSuspendSelf{}
 	}
-	if isInstanceAdmin != nil && isInstanceAdmin(target.Email) {
+	if isProtectedRootAdmin(isInstanceAdmin, target) {
 		return nil, &ErrAdminSuspendInstanceAdmin{Email: target.Email}
 	}
 

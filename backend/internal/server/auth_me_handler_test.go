@@ -58,18 +58,24 @@ func TestHandleGetMe_IsInstanceAdmin(t *testing.T) {
 		grants         repositories.InstanceAdminRepository
 		wantAdmin      bool
 		wantRoot       bool
+		unverified     bool
 	}{
 		{"root admin matches case-insensitively", config.EnvStringSlice{"admin@example.com"}, "Admin@Example.com",
-			noInstanceAdminGrants{}, true, true},
+			noInstanceAdminGrants{}, true, true, false},
 		{"DB-granted admin is admin but not root", config.EnvStringSlice{"admin@example.com"}, "user@example.com",
-			&memInstanceAdminGrants{granted: map[string]bool{userID: true}}, true, false},
+			&memInstanceAdminGrants{granted: map[string]bool{userID: true}}, true, false, false},
 		{"non-admin is neither", config.EnvStringSlice{"admin@example.com"}, "user@example.com",
-			noInstanceAdminGrants{}, false, false},
-		{"empty list has no root admin", nil, "admin@example.com", noInstanceAdminGrants{}, false, false},
+			noInstanceAdminGrants{}, false, false, false},
+		{"empty list has no root admin", nil, "admin@example.com", noInstanceAdminGrants{}, false, false, false},
 		{"grant lookup failure degrades to false", nil, "user@example.com", failingInstanceAdminGrants{},
-			false, false},
+			false, false, false},
 		{"root admin survives a grant lookup failure", config.EnvStringSlice{"admin@example.com"},
-			"admin@example.com", failingInstanceAdminGrants{}, true, true},
+			"admin@example.com", failingInstanceAdminGrants{}, true, true, false},
+		// #1467: the address alone grants no power; a DB grant still applies.
+		{"unverified root address is neither", config.EnvStringSlice{"admin@example.com"},
+			"admin@example.com", noInstanceAdminGrants{}, false, false, true},
+		{"unverified root address with a DB grant is admin but not root", config.EnvStringSlice{"admin@example.com"},
+			"admin@example.com", &memInstanceAdminGrants{granted: map[string]bool{userID: true}}, true, false, true},
 	}
 
 	for _, tc := range tests {
@@ -83,6 +89,10 @@ func TestHandleGetMe_IsInstanceAdmin(t *testing.T) {
 				CreatedAt:           time.Now(),
 				UpdatedAt:           time.Now(),
 				Version:             1,
+			}
+			if !tc.unverified {
+				verifiedAt := time.Now()
+				user.EmailVerifiedAt = &verifiedAt
 			}
 
 			mockAuth := servicesmocks.NewMockAuthServiceInterface(t)

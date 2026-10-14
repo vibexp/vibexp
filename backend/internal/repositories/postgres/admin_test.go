@@ -445,6 +445,7 @@ func TestAdminRepository_ListUsers_Paging(t *testing.T) {
 }
 
 func TestAdminRepository_GetUserDetail_Found(t *testing.T) {
+	verifiedAt := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 	repo, mock, mockDB := newAdminRepoMock(t)
 	defer func() {
 		if closeErr := mockDB.Close(); closeErr != nil {
@@ -455,10 +456,10 @@ func TestAdminRepository_GetUserDetail_Found(t *testing.T) {
 	mock.ExpectQuery(`FROM users u .*WHERE u.id = \$1`).
 		WithArgs("u1").
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "email", "name", "idp_provider", "status", "created_at",
+			"id", "email", "name", "idp_provider", "status", "created_at", "email_verified_at",
 			"has_password", "password_disabled", "identity_methods", "pending_setup",
 		}).
-			AddRow("u1", "a@example.com", "A", "oidc", "suspended", time.Now(), true, true, "{oidc}", false))
+			AddRow("u1", "a@example.com", "A", "oidc", "suspended", time.Now(), verifiedAt, true, true, "{oidc}", false))
 	mock.ExpectQuery(`FROM team_members tm`).
 		WithArgs("u1").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "role"}).
@@ -469,6 +470,8 @@ func TestAdminRepository_GetUserDetail_Found(t *testing.T) {
 	require.NotNil(t, detail)
 	assert.Equal(t, "u1", detail.ID)
 	assert.Equal(t, "suspended", detail.Status, "status must be scanned, not left zero")
+	require.NotNil(t, detail.EmailVerifiedAt, "email_verified_at must be scanned: root admin protection reads it (#1467)")
+	assert.True(t, verifiedAt.Equal(*detail.EmailVerifiedAt))
 	require.Len(t, detail.Memberships, 1)
 	assert.Equal(t, "owner", detail.Memberships[0].Role)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -546,10 +549,10 @@ func TestAdminRepository_GetUserDetail_MembershipError(t *testing.T) {
 
 	mock.ExpectQuery(`FROM users u .*WHERE u.id = \$1`).WithArgs("u1").
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "email", "name", "idp_provider", "status", "created_at",
+			"id", "email", "name", "idp_provider", "status", "created_at", "email_verified_at",
 			"has_password", "password_disabled", "identity_methods", "pending_setup",
 		}).
-			AddRow("u1", "a@example.com", "A", nil, "active", time.Now(), false, false, "{}", true))
+			AddRow("u1", "a@example.com", "A", nil, "active", time.Now(), nil, false, false, "{}", true))
 	mock.ExpectQuery(`FROM team_members tm`).WithArgs("u1").WillReturnError(errors.New("boom"))
 
 	_, err := repo.GetUserDetail(context.Background(), "u1")

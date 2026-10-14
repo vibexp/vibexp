@@ -183,6 +183,52 @@ func (_c *MockInstanceAdminResolver_IsRootAdmin_Call) RunAndReturn(run func(stri
 	return _c
 }
 
+// IsVerifiedRootAdmin provides a mock function with given fields: user
+func (_m *MockInstanceAdminResolver) IsVerifiedRootAdmin(user *models.User) bool {
+	ret := _m.Called(user)
+
+	if len(ret) == 0 {
+		panic("no return value specified for IsVerifiedRootAdmin")
+	}
+
+	var r0 bool
+	if rf, ok := ret.Get(0).(func(*models.User) bool); ok {
+		r0 = rf(user)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	return r0
+}
+
+// MockInstanceAdminResolver_IsVerifiedRootAdmin_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsVerifiedRootAdmin'
+type MockInstanceAdminResolver_IsVerifiedRootAdmin_Call struct {
+	*mock.Call
+}
+
+// IsVerifiedRootAdmin is a helper method to define mock.On call
+//   - user *models.User
+func (_e *MockInstanceAdminResolver_Expecter) IsVerifiedRootAdmin(user interface{}) *MockInstanceAdminResolver_IsVerifiedRootAdmin_Call {
+	return &MockInstanceAdminResolver_IsVerifiedRootAdmin_Call{Call: _e.mock.On("IsVerifiedRootAdmin", user)}
+}
+
+func (_c *MockInstanceAdminResolver_IsVerifiedRootAdmin_Call) Run(run func(user *models.User)) *MockInstanceAdminResolver_IsVerifiedRootAdmin_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*models.User))
+	})
+	return _c
+}
+
+func (_c *MockInstanceAdminResolver_IsVerifiedRootAdmin_Call) Return(_a0 bool) *MockInstanceAdminResolver_IsVerifiedRootAdmin_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockInstanceAdminResolver_IsVerifiedRootAdmin_Call) RunAndReturn(run func(*models.User) bool) *MockInstanceAdminResolver_IsVerifiedRootAdmin_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RequireRootAdmin provides a mock function with given fields: ctx, userID
 func (_m *MockInstanceAdminResolver) RequireRootAdmin(ctx context.Context, userID string) error {
 	ret := _m.Called(ctx, userID)

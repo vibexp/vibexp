@@ -96,7 +96,7 @@ func (s *AdminService) DeleteUser(
 	if targetID == actingAdminID {
 		return "", false, &ErrAdminDeleteSelf{}
 	}
-	if isInstanceAdmin != nil && isInstanceAdmin(target.Email) {
+	if isProtectedRootAdmin(isInstanceAdmin, target) {
 		return "", false, &ErrAdminDeleteInstanceAdmin{Email: target.Email}
 	}
 

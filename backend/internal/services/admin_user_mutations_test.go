@@ -97,12 +97,10 @@ func TestDeleteUser_LockoutGuardsNeverReachTheRepository(t *testing.T) {
 			},
 		},
 		{
-			name:     "config-listed instance admin cannot be deleted",
-			actingID: deleteActingAdmin,
-			target:   deleteTargetDetail("root@example.com"),
-			predicate: func(email string) bool {
-				return email == "root@example.com"
-			},
+			name:      "config-listed instance admin cannot be deleted",
+			actingID:  deleteActingAdmin,
+			target:    verifiedSuspensionTarget(deleteTarget, "root@example.com", models.UserStatusActive),
+			predicate: rootAdminPredicate(),
 			assertErr: func(t *testing.T, err error) {
 				var e *ErrAdminDeleteInstanceAdmin
 				require.ErrorAs(t, err, &e)
@@ -152,6 +150,22 @@ func TestDeleteUser_BlockedByOwnedSharedTeams(t *testing.T) {
 	assert.Contains(t, blockedErr.Error(), "Acme Engineering")
 	assert.Contains(t, blockedErr.Error(), "Beta Squad")
 	assert.Contains(t, blockedErr.Error(), "transfer ownership")
+}
+
+// TestDeleteUser_UnverifiedRootAddressIsNotProtected pins #1467: an
+// unverified account at a root admin's address can be deleted like any user.
+func TestDeleteUser_UnverifiedRootAddressIsNotProtected(t *testing.T) {
+	repo := repomocks.NewMockAdminRepository(t)
+	repo.On("GetUserDetail", mock.Anything, deleteTarget).
+		Return(deleteTargetDetail("root@example.com"), nil)
+	repo.On("DeleteUserIfUnblocked", mock.Anything, deleteTarget).Return(nil, true, nil)
+
+	email, deleted, err := newReadOnlyAdminService(repo).DeleteUser(
+		context.Background(), deleteActingAdmin, deleteTarget, rootAdminPredicate(),
+	)
+	require.NoError(t, err)
+	assert.True(t, deleted)
+	assert.Equal(t, "root@example.com", email)
 }
 
 // TestDeleteUser_UnknownTarget returns (false, nil) so the handler 404s, both

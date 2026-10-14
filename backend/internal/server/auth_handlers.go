@@ -571,7 +571,7 @@ func (s *Server) handleGetMe(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, &models.CurrentUserResponse{
 		User:                user,
 		IsInstanceAdmin:     isAdmin,
-		IsRootInstanceAdmin: resolver.IsRootAdmin(user.Email),
+		IsRootInstanceAdmin: resolver.IsVerifiedRootAdmin(user),
 	}, s.logger)
 }
 

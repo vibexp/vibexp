@@ -194,6 +194,17 @@ func TestAdminSuspension_InvalidUUIDReturns400(t *testing.T) {
 	}
 }
 
+// isVerifiedRootPredicate reports whether p is the real
+// InstanceAdminResolver.IsVerifiedRootAdmin (#1467): true for the verified root
+// address, false for the same address unverified and for a verified non-root.
+func isVerifiedRootPredicate(p services.InstanceAdminPredicate, rootEmail, otherEmail string) bool {
+	verifiedAt := time.Now()
+	return p != nil &&
+		p(&models.User{Email: rootEmail, EmailVerifiedAt: &verifiedAt}) &&
+		!p(&models.User{Email: rootEmail}) &&
+		!p(&models.User{Email: otherEmail, EmailVerifiedAt: &verifiedAt})
+}
+
 // TestSuspendAdminUser_PassesActingAdminAndPredicate proves the handler hands
 // the service the two things its guards need: the CALLER's id (for the
 // self-suspension check) and the config instance-admin predicate. Getting either
@@ -213,7 +224,7 @@ func TestSuspendAdminUser_PassesActingAdminAndPredicate(t *testing.T) {
 		mock.MatchedBy(func(p services.InstanceAdminPredicate) bool {
 			// The predicate must be the real config allowlist, not a stub that
 			// always says false (which would disable the config-admin guard).
-			return p != nil && p("root@example.com") && !p("someone@example.com")
+			return isVerifiedRootPredicate(p, "root@example.com", "someone@example.com")
 		}),
 	).Return(adminUserDetailWithStatus(targetID, models.UserStatusSuspended), nil)
 
@@ -247,7 +258,7 @@ func TestSuspendAdminUser_DBAdminIsNotProtected(t *testing.T) {
 	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
 	mockAdmin.On("SuspendUser", mock.Anything, actingID, targetID,
 		mock.MatchedBy(func(p services.InstanceAdminPredicate) bool {
-			return p != nil && p("root@example.com") && !p(delegate.Email)
+			return isVerifiedRootPredicate(p, "root@example.com", delegate.Email)
 		}),
 	).Return(adminUserDetailWithStatus(targetID, models.UserStatusSuspended), nil)
 

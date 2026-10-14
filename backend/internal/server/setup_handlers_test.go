@@ -492,7 +492,7 @@ func TestSetupSessionOrInstanceAdmin(t *testing.T) {
 
 	t.Run("an instance admin is admitted as themselves, without a setup session", func(t *testing.T) {
 		h := newSetupHarness(t, config.RateLimitConfig{})
-		code, ctx := call(h, asAPIKeyUser(h, &models.User{ID: "u-root", Email: setupTestRootEmail}))
+		code, ctx := call(h, asAPIKeyUser(h, verifiedSetupRoot()))
 
 		require.Equal(t, http.StatusCreated, code)
 		assert.False(t, isSetupSessionRequest(ctx))
@@ -502,7 +502,7 @@ func TestSetupSessionOrInstanceAdmin(t *testing.T) {
 	t.Run("an instance admin who also holds a setup cookie still acts as themselves", func(t *testing.T) {
 		h := newSetupHarness(t, config.RateLimitConfig{})
 		cookie := h.setupCookie(t, h.bootToken(t))
-		asRoot := asAPIKeyUser(h, &models.User{ID: "u-root", Email: setupTestRootEmail})
+		asRoot := asAPIKeyUser(h, verifiedSetupRoot())
 		code, ctx := call(h, func(r *http.Request) { asRoot(r); r.AddCookie(cookie) })
 
 		require.Equal(t, http.StatusCreated, code)
@@ -598,4 +598,11 @@ func TestSetupSession_ConsumptionInvalidatesOutstandingCookies(t *testing.T) {
 	rr := httptest.NewRecorder()
 	h.srv.router.ServeHTTP(rr, req)
 	assert.JSONEq(t, `{"setup_required":false}`, rr.Body.String())
+}
+
+// verifiedSetupRoot is the root admin of the setup harness, with a verified
+// email: root admin power needs one (#1467).
+func verifiedSetupRoot() *models.User {
+	verifiedAt := time.Now()
+	return &models.User{ID: "u-root", Email: setupTestRootEmail, EmailVerifiedAt: &verifiedAt}
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/vibexp/vibexp/internal/logging"
 	"github.com/vibexp/vibexp/internal/scheduler"
 	"github.com/vibexp/vibexp/internal/server"
+	"github.com/vibexp/vibexp/internal/services"
 )
 
 // buildSHA and buildDate are set at build time via ldflags, e.g.:
@@ -80,6 +81,11 @@ func runServer(cmd *cobra.Command, args []string) {
 	// imports so providers imported from config.yaml count.
 	warnRecoveryMode(cfg, logger)
 	ensureSetupToken(ctx, srv.Container().SetupModeService(), logger)
+
+	// Name every root admin account that holds no root admin power because its
+	// email is unverified (#1467), so an upgraded operator sees why.
+	services.WarnUnverifiedRootAdmins(
+		ctx, srv.Container().InstanceAdminResolver(), srv.Container().UserRepository(), logger)
 
 	// Start the in-process scheduler after the DB is migrated and ready. It is
 	// stopped (draining any in-flight job) by closeContainer on shutdown.

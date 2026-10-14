@@ -311,7 +311,7 @@ func TestDeleteAdminUser_PassesActingAdminAndPredicate(t *testing.T) {
 		actingID,
 		targetID,
 		mock.MatchedBy(func(p services.InstanceAdminPredicate) bool {
-			return p != nil && p("root@example.com") && !p("someone@example.com")
+			return isVerifiedRootPredicate(p, "root@example.com", "someone@example.com")
 		}),
 	).Return("target@example.com", true, nil)
 

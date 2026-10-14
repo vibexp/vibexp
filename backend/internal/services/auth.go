@@ -756,10 +756,13 @@ func (as *AuthService) createDevUser(ctx context.Context, email, name string) (*
 		IDPProvider: &devProvider,
 		IDPSubject:  &devSubject,
 		Email:       email,
-		Name:        name,
-		AvatarURL:   nil,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		// Dev login treats the typed address as verified (see HandleDevLogin),
+		// so a dev root admin holds root admin power (#1467).
+		EmailVerifiedAt: &now,
+		Name:            name,
+		AvatarURL:       nil,
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 
 	if err := as.userRepo.Create(ctx, newUser); err != nil {
@@ -782,6 +785,25 @@ func (as *AuthService) createDevUser(ctx context.Context, email, name string) (*
 	}
 
 	return newUser, nil
+}
+
+// markDevUserVerified sets email_verified_at on an existing account dev login
+// signs into, when it is not set yet. Dev login verifies the address by
+// construction, and root admin power requires a verified email (#1467), so
+// without this a dev account from before email verification was recorded
+// would lose its admin access.
+func (as *AuthService) markDevUserVerified(ctx context.Context, user *models.User) error {
+	if user.EmailVerifiedAt != nil {
+		return nil
+	}
+	now := time.Now()
+	user.EmailVerifiedAt = &now
+	user.UpdatedAt = now
+	if err := as.userRepo.Update(ctx, user); err != nil {
+		as.logger.With("error", err).With("user_id", user.ID).Error("Failed to mark dev user verified")
+		return fmt.Errorf("failed to mark dev user verified: %w", err)
+	}
+	return nil
 }
 
 // HandleDevLogin handles demo login for the development environment.
@@ -817,6 +839,9 @@ func (as *AuthService) HandleDevLogin(ctx context.Context, email, name string) (
 			"user_id", user.ID,
 			"email", user.Email,
 		).Info("Retrieved existing user for dev login")
+		if err := as.markDevUserVerified(ctx, user); err != nil {
+			return nil, err
+		}
 	}
 
 	as.logger.With(
