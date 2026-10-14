@@ -12374,7 +12374,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: |
-            Internal server error, or the email could not be sent; nothing usable was issued, and any earlier setup link was already withdrawn
+            Internal server error, or the email could not be sent; nothing usable was issued. If the email could not be sent, any earlier setup link was already withdrawn
           content:
             application/problem+json:
               schema:
@@ -12455,9 +12455,10 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: |
-            Internal server error, or the email could not be sent. Any earlier
-            reset link was already withdrawn, and with `invalidate_now` the
-            password may already be stopped; issue a link again.
+            Internal server error, or the email could not be sent. If the email
+            could not be sent, any earlier reset link was already withdrawn. With
+            `invalidate_now` the password may already be stopped; issue a link
+            again.
           content:
             application/problem+json:
               schema:
