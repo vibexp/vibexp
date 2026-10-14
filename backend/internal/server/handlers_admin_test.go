@@ -35,6 +35,9 @@ type adminMockContainer struct {
 	adminService    services.AdminServiceInterface
 	activityService activities.ActivityService
 	prefsService    services.UserPreferencesServiceInterface
+	// adminAccount is the admin account-setup service (#1436). Nil means a
+	// stub that reports no link was made because password sign-in is off.
+	adminAccount services.AdminAccountServiceInterface
 
 	// Team configuration reads (#1140). Nil unless a suite installs them.
 	teamRepo              repositories.TeamRepository
@@ -70,6 +73,29 @@ type adminMockContainer struct {
 	// instanceAdminResolver gates the admin surface (#1233). newAdminTestServer
 	// installs a root-only one built from the test config when unset.
 	instanceAdminResolver services.InstanceAdminResolver
+}
+
+// AdminAccountService returns the installed service, or a stub for suites that
+// do not exercise account setup.
+func (c *adminMockContainer) AdminAccountService() services.AdminAccountServiceInterface {
+	if c.adminAccount != nil {
+		return c.adminAccount
+	}
+	return noAccountSetup{}
+}
+
+// noAccountSetup is an AdminAccountServiceInterface for an instance with
+// password sign-in off.
+type noAccountSetup struct{}
+
+func (noAccountSetup) SetUpNewUser(context.Context, string, string) services.AdminUserSetup {
+	return services.AdminUserSetup{Delivery: "none", Reason: services.AdminSetupReasonLocalSignInOff}
+}
+
+func (noAccountSetup) IssueSetupLink(
+	context.Context, string, string, services.AdminLinkDelivery,
+) (*services.AdminSetupLink, error) {
+	return nil, services.ErrAdminLocalSignInOff
 }
 
 func (c *adminMockContainer) InstanceAdminResolver() services.InstanceAdminResolver {

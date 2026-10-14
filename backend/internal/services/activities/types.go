@@ -173,6 +173,9 @@ const (
 	ActivityTypeAdminUserReactivated = "admin_user_reactivated"
 	ActivityTypeAdminUserCreated     = "admin_user_created"
 	ActivityTypeAdminUserUpdated     = "admin_user_updated"
+	// ActivityTypeAdminUserSetupLinkIssued is an administrator emailing or
+	// copying a setup link for an account (#1436). The token is never recorded.
+	ActivityTypeAdminUserSetupLinkIssued = "admin_user_setup_link_issued"
 	// ActivityTypeAdminUserDeleted is recorded against the ACTING ADMIN, never
 	// the deleted user: an activities row owned by the target would cascade away
 	// with them (activities.user_id is ON DELETE CASCADE), erasing the audit

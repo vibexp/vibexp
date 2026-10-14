@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Masterminds/squirrel"
+	"github.com/lib/pq"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -173,11 +174,24 @@ const adminUserStatsCTE = `WITH
 		FROM feed_items GROUP BY posted_by_user_id),
 	cm AS (SELECT user_id, COUNT(*) AS n, MAX(created_at) AS last_at FROM comments GROUP BY user_id),
 	att AS (SELECT user_id, COUNT(*) AS n, MAX(created_at) AS last_at
-		FROM attachments WHERE user_id IS NOT NULL GROUP BY user_id)`
+		FROM attachments WHERE user_id IS NOT NULL GROUP BY user_id),
+	si AS (SELECT user_id,
+			COUNT(*) AS n,
+			COALESCE(array_agg(DISTINCT provider ORDER BY provider)
+				FILTER (WHERE provider NOT IN (` + adminInternalIdentityProviders + `)), '{}') AS providers
+		FROM user_identities GROUP BY user_id),
+	cr AS (SELECT user_id, disabled_at IS NOT NULL AS disabled FROM user_credentials)`
+
+// adminInternalIdentityProviders is internalIdentityProviders as an SQL list,
+// for the si aggregate above. Both values are package constants, so nothing
+// from a request reaches the query text; TestAdminInternalIdentityProvidersSQL
+// keeps the two in step.
+const adminInternalIdentityProviders = "'" + models.LegacyGoogleIdentityProvider + "', '" +
+	models.DevIdentityProvider + "'"
 
 // adminUserStatsAliases are the CTE aliases of adminUserStatsCTE, each LEFT
 // JOINed onto users on user_id.
-var adminUserStatsAliases = []string{"tc", "pj", "pr", "me", "ar", "bp", "ag", "fd", "fi", "cm", "att"}
+var adminUserStatsAliases = []string{"tc", "pj", "pr", "me", "ar", "bp", "ag", "fd", "fi", "cm", "att", "si", "cr"}
 
 // Aggregate expressions over adminUserStatsCTE, shared by the projection, the
 // filters and the sort allowlist so the three can never disagree.
@@ -198,6 +212,15 @@ const (
 		colUserArtifactCount + " + " + colUserBlueprintCount + " + " + colUserAgentCount + " + " +
 		colUserFeedCount + " + " + colUserFeedItemCount + " + " + colUserCommentCount + " + " +
 		colUserAttachmentCount + ")"
+
+	// Sign-in state (#1436). An account has a way in when it has a password
+	// (cr) or any identity at all, internal ones included (si.n): a dev-login
+	// or legacy row still means somebody signed in. The listed methods leave
+	// the internal ones out.
+	colUserHasLocalSignIn  = "(cr.user_id IS NOT NULL)"
+	colUserLocalSignInOff  = "COALESCE(cr.disabled, false)"
+	colUserIdentityMethods = "COALESCE(si.providers, '{}')"
+	colUserPendingSetup    = "(cr.user_id IS NULL AND COALESCE(si.n, 0) = 0)"
 
 	// GREATEST ignores NULLs, so this is NULL only for a user with no resources.
 	colUserLastResourceCreatedAt = "GREATEST(pr.last_at, me.last_at, ar.last_at, bp.last_at, " +
@@ -222,6 +245,10 @@ var adminUserListSelectColumns = []string{
 	colUserAttachmentCount + " AS attachment_count",
 	colUserTotalResourceCount + " AS total_resource_count",
 	colUserLastResourceCreatedAt + " AS last_resource_created_at",
+	colUserHasLocalSignIn + " AS has_password",
+	colUserLocalSignInOff + " AS password_disabled",
+	colUserIdentityMethods + " AS identity_methods",
+	colUserPendingSetup + " AS pending_setup",
 }
 
 // adminUserSortColumns is the ORDER BY allowlist: sort_by enum value -> fixed
@@ -271,6 +298,19 @@ func appendAdminCountRange(where squirrel.And, col string, r repositories.AdminC
 // buildAdminUserWhere builds the shared WHERE conditions for the admin user
 // listing. The count and page queries consume the same conditions over the same
 // FROM (adminUserListFrom), so the pagination envelope can never diverge from
+// appendPendingSetupFilter keeps only accounts with (true) or without (false)
+// a way to sign in yet; nil adds nothing.
+func appendPendingSetupFilter(where squirrel.And, pendingSetup *bool) squirrel.And {
+	switch {
+	case pendingSetup == nil:
+		return where
+	case *pendingSetup:
+		return append(where, squirrel.Expr(colUserPendingSetup))
+	default:
+		return append(where, squirrel.Expr("NOT "+colUserPendingSetup))
+	}
+}
+
 // the returned rows.
 func buildAdminUserWhere(filters repositories.AdminUserFilters) squirrel.And {
 	where := squirrel.And{}
@@ -279,6 +319,7 @@ func buildAdminUserWhere(filters repositories.AdminUserFilters) squirrel.And {
 		term := "%" + *filters.Search + "%"
 		where = append(where, squirrel.Expr("(u.email ILIKE ? OR u.name ILIKE ?)", term, term))
 	}
+	where = appendPendingSetupFilter(where, filters.PendingSetup)
 	if filters.IDPProvider != nil && *filters.IDPProvider != "" {
 		where = append(where, squirrel.Eq{colUserIDPProvider: *filters.IDPProvider})
 	}
@@ -397,12 +438,15 @@ func (r *AdminRepository) queryAdminUsers(
 func scanAdminUserListItem(rows *sql.Rows) (models.AdminUserListItem, error) {
 	var u models.AdminUserListItem
 	rc := &u.ResourceCounts
+	var identities pq.StringArray
 	err := rows.Scan(
 		&u.ID, &u.Email, &u.Name, &u.IDPProvider, &u.Status, &u.CreatedAt, &u.TeamCount, &u.ProjectCount,
 		&rc.Prompts, &rc.Memories, &rc.Artifacts, &rc.Blueprints, &rc.Agents,
 		&rc.Feeds, &rc.FeedItems, &rc.Comments, &rc.Attachments, &rc.Total,
 		&u.LastResourceCreatedAt,
+		&u.SignIn.HasPassword, &u.SignIn.PasswordDisabled, &identities, &u.SignIn.PendingSetup,
 	)
+	u.SignIn.Methods = adminSignInMethods(u.SignIn.HasPassword, identities)
 	return u, err
 }
 
@@ -520,9 +564,12 @@ func (r *AdminRepository) GetUserDetail(
 	ctx context.Context, id string,
 ) (*models.AdminUserDetail, error) {
 	var detail models.AdminUserDetail
-	err := r.db.QueryRowContext(ctx,
-		"SELECT id, email, name, idp_provider, status, created_at FROM users WHERE id = $1", id,
-	).Scan(&detail.ID, &detail.Email, &detail.Name, &detail.IDPProvider, &detail.Status, &detail.CreatedAt)
+	var identities pq.StringArray
+	err := r.db.QueryRowContext(ctx, adminUserDetailQuery, id).Scan(
+		&detail.ID, &detail.Email, &detail.Name, &detail.IDPProvider, &detail.Status, &detail.CreatedAt,
+		&detail.SignIn.HasPassword, &detail.SignIn.PasswordDisabled, &identities, &detail.SignIn.PendingSetup,
+	)
+	detail.SignIn.Methods = adminSignInMethods(detail.SignIn.HasPassword, identities)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -552,6 +599,30 @@ func (r *AdminRepository) GetUserDetail(
 		return nil, fmt.Errorf("failed to iterate memberships: %w", err)
 	}
 	return &detail, nil
+}
+
+// adminUserDetailQuery reads one user with its sign-in state, from the same
+// aggregates and expressions as the listing so the two cannot disagree.
+var adminUserDetailQuery = `SELECT u.id, u.email, u.name, u.idp_provider, u.status, u.created_at, ` +
+	colUserHasLocalSignIn + `, ` + colUserLocalSignInOff + `, ` + colUserIdentityMethods + `, ` +
+	colUserPendingSetup + `
+	FROM users u
+	LEFT JOIN (SELECT user_id, COUNT(*) AS n,
+			COALESCE(array_agg(DISTINCT provider ORDER BY provider)
+				FILTER (WHERE provider NOT IN (` + adminInternalIdentityProviders + `)), '{}') AS providers
+		FROM user_identities WHERE user_id = $1 GROUP BY user_id) si ON si.user_id = u.id
+	LEFT JOIN (SELECT user_id, disabled_at IS NOT NULL AS disabled FROM user_credentials
+		WHERE user_id = $1) cr ON cr.user_id = u.id
+	WHERE u.id = $1`
+
+// adminSignInMethods is an account's sign-in methods as listed to an admin:
+// "password" first when it has one, then its identity providers.
+func adminSignInMethods(hasPassword bool, identities []string) []string {
+	methods := make([]string, 0, len(identities)+1)
+	if hasPassword {
+		methods = append(methods, models.LocalSignInMethod)
+	}
+	return append(methods, identities...)
 }
 
 // adminTeamMembersQuery returns a team's members with the member's role (plain

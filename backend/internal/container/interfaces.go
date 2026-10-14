@@ -128,6 +128,9 @@ type Container interface {
 	// AccountLinkMailer emails one-time account links: the forgot-password
 	// request and the setup link (#1433).
 	AccountLinkMailer() services.AccountLinkMailerInterface
+	// AdminAccountService gives accounts their way in, for instance admins:
+	// setup links on creation and on request (#1436).
+	AdminAccountService() services.AdminAccountServiceInterface
 	// SetupModeService owns first-run authentication setup: the one-time setup
 	// token and the scoped setup session (#1236).
 	SetupModeService() services.SetupModeService

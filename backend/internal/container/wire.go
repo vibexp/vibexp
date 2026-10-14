@@ -193,6 +193,8 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideAccountNotifier,
 	wire.Struct(new(providers.AccountLinkMailerDeps), "*"),
 	providers.ProvideAccountLinkMailer,
+	wire.Struct(new(providers.AdminAccountServiceDeps), "*"),
+	providers.ProvideAdminAccountService,
 	providers.ProvideAuthWayIn,
 	providers.ProvideRootAdminPasswordService,
 	wire.Struct(new(providers.InvitationRegistrationDeps), "*"),

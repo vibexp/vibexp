@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -101,8 +102,11 @@ func TestCreateAdminUser_InvalidBodyReturns400(t *testing.T) {
 		{"malformed email (binder)", `{"email":"not-an-email","name":"New User"}`, ""},
 		{"empty email (binder)", `{"email":"","name":"New User"}`, ""},
 		{"whitespace-only email (binder)", `{"email":"   ","name":"New User"}`, ""},
-		{"empty name (handler)", `{"email":"new.user@example.com","name":""}`, "name is required"},
-		{"whitespace-only name (handler)", `{"email":"new.user@example.com","name":"   "}`, "name is required"},
+		{"oversized name (binder)", `{"email":"new.user@example.com","name":"` + strings.Repeat("n", 256) + `"}`, ""},
+		{"team with an unknown role (binder)",
+			`{"email":"new.user@example.com","teams":[{"team_id":"` + uuid.NewString() + `","role":"owner"}]}`, ""},
+		{"team id that is not a UUID (binder)",
+			`{"email":"new.user@example.com","teams":[{"team_id":"x","role":"member"}]}`, ""},
 	}
 
 	for _, tc := range tests {
@@ -319,15 +323,14 @@ func TestValidateAdminUserCreate_DefenceInDepth(t *testing.T) {
 		{"empty email", "", "A", "email is required"},
 		{"whitespace email", "   ", "A", "email is required"},
 		{"malformed email", "not-an-email", "A", "valid address"},
-		{"empty name", "a@example.com", "", "name is required"},
-		{"whitespace name", "a@example.com", "   ", "name is required"},
+		{"name too long", "a@example.com", strings.Repeat("é", 256), "name is too long"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			email, name, err := validateAdminUserCreate(admingen.AdminUserCreateRequest{
 				Email: openapi_types.Email(tc.email),
-				Name:  tc.reqName,
+				Name:  &tc.reqName,
 			})
 			if tc.wantErr != "" {
 				require.Error(t, err)
@@ -338,5 +341,14 @@ func TestValidateAdminUserCreate_DefenceInDepth(t *testing.T) {
 			assert.Equal(t, "mixed@example.com", email)
 			assert.Equal(t, "A", name)
 		})
+	}
+
+	// The name is optional since #1436: absent, empty or blank is no name.
+	for _, given := range []*string{nil, strPtr(""), strPtr("   ")} {
+		_, name, err := validateAdminUserCreate(admingen.AdminUserCreateRequest{
+			Email: openapi_types.Email("a@example.com"), Name: given,
+		})
+		require.NoError(t, err)
+		assert.Empty(t, name)
 	}
 }

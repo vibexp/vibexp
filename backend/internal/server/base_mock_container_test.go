@@ -437,6 +437,11 @@ func (b *BaseMockContainer) InvitationRegistrationService() services.InvitationR
 	return nil
 }
 
+// AdminAccountService returns nil; suites that exercise it install their own.
+func (b *BaseMockContainer) AdminAccountService() services.AdminAccountServiceInterface {
+	return nil
+}
+
 // AccountLinkMailer returns nil; suites that exercise the account emails
 // install their own.
 func (b *BaseMockContainer) AccountLinkMailer() services.AccountLinkMailerInterface {

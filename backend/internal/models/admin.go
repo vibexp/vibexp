@@ -32,6 +32,30 @@ type AdminUserListItem struct {
 	// LastResourceCreatedAt is when the user's most recent resource was
 	// created; nil when they have authored none.
 	LastResourceCreatedAt *time.Time
+	// SignIn is how the user can sign in (#1436).
+	SignIn AdminUserSignIn
+}
+
+// LocalSignInMethod is how AdminUserSignIn.Methods names a password. It is
+// the value password sign-in reports as its provider elsewhere
+// (services.LocalSignInProvider).
+const LocalSignInMethod = "password" // gitleaks:allow (a method name, not a credential)
+
+// AdminUserSignIn is an account's sign-in state as an instance admin sees it
+// (#1436): which methods it has, and whether it can be used at all yet.
+type AdminUserSignIn struct {
+	// Methods are the account's sign-in methods: "password" when it has a
+	// password (disabled or not), and each identity provider it is linked to,
+	// sorted. Internal bookkeeping identities (the dev login, the legacy Google
+	// alias) are not listed.
+	Methods []string
+	// HasPassword is whether the account has a password.
+	HasPassword bool
+	// PasswordDisabled is whether an administrator disabled that password.
+	PasswordDisabled bool
+	// PendingSetup is whether the account has no way in yet: no password and
+	// no linked identity of any kind. Derived, not a status.
+	PendingSetup bool
 }
 
 // AdminResourceCounts counts resources per type, plus their sum: those a user
@@ -76,6 +100,8 @@ type AdminUserDetail struct {
 	Status      string
 	CreatedAt   time.Time
 	Memberships []AdminTeamMembership
+	// SignIn is how the user can sign in (#1436).
+	SignIn AdminUserSignIn
 }
 
 // AdminTeamOwner is the owning user of a team, as shown in the admin team views.

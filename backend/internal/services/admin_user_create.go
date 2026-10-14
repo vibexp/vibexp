@@ -67,6 +67,27 @@ type AdminUserCreateRequest struct {
 	Email       string
 	Name        string
 	IDPProvider *string
+	// Teams are existing, non-personal teams to add the user to (#1436).
+	Teams []AdminTeamAssignment
+}
+
+// AdminTeamAssignment is one team a created user joins, with a role.
+type AdminTeamAssignment struct {
+	TeamID string
+	Role   models.TeamMemberRole
+}
+
+// ErrAdminUserTeamInvalid is returned when a team named in a create request
+// does not exist, is a personal workspace, or is named twice, or the role is
+// not one a member can be given. Nothing was created. Index is the position of
+// the offending entry.
+type ErrAdminUserTeamInvalid struct {
+	Index  int
+	Reason string
+}
+
+func (e *ErrAdminUserTeamInvalid) Error() string {
+	return fmt.Sprintf("teams[%d]: %s", e.Index, e.Reason)
 }
 
 // CreateUser creates a user and triggers the same provisioning self-signup gets.
@@ -86,6 +107,11 @@ func (s *AdminService) CreateUser(
 	// The allowlist is the hard boundary: an account whose address it rejects
 	// could never sign in, so creating it would hand the admin a dead account.
 	if err := s.rejectEmailOutsideAllowlist(ctx, email); err != nil {
+		return nil, err
+	}
+	// Teams are checked before anything is written, so a bad one creates
+	// nothing.
+	if err := s.checkTeamAssignments(ctx, req.Teams); err != nil {
 		return nil, err
 	}
 
@@ -120,11 +146,87 @@ func (s *AdminService) CreateUser(
 		return nil, fmt.Errorf("failed to create user: %w", createErr)
 	}
 
+	// Memberships go in before user.created is published: if one fails, the
+	// row is removed (its memberships cascade) before anything has been
+	// provisioned for it, the same compensation as a failed publish.
+	if joinErr := s.joinTeamsOrRollBack(ctx, user.ID, req.Teams); joinErr != nil {
+		return nil, joinErr
+	}
+
 	if pubErr := s.provisionNewUser(ctx, user); pubErr != nil {
 		return nil, pubErr
 	}
 
 	return s.adminRepo.GetUserDetail(ctx, user.ID)
+}
+
+// checkTeamAssignments refuses, before anything is written, a team that does
+// not exist, a personal workspace, a team named twice, or an unknown role.
+func (s *AdminService) checkTeamAssignments(ctx context.Context, assignments []AdminTeamAssignment) error {
+	if len(assignments) == 0 {
+		return nil
+	}
+	if s.teams == nil || s.members == nil {
+		return errors.New("admin user creation cannot assign teams: team repositories are not wired")
+	}
+	seen := make(map[string]bool, len(assignments))
+	for i, a := range assignments {
+		if a.Role != models.TeamMemberRoleMember && a.Role != models.TeamMemberRoleAdmin {
+			return &ErrAdminUserTeamInvalid{Index: i, Reason: "the role must be member or admin"}
+		}
+		if seen[a.TeamID] {
+			return &ErrAdminUserTeamInvalid{Index: i, Reason: "the team is listed more than once"}
+		}
+		seen[a.TeamID] = true
+		if err := s.checkTeamJoinable(ctx, i, a.TeamID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// checkTeamJoinable refuses a team that does not exist or is a personal
+// workspace; i is the entry's position, for the error.
+func (s *AdminService) checkTeamJoinable(ctx context.Context, i int, teamID string) error {
+	team, err := s.teams.GetByID(ctx, teamID)
+	if errors.Is(err, repositories.ErrTeamNotFound) || (err == nil && team == nil) {
+		return &ErrAdminUserTeamInvalid{Index: i, Reason: "no such team"}
+	}
+	if err != nil {
+		return fmt.Errorf("failed to read team %s: %w", teamID, err)
+	}
+	if team.IsPersonal {
+		return &ErrAdminUserTeamInvalid{Index: i, Reason: "a personal workspace cannot be joined"}
+	}
+	return nil
+}
+
+// joinTeamsOrRollBack adds the new user to its teams and, if any membership
+// cannot be added, removes the user row again (its memberships cascade).
+func (s *AdminService) joinTeamsOrRollBack(
+	ctx context.Context, userID string, assignments []AdminTeamAssignment,
+) error {
+	joinErr := s.addTeamMemberships(ctx, userID, assignments)
+	if joinErr == nil {
+		return nil
+	}
+	if delErr := s.userRepo.DeleteByID(ctx, userID); delErr != nil {
+		return fmt.Errorf("failed to add the new user to its teams (%w) and failed to roll back user %s: %w",
+			joinErr, userID, delErr)
+	}
+	return fmt.Errorf("failed to add the new user to its teams: %w", joinErr)
+}
+
+// addTeamMemberships adds the user to each team with its role.
+func (s *AdminService) addTeamMemberships(ctx context.Context, userID string, assignments []AdminTeamAssignment) error {
+	now := time.Now()
+	for _, a := range assignments {
+		member := &models.TeamMember{TeamID: a.TeamID, UserID: userID, Role: a.Role, CreatedAt: now, UpdatedAt: now}
+		if err := s.members.Create(ctx, member); err != nil {
+			return fmt.Errorf("add to team %s: %w", a.TeamID, err)
+		}
+	}
+	return nil
 }
 
 // rejectEmailOutsideAllowlist returns *ErrAdminUserEmailNotAllowed when an

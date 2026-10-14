@@ -1129,9 +1129,33 @@ func ProvideAdminService(
 	eventManager events.EventPublisher,
 	freshness services.FreshnessServiceInterface,
 	allowlist services.AccessAllowlistResolver,
+	teams repositories.TeamRepository,
+	members repositories.TeamMemberRepository,
 ) services.AdminServiceInterface {
 	return services.NewAdminService(adminRepo, userRepo, eventManager, freshness,
-		services.WithAdminAccessAllowlist(allowlist))
+		services.WithAdminAccessAllowlist(allowlist),
+		services.WithAdminTeamAssignment(teams, members))
+}
+
+// AdminAccountServiceDeps groups the dependencies of ProvideAdminAccountService.
+// Wire fills it via wire.Struct (see the container ProviderSet).
+type AdminAccountServiceDeps struct {
+	Admin      repositories.AdminRepository
+	Users      repositories.UserRepository
+	Policy     services.AuthPolicyResolver
+	Tokens     services.AccountTokenServiceInterface
+	Mailer     services.AccountLinkMailerInterface
+	RootAdmins services.InstanceAdminResolver
+	Logger     *slog.Logger
+}
+
+// ProvideAdminAccountService creates the service through which instance admins
+// give accounts their way in (#1436).
+func ProvideAdminAccountService(deps AdminAccountServiceDeps) services.AdminAccountServiceInterface {
+	return services.NewAdminAccountService(services.AdminAccountDeps{
+		Admin: deps.Admin, Users: deps.Users, Policy: deps.Policy, Tokens: deps.Tokens,
+		Mailer: deps.Mailer, RootAdmins: deps.RootAdmins, Logger: deps.Logger,
+	})
 }
 
 // ProvideEmbeddingBackfillService creates a new EmbeddingBackfillService that

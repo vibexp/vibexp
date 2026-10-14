@@ -67,6 +67,21 @@ const (
 	// CodeLocalSignInDisabled: password sign-in is switched off on this
 	// instance, so a password cannot be set or changed.
 	CodeLocalSignInDisabled = "password_login_disabled"
+	// Instance-admin account management (#1436). Lower case and stable, as
+	// above: the admin UI explains each one.
+	//
+	// CodeRootAdminLinkRefused: no shareable link is issued for a root
+	// instance admin's address.
+	CodeRootAdminLinkRefused = "root_admin_link_refused"
+	// CodeEmailUnavailable: the instance has no email provider, so nothing can
+	// be emailed.
+	CodeEmailUnavailable = "email_unavailable"
+	// CodeHasSignInMethod: the account can already sign in, so it needs no
+	// setup link.
+	CodeHasSignInMethod = "has_sign_in_method"
+	// CodeOwnAccount: an administrator cannot take this action on their own
+	// account through the admin API; the account page is for that.
+	CodeOwnAccount = "own_account"
 	// CodeTooManyAttempts: too many wrong passwords; the account's password is
 	// temporarily locked. The response carries Retry-After.
 	CodeTooManyAttempts = "too_many_attempts"
@@ -172,6 +187,10 @@ var errorTitles = map[string]string{
 	CodeReauthenticationRequired:          "Sign In Again To Continue",
 	CodeCookieSessionRequired:             "Browser Session Required",
 	CodeLastSignInMethod:                  "Last Sign-In Method",
+	CodeRootAdminLinkRefused:              "Root Admin Link Refused",
+	CodeEmailUnavailable:                  "Email Unavailable",
+	CodeHasSignInMethod:                   "Has Sign-In Method",
+	CodeOwnAccount:                        "Own Account",
 	CodeLocalSignInDisabled:               "Password Sign-In Is Off",
 	CodeTooManyAttempts:                   "Too Many Attempts",
 	CodeRateLimitExceeded:                 "Rate Limit Exceeded",
