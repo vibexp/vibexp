@@ -14,7 +14,7 @@ import (
 	"github.com/vibexp/vibexp/internal/services"
 )
 
-// purgeCounter is an AuditPurgeServiceInterface whose Purge counts its calls.
+// purgeCounter is an AuditPurger whose Purge counts its calls.
 type purgeCounter struct {
 	calls    atomic.Int32
 	deleted  int64
@@ -31,7 +31,7 @@ func (p *purgeCounter) Purge(ctx context.Context) (int64, bool, error) {
 	return p.deleted, p.skipped, p.err
 }
 
-func newPurgeServer(t *testing.T, purger services.AuditPurgeServiceInterface) (*Server, *logtest.Recorder) {
+func newPurgeServer(t *testing.T, purger services.AuditPurger) (*Server, *logtest.Recorder) {
 	t.Helper()
 	container := newMockAuthContainer(t)
 	container.auditPurge = purger

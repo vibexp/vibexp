@@ -351,7 +351,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	instanceSettingsAuditRepository := providers.ProvideInstanceSettingsAuditRepository(db)
 	instanceEmailProviderServiceInterface := providers.ProvideInstanceEmailProviderService(instanceEmailProviderRepository, instanceSettingsAuditRepository, userRepository, encryptionServiceInterface, logger)
 	instanceAuditSettingsService := providers.ProvideInstanceAuditSettingsService(instanceAuditSettingsRepository, auditClientInfoCapture, recorder, logger)
-	auditPurgeServiceInterface := providers.ProvideAuditPurgeService(instanceAuditSettingsRepository, auditEventRepository, logger)
+	auditPurger := providers.ProvideAuditPurgeService(instanceAuditSettingsRepository, auditEventRepository, logger)
 	userCredentialRepository := providers.ProvideUserCredentialRepository(db)
 	passwordAuthServiceInterface := providers.ProvidePasswordAuthService(userRepository, userCredentialRepository, authPolicyResolver, accessAllowlistResolver, logger)
 	accountServiceDeps := providers.AccountServiceDeps{
@@ -562,7 +562,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		instanceAISummarySettingsService: instanceAISummarySettingsService,
 		instanceSiteInfoService:          instanceSiteInfoService,
 		instanceAuditSettingsService:     instanceAuditSettingsService,
-		auditPurgeService:                auditPurgeServiceInterface,
+		auditPurgeService:                auditPurger,
 		instanceSearchSettingsRepo:       instanceSearchSettingsRepository,
 		instanceAISummarySettingsRepo:    instanceAISummarySettingsRepository,
 		instanceAuthProviderRepo:         instanceAuthProviderRepository,

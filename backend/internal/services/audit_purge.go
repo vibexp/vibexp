@@ -16,9 +16,9 @@ import (
 // statement and its locks.
 const AuditPurgeBatchSize = 1000
 
-// AuditPurgeServiceInterface enforces the audit-log retention (#1512, epic
+// AuditPurger enforces the audit-log retention (#1512, epic
 // #1510).
-type AuditPurgeServiceInterface interface {
+type AuditPurger interface {
 	// Purge deletes every audit event older than the configured retention.
 	// skipped is true, with nothing deleted and no error, when another
 	// replica holds the purge lock. A settings read failure is an error and
@@ -26,7 +26,7 @@ type AuditPurgeServiceInterface interface {
 	Purge(ctx context.Context) (deleted int64, skipped bool, err error)
 }
 
-// AuditPurgeService implements AuditPurgeServiceInterface.
+// AuditPurgeService implements AuditPurger.
 type AuditPurgeService struct {
 	settings repositories.InstanceAuditSettingsRepository
 	events   repositories.AuditEventRepository
@@ -34,7 +34,7 @@ type AuditPurgeService struct {
 	now      func() time.Time
 }
 
-var _ AuditPurgeServiceInterface = (*AuditPurgeService)(nil)
+var _ AuditPurger = (*AuditPurgeService)(nil)
 
 // NewAuditPurgeService creates a new AuditPurgeService.
 func NewAuditPurgeService(
@@ -45,7 +45,7 @@ func NewAuditPurgeService(
 	return &AuditPurgeService{settings: settings, events: events, logger: logger, now: time.Now}
 }
 
-// Purge implements AuditPurgeServiceInterface.
+// Purge implements AuditPurger.
 //
 // It runs under the purge advisory lock, so replicas started together do not
 // race the same deletes. The retention is read inside the lock, on every run,

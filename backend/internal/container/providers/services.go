@@ -403,7 +403,7 @@ func ProvideAuditPurgeService(
 	settings repositories.InstanceAuditSettingsRepository,
 	events repositories.AuditEventRepository,
 	logger *slog.Logger,
-) services.AuditPurgeServiceInterface {
+) services.AuditPurger {
 	return services.NewAuditPurgeService(settings, events, logger)
 }
 

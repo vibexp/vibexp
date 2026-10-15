@@ -54,10 +54,10 @@ type MockAuthContainer struct {
 	// accountLinkMailer is the forgot-password mailer, for the same suites.
 	accountLinkMailer services.AccountLinkMailerInterface
 	// auditPurge is the audit retention purge, for the background-work suites.
-	auditPurge services.AuditPurgeServiceInterface
+	auditPurge services.AuditPurger
 }
 
-func (m *MockAuthContainer) AuditPurgeService() services.AuditPurgeServiceInterface {
+func (m *MockAuthContainer) AuditPurgeService() services.AuditPurger {
 	return m.auditPurge
 }
 
