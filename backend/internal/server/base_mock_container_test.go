@@ -516,6 +516,12 @@ func (b *BaseMockContainer) InstanceAuditSettingsService() services.InstanceAudi
 	return nil
 }
 
+// AuditPurgeService returns nil, so a test server runs no purge loop; the
+// suites that exercise it install their own.
+func (b *BaseMockContainer) AuditPurgeService() services.AuditPurgeServiceInterface {
+	return nil
+}
+
 // InstanceSiteInfoService returns nil; suites that exercise it install their own.
 func (b *BaseMockContainer) InstanceSiteInfoService() services.InstanceSiteInfoServiceInterface {
 	return nil

@@ -21,3 +21,9 @@ func (s *InstanceAuditSettingsService) SetClockForTest(now func() time.Time) {
 
 // AuditCaptureCacheTTL exposes how long the capture switch is cached.
 const AuditCaptureCacheTTL = auditCaptureCacheTTL
+
+// SetClockForTest overrides the clock the purge cutoff is computed from.
+// Test-only.
+func (s *AuditPurgeService) SetClockForTest(now func() time.Time) {
+	s.now = now
+}

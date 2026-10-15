@@ -91,6 +91,8 @@ packages:
       InstanceSiteInfoResolver:
       InstanceSiteInfoServiceInterface:
       InstanceAuditSettingsServiceInterface:
+      AuditEventPurger:
+      AuditPurgeServiceInterface:
       InstanceAISummarySettingsResolver:
       InstanceAISummarySettingsServiceInterface:
       InstanceSearchSettingsServiceInterface:

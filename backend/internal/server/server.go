@@ -1783,6 +1783,8 @@ func (s *Server) startBackgroundWork(ctx context.Context) error {
 	// Delete dead one-time account links hourly. Not part of the authorization
 	// server: it runs whether or not that is enabled.
 	go s.runAccountLinkSweep(ctx, accountLinkSweepInterval)
+	// Delete audit events past the retention daily (#1512).
+	go s.runAuditPurge(ctx, auditPurgeInterval)
 	return nil
 }
 
