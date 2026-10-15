@@ -15,7 +15,6 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	"github.com/vibexp/vibexp/internal/services"
-	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
 )
 
 var auditPurgeNow = time.Date(2026, 10, 15, 3, 0, 0, 0, time.UTC)
@@ -23,7 +22,7 @@ var auditPurgeNow = time.Date(2026, 10, 15, 3, 0, 0, 0, time.UTC)
 type auditPurgeHarness struct {
 	svc      *services.AuditPurgeService
 	settings *repomocks.MockInstanceAuditSettingsRepository
-	events   *servicesmocks.MockAuditEventPurger
+	events   *repomocks.MockAuditEventRepository
 	released int
 }
 
@@ -31,7 +30,7 @@ func newAuditPurgeHarness(t *testing.T, logs *bytes.Buffer) *auditPurgeHarness {
 	t.Helper()
 	h := &auditPurgeHarness{
 		settings: repomocks.NewMockInstanceAuditSettingsRepository(t),
-		events:   servicesmocks.NewMockAuditEventPurger(t),
+		events:   repomocks.NewMockAuditEventRepository(t),
 	}
 	h.svc = services.NewAuditPurgeService(h.settings, h.events, testLogger(logs))
 	h.svc.SetClockForTest(func() time.Time { return auditPurgeNow })

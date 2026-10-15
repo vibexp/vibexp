@@ -16,13 +16,6 @@ import (
 // statement and its locks.
 const AuditPurgeBatchSize = 1000
 
-// AuditEventPurger deletes audit events older than a cutoff, batchSize rows
-// per statement, until none remain, and returns how many it deleted.
-// repositories.AuditEventRepository satisfies it.
-type AuditEventPurger interface {
-	PurgeOlderThan(ctx context.Context, cutoff time.Time, batchSize int) (int64, error)
-}
-
 // AuditPurgeServiceInterface enforces the audit-log retention (#1512, epic
 // #1510).
 type AuditPurgeServiceInterface interface {
@@ -36,7 +29,7 @@ type AuditPurgeServiceInterface interface {
 // AuditPurgeService implements AuditPurgeServiceInterface.
 type AuditPurgeService struct {
 	settings repositories.InstanceAuditSettingsRepository
-	events   AuditEventPurger
+	events   repositories.AuditEventRepository
 	logger   *slog.Logger
 	now      func() time.Time
 }
@@ -46,7 +39,7 @@ var _ AuditPurgeServiceInterface = (*AuditPurgeService)(nil)
 // NewAuditPurgeService creates a new AuditPurgeService.
 func NewAuditPurgeService(
 	settings repositories.InstanceAuditSettingsRepository,
-	events AuditEventPurger,
+	events repositories.AuditEventRepository,
 	logger *slog.Logger,
 ) *AuditPurgeService {
 	return &AuditPurgeService{settings: settings, events: events, logger: logger, now: time.Now}
