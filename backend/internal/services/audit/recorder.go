@@ -12,6 +12,7 @@ package audit
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"time"
 	"unicode/utf8"
@@ -97,6 +98,9 @@ const (
 	// MaxUserAgentBytes caps a stored user agent. The user-agent middleware
 	// applies the same cap before the value reaches the context.
 	MaxUserAgentBytes = 512
+	// maxRequestIDBytes caps the request id, which RequestIDMiddleware takes
+	// verbatim from a client's X-Request-ID header when one is sent.
+	maxRequestIDBytes = 128
 	// maxMetadataBytes caps the serialized metadata; anything larger is
 	// replaced by truncatedMetadata.
 	maxMetadataBytes = 16 * 1024
@@ -232,7 +236,7 @@ func (r *AsyncRecorder) snapshot(ctx context.Context, e Event) (*pending, bool) 
 	p := &pending{
 		row: models.AuditEvent{
 			ActorUserID:   actorUserID,
-			ActorEmail:    truncateBytes(actorEmail, maxActorEmailBytes),
+			ActorEmail:    TruncateBytes(actorEmail, maxActorEmailBytes),
 			ActorName:     actorName,
 			ActorType:     actorType,
 			TeamID:        optional(e.TeamID),
@@ -242,14 +246,14 @@ func (r *AsyncRecorder) snapshot(ctx context.Context, e Event) (*pending, bool) 
 			Operation:     e.Operation,
 			ResourceType:  optional(e.ResourceType),
 			ResourceID:    optional(e.ResourceID),
-			ResourceName:  optional(truncateBytes(e.ResourceName, maxResourceNameBytes)),
+			ResourceName:  optional(TruncateBytes(e.ResourceName, maxResourceNameBytes)),
 			Source:        source,
 			AssistantName: assistant,
 			APIKeyID:      optional(contextString(ctx, contextkeys.APIKeyID)),
 			Outcome:       outcome,
 			IP:            optional(contextString(ctx, contextkeys.ClientIP)),
-			UserAgent:     optional(truncateBytes(userAgent, MaxUserAgentBytes)),
-			RequestID:     optional(contextkeys.GetRequestID(ctx)),
+			UserAgent:     optional(TruncateBytes(userAgent, MaxUserAgentBytes)),
+			RequestID:     optional(TruncateBytes(contextkeys.GetRequestID(ctx), maxRequestIDBytes)),
 			Metadata:      r.marshalMetadata(e),
 		},
 		lookupActor:   actorUserID != nil && (actorEmail == "" || actorName == ""),
@@ -280,7 +284,9 @@ func deriveSource(ctx context.Context, isRequest bool, userAgent string) (models
 		return models.AuditSourceWeb, nil
 	}
 	// The request path is not in the context, so an API-key request is cli
-	// (by user agent) or api; MCP requests carry a write origin.
+	// (by user agent) or api. Only the MCP create/update tools set a write
+	// origin (withMCPWriteOrigin); any other MCP call site must pass Source
+	// mcp or wrap its context the same way, or it is recorded as api.
 	return models.AuditSource(resourceaccess.DeriveSource(authType, "", userAgent)), nil
 }
 
@@ -391,14 +397,14 @@ func (r *AsyncRecorder) resolveActor(ctx context.Context, p *pending) error {
 		return nil
 	}
 	user, err := r.users.GetByID(ctx, *p.row.ActorUserID)
+	if errors.Is(err, repositories.ErrUserNotFound) || (err == nil && user == nil) {
+		return nil // a deleted user keeps the snapshot the event already has
+	}
 	if err != nil {
 		return err
 	}
-	if user == nil {
-		return nil
-	}
 	if p.row.ActorEmail == "" {
-		p.row.ActorEmail = truncateBytes(user.Email, maxActorEmailBytes)
+		p.row.ActorEmail = TruncateBytes(user.Email, maxActorEmailBytes)
 	}
 	if p.row.ActorName == "" {
 		p.row.ActorName = user.Name
@@ -472,8 +478,9 @@ func optional(s string) *string {
 	return &s
 }
 
-// truncateBytes cuts s to at most limit bytes without splitting a rune.
-func truncateBytes(s string, limit int) string {
+// TruncateBytes cuts s to at most limit bytes without splitting a rune. The
+// user-agent middleware shares it, so both caps cut the same way.
+func TruncateBytes(s string, limit int) string {
 	if len(s) <= limit {
 		return s
 	}

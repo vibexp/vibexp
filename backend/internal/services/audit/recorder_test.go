@@ -18,6 +18,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/repositories/mocks"
 	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 	"github.com/vibexp/vibexp/pkg/events"
@@ -450,13 +451,16 @@ func TestRecord_FieldCaps(t *testing.T) {
 	h := newHarness(t, nil)
 	h.expectInsert()
 
-	ctx := context.WithValue(requestCtx(), contextkeys.UserAgent, strings.Repeat("u", MaxUserAgentBytes+10))
+	ctx := context.WithValue(context.Background(), contextkeys.RequestID, strings.Repeat("r", 4096))
+	ctx = context.WithValue(ctx, contextkeys.UserAgent, strings.Repeat("u", MaxUserAgentBytes+10))
 	h.recorder.Record(ctx, Event{
 		Operation:    models.AuditOpMemoryDelete,
 		ResourceName: "x" + strings.Repeat("é", maxResourceNameBytes),
 	})
 
 	got := h.only(t)
+	require.NotNil(t, got.RequestID)
+	assert.Len(t, *got.RequestID, maxRequestIDBytes, "a client-sent X-Request-ID is capped")
 	require.NotNil(t, got.UserAgent)
 	assert.Len(t, *got.UserAgent, MaxUserAgentBytes)
 	require.NotNil(t, got.ResourceName)
@@ -562,7 +566,7 @@ func TestRecord_FailuresAreLoggedCountedAndNeverReachTheCaller(t *testing.T) {
 
 	t.Run("a user that no longer exists is not a failure", func(t *testing.T) {
 		h := newHarness(t, nil)
-		h.users.EXPECT().GetByID(mock.Anything, testUserID).Return(nil, nil)
+		h.users.EXPECT().GetByID(mock.Anything, testUserID).Return(nil, repositories.ErrUserNotFound)
 		h.expectInsert()
 
 		h.recorder.Record(userRequestCtx("cookie"), Event{Operation: models.AuditOpAuthLogout})
@@ -652,7 +656,7 @@ func TestAlwaysCapture(t *testing.T) {
 }
 
 func TestTruncateBytes(t *testing.T) {
-	assert.Equal(t, "short", truncateBytes("short", 10))
-	assert.Equal(t, "abc", truncateBytes("abcdef", 3))
-	assert.Empty(t, truncateBytes("é", 1), "a lone continuation byte backs off to nothing")
+	assert.Equal(t, "short", TruncateBytes("short", 10))
+	assert.Equal(t, "abc", TruncateBytes("abcdef", 3))
+	assert.Empty(t, TruncateBytes("é", 1), "a lone continuation byte backs off to nothing")
 }
