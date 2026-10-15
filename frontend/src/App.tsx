@@ -2,6 +2,7 @@ import { HelmetProvider } from 'react-helmet-async'
 import { BrowserRouter as Router, Route, Routes } from 'react-router'
 
 import { AlertContainer } from '@/components/AlertContainer'
+import { AuthGate } from '@/components/auth/AuthGate'
 import { ReturnToResumeAfterAuth } from '@/components/auth/ReturnToResumeAfterAuth'
 import { SignInPage } from '@/components/auth/SignInPage'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -14,9 +15,8 @@ import { AlertProvider } from '@/contexts/AlertContext'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { ProjectProvider } from '@/contexts/ProjectContext'
 import { TeamProvider } from '@/contexts/TeamContext'
-import { useAuth } from '@/contexts/useAuth'
 import { GETTING_STARTED_PATH } from '@/features/onboarding/autoOpen'
-import { GettingStartedPage } from '@/features/onboarding/GettingStartedPage'
+import { OnboardingApp } from '@/features/onboarding/OnboardingApp'
 import { OnboardingRedirect } from '@/features/onboarding/OnboardingRedirect'
 import { SiteInfoProvider } from '@/features/site-info/SiteInfoProvider'
 import { SiteInfoTitle } from '@/features/site-info/SiteInfoTitle'
@@ -38,24 +38,6 @@ import { AppRoutes } from '@/routes'
 function PageTracker() {
   usePageTracking()
   return null
-}
-
-function AuthGate({ children }: Readonly<{ children: React.ReactNode }>) {
-  const { isAuthenticated, isLoading } = useAuth()
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-muted-foreground text-sm">Loading…</div>
-      </div>
-    )
-  }
-
-  if (!isAuthenticated) {
-    return <SignInPage />
-  }
-
-  return <>{children}</>
 }
 
 function BareLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -84,21 +66,6 @@ function MainApp() {
             </Layout>
           </ProjectProvider>
         </TeamProvider>
-      </AuthGate>
-      <Toaster />
-    </Root>
-  )
-}
-
-/**
- * The first-run onboarding: signed in, full-screen with its own header, so
- * outside the app shell and its team/project providers.
- */
-function OnboardingApp() {
-  return (
-    <Root>
-      <AuthGate>
-        <GettingStartedPage />
       </AuthGate>
       <Toaster />
     </Root>
