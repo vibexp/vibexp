@@ -126,7 +126,8 @@ func (s *Server) createPrompt(
 	}
 
 	s.recordResourceWrite(ctx, userID, models.WriteActionCreate, writtenPrompt(teamID, prompt))
-	s.recordAuditWrite(ctx, auditCreate(teamID, resourceTypePrompt, prompt.ID, promptAuditState(prompt)))
+	s.recordAuditWrite(ctx,
+		auditRecord(teamID, resourceTypePrompt, auditVerbCreate, prompt.ID, promptAuditState(prompt)))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPCreatePrompt(context.Background())
@@ -193,7 +194,8 @@ func (s *Server) updatePrompt(
 	}
 
 	s.recordResourceWrite(ctx, userID, models.WriteActionUpdate, writtenPrompt(teamID, prompt))
-	s.recordAuditWrite(ctx, auditUpdated(teamID, resourceTypePrompt, prompt.ID, before, promptAuditState(prompt)))
+	s.recordAuditWrite(ctx,
+		s.auditUpdatedWrite(userID, teamID, resourceTypePrompt, prompt.ID, before, promptAuditState(prompt)))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPUpdatePrompt(context.Background())

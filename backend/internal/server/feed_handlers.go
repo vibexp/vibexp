@@ -60,7 +60,8 @@ func (s *Server) handleCreateFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.recordAuditWrite(r.Context(), auditCreate(teamID, resourceTypeFeed, feed.ID, feedAuditState(feed)))
+	s.recordAuditWrite(r.Context(),
+		auditRecord(teamID, resourceTypeFeed, auditVerbCreate, feed.ID, feedAuditState(feed)))
 
 	writeCreated(w, feed, s.logger)
 }
@@ -153,7 +154,8 @@ func (s *Server) handleUpdateFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.recordAuditWrite(r.Context(), auditUpdated(teamID, resourceTypeFeed, feed.ID, before, feedAuditState(feed)))
+	s.recordAuditWrite(r.Context(),
+		s.auditUpdatedWrite(userID, teamID, resourceTypeFeed, feed.ID, before, feedAuditState(feed)))
 
 	writeOK(w, feed, s.logger)
 }

@@ -141,7 +141,8 @@ func (s *Server) createArtifact(
 	}
 
 	s.recordResourceWrite(ctx, userID, models.WriteActionCreate, writtenArtifact(teamID, artifact))
-	s.recordAuditWrite(ctx, auditCreate(teamID, resourceTypeArtifact, artifact.ID, artifactAuditState(artifact)))
+	s.recordAuditWrite(ctx,
+		auditRecord(teamID, resourceTypeArtifact, auditVerbCreate, artifact.ID, artifactAuditState(artifact)))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPCreateArtifact(context.Background())
@@ -266,7 +267,8 @@ func (s *Server) updateArtifact(
 	}
 
 	s.recordResourceWrite(ctx, userID, models.WriteActionUpdate, writtenArtifact(teamID, artifact))
-	s.recordAuditWrite(ctx, auditUpdated(teamID, resourceTypeArtifact, artifact.ID, before, artifactAuditState(artifact)))
+	s.recordAuditWrite(ctx,
+		s.auditUpdatedWrite(userID, teamID, resourceTypeArtifact, artifact.ID, before, artifactAuditState(artifact)))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPUpdateArtifact(context.Background())

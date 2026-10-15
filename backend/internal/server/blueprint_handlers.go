@@ -66,7 +66,7 @@ func (s *Server) handleCreateBlueprint(w http.ResponseWriter, r *http.Request) {
 
 	s.recordResourceWrite(r.Context(), userID, models.WriteActionCreate, writtenBlueprint(teamID, blueprint))
 	s.recordAuditWrite(r.Context(),
-		auditCreate(teamID, resourceTypeBlueprint, blueprint.ID, blueprintAuditState(blueprint)))
+		auditRecord(teamID, resourceTypeBlueprint, auditVerbCreate, blueprint.ID, blueprintAuditState(blueprint)))
 	s.recordBlueprintActivity(r.Context(), blueprintActivityParams{
 		userID: userID, activityType: activities.ActivityTypeBlueprintCreated, blueprintID: blueprint.ID,
 		projectID: req.ProjectID, slug: req.Slug, description: "Created new blueprint: " + req.Title,
@@ -131,7 +131,7 @@ func (s *Server) handleUpdateBlueprint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.recordResourceWrite(r.Context(), userID, models.WriteActionUpdate, writtenBlueprint(teamID, blueprint))
-	s.recordAuditWrite(r.Context(), auditBlueprintUpdated(teamID, before, blueprint))
+	s.recordAuditWrite(r.Context(), s.auditBlueprintUpdated(userID, teamID, before, blueprint))
 	s.recordBlueprintActivity(r.Context(), blueprintActivityParams{
 		userID: userID, activityType: activities.ActivityTypeBlueprintUpdated, blueprintID: blueprint.ID,
 		projectID: decodedProjectID, slug: decodedSlug, description: "Updated blueprint: " + blueprint.Title,

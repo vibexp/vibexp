@@ -172,9 +172,8 @@ func (s *Server) recordImportedBlueprintWrites(
 		}
 	}
 	audited := func(verb, blueprintID, title string) auditedWrite {
-		w := auditCreate(teamID, resourceTypeBlueprint, blueprintID,
+		w := auditRecord(teamID, resourceTypeBlueprint, verb, blueprintID,
 			&auditState{projectID: report.ProjectID, name: title})
-		w.op = auditResourceOp(resourceTypeBlueprint, verb)
 		w.metadata[auditMetaVia] = auditViaGitHubImport
 		return w
 	}

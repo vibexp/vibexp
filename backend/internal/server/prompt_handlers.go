@@ -192,7 +192,8 @@ func (s *Server) handleCreatePrompt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.recordResourceWrite(r.Context(), userID, models.WriteActionCreate, writtenPrompt(teamID, prompt))
-	s.recordAuditWrite(r.Context(), auditCreate(teamID, resourceTypePrompt, prompt.ID, promptAuditState(prompt)))
+	s.recordAuditWrite(r.Context(),
+		auditRecord(teamID, resourceTypePrompt, auditVerbCreate, prompt.ID, promptAuditState(prompt)))
 	s.recordPromptActivity(
 		r.Context(), userID, activities.ActivityTypePromptCreated,
 		prompt.ID, req.Slug, "Created new prompt: "+req.Name, r,
@@ -391,7 +392,8 @@ func (s *Server) handleUpdatePrompt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.recordResourceWrite(r.Context(), userID, models.WriteActionUpdate, writtenPrompt(teamID, prompt))
-	s.recordAuditWrite(r.Context(), auditUpdated(teamID, resourceTypePrompt, prompt.ID, before, promptAuditState(prompt)))
+	s.recordAuditWrite(r.Context(),
+		s.auditUpdatedWrite(userID, teamID, resourceTypePrompt, prompt.ID, before, promptAuditState(prompt)))
 	// Record activity for prompt update
 	s.recordPromptActivity(
 		r.Context(), userID, activities.ActivityTypePromptUpdated,

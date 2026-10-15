@@ -57,7 +57,8 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.recordAuditWrite(r.Context(), auditCreate(teamID, resourceTypeProject, project.ID, projectAuditState(project)))
+	s.recordAuditWrite(r.Context(),
+		auditRecord(teamID, resourceTypeProject, auditVerbCreate, project.ID, projectAuditState(project)))
 	writeCreated(w, project, s.logger)
 }
 
@@ -221,7 +222,7 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.recordAuditWrite(r.Context(),
-		auditUpdated(teamID, resourceTypeProject, project.ID, before, projectAuditState(project)))
+		s.auditUpdatedWrite(userID, teamID, resourceTypeProject, project.ID, before, projectAuditState(project)))
 
 	writeOK(w, project, s.logger)
 }

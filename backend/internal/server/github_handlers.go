@@ -438,7 +438,7 @@ func (s *Server) handleGitHubImportProject(w http.ResponseWriter, r *http.Reques
 	}
 
 	if created {
-		imported := auditCreate(teamID, resourceTypeProject, project.ID, projectAuditState(project))
+		imported := auditRecord(teamID, resourceTypeProject, auditVerbCreate, project.ID, projectAuditState(project))
 		imported.metadata[auditMetaVia] = auditViaGitHubImport
 		s.recordAuditWrite(r.Context(), imported)
 		s.recordGitHubImportActivity(r.Context(), resourceActivityParams{

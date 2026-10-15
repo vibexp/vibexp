@@ -84,6 +84,8 @@ type auditState struct {
 	nameField string
 	name      string
 	fields    map[string]string
+	// feedID is the feed a feed item belongs to, recorded in its metadata.
+	feedID string
 }
 
 // auditUpdate compares a resource before and after an update and returns the
@@ -258,10 +260,12 @@ func projectAuditState(p *models.Project) *auditState {
 	}
 }
 
-// auditCreate is the audit record of a resource that a write created.
-func auditCreate(teamID, resourceType, id string, state *auditState) auditedWrite {
+// auditRecord is the audit record of verb on a resource. state supplies the
+// project and display name (the resource as it is after a create or update,
+// and as it was before a delete); a nil state records neither.
+func auditRecord(teamID, resourceType, verb, id string, state *auditState) auditedWrite {
 	w := auditedWrite{
-		op: auditResourceOp(resourceType, auditVerbCreate), teamID: teamID,
+		op: auditResourceOp(resourceType, verb), teamID: teamID,
 		resourceType: resourceType, resourceID: id, metadata: map[string]any{},
 	}
 	if state != nil {
@@ -273,30 +277,44 @@ func auditCreate(teamID, resourceType, id string, state *auditState) auditedWrit
 // auditDelete is the audit record of a deleted resource; state is the
 // resource as it was read before the delete, for its name and project.
 func auditDelete(teamID, resourceType, id string, state *auditState) auditedWrite {
-	w := auditCreate(teamID, resourceType, id, state)
-	w.op = auditResourceOp(resourceType, auditVerbDelete)
-	return w
+	return auditRecord(teamID, resourceType, auditVerbDelete, id, state)
 }
 
 // auditUpdated is the audit record of an update: a move or an update with its
 // changed fields (see auditUpdate). The project and name are the resource's
 // after the write.
 func auditUpdated(teamID, resourceType, id string, before, after *auditState) auditedWrite {
-	w := auditCreate(teamID, resourceType, id, after)
+	w := auditRecord(teamID, resourceType, auditVerbUpdate, id, after)
 	w.op, w.metadata = auditUpdate(resourceType, before, after)
 	return w
 }
 
-// auditBlueprintUpdated is auditUpdated for a blueprint written by an update.
-func auditBlueprintUpdated(teamID string, before *auditState, b *models.Blueprint) auditedWrite {
-	return auditUpdated(teamID, resourceTypeBlueprint, b.ID, before, blueprintAuditState(b))
+// auditUpdatedWrite is auditUpdated with a move's destination named. The
+// services clear a moved resource's project summary (it describes the old
+// project), so the destination's name is looked up here, only for a move and
+// only when a recorder is wired.
+func (s *Server) auditUpdatedWrite(userID, teamID, resourceType, id string, before, after *auditState) auditedWrite {
+	if before != nil && after != nil && after.projectID != "" && after.projectID != before.projectID &&
+		after.projectName == "" && s.auditRecorder() != nil {
+		p, err := s.container.ProjectService().GetProjectBySlugOrID(teamID, userID, after.projectID)
+		if err == nil && p != nil {
+			after.projectName = p.Name
+		}
+	}
+	return auditUpdated(teamID, resourceType, id, before, after)
+}
+
+// auditBlueprintUpdated is auditUpdatedWrite for a blueprint. It exists only
+// to keep the blueprint update handler, already at the funlen limit, to one
+// line per audit call.
+func (s *Server) auditBlueprintUpdated(userID, teamID string, before *auditState, b *models.Blueprint) auditedWrite {
+	return s.auditUpdatedWrite(userID, teamID, resourceTypeBlueprint, b.ID, before, blueprintAuditState(b))
 }
 
 // auditRestored is the audit record of a version restore: an update naming
 // the version it went back to. The restored content itself is not compared.
 func auditRestored(teamID, resourceType, id string, state *auditState, version int) auditedWrite {
-	w := auditCreate(teamID, resourceType, id, state)
-	w.op = auditResourceOp(resourceType, auditVerbUpdate)
+	w := auditRecord(teamID, resourceType, auditVerbUpdate, id, state)
 	w.metadata = map[string]any{auditMetaRestoredVersion: version}
 	return w
 }
@@ -357,18 +375,16 @@ func feedItemAuditState(item *models.FeedItem) *auditState {
 		return nil
 	}
 	return &auditState{
-		projectID: derefString(item.ProjectID), nameField: auditFieldTitle, name: item.Title,
-		fields: map[string]string{"feed_id": item.FeedID},
+		projectID: derefString(item.ProjectID), nameField: auditFieldTitle, name: item.Title, feedID: item.FeedID,
 	}
 }
 
 // auditFeedItem is the audit record of verb on a feed item. Its metadata names
 // the feed the item belongs to.
 func auditFeedItem(teamID, verb, id string, state *auditState) auditedWrite {
-	w := auditCreate(teamID, resourceTypeFeedItem, id, state)
-	w.op = auditResourceOp(resourceTypeFeedItem, verb)
-	if state != nil && state.fields["feed_id"] != "" {
-		w.metadata["feed_id"] = state.fields["feed_id"]
+	w := auditRecord(teamID, resourceTypeFeedItem, verb, id, state)
+	if state != nil && state.feedID != "" {
+		w.metadata["feed_id"] = state.feedID
 	}
 	return w
 }

@@ -152,7 +152,7 @@ func TestAuditUpdate(t *testing.T) {
 		assert.Equal(t, map[string]any{"old": "active", "new": "draft"}, meta["status"])
 	})
 
-	t.Run("a move whose target name is unknown omits it", func(t *testing.T) {
+	t.Run("a move whose target name is unknown omits it (no recorder, no lookup)", func(t *testing.T) {
 		after := base()
 		after.ProjectID = "proj-b"
 		after.Project = nil
@@ -260,7 +260,7 @@ func TestAuditStates_NamesAndProjects(t *testing.T) {
 func TestAuditRecords(t *testing.T) {
 	state := &auditState{projectID: "proj", projectName: "Alpha", name: "Release"}
 
-	created := auditCreate("team", resourceTypePrompt, "p1", state)
+	created := auditRecord("team", resourceTypePrompt, auditVerbCreate, "p1", state)
 	assert.Equal(t, auditedWrite{
 		op: models.AuditOpPromptCreate, teamID: "team", projectID: "proj", projectName: "Alpha",
 		resourceType: resourceTypePrompt, resourceID: "p1", resourceName: "Release", metadata: map[string]any{},

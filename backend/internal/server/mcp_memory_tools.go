@@ -132,7 +132,8 @@ func (s *Server) storeMemory(
 	}
 
 	s.recordResourceWrite(ctx, userID, models.WriteActionCreate, writtenMemory(teamID, memory))
-	s.recordAuditWrite(ctx, auditCreate(teamID, resourceTypeMemory, memory.ID, memoryAuditState(memory)))
+	s.recordAuditWrite(ctx,
+		auditRecord(teamID, resourceTypeMemory, auditVerbCreate, memory.ID, memoryAuditState(memory)))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPCreateMemory(ctx)
@@ -250,7 +251,8 @@ func (s *Server) updateMemory(
 	}
 
 	s.recordResourceWrite(ctx, userID, models.WriteActionUpdate, writtenMemory(teamID, memory))
-	s.recordAuditWrite(ctx, auditUpdated(teamID, resourceTypeMemory, memory.ID, before, memoryAuditState(memory)))
+	s.recordAuditWrite(ctx,
+		s.auditUpdatedWrite(userID, teamID, resourceTypeMemory, memory.ID, before, memoryAuditState(memory)))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPUpdateMemory(ctx)

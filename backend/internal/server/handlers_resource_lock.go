@@ -69,9 +69,7 @@ func (s *Server) unlockResource(ctx context.Context, userID string, target lockT
 
 // recordAuditLock records a lock or unlock in the audit log.
 func (s *Server) recordAuditLock(ctx context.Context, target lockTarget, verb string) {
-	w := auditCreate(target.teamID, target.resourceType, target.resourceID, target.auditState)
-	w.op = auditResourceOp(target.resourceType, verb)
-	s.recordAuditWrite(ctx, w)
+	s.recordAuditWrite(ctx, auditRecord(target.teamID, target.resourceType, verb, target.resourceID, target.auditState))
 }
 
 // resourceLockHistory returns the target's lock and unlock events, newest

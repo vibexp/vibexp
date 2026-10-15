@@ -121,7 +121,8 @@ func (s *Server) createBlueprint(
 	}
 
 	s.recordResourceWrite(ctx, userID, models.WriteActionCreate, writtenBlueprint(teamID, blueprint))
-	s.recordAuditWrite(ctx, auditCreate(teamID, resourceTypeBlueprint, blueprint.ID, blueprintAuditState(blueprint)))
+	s.recordAuditWrite(ctx,
+		auditRecord(teamID, resourceTypeBlueprint, auditVerbCreate, blueprint.ID, blueprintAuditState(blueprint)))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPCreateBlueprint(context.Background())
@@ -209,7 +210,7 @@ func (s *Server) updateBlueprint(
 	}
 
 	s.recordResourceWrite(ctx, userID, models.WriteActionUpdate, writtenBlueprint(teamID, blueprint))
-	s.recordAuditWrite(ctx, auditBlueprintUpdated(teamID, before, blueprint))
+	s.recordAuditWrite(ctx, s.auditBlueprintUpdated(userID, teamID, before, blueprint))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPUpdateBlueprint(context.Background())

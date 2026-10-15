@@ -102,7 +102,8 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.recordResourceWrite(r.Context(), userID, models.WriteActionCreate, writtenMemory(teamID, memory))
-	s.recordAuditWrite(r.Context(), auditCreate(teamID, resourceTypeMemory, memory.ID, memoryAuditState(memory)))
+	s.recordAuditWrite(r.Context(),
+		auditRecord(teamID, resourceTypeMemory, auditVerbCreate, memory.ID, memoryAuditState(memory)))
 	s.recordMemoryActivity(r.Context(), userID, activities.ActivityTypeMemoryCreated, memory.ID, "Created new memory", r)
 
 	// Record metrics
@@ -170,7 +171,8 @@ func (s *Server) handleUpdateMemory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.recordResourceWrite(r.Context(), userID, models.WriteActionUpdate, writtenMemory(teamID, memory))
-	s.recordAuditWrite(r.Context(), auditUpdated(teamID, resourceTypeMemory, memory.ID, before, memoryAuditState(memory)))
+	s.recordAuditWrite(r.Context(),
+		s.auditUpdatedWrite(userID, teamID, resourceTypeMemory, memory.ID, before, memoryAuditState(memory)))
 	s.recordMemoryActivity(r.Context(), userID, activities.ActivityTypeMemoryUpdated, memoryID, "Updated memory", r)
 
 	writeOK(w, memory, s.logger)

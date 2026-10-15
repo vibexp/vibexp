@@ -226,6 +226,8 @@ func auditResourceRouteCases() []auditRouteCase {
 				moved.Project = nil // the service clears the stale summary on a move
 				f.prompts.EXPECT().UpdatePromptBySlug(writeTestUserID, writeTestTeamID, "p", mock.Anything).
 					Return(moved, nil)
+				f.projects.EXPECT().GetProjectBySlugOrID(writeTestTeamID, writeTestUserID, auditTestOtherProj).
+					Return(&models.Project{ID: auditTestOtherProj, Name: "Beta"}, nil)
 			},
 			op: models.AuditOpPromptMove, resourceID: auditTestPromptID, resourceName: "Release checklist",
 			projectID: auditTestOtherProj,
@@ -233,6 +235,7 @@ func auditResourceRouteCases() []auditRouteCase {
 				assert.Equal(t, writeTestProjectID, meta[auditMetaFromProjectID])
 				assert.Equal(t, "Alpha", meta[auditMetaFromProjectName])
 				assert.Equal(t, auditTestOtherProj, meta[auditMetaToProjectID])
+				assert.Equal(t, "Beta", meta[auditMetaToProjectName], "the destination is looked up")
 			},
 		},
 		{
@@ -420,12 +423,15 @@ func auditResourceRouteCases() []auditRouteCase {
 					Return(auditMemory(writeTestProjectID), nil)
 				f.memories.EXPECT().UpdateMemory(writeTestUserID, writeTestTeamID, writeTestMemoryID, mock.Anything).
 					Return(auditMemory(auditTestOtherProj), nil)
+				f.projects.EXPECT().GetProjectBySlugOrID(writeTestTeamID, writeTestUserID, auditTestOtherProj).
+					Return(nil, errors.New("gone"))
 			},
 			op: models.AuditOpMemoryMove, resourceID: writeTestMemoryID, resourceName: "Deploy notes",
 			projectID: auditTestOtherProj,
 			check: func(t *testing.T, meta map[string]any) {
 				assert.Equal(t, writeTestProjectID, meta[auditMetaFromProjectID])
 				assert.Equal(t, auditTestOtherProj, meta[auditMetaToProjectID])
+				assert.NotContains(t, meta, auditMetaToProjectName, "a failed lookup leaves the name out")
 			},
 		},
 		{
