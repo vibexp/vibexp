@@ -16,7 +16,8 @@ import { test as base, expect, type Page } from '@playwright/test'
 async function performDevLogin(
   page: Page,
   email: string,
-  name: string
+  name: string,
+  options: DevLoginOptions = {}
 ): Promise<void> {
   // Navigate to login page with dev_login enabled
   await page.goto('/?dev_login=true')
@@ -32,10 +33,38 @@ async function performDevLogin(
   // Fill and submit the dev login form.
   await page.fill('#dev-email', email)
   await page.fill('#dev-name', name)
+  // The session cookie is set by this response, before the app's hard
+  // redirect away from the sign-in page.
+  const signedIn = page.waitForResponse(
+    response =>
+      response.url().includes('/api/v1/auth/dev/login') && response.ok(),
+    { timeout: 15000 }
+  )
   await page.click('button:has-text("Dev login")')
+  await signedIn
 
-  // Wait for redirect to home page.
-  await page.waitForURL('/', { timeout: 15000 })
+  // Wait for redirect to home page, or to the first-run onboarding the
+  // dashboard sends a new user on to. The sign-in page is `/` too
+  // (`/?dev_login=true`), so the query tells the two apart.
+  await page.waitForURL(
+    url =>
+      !url.searchParams.has('dev_login') &&
+      (url.pathname === '/' || url.pathname === ONBOARDING_PATH),
+    { timeout: 15000 }
+  )
+
+  if (options.keepOnboarding) {
+    // The onboarding renders outside the team shell, so there is no team
+    // context to wait for: the journey asserts on the flow itself.
+    await page.waitForURL(url => url.pathname === ONBOARDING_PATH, {
+      timeout: 15000,
+    })
+    return
+  }
+
+  // Before the team wait: the onboarding renders outside the team shell, so
+  // a user the dashboard already sent there would never hydrate a team.
+  await completeOnboarding(page)
 
   // CRITICAL: Wait for team context to be initialized.
   // The TeamContext fetches teams asynchronously, and many components depend on
@@ -57,6 +86,61 @@ async function performDevLogin(
 
   // Give an extra moment for React to process the team context update.
   await page.waitForTimeout(500)
+}
+
+/** Where the first-run onboarding lives. */
+export const ONBOARDING_PATH = '/getting-started'
+
+/**
+ * Where a sign-in lands: the dashboard, or for a user who has not finished
+ * the first-run onboarding, the onboarding the dashboard hands them to.
+ */
+export const SIGNED_IN_LANDING = /\/(getting-started\?step=\d+)?$/
+
+/**
+ * Mark the signed-in user's first-run onboarding as finished, and load the
+ * dashboard.
+ *
+ * Every dev login provisions a brand-new user, and a new user landing on the
+ * dashboard is sent to the onboarding. Specs that are not about the
+ * onboarding expect the dashboard, so the shared login finishes it for them
+ * the way a person would (the same endpoint "Skip setup" calls), then
+ * reloads the dashboard. The onboarding journey opts out with
+ * `keepOnboarding`.
+ */
+export async function completeOnboarding(page: Page): Promise<void> {
+  const response = await page.request.post('/api/v1/user/onboarding/complete')
+  expect(
+    response.ok(),
+    `marking onboarding complete failed: ${response.status()}`
+  ).toBe(true)
+  // A full load, not a client-side navigation: the app holds the user it
+  // fetched at sign-in (still "not completed") until it fetches it again.
+  // The app may still be finishing its own navigation (the sign-in's hard
+  // redirect, or the dashboard handing a new user to the onboarding), which
+  // interrupts or aborts ours; try again once the page has loaded.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await page.goto('/')
+      break
+    } catch (error) {
+      const interrupted = /interrupted by another navigation|ERR_ABORTED/.test(
+        String(error)
+      )
+      if (!interrupted || attempt === 3) throw error
+      await page.waitForLoadState('load')
+    }
+  }
+  await page.waitForURL('/')
+}
+
+/** Options for {@link devLogin}. */
+export interface DevLoginOptions {
+  /**
+   * Leave the new user's first-run onboarding unfinished, so the app opens
+   * it. Only the onboarding journey wants this.
+   */
+  keepOnboarding?: boolean
 }
 
 async function waitForTeamHydration(page: Page): Promise<void> {
@@ -153,11 +237,12 @@ export const test = base.extend<AuthFixtures>({
 export async function devLogin(
   page: Page,
   email?: string,
-  name?: string
+  name?: string,
+  options: DevLoginOptions = {}
 ): Promise<void> {
   const testEmail = email || `playwright_vibexp${Date.now()}@example.com`
   const testName = name || 'Playwright Test User'
-  await performDevLogin(page, testEmail, testName)
+  await performDevLogin(page, testEmail, testName, options)
 }
 
 /**

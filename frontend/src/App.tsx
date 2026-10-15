@@ -2,6 +2,7 @@ import { HelmetProvider } from 'react-helmet-async'
 import { BrowserRouter as Router, Route, Routes } from 'react-router'
 
 import { AlertContainer } from '@/components/AlertContainer'
+import { AuthGate } from '@/components/auth/AuthGate'
 import { ReturnToResumeAfterAuth } from '@/components/auth/ReturnToResumeAfterAuth'
 import { SignInPage } from '@/components/auth/SignInPage'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -14,7 +15,9 @@ import { AlertProvider } from '@/contexts/AlertContext'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { ProjectProvider } from '@/contexts/ProjectContext'
 import { TeamProvider } from '@/contexts/TeamContext'
-import { useAuth } from '@/contexts/useAuth'
+import { GETTING_STARTED_PATH } from '@/features/onboarding/autoOpen'
+import { OnboardingApp } from '@/features/onboarding/OnboardingApp'
+import { OnboardingRedirect } from '@/features/onboarding/OnboardingRedirect'
 import { SiteInfoProvider } from '@/features/site-info/SiteInfoProvider'
 import { SiteInfoTitle } from '@/features/site-info/SiteInfoTitle'
 import { usePageTracking } from '@/hooks'
@@ -37,24 +40,6 @@ function PageTracker() {
   return null
 }
 
-function AuthGate({ children }: Readonly<{ children: React.ReactNode }>) {
-  const { isAuthenticated, isLoading } = useAuth()
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-muted-foreground text-sm">Loading…</div>
-      </div>
-    )
-  }
-
-  if (!isAuthenticated) {
-    return <SignInPage />
-  }
-
-  return <>{children}</>
-}
-
 function BareLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <Root>
@@ -68,6 +53,9 @@ function MainApp() {
   return (
     <Root>
       <AuthGate>
+        {/* Before the resume components, so it sees a pending invitation or
+            return_to before they consume it, and stands aside. */}
+        <OnboardingRedirect />
         <ReturnToResumeAfterAuth />
         <InvitationResumeAfterAuth />
         <TeamProvider>
@@ -200,6 +188,10 @@ function App() {
                     {/* Must precede the catch-all, which would otherwise swallow
                       /admin into the team-scoped MainApp shell. */}
                     <Route path="/admin/*" element={<AdminApp />} />
+                    <Route
+                      path={GETTING_STARTED_PATH}
+                      element={<OnboardingApp />}
+                    />
                     <Route path="/*" element={<MainApp />} />
                   </Routes>
                   <AlertContainer />

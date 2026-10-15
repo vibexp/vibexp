@@ -9,6 +9,8 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import type { Mocked } from 'vitest'
 
+import { STORAGE_KEYS } from '@/constants/storageKeys'
+import { resetProgressCache } from '@/features/onboarding/progress'
 import { emptyBySource, writesBySource } from '@/lib/testing/creationMetrics'
 import type {
   ActivitiesResponse,
@@ -334,12 +336,36 @@ describe('Home — page order', () => {
       .map(heading => heading.textContent)
 
     expect(order).toEqual([
+      // The onboarding card leads while its steps are not all done.
+      'Finish setting up VibeXP',
       'Needs your attention',
       'What changed',
       'How your knowledge is used',
       'Workspace totals',
       'Growth',
     ])
+  })
+
+  it('drops the onboarding card once all of its steps are done', async () => {
+    window.localStorage.setItem(
+      STORAGE_KEYS.ONBOARDING_PROGRESS,
+      JSON.stringify({
+        'user-1': {
+          status: ['done', 'done', 'done', 'done', 'done', 'todo'],
+          lastStep: 5,
+        },
+      })
+    )
+    resetProgressCache()
+    setup()
+    renderHome()
+
+    await screen.findByText('Release checklist')
+    expect(
+      screen.queryByRole('heading', { name: 'Finish setting up VibeXP' })
+    ).not.toBeInTheDocument()
+    window.localStorage.clear()
+    resetProgressCache()
   })
 
   it('keeps the greeting and drops the subtitle and the quick actions', async () => {
