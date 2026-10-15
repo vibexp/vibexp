@@ -80,8 +80,17 @@ type APIAccessRevocation struct {
 // services.InstanceAdminResolver rather than stored on the domain model.
 type CurrentUserResponse struct {
 	*User
-	IsInstanceAdmin     bool `json:"is_instance_admin"`
-	IsRootInstanceAdmin bool `json:"is_root_instance_admin"`
+	IsInstanceAdmin     bool          `json:"is_instance_admin"`
+	IsRootInstanceAdmin bool          `json:"is_root_instance_admin"`
+	KnowledgeLoop       KnowledgeLoop `json:"knowledge_loop"`
+}
+
+// KnowledgeLoop records when the user's AI tools first read from and first
+// wrote back to VibeXP (spec schema KnowledgeLoop). Only AI-tool sources count
+// (CLI, MCP, REST API); a nil time means it has not happened yet.
+type KnowledgeLoop struct {
+	FirstReadAt  *time.Time `json:"first_read_at"`
+	FirstWriteAt *time.Time `json:"first_write_at"`
 }
 
 type GoogleUserInfo struct {

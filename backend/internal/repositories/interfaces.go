@@ -1012,6 +1012,11 @@ type ResourceAccessRepository interface {
 	// (see ResourceLastAccessedRepository) depend on CreatedAt being the
 	// database's own timestamp, so both writes agree on one instant.
 	Create(ctx context.Context, event *models.ResourceAccessEvent) error
+	// GetUserKnowledgeLoop returns when the user's AI tools first read a
+	// resource (resource_access_events) and first wrote one
+	// (resource_write_events), counting only the AI-tool sources: cli, mcp
+	// and api. Web reads and writes are ignored. A nil time means never.
+	GetUserKnowledgeLoop(ctx context.Context, userID string) (models.KnowledgeLoop, error)
 	// GetMetricsByResource returns daily access counts grouped by source for a specific resource
 	// since the given time, ordered by date then source.
 	GetMetricsByResource(

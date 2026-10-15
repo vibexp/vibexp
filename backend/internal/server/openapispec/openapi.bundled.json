@@ -32855,7 +32855,8 @@
             "type": "object",
             "required": [
               "is_instance_admin",
-              "is_root_instance_admin"
+              "is_root_instance_admin",
+              "knowledge_loop"
             ],
             "properties": {
               "is_instance_admin": {
@@ -32867,10 +32868,37 @@
                 "type": "boolean",
                 "description": "Whether the authenticated user is a root instance admin: their\nemail is in the configured auth.instance_admins list (matched\ncase-insensitively) AND has been verified (#1467). A listed but\nunverified account is not a root admin. Only root admins may grant\nor revoke other instance admins. UI convenience\nonly; grant/revoke is authorized server-side.\n",
                 "example": false
+              },
+              "knowledge_loop": {
+                "$ref": "#/components/schemas/KnowledgeLoop"
               }
             }
           }
         ]
+      },
+      "KnowledgeLoop": {
+        "type": "object",
+        "description": "Whether the user's AI tools are running the knowledge loop: the first time\none of them read a resource from VibeXP, and the first time one wrote a\nresource back. Only reads and writes through an AI tool count (the CLI,\nMCP, or the REST API with an API key); using the web app does not. Null\nuntil it has happened. The SPA uses it to retire its setup prompts once\nthe loop is running.\n",
+        "required": [
+          "first_read_at",
+          "first_write_at"
+        ],
+        "properties": {
+          "first_read_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When an AI tool first read one of the user's team resources on the user's behalf.",
+            "example": "2026-10-15T18:04:50Z"
+          },
+          "first_write_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When an AI tool first created or updated a prompt, artifact, blueprint or memory on the user's behalf.",
+            "example": "2026-10-15T18:12:03Z"
+          }
+        }
       },
       "LoginResponse": {
         "type": "object",

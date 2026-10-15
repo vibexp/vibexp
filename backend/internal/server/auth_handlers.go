@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -574,7 +575,30 @@ func (s *Server) handleGetMe(w http.ResponseWriter, r *http.Request) {
 		User:                user,
 		IsInstanceAdmin:     isAdmin,
 		IsRootInstanceAdmin: resolver.IsVerifiedRootAdmin(user),
+		KnowledgeLoop:       s.knowledgeLoop(r.Context(), userID),
 	}, s.logger)
+}
+
+// knowledgeLoop reads when the user's AI tools first read from and wrote back
+// to VibeXP. Like the admin flag it is UI convenience (it retires the SPA's
+// setup prompts), so a failed lookup reports "not yet" rather than failing
+// /me, as does a container without the repository (unit tests).
+func (s *Server) knowledgeLoop(ctx context.Context, userID string) models.KnowledgeLoop {
+	repo := s.container.ResourceAccessRepository()
+	if repo == nil {
+		return models.KnowledgeLoop{}
+	}
+	loop, err := repo.GetUserKnowledgeLoop(ctx, userID)
+	if err != nil {
+		s.logger.With(
+			"service", serverLogServiceName,
+			"handler", "handleGetMe",
+			"user_id", userID,
+			"error", err,
+		).Warn("Failed to read the knowledge loop; reporting it as not started")
+		return models.KnowledgeLoop{}
+	}
+	return loop
 }
 
 // DevLoginRequest is the expected body for POST /api/v1/auth/dev/login.
