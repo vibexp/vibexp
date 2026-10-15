@@ -31,7 +31,9 @@ func (a *adminStrictServer) IssueAdminUserSetupLink(
 
 	a.recordUserMutationActivity(ctx, activities.ActivityTypeAdminUserSetupLinkIssued, userID, link.Email,
 		map[string]interface{}{"delivery": string(link.Delivery)})
-	a.s.auditLinkIssued(ctx, userID, link.Email, auditLinkPurposeSetup, string(link.Delivery), false)
+	a.s.auditLinkIssued(ctx, auditLink{
+		userID: userID, email: link.Email, purpose: auditLinkPurposeSetup, delivery: string(link.Delivery), issued: true,
+	})
 
 	out := admingen.IssueAdminUserSetupLink200JSONResponse{
 		Delivery:  admingen.AdminUserSetupLinkDelivery(link.Delivery),
@@ -104,14 +106,20 @@ func (a *adminStrictServer) IssueAdminUserResetLink(
 			// failed: that change is audited even though nothing was issued.
 			a.recordUserMutationActivity(ctx, activities.ActivityTypeAdminUserResetLinkIssued, userID, link.Email,
 				map[string]interface{}{"delivery": string(link.Delivery), "invalidated": true, "issued": false})
-			a.s.auditLinkIssued(ctx, userID, link.Email, auditLinkPurposeReset, string(link.Delivery), true)
+			a.s.auditLinkIssued(ctx, auditLink{
+				userID: userID, email: link.Email, purpose: auditLinkPurposeReset, delivery: string(link.Delivery),
+				invalidated: true,
+			})
 		}
 		return nil, a.mapAdminAccountError(err, "IssueAdminUserResetLink")
 	}
 
 	a.recordUserMutationActivity(ctx, activities.ActivityTypeAdminUserResetLinkIssued, userID, link.Email,
 		map[string]interface{}{"delivery": string(link.Delivery), "invalidated": link.Invalidated, "issued": true})
-	a.s.auditLinkIssued(ctx, userID, link.Email, auditLinkPurposeReset, string(link.Delivery), link.Invalidated)
+	a.s.auditLinkIssued(ctx, auditLink{
+		userID: userID, email: link.Email, purpose: auditLinkPurposeReset, delivery: string(link.Delivery),
+		invalidated: link.Invalidated, issued: true,
+	})
 
 	out := admingen.IssueAdminUserResetLink200JSONResponse{
 		Delivery:    admingen.AdminUserResetLinkDelivery(link.Delivery),

@@ -302,7 +302,7 @@ func (as *AuthService) RevokeUserSessions(ctx context.Context, userID string) (i
 	// they were all minted under is what the event can say. The actor is the
 	// caller from the context (the user, or an admin acting on them).
 	audit.SafeRecord(ctx, as.audit, audit.Event{
-		Operation: models.AuditOpAuthSessionsRevoked, ResourceType: auditResourceTypeUser, ResourceID: userID,
+		Operation: models.AuditOpAuthSessionsRevoked, ResourceType: models.AuditResourceTypeUser, ResourceID: userID,
 		Metadata: map[string]any{"session_epoch": epoch},
 	})
 	return epoch, nil
@@ -532,7 +532,7 @@ func (as *AuthService) linkIdentityByEmail(
 	audit.SafeRecord(ctx, as.audit, audit.Event{
 		Operation: models.AuditOpAuthIdentityLinked,
 		Actor:     &audit.Actor{UserID: &userID, Email: user.Email, Name: user.Name},
-		Source:    models.AuditSourceWeb, ResourceType: auditResourceTypeUser, ResourceID: userID,
+		Source:    models.AuditSourceWeb, ResourceType: models.AuditResourceTypeUser, ResourceID: userID,
 		ResourceName: user.Email, Metadata: map[string]any{"provider": providerName},
 	})
 

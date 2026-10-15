@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,7 +61,7 @@ func TestAudit_ClientRegistration(t *testing.T) {
 	require.NotNil(t, e.Actor)
 	assert.Nil(t, e.Actor.UserID, "registration is anonymous")
 	assert.Equal(t, models.AuditActorAnonymous, e.Actor.Type)
-	assert.Equal(t, auditResourceTypeOAuthClient, e.ResourceType)
+	assert.Equal(t, models.AuditResourceTypeOAuthClient, e.ResourceType)
 	assert.Equal(t, clientID, e.ResourceID)
 	assert.Equal(t, "Claude Code", e.ResourceName)
 	assert.Equal(t, "Claude Code", e.Metadata["client_name"])
@@ -126,32 +125,16 @@ func TestAudit_UnnamedClientFallsBackToItsID(t *testing.T) {
 	assert.Equal(t, h.clientID, rec.only(t).Metadata["client_name"])
 }
 
-// panickyRecorder panics, blockingRecorder never returns: neither may change
-// the consent response.
+// panickyRecorder panics: it must not change the consent response.
 type panickyRecorder struct{}
 
 func (panickyRecorder) Record(context.Context, audit.Event) { panic("audit down") }
 
-type blockingRecorder struct{ release chan struct{} }
+func TestAudit_PanickingRecorderNeverChangesTheConsentResponse(t *testing.T) {
+	h := newTestHarness(t, withAudit(panickyRecorder{}))
+	defer h.close()
 
-func (b blockingRecorder) Record(context.Context, audit.Event) { <-b.release }
+	redirectTo := h.decideConsent(t, h.authorizeToConsent(t, pkceChallenge()), consentApprove)
 
-func TestAudit_BrokenRecorderNeverChangesTheConsentResponse(t *testing.T) {
-	release := make(chan struct{})
-	t.Cleanup(func() { close(release) })
-
-	for name, rec := range map[string]audit.Recorder{
-		"panics": panickyRecorder{}, "blocks": blockingRecorder{release: release},
-	} {
-		t.Run(name, func(t *testing.T) {
-			h := newTestHarness(t, withAudit(rec))
-			defer h.close()
-
-			start := time.Now()
-			redirectTo := h.decideConsent(t, h.authorizeToConsent(t, pkceChallenge()), consentApprove)
-
-			assert.NotEmpty(t, queryParam(t, redirectTo, "code"), "the code is still issued")
-			assert.Less(t, time.Since(start), 5*time.Second)
-		})
-	}
+	assert.NotEmpty(t, queryParam(t, redirectTo, "code"), "the code is still issued")
 }

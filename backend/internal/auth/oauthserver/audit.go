@@ -13,9 +13,6 @@ import (
 // registered and which users let an agent in (or refused it). Nothing secret
 // is recorded: no codes, tokens or consent CSRF values.
 
-// auditResourceTypeOAuthClient is the audit resource type of an OAuth client.
-const auditResourceTypeOAuthClient = "oauth_client"
-
 // auditClientRegistered records a Dynamic Client Registration. Registration is
 // anonymous by design (RFC 7591), and it is an MCP client's first step.
 func (s *Service) auditClientRegistered(ctx context.Context, client *models.OAuthClient) {
@@ -23,7 +20,7 @@ func (s *Service) auditClientRegistered(ctx context.Context, client *models.OAut
 		Operation:    models.AuditOpAuthMCPClientRegistered,
 		Actor:        &audit.Actor{Type: models.AuditActorAnonymous},
 		Source:       models.AuditSourceMCP,
-		ResourceType: auditResourceTypeOAuthClient, ResourceID: client.ID, ResourceName: client.ClientName,
+		ResourceType: models.AuditResourceTypeOAuthClient, ResourceID: client.ID, ResourceName: client.ClientName,
 		Metadata: map[string]any{
 			"client_id": client.ID, "client_name": client.ClientName, "redirect_uris": client.RedirectURIs,
 		},
@@ -43,7 +40,7 @@ func (s *Service) auditConsentDecision(ctx context.Context, ar fosite.AuthorizeR
 	audit.SafeRecord(ctx, s.audit, audit.Event{
 		Operation:    op,
 		Actor:        &audit.Actor{UserID: &userID},
-		ResourceType: auditResourceTypeOAuthClient, ResourceID: clientID, ResourceName: clientName,
+		ResourceType: models.AuditResourceTypeOAuthClient, ResourceID: clientID, ResourceName: clientName,
 		Metadata: map[string]any{
 			"client_id": clientID, "client_name": clientName, "scopes": []string(ar.GetRequestedScopes()),
 		},

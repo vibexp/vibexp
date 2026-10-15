@@ -80,7 +80,7 @@ func ProvideRegistrationGate(
 func ProvideAPIAccessService(
 	repo repositories.APIAccessRepository, logger *slog.Logger, recorder audit.Recorder,
 ) services.APIAccessServiceInterface {
-	return services.NewAPIAccessService(repo, logger, recorder)
+	return services.NewAPIAccessService(repo, logger, services.WithAPIAccessAuditRecorder(recorder))
 }
 
 // ProvideAPIKeyService creates a new APIKeyService

@@ -240,6 +240,14 @@ func (o AuditOutcome) IsValid() bool {
 	return false
 }
 
+// Resource types of auth and security audit events. Resource writes use the
+// resource's own type name (prompt, artifact, ...).
+const (
+	AuditResourceTypeUser        = "user"
+	AuditResourceTypeAPIKey      = "api_key"
+	AuditResourceTypeOAuthClient = "oauth_client"
+)
+
 // AuditEvent is one row of the instance audit log (audit_events).
 //
 // The ids carry no foreign key and the names are snapshots taken when the event

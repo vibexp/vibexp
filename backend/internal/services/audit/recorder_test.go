@@ -660,3 +660,81 @@ func TestTruncateBytes(t *testing.T) {
 	assert.Equal(t, "abc", TruncateBytes("abcdef", 3))
 	assert.Empty(t, TruncateBytes("é", 1), "a lone continuation byte backs off to nothing")
 }
+
+// TestRecord_NeverBlocksTheCaller pins the Recorder contract on the real
+// worker pool: Record returns at once even when every worker is busy (the
+// pool is non-blocking and falls back to a dedicated goroutine), and when the
+// capture setting or the insert would block, because both run in persist,
+// off the caller's goroutine.
+func TestRecord_NeverBlocksTheCaller(t *testing.T) {
+	const prompt = 2 * time.Second
+
+	returnsPromptly := func(t *testing.T, r *AsyncRecorder) {
+		t.Helper()
+		done := make(chan struct{})
+		go func() {
+			r.Record(requestCtx(), Event{Operation: models.AuditOpAuthLogin})
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(prompt):
+			t.Fatal("Record blocked its caller")
+		}
+	}
+
+	t.Run("every worker busy", func(t *testing.T) {
+		// Cleanups run last-in first-out: release the blocked task before the
+		// pool waits for it to finish.
+		pool := events.NewWorkerPool(1)
+		t.Cleanup(pool.Stop)
+		release := make(chan struct{})
+		t.Cleanup(func() { close(release) })
+		pool.Submit(func() { <-release })
+
+		inserted := make(chan struct{}, 1)
+		repo := mocks.NewMockAuditEventRepository(t)
+		repo.EXPECT().Insert(mock.Anything, mock.Anything).
+			RunAndReturn(func(context.Context, *models.AuditEvent) error { inserted <- struct{}{}; return nil })
+		r := NewRecorder(RecorderDeps{Repo: repo, Pool: pool, Logger: slog.New(slog.DiscardHandler)})
+
+		returnsPromptly(t, r)
+		select {
+		case <-inserted:
+		case <-time.After(prompt):
+			t.Fatal("a saturated pool must still run the task")
+		}
+	})
+
+	t.Run("the capture setting blocks", func(t *testing.T) {
+		// Cleanups run last-in first-out: release the blocked task before the
+		// pool waits for it to finish.
+		pool := events.NewWorkerPool(1)
+		t.Cleanup(pool.Stop)
+		release := make(chan struct{})
+		t.Cleanup(func() { close(release) })
+		repo := mocks.NewMockAuditEventRepository(t)
+		repo.EXPECT().Insert(mock.Anything, mock.Anything).Return(nil).Maybe()
+		r := NewRecorder(RecorderDeps{
+			Repo: repo, Pool: pool, Logger: slog.New(slog.DiscardHandler),
+			Capture: captureFunc(func(context.Context) bool { <-release; return true }),
+		})
+
+		returnsPromptly(t, r)
+	})
+
+	t.Run("the insert blocks", func(t *testing.T) {
+		// Cleanups run last-in first-out: release the blocked task before the
+		// pool waits for it to finish.
+		pool := events.NewWorkerPool(1)
+		t.Cleanup(pool.Stop)
+		release := make(chan struct{})
+		t.Cleanup(func() { close(release) })
+		repo := mocks.NewMockAuditEventRepository(t)
+		repo.EXPECT().Insert(mock.Anything, mock.Anything).
+			RunAndReturn(func(context.Context, *models.AuditEvent) error { <-release; return nil }).Maybe()
+		r := NewRecorder(RecorderDeps{Repo: repo, Pool: pool, Logger: slog.New(slog.DiscardHandler)})
+
+		returnsPromptly(t, r)
+	})
+}

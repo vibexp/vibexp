@@ -10,10 +10,6 @@ import (
 	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
-// auditResourceTypeUser is the audit resource type of an event about a user
-// account.
-const auditResourceTypeUser = "user"
-
 // APIAccessServiceInterface revokes a user's non-browser access.
 type APIAccessServiceInterface interface {
 	// RevokeAPIAccess ends every way into the account that is not a browser
@@ -38,13 +34,22 @@ type APIAccessService struct {
 
 var _ APIAccessServiceInterface = (*APIAccessService)(nil)
 
-// NewAPIAccessService creates a new APIAccessService. recorder may be nil.
+// APIAccessServiceOption customizes an APIAccessService at construction.
+type APIAccessServiceOption func(*APIAccessService)
+
+// WithAPIAccessAuditRecorder makes the service record each revocation in the
+// audit log.
+func WithAPIAccessAuditRecorder(recorder audit.Recorder) APIAccessServiceOption {
+	return func(s *APIAccessService) { s.audit = recorder }
+}
+
+// NewAPIAccessService creates a new APIAccessService.
 func NewAPIAccessService(
-	repo repositories.APIAccessRepository, logger *slog.Logger, recorder ...audit.Recorder,
+	repo repositories.APIAccessRepository, logger *slog.Logger, opts ...APIAccessServiceOption,
 ) *APIAccessService {
 	s := &APIAccessService{repo: repo, logger: logger}
-	if len(recorder) > 0 {
-		s.audit = recorder[0]
+	for _, opt := range opts {
+		opt(s)
 	}
 	return s
 }
@@ -65,7 +70,7 @@ func (s *APIAccessService) RevokeAPIAccess(ctx context.Context, userID string) (
 	// auth.mcp_grant.revoked until one exists. The actor is the caller from
 	// the context; for a reset link or an account claim there is none.
 	audit.SafeRecord(ctx, s.audit, audit.Event{
-		Operation: models.AuditOpAuthAPIAccessRevoked, ResourceType: auditResourceTypeUser, ResourceID: userID,
+		Operation: models.AuditOpAuthAPIAccessRevoked, ResourceType: models.AuditResourceTypeUser, ResourceID: userID,
 		Metadata: map[string]any{"api_keys": revoked.APIKeys, "oauth_grants": revoked.OAuthGrants},
 	})
 	return revoked, nil

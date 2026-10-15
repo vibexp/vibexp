@@ -25,12 +25,6 @@ const (
 	auditMethodSetupToken = "setup_token"
 )
 
-// Resource types of auth events.
-const (
-	auditResourceTypeAPIKey = "api_key"
-	auditResourceTypeUser   = "user"
-)
-
 // Metadata keys of auth events.
 const (
 	auditMetaMethod   = "method"
@@ -120,7 +114,7 @@ func (s *Server) auditLoginFailed(ctx context.Context, f auditLoginFailure) {
 func (s *Server) auditUserEvent(ctx context.Context, op models.AuditOperation, t auditTarget) {
 	s.recordAudit(ctx, audit.Event{
 		Operation: op, Metadata: t.metadata,
-		ResourceType: auditResourceTypeUser, ResourceID: t.userID, ResourceName: t.email,
+		ResourceType: models.AuditResourceTypeUser, ResourceID: t.userID, ResourceName: t.email,
 	})
 }
 
@@ -146,7 +140,7 @@ func auditSelf(userID string, metadata map[string]any) auditTarget {
 // never seen here. The actor is the authenticated owner from the context.
 func (s *Server) auditAPIKey(ctx context.Context, op models.AuditOperation, keyID, keyName string) {
 	s.recordAudit(ctx, audit.Event{
-		Operation: op, ResourceType: auditResourceTypeAPIKey, ResourceID: keyID, ResourceName: keyName,
+		Operation: op, ResourceType: models.AuditResourceTypeAPIKey, ResourceID: keyID, ResourceName: keyName,
 	})
 }
 
@@ -174,16 +168,31 @@ const (
 	auditLinkPurposeReset = "reset"
 )
 
+// auditLink is one setup or reset link an admin asked for.
+type auditLink struct {
+	userID, email, purpose, delivery string
+	// invalidated reports that the old password, sessions and links were
+	// stopped first; issued that a link actually went out. A reset whose
+	// invalidation succeeded but whose link then failed is still recorded,
+	// as a failure, because the account did change.
+	invalidated, issued bool
+}
+
 // auditLinkIssued records an admin issuing a setup or reset link for a user.
 // The link and its token are never recorded: only who, for whom, how it was
-// delivered and whether the old credentials were stopped. The actor is the
-// admin from the context.
-func (s *Server) auditLinkIssued(ctx context.Context, userID, email, purpose, delivery string, invalidated bool) {
-	s.auditUserEvent(ctx, models.AuditOpAuthLocalCredentialResetLinkIssued, auditTarget{
-		userID: userID, email: email,
-		metadata: map[string]any{
-			"purpose": purpose, "delivery": delivery, "invalidated": invalidated,
-			auditMetaBy: auditByAdmin, auditMetaTarget: userID,
+// delivered, whether the old credentials were stopped and whether a link went
+// out. The actor is the admin from the context.
+func (s *Server) auditLinkIssued(ctx context.Context, l auditLink) {
+	outcome := models.AuditOutcomeSuccess
+	if !l.issued {
+		outcome = models.AuditOutcomeFailure
+	}
+	s.recordAudit(ctx, audit.Event{
+		Operation: models.AuditOpAuthLocalCredentialResetLinkIssued, Outcome: outcome,
+		ResourceType: models.AuditResourceTypeUser, ResourceID: l.userID, ResourceName: l.email,
+		Metadata: map[string]any{
+			"purpose": l.purpose, "delivery": l.delivery, "invalidated": l.invalidated, "issued": l.issued,
+			auditMetaBy: auditByAdmin, auditMetaTarget: l.userID,
 		},
 	})
 }

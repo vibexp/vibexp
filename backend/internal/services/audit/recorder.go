@@ -62,6 +62,15 @@ type Actor struct {
 }
 
 // Recorder records audit events.
+//
+// Contract: Record must not block or do I/O on the caller's goroutine. It is
+// called on request paths (sign-in, every resource write) and must never slow
+// them. AsyncRecorder guarantees this: Record only snapshots the context and
+// the event (no I/O; the name lookups, the capture setting and the insert all
+// run in persist, on the worker pool), and events.WorkerPool is built with
+// ants.WithNonblocking(true), so Submit never waits for a free worker (it falls
+// back to a dedicated goroutine). Callers still go through SafeRecord, which
+// recovers a panicking implementation.
 type Recorder interface {
 	// Record captures ctx-derived fields synchronously and persists asynchronously.
 	// Never blocks on I/O, never returns an error, never panics the caller.

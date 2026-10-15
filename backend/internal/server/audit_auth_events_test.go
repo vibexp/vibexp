@@ -45,24 +45,12 @@ func withAudit(srv *Server) *auditCapture {
 	return rec
 }
 
-// panickyRecorder panics and blockingRecorder never returns: neither may
-// change an auth response.
+// panickyRecorder panics: it must not change an auth response. A recorder
+// that blocks is ruled out by the Recorder contract, which AsyncRecorder's own
+// tests pin (TestRecord_NeverBlocksTheCaller).
 type panickyRecorder struct{}
 
 func (panickyRecorder) Record(context.Context, audit.Event) { panic("audit down") }
-
-type blockingRecorder struct{ release chan struct{} }
-
-func (b blockingRecorder) Record(context.Context, audit.Event) { <-b.release }
-
-// brokenRecorders returns a recorder that panics and one that blocks until
-// the test ends.
-func brokenRecorders(t *testing.T) map[string]audit.Recorder {
-	t.Helper()
-	release := make(chan struct{})
-	t.Cleanup(func() { close(release) })
-	return map[string]audit.Recorder{"panics": panickyRecorder{}, "blocks": blockingRecorder{release: release}}
-}
 
 // auditSecrets are values a test sends as credentials; none may reach an
 // audit event.
@@ -138,21 +126,15 @@ func TestAuditPasswordLogin_KnownAccountWrongPassword(t *testing.T) {
 	assertNoSecrets(t, rec.events())
 }
 
-func TestAuditPasswordLogin_BrokenRecorderNeverChangesTheResponse(t *testing.T) {
-	for name, broken := range brokenRecorders(t) {
-		t.Run(name, func(t *testing.T) {
-			f := newPwLoginFixture(t)
-			f.expectActivity(activities.ActivityTypeAuthLogin)
-			f.srv.container = auditingContainer{Container: f.srv.container, rec: broken}
+func TestAuditPasswordLogin_PanickingRecorderNeverChangesTheResponse(t *testing.T) {
+	f := newPwLoginFixture(t)
+	f.expectActivity(activities.ActivityTypeAuthLogin)
+	f.srv.container = auditingContainer{Container: f.srv.container, rec: panickyRecorder{}}
 
-			start := time.Now()
-			res := f.post(t, pwLoginEmail, pwLoginPassword)
+	res := f.post(t, pwLoginEmail, pwLoginPassword)
 
-			require.Equal(t, http.StatusOK, res.Code, res.Body.String())
-			assert.NotNil(t, sessionCookieIn(res), "the session is still issued")
-			assert.Less(t, time.Since(start), 5*time.Second)
-		})
-	}
+	require.Equal(t, http.StatusOK, res.Code, res.Body.String())
+	assert.NotNil(t, sessionCookieIn(res), "the session is still issued")
 }
 
 // ---------------------------------------------------------------------------
@@ -290,22 +272,18 @@ func TestAuditOIDC_SuspendedAccount(t *testing.T) {
 	assert.Equal(t, "u-1", *got.event.Actor.UserID)
 }
 
-func TestAuditOIDC_BrokenRecorderNeverChangesTheResponse(t *testing.T) {
-	for name, broken := range brokenRecorders(t) {
-		t.Run(name, func(t *testing.T) {
-			srv, _ := newOIDCAuditServer(t)
-			srv.container = auditingContainer{Container: srv.container.(auditingContainer).Container, rec: broken}
-			user := &models.User{ID: "u-1", Email: "ada@example.com", Status: models.UserStatusActive}
+func TestAuditOIDC_PanickingRecorderNeverChangesTheResponse(t *testing.T) {
+	srv, _ := newOIDCAuditServer(t)
+	srv.container = auditingContainer{Container: srv.container.(auditingContainer).Container, rec: panickyRecorder{}}
+	user := &models.User{ID: "u-1", Email: "ada@example.com", Status: models.UserStatusActive}
 
-			w := httptest.NewRecorder()
-			srv.handleCallbackSuccess(w, httptest.NewRequest(http.MethodGet, "/", nil),
-				user, &idp.Tokens{AccessToken: "a"}, "state-1", "github", false)
+	w := httptest.NewRecorder()
+	srv.handleCallbackSuccess(w, httptest.NewRequest(http.MethodGet, "/", nil),
+		user, &idp.Tokens{AccessToken: "a"}, "state-1", "github", false)
 
-			assert.Equal(t, http.StatusFound, w.Code)
-			assert.Equal(t, "http://localhost:5173/", w.Header().Get("Location"))
-			assert.NotNil(t, sessionCookieIn(w), "the session is still issued")
-		})
-	}
+	assert.Equal(t, http.StatusFound, w.Code)
+	assert.Equal(t, "http://localhost:5173/", w.Header().Get("Location"))
+	assert.NotNil(t, sessionCookieIn(w), "the session is still issued")
 }
 
 func TestAuditDevLogin(t *testing.T) {
@@ -428,7 +406,7 @@ func TestAuditAPIKeys(t *testing.T) {
 
 		got := rec.only(t)
 		assert.Equal(t, models.AuditOpAuthAPIKeyCreated, got.event.Operation)
-		assert.Equal(t, auditResourceTypeAPIKey, got.event.ResourceType)
+		assert.Equal(t, models.AuditResourceTypeAPIKey, got.event.ResourceType)
 		assert.Equal(t, "key-1", got.event.ResourceID)
 		assert.Equal(t, "laptop", got.event.ResourceName)
 		assertNoSecrets(t, rec.events())
@@ -464,21 +442,17 @@ func TestAuditAPIKeys(t *testing.T) {
 	})
 }
 
-func TestAuditAPIKeys_BrokenRecorderNeverChangesTheResponse(t *testing.T) {
-	for name, broken := range brokenRecorders(t) {
-		t.Run(name, func(t *testing.T) {
-			srv, keys, _ := newAPIKeyAuditServer(t)
-			srv.container = auditingContainer{Container: srv.container.(auditingContainer).Container, rec: broken}
-			keys.EXPECT().GenerateAPIKey(mock.Anything, "u-1", "laptop", mock.Anything).
-				Return(&models.APIKey{ID: "key-1", Name: "laptop"}, "vx_SECRETKEY", nil)
+func TestAuditAPIKeys_PanickingRecorderNeverChangesTheResponse(t *testing.T) {
+	srv, keys, _ := newAPIKeyAuditServer(t)
+	srv.container = auditingContainer{Container: srv.container.(auditingContainer).Container, rec: panickyRecorder{}}
+	keys.EXPECT().GenerateAPIKey(mock.Anything, "u-1", "laptop", mock.Anything).
+		Return(&models.APIKey{ID: "key-1", Name: "laptop"}, "vx_SECRETKEY", nil)
 
-			w := httptest.NewRecorder()
-			srv.handleCreateAPIKey(w, apiKeyRequest(http.MethodPost, apiKeyCreateBody))
+	w := httptest.NewRecorder()
+	srv.handleCreateAPIKey(w, apiKeyRequest(http.MethodPost, apiKeyCreateBody))
 
-			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
-			assert.Contains(t, w.Body.String(), "vx_SECRETKEY", "the key is still returned to its owner")
-		})
-	}
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "vx_SECRETKEY", "the key is still returned to its owner")
 }
 
 // ---------------------------------------------------------------------------
@@ -602,8 +576,28 @@ func TestAuditAdminAccountLinks(t *testing.T) {
 		assert.Equal(t, userID.String(), got.event.ResourceID)
 		assert.Equal(t, auditLinkPurposeReset, got.event.Metadata["purpose"])
 		assert.Equal(t, true, got.event.Metadata["invalidated"])
+		assert.Equal(t, true, got.event.Metadata["issued"])
+		assert.Equal(t, models.AuditOutcomeSuccess, got.event.Outcome)
 		assert.Equal(t, auditByAdmin, got.event.Metadata[auditMetaBy])
 		assertNoSecrets(t, rec.events())
+	})
+
+	t.Run("a reset that stopped the password but issued no link is a failure", func(t *testing.T) {
+		admin, accounts, rec := newAdmin(t)
+		accounts.EXPECT().IssueResetLink(mock.Anything, "admin-1", userID.String(), mock.Anything).
+			Return(&services.AdminResetLink{AdminSetupLink: services.AdminSetupLink{
+				Email: "ada@example.com", Delivery: services.AdminLinkByEmail,
+			}, Invalidated: true}, assert.AnError)
+
+		_, err := admin.IssueAdminUserResetLink(ctx, admingen.IssueAdminUserResetLinkRequestObject{
+			Id: userID, Body: &admingen.IssueAdminUserResetLinkJSONRequestBody{Delivery: "email"},
+		})
+		require.Error(t, err)
+
+		got := rec.only(t)
+		assert.Equal(t, models.AuditOutcomeFailure, got.event.Outcome)
+		assert.Equal(t, false, got.event.Metadata["issued"])
+		assert.Equal(t, true, got.event.Metadata["invalidated"])
 	})
 
 	t.Run("setup link", func(t *testing.T) {

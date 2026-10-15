@@ -50,7 +50,7 @@ func TestAuthService_RevokeUserSessions_Audits(t *testing.T) {
 	assert.EqualValues(t, 4, epoch)
 	e := events.only(t)
 	assert.Equal(t, models.AuditOpAuthSessionsRevoked, e.Operation)
-	assert.Equal(t, auditResourceTypeUser, e.ResourceType)
+	assert.Equal(t, models.AuditResourceTypeUser, e.ResourceType)
 	assert.Equal(t, "user-1", e.ResourceID)
 	assert.EqualValues(t, 4, e.Metadata["session_epoch"])
 	assert.Nil(t, e.Actor, "the actor is the caller from the context")
@@ -113,7 +113,7 @@ func TestAPIAccessService_RevokeAPIAccess_Audits(t *testing.T) {
 	logger, _ := logtest.New()
 	events := &auditEvents{}
 
-	_, err := NewAPIAccessService(repo, logger, events).RevokeAPIAccess(ctx, "user-1")
+	_, err := NewAPIAccessService(repo, logger, WithAPIAccessAuditRecorder(events)).RevokeAPIAccess(ctx, "user-1")
 
 	require.NoError(t, err)
 	e := events.only(t)
@@ -130,7 +130,7 @@ func TestAPIAccessService_RevokeAPIAccess_FailureRecordsNothing(t *testing.T) {
 	logger, _ := logtest.New()
 	events := &auditEvents{}
 
-	_, err := NewAPIAccessService(repo, logger, events).RevokeAPIAccess(ctx, "user-1")
+	_, err := NewAPIAccessService(repo, logger, WithAPIAccessAuditRecorder(events)).RevokeAPIAccess(ctx, "user-1")
 
 	require.Error(t, err)
 	assert.Empty(t, events.got)
