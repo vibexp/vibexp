@@ -1,8 +1,9 @@
 import { Icon } from '@vibexp/design-system/react'
+import { useRef } from 'react'
 
 import { cliInstallCommand } from '../content'
 import { Code, CopyIcon, Lead, StepIntro } from '../parts'
-import { EYEBROW, useCopy } from '../shared'
+import { EYEBROW, useCopyCommand } from '../shared'
 
 const BENEFITS = [
   'Installs the VibeXP CLI on your machine',
@@ -10,9 +11,10 @@ const BENEFITS = [
 ] as const
 
 export function CliStep() {
-  const { copied, copy } = useCopy()
+  const codeRef = useRef<HTMLElement>(null)
+  const { copied, copy } = useCopyCommand(codeRef)
   const command = cliInstallCommand(window.location.origin)
-  const isCopied = copied === 'cli'
+  const isCopied = copied
 
   return (
     <>
@@ -38,13 +40,16 @@ export function CliStep() {
         <span aria-hidden="true" className="font-mono text-[15px] opacity-60">
           $
         </span>
-        <code className="min-w-0 flex-1 overflow-x-auto font-mono text-[15px] leading-9 whitespace-pre">
+        <code
+          ref={codeRef}
+          className="min-w-0 flex-1 overflow-x-auto font-mono text-[15px] leading-9 whitespace-pre"
+        >
           {command}
         </code>
         <button
           type="button"
           onClick={() => {
-            copy('cli', command)
+            copy(command)
           }}
           aria-label={
             isCopied ? 'Copied install command' : 'Copy install command'

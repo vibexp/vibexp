@@ -1,6 +1,7 @@
 import { Icon } from '@vibexp/design-system/react'
 import { Link } from 'react-router'
 
+import { ThinProgress } from './parts'
 import { useOnboardingEntry } from './useOnboardingEntry'
 
 /**
@@ -51,19 +52,11 @@ export function OnboardingCard() {
           <p className="text-muted-foreground m-0 text-sm">
             {doneCount} of {total} steps complete. Pick up where you left off.
           </p>
-          <div
-            role="progressbar"
-            aria-label="Setup progress"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={pct}
-            className="bg-muted mt-2.5 h-1 max-w-[360px] overflow-hidden rounded"
-          >
-            <div
-              className="bg-primary h-full transition-[width] duration-300"
-              style={{ width: `${String(pct)}%` }}
-            />
-          </div>
+          <ThinProgress
+            value={pct}
+            label="Setup progress"
+            className="bg-muted mt-2.5 h-1 max-w-[360px] rounded"
+          />
         </div>
         <div className="flex flex-wrap gap-2">
           <Link

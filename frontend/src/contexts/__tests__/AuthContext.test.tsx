@@ -37,6 +37,7 @@ describe('AuthContext (cookie-based auth)', () => {
     version: 1,
     is_instance_admin: false,
     is_root_instance_admin: false,
+    knowledge_loop: { first_read_at: null, first_write_at: null },
   }
 
   // A first-time user (created_at within the last few seconds)

@@ -10,6 +10,7 @@ import { resetAutoOpened } from '../autoOpen'
 import { RULES, RULES_APPEND } from '../content'
 import { GettingStartedPage } from '../GettingStartedPage'
 import { readProgress, resetProgressCache } from '../progress'
+import { MANUAL_COPY_MESSAGE } from '../shared'
 
 const mockAuth = vi.hoisted(() => ({
   user: { id: 'u1', onboarding_completed: false },
@@ -22,8 +23,9 @@ vi.mock('@/contexts/useAuth', () => ({
 }))
 
 const mockToastError = vi.hoisted(() => vi.fn())
+const mockToastInfo = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/toast', () => ({
-  toast: { error: mockToastError },
+  toast: { error: mockToastError, info: mockToastInfo },
 }))
 
 function Where() {
@@ -60,6 +62,7 @@ beforeEach(() => {
   mockAuth.user = { id: 'u1', onboarding_completed: false }
   mockAuth.markOnboardingComplete.mockReset().mockResolvedValue(undefined)
   mockToastError.mockReset()
+  mockToastInfo.mockReset()
   writeText.mockReset().mockResolvedValue(undefined)
   Object.defineProperty(navigator, 'clipboard', {
     value: { writeText },
@@ -89,6 +92,9 @@ describe('GettingStartedPage', () => {
       'https://www.youtube-nocookie.com/embed/-9NFGBjoc5g?rel=0'
     )
     expect(where()).toBe('/getting-started?step=0')
+    const bar = screen.getByRole('progressbar', { name: 'Onboarding progress' })
+    expect(bar.tagName).toBe('PROGRESS')
+    expect(bar).toHaveAttribute('value', '0')
     // No Back and no "Skip this step" on the first step.
     expect(screen.queryByRole('button', { name: /Back/ })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Skip this step' })).toBeNull()
@@ -275,23 +281,25 @@ describe('GettingStartedPage', () => {
     ])
   })
 
-  it('falls back to a selection copy when the clipboard refuses', async () => {
+  it('selects the command for a manual copy when the clipboard refuses', async () => {
     writeText.mockRejectedValue(new Error('NotAllowedError'))
-    const execCommand = vi.fn(() => true)
-    Object.defineProperty(document, 'execCommand', {
-      value: execCommand,
-      configurable: true,
-    })
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
     renderFlow('/getting-started?step=4')
     fireEvent.click(
       screen.getByRole('button', { name: 'Copy install command' })
     )
     await vi.waitFor(() => {
-      expect(execCommand).toHaveBeenCalledWith('copy')
+      expect(mockToastInfo).toHaveBeenCalledWith(MANUAL_COPY_MESSAGE)
     })
+    expect(window.getSelection()?.toString()).toBe(
+      `claude "/vibexp:install ${window.location.origin}"`
+    )
+    expect(
+      screen.getByRole('button', { name: 'Copy install command' })
+    ).toBeInTheDocument()
   })
 
-  it('copies the plugin commands for the chosen place', () => {
+  it('copies the plugin commands for the chosen place', async () => {
     renderFlow('/getting-started?step=2')
 
     fireEvent.click(
@@ -301,9 +309,13 @@ describe('GettingStartedPage', () => {
       '/plugin marketplace add vibexp/plugin-marketplace'
     )
     expect(
-      screen.getByRole('button', { name: 'Copied marketplace command' })
+      await screen.findByRole('button', { name: 'Copied marketplace command' })
     ).toBeInTheDocument()
 
+    // A fieldset named by its (visually hidden) legend.
+    expect(
+      screen.getByRole('group', { name: 'Where to run the commands' }).tagName
+    ).toBe('FIELDSET')
     fireEvent.click(screen.getByRole('button', { name: 'From your terminal' }))
     expect(
       screen.getByRole('button', { name: 'From your terminal' })
@@ -343,12 +355,16 @@ describe('GettingStartedPage', () => {
     expect(writeText).toHaveBeenLastCalledWith(command)
   })
 
-  it('shows "Copied" only for a moment', () => {
+  it('shows "Copied" only for a moment', async () => {
     vi.useFakeTimers()
     renderFlow('/getting-started?step=4')
     fireEvent.click(
       screen.getByRole('button', { name: 'Copy install command' })
     )
+    // Let the clipboard promise settle.
+    await act(async () => {
+      await Promise.resolve()
+    })
     expect(
       screen.getByRole('button', { name: 'Copied install command' })
     ).toBeInTheDocument()
@@ -360,22 +376,19 @@ describe('GettingStartedPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('falls back to a selection copy outside a secure context', () => {
+  it('selects the command for a manual copy outside a secure context', () => {
     Object.defineProperty(navigator, 'clipboard', {
       value: undefined,
       configurable: true,
     })
-    // jsdom has no execCommand; the page must not depend on its result.
-    const execCommand = vi.fn(() => true)
-    Object.defineProperty(document, 'execCommand', {
-      value: execCommand,
-      configurable: true,
-    })
-    renderFlow('/getting-started?step=4')
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    renderFlow('/getting-started?step=2')
     fireEvent.click(
-      screen.getByRole('button', { name: 'Copy install command' })
+      screen.getByRole('button', { name: 'Copy marketplace command' })
     )
-    expect(execCommand).toHaveBeenCalledWith('copy')
-    expect(document.querySelector('textarea')).toBeNull()
+    expect(mockToastInfo).toHaveBeenCalledWith(MANUAL_COPY_MESSAGE)
+    expect(window.getSelection()?.toString()).toBe(
+      '/plugin marketplace add vibexp/plugin-marketplace'
+    )
   })
 })

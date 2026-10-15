@@ -1,9 +1,9 @@
 import { Icon } from '@vibexp/design-system/react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { RULES, RULES_APPEND } from '../content'
 import { Code, CopyIcon, Lead, Segmented, StepIntro } from '../parts'
-import { useCopy } from '../shared'
+import { useCopyCommand } from '../shared'
 
 type RulesMode = 'copy' | 'append'
 
@@ -14,9 +14,10 @@ const MODES = [
 
 export function RulesStep() {
   const [mode, setMode] = useState<RulesMode>('copy')
-  const { copied, copy } = useCopy()
+  const preRef = useRef<HTMLPreElement>(null)
+  const { copied, copy } = useCopyCommand(preRef)
   const text = mode === 'append' ? RULES_APPEND : RULES
-  const isCopied = copied === 'rules'
+  const isCopied = copied
   let buttonLabel = mode === 'append' ? 'Copy command' : 'Copy rules'
   if (isCopied) buttonLabel = 'Copied'
 
@@ -43,7 +44,7 @@ export function RulesStep() {
           <button
             type="button"
             onClick={() => {
-              copy('rules', text)
+              copy(text)
             }}
             className="bg-primary text-primary-foreground ml-auto inline-flex h-[30px] cursor-pointer items-center gap-1.5 rounded-sm px-3 text-[13px] font-medium hover:opacity-[0.88]"
           >
@@ -51,7 +52,10 @@ export function RulesStep() {
             {buttonLabel}
           </button>
         </div>
-        <pre className="bg-muted text-foreground m-0 max-h-[340px] overflow-auto px-5 py-[18px] font-mono text-[13px] leading-[1.65] whitespace-pre-wrap">
+        <pre
+          ref={preRef}
+          className="bg-muted text-foreground m-0 max-h-[340px] overflow-auto px-5 py-[18px] font-mono text-[13px] leading-[1.65] whitespace-pre-wrap"
+        >
           {text}
         </pre>
       </div>

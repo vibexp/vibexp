@@ -106,18 +106,11 @@ describe('KnowledgeLoopStatus', () => {
 })
 
 describe('knowledgeLoopOf', () => {
-  it('reads a missing or partial loop as not yet', () => {
+  it('reads as not yet without a signed-in user', () => {
     expect(knowledgeLoopOf(null)).toEqual({
       first_read_at: null,
       first_write_at: null,
     })
-    expect(knowledgeLoopOf({ id: 'u1' })).toEqual({
-      first_read_at: null,
-      first_write_at: null,
-    })
-    expect(
-      knowledgeLoopOf({ knowledge_loop: { first_read_at: READ_AT } })
-    ).toEqual({ first_read_at: READ_AT, first_write_at: null })
   })
 
   it('is running only once both have happened', () => {

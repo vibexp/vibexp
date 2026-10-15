@@ -2,7 +2,6 @@ import { type ReactNode, useState } from 'react'
 
 import { PLUGIN_COMMANDS, type PluginMode } from '../content'
 import { Code, CommandRow, Lead, Segmented, StepIntro } from '../parts'
-import { useCopy } from '../shared'
 
 const MODES = [
   { value: 'claude', label: 'Inside Claude Code' },
@@ -28,7 +27,6 @@ function NumberedItem({
 
 export function PluginStep() {
   const [mode, setMode] = useState<PluginMode>('claude')
-  const { copied, copy } = useCopy()
   const cmd = PLUGIN_COMMANDS[mode]
 
   return (
@@ -59,14 +57,7 @@ export function PluginStep() {
             <span className="pt-[3px] text-[15px] font-medium">
               Add the VibeXP marketplace
             </span>
-            <CommandRow
-              command={cmd.add}
-              label="marketplace command"
-              copied={copied === 'add'}
-              onCopy={() => {
-                copy('add', cmd.add)
-              }}
-            />
+            <CommandRow command={cmd.add} label="marketplace command" />
           </div>
         </NumberedItem>
         <NumberedItem n={2}>
@@ -74,14 +65,7 @@ export function PluginStep() {
             <span className="pt-[3px] text-[15px] font-medium">
               Install the plugin
             </span>
-            <CommandRow
-              command={cmd.install}
-              label="install command"
-              copied={copied === 'install'}
-              onCopy={() => {
-                copy('install', cmd.install)
-              }}
-            />
+            <CommandRow command={cmd.install} label="install command" />
           </div>
         </NumberedItem>
         <NumberedItem n={3}>

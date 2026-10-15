@@ -124,7 +124,8 @@ export function resumeStep(progress: OnboardingProgress): number {
   const i = progress.status
     .slice(0, ACTIONABLE_STEP_COUNT)
     .findIndex(s => s !== 'done')
-  return i < 0 ? 0 : i
+  // `findIndex` gives -1 when every step is done: start over.
+  return Math.max(i, 0)
 }
 
 /**

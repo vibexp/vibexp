@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils'
 import { rememberAutoOpened, STEP_PARAM } from './autoOpen'
 import { LAST_STEP, NEXT_LABELS, ONBOARDING_STEPS, STEP_COUNT } from './content'
 import { OnboardingBrand } from './OnboardingBrand'
+import { ThinProgress } from './parts'
 import {
   clampStep,
   resumeStep,
@@ -268,19 +269,11 @@ export function GettingStartedPage() {
             <Icon name="x" size={15} />
           </button>
         </div>
-        <div
-          role="progressbar"
-          aria-label="Onboarding progress"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={progressPct}
+        <ThinProgress
+          value={progressPct}
+          label="Onboarding progress"
           className="bg-border h-0.5"
-        >
-          <div
-            className="bg-primary h-full transition-[width] duration-[350ms] ease-in-out"
-            style={{ width: `${String(progressPct)}%` }}
-          />
-        </div>
+        />
       </header>
 
       <div className="mx-auto flex max-w-[1160px] flex-wrap items-start gap-12 px-4 pt-8 pb-16 sm:px-6 sm:pt-12">

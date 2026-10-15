@@ -1,9 +1,9 @@
 import { Icon } from '@vibexp/design-system/react'
-import type { ReactNode } from 'react'
+import { type ReactNode, useRef } from 'react'
 
 import { cn } from '@/lib/utils'
 
-import { EYEBROW, STEP_HEADING_ATTR } from './shared'
+import { EYEBROW, STEP_HEADING_ATTR, useCopyCommand } from './shared'
 
 /**
  * A step's overline, heading and lead. The welcome and celebration screens
@@ -90,26 +90,29 @@ export function CopyIcon({
 /** A one-line command with its copy button (the plugin step). */
 export function CommandRow({
   command,
-  copied,
-  onCopy,
   label,
 }: Readonly<{
   command: string
-  copied: boolean
-  onCopy: () => void
   /** What is copied, for the button's accessible name. */
   label: string
 }>) {
+  const codeRef = useRef<HTMLElement>(null)
+  const { copied, copy } = useCopyCommand(codeRef)
   return (
     <div className="bg-muted flex items-start gap-2 rounded-md border py-1.5 pr-1.5 pl-3.5 sm:items-center">
       {/* On a phone the whole command wraps rather than scrolling, so none
           of it is hidden. */}
-      <code className="min-w-0 flex-1 overflow-x-auto font-mono text-[13px] leading-7 break-all whitespace-pre-wrap sm:break-normal sm:whitespace-pre">
+      <code
+        ref={codeRef}
+        className="min-w-0 flex-1 overflow-x-auto font-mono text-[13px] leading-7 break-all whitespace-pre-wrap sm:break-normal sm:whitespace-pre"
+      >
         {command}
       </code>
       <button
         type="button"
-        onClick={onCopy}
+        onClick={() => {
+          copy(command)
+        }}
         aria-label={copied ? `Copied ${label}` : `Copy ${label}`}
         className="bg-background text-foreground hover:bg-accent inline-flex h-7 flex-none cursor-pointer items-center gap-1.5 rounded-sm border px-2.5 text-xs font-medium"
       >
@@ -139,11 +142,10 @@ export function Segmented<T extends string>({
   height?: 28 | 30
 }>) {
   return (
-    <div
-      role="group"
-      aria-label={label}
-      className="bg-muted inline-flex gap-0.5 rounded-md p-[3px]"
-    >
+    // A fieldset rather than a div with role="group"; reset to look like
+    // one. Its name is the legend, kept for screen readers only.
+    <fieldset className="bg-muted m-0 inline-flex min-w-0 gap-0.5 rounded-md border-0 p-[3px]">
+      <legend className="sr-only">{label}</legend>
       {options.map(option => {
         const on = option.value === value
         return (
@@ -172,6 +174,39 @@ export function Segmented<T extends string>({
           </button>
         )
       })}
-    </div>
+    </fieldset>
+  )
+}
+
+/**
+ * A thin progress bar: a native `<progress>`, so it has its role and value
+ * without ARIA, drawn as the design's flat track and fill. The track colour
+ * and height come from `className`; the fill is the primary colour. WebKit
+ * and Blink style it through `::-webkit-progress-*` (the fill's width
+ * animates), Firefox through `::-moz-progress-bar`.
+ */
+export function ThinProgress({
+  value,
+  label,
+  className,
+}: Readonly<{
+  /** 0 to 100. */
+  value: number
+  label: string
+  className?: string
+}>) {
+  return (
+    <progress
+      value={value}
+      max={100}
+      aria-label={label}
+      className={cn(
+        'block w-full appearance-none overflow-hidden border-0',
+        '[&::-webkit-progress-bar]:bg-transparent',
+        '[&::-webkit-progress-value]:bg-primary [&::-webkit-progress-value]:transition-[width] [&::-webkit-progress-value]:duration-300 [&::-webkit-progress-value]:ease-in-out',
+        '[&::-moz-progress-bar]:bg-primary',
+        className
+      )}
+    />
   )
 }

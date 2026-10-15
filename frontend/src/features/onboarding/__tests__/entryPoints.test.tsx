@@ -52,10 +52,10 @@ describe('OnboardingCard', () => {
     expect(
       screen.getByText('1 of 5 steps complete. Pick up where you left off.')
     ).toBeInTheDocument()
-    expect(screen.getByRole('progressbar')).toHaveAttribute(
-      'aria-valuenow',
-      '20'
-    )
+    const bar = screen.getByRole('progressbar', { name: 'Setup progress' })
+    expect(bar.tagName).toBe('PROGRESS')
+    expect(bar).toHaveAttribute('value', '20')
+    expect(bar).toHaveAttribute('max', '100')
     expect(screen.getByRole('link', { name: /Resume setup/ })).toHaveAttribute(
       'href',
       '/getting-started?step=1'
