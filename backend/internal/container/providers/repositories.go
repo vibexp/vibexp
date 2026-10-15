@@ -184,6 +184,11 @@ func ProvideResourceWriteEventRepository(db *database.DB) repositories.ResourceW
 	return postgres.NewResourceWriteEventRepository(db)
 }
 
+// ProvideAuditEventRepository creates the instance audit log repository.
+func ProvideAuditEventRepository(db *database.DB) repositories.AuditEventRepository {
+	return postgres.NewAuditEventRepository(db)
+}
+
 // ProvideAgentRepository creates a new AgentRepository
 func ProvideAgentRepository(db *database.DB) repositories.AgentRepository {
 	return postgres.NewAgentRepository(db)

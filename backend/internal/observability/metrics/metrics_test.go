@@ -800,6 +800,10 @@ var expectedInstruments = []instrumentDescriptor{
 	{"vx_api_key_created", "Total number of API keys created", "1", "Int64Counter"},
 	{"vx_artifact_created", "Total number of artifacts created", "1", "Int64Counter"},
 	{"vx_artifact_deleted", "Total number of artifacts deleted", "1", "Int64Counter"},
+	{
+		"vx_audit_events_dropped_total",
+		"Total number of audit events that could not be recorded in full, by reason", "1", "Int64Counter",
+	},
 	{"vx_blueprint_created", "Total number of blueprints created", "1", "Int64Counter"},
 	{"vx_blueprint_deleted", "Total number of blueprints deleted", "1", "Int64Counter"},
 	{"vx_deprecated_endpoint_calls_total", "Total number of calls to deprecated API endpoints", "1", "Int64Counter"},
@@ -906,7 +910,7 @@ func recordOneSampleEachInstrument(ctx context.Context, m *Metrics) {
 		m.UserCreated, m.UserLoginSuccessful, m.UserLoginFailed,
 		m.StripeSubscriptionCreated, m.StripeSubscriptionUpdated, m.StripeSubscriptionDeleted,
 		m.StripePaymentSucceeded, m.StripePaymentFailed,
-		m.APIKeyCreated,
+		m.APIKeyCreated, m.AuditEventsDropped,
 		m.PromptCreated, m.PromptDeleted,
 		m.ArtifactCreated, m.ArtifactDeleted,
 		m.MemoryCreated, m.MemoryDeleted,
@@ -1056,4 +1060,33 @@ func TestRegistrar_NoErrorOnValidSpecs(t *testing.T) {
 	assert.NotNil(t, r.float64Histogram(instrumentSpec{"vx_ok_hist", "d", "s"}))
 	assert.NotNil(t, r.int64Gauge(instrumentSpec{"vx_ok_gauge", "d", "1"}))
 	assert.NoError(t, r.err)
+}
+
+// TestRecordAuditEventDropped counts per reason and is nil-safe (#1511).
+func TestRecordAuditEventDropped(t *testing.T) {
+	m, reader := newTestMetricsWithReader(t)
+	ctx := context.Background()
+
+	m.RecordAuditEventDropped(ctx, "persist")
+	m.RecordAuditEventDropped(ctx, "persist")
+	m.RecordAuditEventDropped(ctx, "lookup")
+
+	byReason := map[string]int64{}
+	for _, sm := range scrapeMetrics(t, reader).ScopeMetrics {
+		for _, mtr := range sm.Metrics {
+			if mtr.Name != "vx_audit_events_dropped_total" {
+				continue
+			}
+			sum, ok := mtr.Data.(metricdata.Sum[int64])
+			require.True(t, ok)
+			for _, dp := range sum.DataPoints {
+				reason, _ := dp.Attributes.Value("reason")
+				byReason[reason.AsString()] += dp.Value
+			}
+		}
+	}
+	assert.Equal(t, map[string]int64{"persist": 2, "lookup": 1}, byReason)
+
+	var nilMetrics *Metrics
+	assert.NotPanics(t, func() { nilMetrics.RecordAuditEventDropped(ctx, "persist") })
 }

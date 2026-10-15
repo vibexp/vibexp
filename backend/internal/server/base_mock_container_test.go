@@ -15,6 +15,7 @@ import (
 	"github.com/vibexp/vibexp/internal/scheduler"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
+	"github.com/vibexp/vibexp/internal/services/audit"
 	"github.com/vibexp/vibexp/internal/services/notifications"
 	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 	"github.com/vibexp/vibexp/pkg/events"
@@ -240,6 +241,10 @@ func (b *BaseMockContainer) ResourceAccessService() resourceaccess.ResourceAcces
 }
 
 func (b *BaseMockContainer) ResourceWriteService() resourceaccess.ResourceWriteService {
+	return nil
+}
+
+func (b *BaseMockContainer) AuditRecorder() audit.Recorder {
 	return nil
 }
 

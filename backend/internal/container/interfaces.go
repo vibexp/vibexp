@@ -9,6 +9,7 @@ import (
 	"github.com/vibexp/vibexp/internal/scheduler"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
+	"github.com/vibexp/vibexp/internal/services/audit"
 	"github.com/vibexp/vibexp/internal/services/notifications"
 	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 	"github.com/vibexp/vibexp/pkg/events"
@@ -88,6 +89,7 @@ type Container interface {
 	ActivityService() activities.ActivityService
 	ResourceAccessService() resourceaccess.ResourceAccessService
 	ResourceWriteService() resourceaccess.ResourceWriteService
+	AuditRecorder() audit.Recorder
 	AgentService() services.AgentServiceInterface
 	AgentCardFetcher() services.CardFetcher
 	AgentInvocationService() services.AgentInvocationServiceInterface

@@ -99,6 +99,11 @@ packages:
       TypeServiceInterface:
       UsageAndGrowthGetter:
       UserPreferencesServiceInterface:
+  github.com/vibexp/vibexp/internal/services/audit:
+    interfaces:
+      ClientInfoCapturer:
+      DropCounter:
+      Recorder:
   github.com/vibexp/vibexp/internal/services/resourceaccess:
     interfaces:
       ResourceAccessService:
@@ -123,6 +128,7 @@ packages:
       APIKeyRepository:
       ArtifactRepository:
       AttachmentRepository:
+      AuditEventRepository:
       BackofficeRepository:
       BlueprintRepository:
       CommentRepository:

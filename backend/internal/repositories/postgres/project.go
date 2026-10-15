@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -513,6 +514,21 @@ func (r *ProjectRepository) GetNamesByIDs(
 		return nil, scanErr
 	}
 	return result, nil
+}
+
+// GetNameByIDForAudit returns the project's name, or "" when it does not
+// exist. Unscoped on purpose: it serves only the audit recorder's name snapshot
+// (see the interface).
+func (r *ProjectRepository) GetNameByIDForAudit(ctx context.Context, projectID string) (string, error) {
+	var name string
+	err := r.db.QueryRowContext(ctx, `SELECT name FROM projects WHERE id = $1`, projectID).Scan(&name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("get project name for audit: %w", err)
+	}
+	return name, nil
 }
 
 // GetProjectStats returns resource counts for the project identified by teamID + slug.

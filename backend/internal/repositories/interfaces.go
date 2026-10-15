@@ -1048,6 +1048,34 @@ type ResourceAccessRepository interface {
 	DeleteOlderThan(ctx context.Context, before time.Time) (int64, error)
 }
 
+// Page-size bounds of AuditEventRepository.List.
+const (
+	// AuditEventListDefaultLimit is the page size of a filter with no Limit.
+	AuditEventListDefaultLimit = 50
+	// AuditEventListMaxLimit is the largest page List returns.
+	AuditEventListMaxLimit = 500
+)
+
+// AuditEventRepository stores the instance audit log (#1511, epic #1510). The
+// log is append-only: rows are inserted and, past retention, purged, and never
+// updated. It is not tenancy-scoped, because only instance admins read it;
+// authorization is the caller's job.
+type AuditEventRepository interface {
+	// Insert stores one event. An empty ID and a zero CreatedAt are generated
+	// by the database; both are written back to e. Nil or empty Metadata is
+	// stored as '{}'.
+	Insert(ctx context.Context, e *models.AuditEvent) error
+	// List returns one page of events matching f, newest first (ORDER BY
+	// created_at DESC, id DESC), and the cursor of the next page; next is nil
+	// when no rows follow. f.Limit is clamped to 1..AuditEventListMaxLimit,
+	// with a non-positive Limit meaning AuditEventListDefaultLimit.
+	List(ctx context.Context, f models.AuditEventFilter) (events []models.AuditEvent, next *models.AuditCursor, err error)
+	// PurgeOlderThan deletes every event with created_at < cutoff, in batches
+	// of batchSize rows until none remain, and returns how many it deleted. A
+	// non-positive batchSize is an error.
+	PurgeOlderThan(ctx context.Context, cutoff time.Time, batchSize int) (int64, error)
+}
+
 // ResourceWriteEventRepository stores the append-only log of resource writes
 // (#1392) and answers the per-channel questions the creation metrics ask of it.
 // It is tenancy-only: every read is scoped to a team, and authorization is the
@@ -1788,6 +1816,12 @@ type ProjectRepository interface {
 	// GetNamesByIDs returns a map of projectID → name for the given IDs owned by userID.
 	// Unknown or inaccessible IDs are omitted from the result.
 	GetNamesByIDs(ctx context.Context, userID string, ids []string) (map[string]string, error)
+	// GetNameByIDForAudit returns the name of the project with the given id, or
+	// "" when no such project exists. It is NOT membership-scoped and exists
+	// only for the audit recorder's name snapshot (#1511), which is internal
+	// bookkeeping read by instance admins, not a read on anyone's behalf. Do
+	// not use it to serve a project to a user.
+	GetNameByIDForAudit(ctx context.Context, projectID string) (string, error)
 	// GetProjectStats returns resource counts (prompts, artifacts, blueprints, memories, feed_items)
 	// for the project identified by teamID + slug. Returns ErrProjectNotFoundForRepo when the project
 	// does not exist or is not accessible to userID.

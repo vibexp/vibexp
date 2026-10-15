@@ -106,6 +106,10 @@ type Metrics struct {
 	// Deprecation tracking metrics
 	DeprecatedEndpointCalls metric.Int64Counter
 
+	// AuditEventsDropped counts audit events that could not be recorded in
+	// full, by reason (#1511). See audit.DropReason*.
+	AuditEventsDropped metric.Int64Counter
+
 	// meterProvider is the OpenTelemetry meter provider for metrics export
 	// It must be shut down gracefully to flush buffered metrics
 	meterProvider *sdkmetric.MeterProvider
@@ -420,6 +424,10 @@ func (m *Metrics) initializeMetrics(meter metric.Meter) error {
 	m.registerCoreInstruments(r)
 	m.registerContentAndMCPInstruments(r)
 	m.registerEventBusAndNotificationInstruments(r)
+	m.AuditEventsDropped = r.int64Counter(instrumentSpec{
+		"vx_audit_events_dropped_total",
+		"Total number of audit events that could not be recorded in full, by reason", "1",
+	})
 	return r.err
 }
 
@@ -1113,6 +1121,16 @@ func (m *Metrics) RecordDeprecatedEndpointCall(ctx context.Context, endpoint str
 		attribute.String("endpoint", endpoint),
 	)
 	m.DeprecatedEndpointCalls.Add(ctx, 1, attrs)
+}
+
+// RecordAuditEventDropped counts one audit event that could not be recorded in
+// full, under reason (#1511). The audit recorder logs the details; this is the
+// signal that makes lost or partial events visible.
+func (m *Metrics) RecordAuditEventDropped(ctx context.Context, reason string) {
+	if m == nil || m.AuditEventsDropped == nil {
+		return
+	}
+	m.AuditEventsDropped.Add(ctx, 1, metric.WithAttributes(attribute.String("reason", reason)))
 }
 
 // Common attribute keys for metrics

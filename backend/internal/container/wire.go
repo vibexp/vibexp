@@ -10,7 +10,9 @@ import (
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/container/providers"
 	"github.com/vibexp/vibexp/internal/database"
+	"github.com/vibexp/vibexp/internal/observability/metrics"
 	"github.com/vibexp/vibexp/internal/services"
+	"github.com/vibexp/vibexp/internal/services/audit"
 	"github.com/vibexp/vibexp/internal/services/freshness"
 	notificationsvc "github.com/vibexp/vibexp/internal/services/notifications"
 	"github.com/vibexp/vibexp/pkg/events"
@@ -69,6 +71,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideActivityRepository,
 	providers.ProvideResourceAccessRepository,
 	providers.ProvideResourceWriteEventRepository,
+	providers.ProvideAuditEventRepository,
 	providers.ProvideAgentRepository,
 	providers.ProvideAgentExecutionRepository,
 	providers.ProvideAgentExecutionEventRepository,
@@ -154,6 +157,10 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideResourceAccessWorkerPool,
 	providers.ProvideResourceAccessService,
 	providers.ProvideResourceWriteService,
+	providers.ProvideAuditClientInfoCapturer,
+	wire.Bind(new(audit.DropCounter), new(*metrics.Metrics)),
+	wire.Struct(new(audit.RecorderDeps), "*"),
+	providers.ProvideAuditRecorder,
 	providers.ProvideEncryptionService,
 	providers.ProvideAgentService,
 	providers.ProvideAgentCardFetcher,

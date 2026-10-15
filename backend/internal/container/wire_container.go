@@ -14,6 +14,7 @@ import (
 	"github.com/vibexp/vibexp/internal/scheduler"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
+	"github.com/vibexp/vibexp/internal/services/audit"
 	"github.com/vibexp/vibexp/internal/services/notifications"
 	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 	"github.com/vibexp/vibexp/pkg/events"
@@ -85,6 +86,7 @@ type WireContainer struct {
 	activityService              activities.ActivityService
 	resourceAccessService        resourceaccess.ResourceAccessService
 	resourceWriteService         resourceaccess.ResourceWriteService
+	auditRecorder                audit.Recorder
 	agentService                 services.AgentServiceInterface
 	agentCardFetcher             services.CardFetcher
 	agentInvocationService       services.AgentInvocationServiceInterface
@@ -478,6 +480,11 @@ func (c *WireContainer) ResourceAccessService() resourceaccess.ResourceAccessSer
 
 func (c *WireContainer) ResourceWriteService() resourceaccess.ResourceWriteService {
 	return c.resourceWriteService
+}
+
+// AuditRecorder returns the instance audit log recorder (#1511).
+func (c *WireContainer) AuditRecorder() audit.Recorder {
+	return c.auditRecorder
 }
 
 func (c *WireContainer) AgentService() services.AgentServiceInterface {
