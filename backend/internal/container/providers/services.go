@@ -13,6 +13,7 @@ import (
 	"github.com/vibexp/vibexp/internal/scheduler"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
+	"github.com/vibexp/vibexp/internal/services/audit"
 	"github.com/vibexp/vibexp/internal/services/freshness"
 	notificationsvc "github.com/vibexp/vibexp/internal/services/notifications"
 	notifchannels "github.com/vibexp/vibexp/internal/services/notifications/channels"
@@ -383,6 +384,19 @@ func ProvideResourceWriteService(
 	logger *slog.Logger,
 ) resourceaccess.ResourceWriteService {
 	return resourceaccess.NewWriteService(repo, pool, logger)
+}
+
+// ProvideAuditCaptureSettings decides whether audit events store the client's
+// IP and user agent. Capture is on until the instance audit settings (#1512)
+// replace this provider.
+func ProvideAuditCaptureSettings() audit.CaptureSettings {
+	return audit.AlwaysCapture{}
+}
+
+// ProvideAuditRecorder creates the instance audit log recorder. It shares the
+// resource-access worker pool: every audit write is off the request path.
+func ProvideAuditRecorder(deps audit.RecorderDeps) audit.Recorder {
+	return audit.NewRecorder(deps)
 }
 
 // ProvideEncryptionService creates a new EncryptionService

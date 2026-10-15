@@ -422,6 +422,63 @@ func (_c *MockProjectRepository_GetBySlug_Call) RunAndReturn(run func(context.Co
 	return _c
 }
 
+// GetNameByIDForAudit provides a mock function with given fields: ctx, projectID
+func (_m *MockProjectRepository) GetNameByIDForAudit(ctx context.Context, projectID string) (string, error) {
+	ret := _m.Called(ctx, projectID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetNameByIDForAudit")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (string, error)); ok {
+		return rf(ctx, projectID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) string); ok {
+		r0 = rf(ctx, projectID)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, projectID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProjectRepository_GetNameByIDForAudit_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetNameByIDForAudit'
+type MockProjectRepository_GetNameByIDForAudit_Call struct {
+	*mock.Call
+}
+
+// GetNameByIDForAudit is a helper method to define mock.On call
+//   - ctx context.Context
+//   - projectID string
+func (_e *MockProjectRepository_Expecter) GetNameByIDForAudit(ctx interface{}, projectID interface{}) *MockProjectRepository_GetNameByIDForAudit_Call {
+	return &MockProjectRepository_GetNameByIDForAudit_Call{Call: _e.mock.On("GetNameByIDForAudit", ctx, projectID)}
+}
+
+func (_c *MockProjectRepository_GetNameByIDForAudit_Call) Run(run func(ctx context.Context, projectID string)) *MockProjectRepository_GetNameByIDForAudit_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockProjectRepository_GetNameByIDForAudit_Call) Return(_a0 string, _a1 error) *MockProjectRepository_GetNameByIDForAudit_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProjectRepository_GetNameByIDForAudit_Call) RunAndReturn(run func(context.Context, string) (string, error)) *MockProjectRepository_GetNameByIDForAudit_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetNamesByIDs provides a mock function with given fields: ctx, userID, ids
 func (_m *MockProjectRepository) GetNamesByIDs(ctx context.Context, userID string, ids []string) (map[string]string, error) {
 	ret := _m.Called(ctx, userID, ids)

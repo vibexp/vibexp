@@ -11,6 +11,7 @@ The VibeXP backend API uses OpenTelemetry for metrics collection. Metrics are ex
 | Metric Name | Type | Description | Attributes |
 |-------------|------|-------------|------------|
 | `vx_api_calls_total` | Counter | Total number of API calls | `http.method`, `http.path`, `http.status_code` |
+| `vx_audit_events_dropped_total` | Counter | Audit events that could not be recorded in full (#1511) | `reason` (`invalid`, `lookup`, `metadata`, `persist`, `panic`) |
 
 ### Go Runtime Metrics
 

@@ -64,6 +64,11 @@ const (
 	// resource-access events, and activity records — downstream code must read
 	// this rather than parsing the headers again.
 	ClientIP ContextKey = "client_ip"
+
+	// UserAgent holds the request's User-Agent header, capped at 512 bytes on
+	// a rune boundary by userAgentMiddleware (#1511). It is absent when the
+	// header was empty. The audit recorder reads it beside ClientIP.
+	UserAgent ContextKey = "user_agent"
 )
 
 // accessedResourceIDHolder is a mutable container for the resolved resource UUID.

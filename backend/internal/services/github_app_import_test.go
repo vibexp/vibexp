@@ -176,6 +176,10 @@ func (m *MockProjectRepository) CountByTeamID(ctx context.Context, teamID string
 	return args.Int(0), args.Error(1)
 }
 
+func (m *MockProjectRepository) GetNameByIDForAudit(_ context.Context, _ string) (string, error) {
+	return "", nil
+}
+
 func (m *MockProjectRepository) GetNamesByIDs(_ context.Context, _ string, _ []string) (map[string]string, error) {
 	return map[string]string{}, nil
 }

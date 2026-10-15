@@ -327,6 +327,7 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 	trustedProxies := cfg.Server.ParsedTrustedProxies()
 	warnIfProxyHeadersIgnored(logger, len(trustedProxies), cfg.IsLocalDevelopment())
 	r.Use(clientIPMiddleware(trustedProxies))
+	r.Use(userAgentMiddleware) // User-Agent in context for the audit log (#1511)
 	r.Use(middleware.Timeout(60 * time.Second))
 	r.Use(maxBodySize(cfg.Server.MaxBodySizeBytes)) // Global request-body cap (configurable, 1MiB default)
 
