@@ -52,6 +52,8 @@ func (s *Server) handleCreateArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.recordResourceWrite(r.Context(), userID, models.WriteActionCreate, writtenArtifact(teamID, artifact))
+	s.recordAuditWrite(r.Context(),
+		auditRecord(teamID, resourceTypeArtifact, auditVerbCreate, artifact.ID, artifactAuditState(artifact)))
 	s.recordArtifactActivity(r.Context(), artifactActivityParams{
 		userID: userID, activityType: activities.ActivityTypeArtifactCreated, artifactID: artifact.ID,
 		projectName: req.ProjectID, slug: req.Slug, description: "Created new artifact: " + req.Title,
@@ -106,6 +108,7 @@ func (s *Server) handleUpdateArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	before := s.artifactAuditBefore(userID, teamID, decodedProjectID, decodedSlug)
 	req.WriteOrigin = resourceaccess.WriteOriginFromContext(r.Context())
 	artifact, err := s.container.ArtifactService().UpdateArtifactByProjectIDAndSlugInTeam(
 		userID, teamID, decodedProjectID, decodedSlug, &req,
@@ -119,6 +122,8 @@ func (s *Server) handleUpdateArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.recordResourceWrite(r.Context(), userID, models.WriteActionUpdate, writtenArtifact(teamID, artifact))
+	s.recordAuditWrite(r.Context(),
+		s.auditUpdatedWrite(userID, teamID, resourceTypeArtifact, artifact.ID, before, artifactAuditState(artifact)))
 	s.recordArtifactActivity(r.Context(), artifactActivityParams{
 		userID: userID, activityType: activities.ActivityTypeArtifactUpdated, artifactID: artifact.ID,
 		projectName: decodedProjectID, slug: decodedSlug, description: "Updated artifact: " + artifact.Title,
@@ -196,7 +201,8 @@ func (s *Server) handleDeleteArtifact(w http.ResponseWriter, r *http.Request) {
 
 	s.deleteArtifactEmbeddings(userID, artifact.ID, decodedProjectID, decodedSlug)
 	s.deleteArtifactAttachments(userID, artifact.ID)
-
+	s.recordAuditWrite(r.Context(),
+		auditDelete(teamID, resourceTypeArtifact, artifact.ID, artifactAuditState(artifact)))
 	s.recordArtifactActivity(r.Context(), artifactActivityParams{
 		userID: userID, activityType: activities.ActivityTypeArtifactDeleted, artifactID: artifact.ID,
 		projectName: decodedProjectID, slug: decodedSlug, description: "Deleted artifact: " + decodedSlug,
@@ -365,6 +371,8 @@ func (s *Server) handleRestoreArtifactVersion(w http.ResponseWriter, r *http.Req
 	// A restore is an update that arrived through a channel like any other
 	// (#1418): recorded, it is not an unknown write in the metrics.
 	s.recordResourceWrite(r.Context(), userID, models.WriteActionUpdate, writtenArtifact(teamID, artifact))
+	s.recordAuditWrite(r.Context(),
+		auditRestored(teamID, resourceTypeArtifact, artifact.ID, artifactAuditState(artifact), versionNumber))
 	s.recordArtifactActivity(r.Context(), artifactActivityParams{
 		userID: userID, activityType: activities.ActivityTypeArtifactUpdated, artifactID: artifact.ID,
 		projectName: decodedProjectID, slug: decodedSlug, description: "Restored artifact: " + artifact.Title,

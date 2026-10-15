@@ -94,6 +94,7 @@ func (bs *blueprintsStrictServer) blueprintLockTarget(
 		teamID:       teamID,
 		resourceID:   blueprint.ID,
 		slug:         blueprint.Slug,
+		auditState:   blueprintAuditState(blueprint),
 	}, nil
 }
 

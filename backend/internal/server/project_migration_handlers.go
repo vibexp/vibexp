@@ -79,6 +79,8 @@ func (s *Server) handleMigrateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.recordAuditWrite(r.Context(), auditProjectMigrated(teamID, projectID, req.DestinationProjectID, result))
+
 	ar := NewActivityRecorder(s.activityService)
 	ar.RecordResourceActivity(r.Context(), resourceActivityParams{
 		userID:       userID,

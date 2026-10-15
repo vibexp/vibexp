@@ -126,6 +126,8 @@ func (s *Server) createPrompt(
 	}
 
 	s.recordResourceWrite(ctx, userID, models.WriteActionCreate, writtenPrompt(teamID, prompt))
+	s.recordAuditWrite(ctx,
+		auditRecord(teamID, resourceTypePrompt, auditVerbCreate, prompt.ID, promptAuditState(prompt)))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPCreatePrompt(context.Background())
@@ -173,6 +175,7 @@ func (s *Server) updatePrompt(
 
 	updateReq := buildPromptUpdateRequest(params)
 
+	before := s.promptAuditBefore(userID, teamID, params.Slug)
 	updateReq.WriteOrigin = resourceaccess.WriteOriginFromContext(ctx)
 	prompt, err := s.container.PromptService().UpdatePromptBySlug(userID, teamID, params.Slug, updateReq)
 	if err != nil {
@@ -191,6 +194,8 @@ func (s *Server) updatePrompt(
 	}
 
 	s.recordResourceWrite(ctx, userID, models.WriteActionUpdate, writtenPrompt(teamID, prompt))
+	s.recordAuditWrite(ctx,
+		s.auditUpdatedWrite(userID, teamID, resourceTypePrompt, prompt.ID, before, promptAuditState(prompt)))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPUpdatePrompt(context.Background())

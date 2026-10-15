@@ -102,6 +102,8 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.recordResourceWrite(r.Context(), userID, models.WriteActionCreate, writtenMemory(teamID, memory))
+	s.recordAuditWrite(r.Context(),
+		auditRecord(teamID, resourceTypeMemory, auditVerbCreate, memory.ID, memoryAuditState(memory)))
 	s.recordMemoryActivity(r.Context(), userID, activities.ActivityTypeMemoryCreated, memory.ID, "Created new memory", r)
 
 	// Record metrics
@@ -160,6 +162,7 @@ func (s *Server) handleUpdateMemory(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	before := s.memoryAuditBefore(userID, teamID, memoryID)
 	req.WriteOrigin = resourceaccess.WriteOriginFromContext(r.Context())
 	memory, err := s.container.MemoryService().UpdateMemory(userID, teamID, memoryID, &req)
 	if err != nil {
@@ -168,6 +171,8 @@ func (s *Server) handleUpdateMemory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.recordResourceWrite(r.Context(), userID, models.WriteActionUpdate, writtenMemory(teamID, memory))
+	s.recordAuditWrite(r.Context(),
+		s.auditUpdatedWrite(userID, teamID, resourceTypeMemory, memory.ID, before, memoryAuditState(memory)))
 	s.recordMemoryActivity(r.Context(), userID, activities.ActivityTypeMemoryUpdated, memoryID, "Updated memory", r)
 
 	writeOK(w, memory, s.logger)
@@ -254,6 +259,7 @@ func (s *Server) handleDeleteMemory(w http.ResponseWriter, r *http.Request) {
 		"memory_id", memoryID,
 	).Info("Delete memory request received")
 
+	before := s.memoryAuditBefore(userID, teamID, memoryID) // its title is gone after the delete
 	// Delete the memory
 	err := s.container.MemoryService().DeleteMemory(userID, teamID, memoryID)
 	if err != nil {
@@ -297,6 +303,7 @@ func (s *Server) handleDeleteMemory(w http.ResponseWriter, r *http.Request) {
 		).Warn("Failed to delete memory embeddings (non-fatal)")
 	}
 
+	s.recordAuditWrite(r.Context(), auditDelete(teamID, resourceTypeMemory, memoryID, before))
 	// Record activity for memory deletion
 	s.recordMemoryActivity(r.Context(), userID, activities.ActivityTypeMemoryDeleted, memoryID, "Deleted memory", r)
 
@@ -421,6 +428,8 @@ func (s *Server) handleRestoreMemoryVersion(w http.ResponseWriter, r *http.Reque
 	// A restore is an update that arrived through a channel like any other
 	// (#1418): recorded, it is not an unknown write in the metrics.
 	s.recordResourceWrite(r.Context(), userID, models.WriteActionUpdate, writtenMemory(teamID, memory))
+	s.recordAuditWrite(r.Context(),
+		auditRestored(teamID, resourceTypeMemory, memory.ID, memoryAuditState(memory), versionNumber))
 	s.recordMemoryActivity(r.Context(), userID, activities.ActivityTypeMemoryUpdated, memoryID, "Restored memory", r)
 
 	writeOK(w, memory, s.logger)

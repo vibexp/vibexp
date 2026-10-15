@@ -65,6 +65,8 @@ func (s *Server) handleCreateBlueprint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.recordResourceWrite(r.Context(), userID, models.WriteActionCreate, writtenBlueprint(teamID, blueprint))
+	s.recordAuditWrite(r.Context(),
+		auditRecord(teamID, resourceTypeBlueprint, auditVerbCreate, blueprint.ID, blueprintAuditState(blueprint)))
 	s.recordBlueprintActivity(r.Context(), blueprintActivityParams{
 		userID: userID, activityType: activities.ActivityTypeBlueprintCreated, blueprintID: blueprint.ID,
 		projectID: req.ProjectID, slug: req.Slug, description: "Created new blueprint: " + req.Title,
@@ -115,6 +117,7 @@ func (s *Server) handleUpdateBlueprint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	before := s.blueprintAuditBefore(userID, teamID, decodedProjectID, decodedSlug)
 	req.WriteOrigin = resourceaccess.WriteOriginFromContext(r.Context())
 	blueprint, err := s.container.BlueprintService().UpdateBlueprintByProjectIDAndSlugInTeam(
 		userID, teamID, decodedProjectID, decodedSlug, &req,
@@ -128,6 +131,7 @@ func (s *Server) handleUpdateBlueprint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.recordResourceWrite(r.Context(), userID, models.WriteActionUpdate, writtenBlueprint(teamID, blueprint))
+	s.recordAuditWrite(r.Context(), s.auditBlueprintUpdated(userID, teamID, before, blueprint))
 	s.recordBlueprintActivity(r.Context(), blueprintActivityParams{
 		userID: userID, activityType: activities.ActivityTypeBlueprintUpdated, blueprintID: blueprint.ID,
 		projectID: decodedProjectID, slug: decodedSlug, description: "Updated blueprint: " + blueprint.Title,
@@ -207,6 +211,8 @@ func (s *Server) handleDeleteBlueprint(w http.ResponseWriter, r *http.Request) {
 
 	s.deleteBlueprintEmbeddings(userID, blueprint.ID, decodedProjectID, decodedSlug)
 
+	s.recordAuditWrite(r.Context(),
+		auditDelete(teamID, resourceTypeBlueprint, blueprint.ID, blueprintAuditState(blueprint)))
 	s.recordBlueprintActivity(r.Context(), blueprintActivityParams{
 		userID: userID, activityType: activities.ActivityTypeBlueprintDeleted, blueprintID: blueprint.ID,
 		projectID: decodedProjectID, slug: decodedSlug, description: "Deleted blueprint: " + decodedSlug,
@@ -759,6 +765,8 @@ func (s *Server) handleRestoreBlueprintVersion(w http.ResponseWriter, r *http.Re
 	// A restore is an update that arrived through a channel like any other
 	// (#1418): recorded, it is not an unknown write in the metrics.
 	s.recordResourceWrite(r.Context(), userID, models.WriteActionUpdate, writtenBlueprint(teamID, blueprint))
+	s.recordAuditWrite(r.Context(),
+		auditRestored(teamID, resourceTypeBlueprint, blueprint.ID, blueprintAuditState(blueprint), versionNumber))
 	s.recordBlueprintActivity(r.Context(), blueprintActivityParams{
 		userID: userID, activityType: activities.ActivityTypeBlueprintUpdated, blueprintID: blueprint.ID,
 		projectID: decodedProjectID, slug: decodedSlug, description: "Restored blueprint: " + blueprint.Title,

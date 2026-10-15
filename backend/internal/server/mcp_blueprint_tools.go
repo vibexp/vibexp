@@ -121,6 +121,8 @@ func (s *Server) createBlueprint(
 	}
 
 	s.recordResourceWrite(ctx, userID, models.WriteActionCreate, writtenBlueprint(teamID, blueprint))
+	s.recordAuditWrite(ctx,
+		auditRecord(teamID, resourceTypeBlueprint, auditVerbCreate, blueprint.ID, blueprintAuditState(blueprint)))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPCreateBlueprint(context.Background())
@@ -185,6 +187,7 @@ func (s *Server) updateBlueprint(
 
 	updateReq := buildBlueprintUpdateRequest(params)
 
+	before := s.blueprintAuditBefore(userID, teamID, params.ProjectID, params.Slug)
 	updateReq.WriteOrigin = resourceaccess.WriteOriginFromContext(ctx)
 	blueprint, err := s.container.BlueprintService().UpdateBlueprintByProjectIDAndSlugInTeam(
 		userID, teamID, params.ProjectID, params.Slug, updateReq,
@@ -207,6 +210,7 @@ func (s *Server) updateBlueprint(
 	}
 
 	s.recordResourceWrite(ctx, userID, models.WriteActionUpdate, writtenBlueprint(teamID, blueprint))
+	s.recordAuditWrite(ctx, s.auditBlueprintUpdated(userID, teamID, before, blueprint))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPUpdateBlueprint(context.Background())

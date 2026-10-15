@@ -90,6 +90,7 @@ func (as *artifactsStrictServer) artifactLockTarget(
 		teamID:       teamID,
 		resourceID:   artifact.ID,
 		slug:         artifact.Slug,
+		auditState:   artifactAuditState(artifact),
 	}, nil
 }
 

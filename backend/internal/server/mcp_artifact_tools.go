@@ -141,6 +141,8 @@ func (s *Server) createArtifact(
 	}
 
 	s.recordResourceWrite(ctx, userID, models.WriteActionCreate, writtenArtifact(teamID, artifact))
+	s.recordAuditWrite(ctx,
+		auditRecord(teamID, resourceTypeArtifact, auditVerbCreate, artifact.ID, artifactAuditState(artifact)))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPCreateArtifact(context.Background())
@@ -240,6 +242,7 @@ func (s *Server) updateArtifact(
 
 	updateReq := buildArtifactUpdateRequest(params)
 
+	before := s.artifactAuditBefore(userID, teamID, params.ProjectID, params.Slug)
 	updateReq.WriteOrigin = resourceaccess.WriteOriginFromContext(ctx)
 	artifact, err := s.container.ArtifactService().UpdateArtifactByProjectIDAndSlugInTeam(
 		userID, teamID, params.ProjectID, params.Slug, updateReq,
@@ -264,6 +267,8 @@ func (s *Server) updateArtifact(
 	}
 
 	s.recordResourceWrite(ctx, userID, models.WriteActionUpdate, writtenArtifact(teamID, artifact))
+	s.recordAuditWrite(ctx,
+		s.auditUpdatedWrite(userID, teamID, resourceTypeArtifact, artifact.ID, before, artifactAuditState(artifact)))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPUpdateArtifact(context.Background())

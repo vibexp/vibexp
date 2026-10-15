@@ -60,6 +60,9 @@ func (s *Server) handleCreateFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.recordAuditWrite(r.Context(),
+		auditRecord(teamID, resourceTypeFeed, auditVerbCreate, feed.ID, feedAuditState(feed)))
+
 	writeCreated(w, feed, s.logger)
 }
 
@@ -144,11 +147,15 @@ func (s *Server) handleUpdateFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	before := s.feedAuditBefore(r.Context(), userID, teamID, feedID)
 	feed, err := s.container.FeedService().UpdateFeed(r.Context(), userID, teamID, feedID, &req)
 	if err != nil {
 		s.handleFeedGetError(w, "handleUpdateFeed", userID, teamID, feedID, err)
 		return
 	}
+
+	s.recordAuditWrite(r.Context(),
+		s.auditUpdatedWrite(userID, teamID, resourceTypeFeed, feed.ID, before, feedAuditState(feed)))
 
 	writeOK(w, feed, s.logger)
 }
@@ -171,11 +178,13 @@ func (s *Server) handleDeleteFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	before := s.feedAuditBefore(r.Context(), userID, teamID, feedID)
 	err := s.container.FeedService().DeleteFeed(r.Context(), userID, teamID, feedID)
 	if err != nil {
 		s.handleFeedGetError(w, "handleDeleteFeed", userID, teamID, feedID, err)
 		return
 	}
+	s.recordAuditWrite(r.Context(), auditDelete(teamID, resourceTypeFeed, feedID, before))
 
 	writeNoContent(w)
 }
@@ -217,6 +226,7 @@ func (s *Server) handleCreateFeedItem(w http.ResponseWriter, r *http.Request) {
 		s.handleFeedItemServiceError(w, "handleCreateFeedItem", userID, teamID, feedID, err)
 		return
 	}
+	s.recordAuditWrite(r.Context(), auditFeedItem(teamID, auditVerbCreate, item.ID, feedItemAuditState(item)))
 
 	writeCreated(w, item, s.logger)
 }
@@ -339,11 +349,13 @@ func (s *Server) handleArchiveFeedItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	before := s.feedItemAuditBefore(r.Context(), userID, teamID, itemID)
 	err := s.container.FeedItemService().ArchiveFeedItem(r.Context(), userID, teamID, itemID)
 	if err != nil {
 		s.handleFeedItemGetError(w, "handleArchiveFeedItem", userID, teamID, itemID, err)
 		return
 	}
+	s.recordAuditWrite(r.Context(), auditFeedItem(teamID, auditVerbArchive, itemID, before))
 
 	writeNoContent(w)
 }
@@ -366,11 +378,13 @@ func (s *Server) handleUnarchiveFeedItem(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	before := s.feedItemAuditBefore(r.Context(), userID, teamID, itemID)
 	err := s.container.FeedItemService().UnarchiveFeedItem(r.Context(), userID, teamID, itemID)
 	if err != nil {
 		s.handleFeedItemGetError(w, "handleUnarchiveFeedItem", userID, teamID, itemID, err)
 		return
 	}
+	s.recordAuditWrite(r.Context(), auditFeedItem(teamID, auditVerbUnarchive, itemID, before))
 
 	writeNoContent(w)
 }
@@ -410,6 +424,7 @@ func (s *Server) handleDeleteFeedItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.recordAuditWrite(r.Context(), auditFeedItem(teamID, auditVerbDelete, item.ID, feedItemAuditState(item)))
 	s.deleteFeedItemEmbeddings(item, replyPosters)
 
 	writeNoContent(w)
