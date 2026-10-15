@@ -33,12 +33,23 @@ async function performDevLogin(
   // Fill and submit the dev login form.
   await page.fill('#dev-email', email)
   await page.fill('#dev-name', name)
+  // The session cookie is set by this response, before the app's hard
+  // redirect away from the sign-in page.
+  const signedIn = page.waitForResponse(
+    response =>
+      response.url().includes('/api/v1/auth/dev/login') && response.ok(),
+    { timeout: 15000 }
+  )
   await page.click('button:has-text("Dev login")')
+  await signedIn
 
   // Wait for redirect to home page, or to the first-run onboarding the
-  // dashboard sends a new user on to.
+  // dashboard sends a new user on to. The sign-in page is `/` too
+  // (`/?dev_login=true`), so the query tells the two apart.
   await page.waitForURL(
-    url => url.pathname === '/' || url.pathname === ONBOARDING_PATH,
+    url =>
+      !url.searchParams.has('dev_login') &&
+      (url.pathname === '/' || url.pathname === ONBOARDING_PATH),
     { timeout: 15000 }
   )
 
@@ -99,7 +110,21 @@ export async function completeOnboarding(page: Page): Promise<void> {
   ).toBe(true)
   // A full load, not a client-side navigation: the app holds the user it
   // fetched at sign-in (still "not completed") until it fetches it again.
-  await page.goto('/')
+  // The app may still be finishing its own navigation (the sign-in's hard
+  // redirect, or the dashboard handing a new user to the onboarding), which
+  // interrupts or aborts ours; try again once the page has loaded.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await page.goto('/')
+      break
+    } catch (error) {
+      const interrupted = /interrupted by another navigation|ERR_ABORTED/.test(
+        String(error)
+      )
+      if (!interrupted || attempt === 3) throw error
+      await page.waitForLoadState('load')
+    }
+  }
   await page.waitForURL('/')
 }
 

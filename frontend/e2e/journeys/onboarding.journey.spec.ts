@@ -39,9 +39,12 @@ async function signInAsNewUser(page: Page, who: string): Promise<void> {
 }
 
 async function expectOnStep(page: Page, step: number): Promise<void> {
-  await expect(page.getByText(`${step} / 6`, { exact: true })).toBeVisible({
+  // The flow keeps the step on screen in `?step=` (0-based); the header's
+  // "Step N of 6" is the same fact for a screen reader.
+  await expect(page).toHaveURL(new RegExp(`[?&]step=${String(step - 1)}$`), {
     timeout: UI_TIMEOUT,
   })
+  await expect(page.getByRole('banner')).toContainText(`Step ${String(step)}`)
 }
 
 async function readOnboardingCompleted(page: Page): Promise<boolean> {
@@ -148,11 +151,14 @@ test.describe('First-run onboarding', () => {
     await page.reload()
     await expect(page).toHaveURL('/')
 
-    // It can be replayed at any time from the app header.
-    await page.getByRole('button', { name: /Getting started/ }).click()
-    await page.waitForURL(url => url.pathname === ONBOARDING_PATH, {
-      timeout: UI_TIMEOUT,
-    })
+    // It can be reopened at any time from the app header, where it resumes
+    // at the first step not done: the team rules, still only skipped.
+    const entry = page.getByRole('link', { name: /^Getting started,/ })
+    await expect(entry).toHaveAccessibleName(
+      'Getting started, 4 of 5 steps done'
+    )
+    await entry.click()
+    await expectOnStep(page, 4)
   })
 
   test('"Skip setup" ends the onboarding for good', async ({ page }) => {
