@@ -52,18 +52,16 @@ export function KnowledgeLoopStatus() {
   }, [running, refreshUser])
 
   return (
-    <div
-      role="list"
+    <ul
       aria-label="Knowledge loop"
-      className="flex flex-col overflow-hidden rounded-lg border"
+      className="m-0 flex list-none flex-col overflow-hidden rounded-lg border p-0"
     >
       {ROWS.map((row, n) => {
         const at = loop[row.key]
         const done = at !== null
         return (
-          <div
+          <li
             key={row.key}
-            role="listitem"
             data-state={done ? 'done' : 'pending'}
             className={cn(
               'flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm',
@@ -97,9 +95,9 @@ export function KnowledgeLoopStatus() {
                 {row.hint}
               </span>
             )}
-          </div>
+          </li>
         )
       })}
-    </div>
+    </ul>
   )
 }

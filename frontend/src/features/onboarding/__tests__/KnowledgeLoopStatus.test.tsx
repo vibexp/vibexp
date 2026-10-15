@@ -41,7 +41,12 @@ afterEach(() => {
 describe('KnowledgeLoopStatus', () => {
   it('shows both steps pending, with what to run', () => {
     render(<KnowledgeLoopStatus />)
+    // Native list semantics, not ARIA roles.
+    expect(screen.getByRole('list', { name: 'Knowledge loop' }).tagName).toBe(
+      'UL'
+    )
     const [read, write] = rows()
+    expect(read.tagName).toBe('LI')
     expect(read).toHaveAttribute('data-state', 'pending')
     expect(read).toHaveTextContent('Your agent read from the shared brain')
     expect(read).toHaveTextContent('Not yet: run /vibexp:prime in a project')
