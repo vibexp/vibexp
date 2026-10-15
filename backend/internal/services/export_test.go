@@ -15,8 +15,8 @@ func ExportedFreshnessFilter(value string) *string { return freshnessFilter(valu
 
 // SetClockForTest overrides the clock the capture-switch cache expires by.
 // Test-only.
-func (s *InstanceAuditSettingsService) SetClockForTest(now func() time.Time) {
-	s.now = now
+func (c *AuditClientInfoCapture) SetClockForTest(now func() time.Time) {
+	c.now = now
 }
 
 // AuditCaptureCacheTTL exposes how long the capture switch is cached.

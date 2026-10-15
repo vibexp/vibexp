@@ -21,7 +21,7 @@ import (
 // editor, and that the down migration drops a POPULATED table.
 
 // migration025Previous is the version immediately before 025.
-const migration025Previous = 23
+const migration025Previous = 24
 
 func validInstanceAuditSettingsRow() map[string]any {
 	return map[string]any{"retention_weeks": models.DefaultAuditRetentionWeeks, "capture_ip_ua": true}

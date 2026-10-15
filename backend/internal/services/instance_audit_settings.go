@@ -6,11 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"sync"
-	"time"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 // ErrInvalidAuditSettings is returned when a submitted set of audit-log
@@ -18,25 +17,16 @@ import (
 // fault.
 var ErrInvalidAuditSettings = errors.New("invalid audit settings")
 
-// auditCaptureCacheTTL is how long a resolved client-info capture switch is
-// served from memory. A write through this process drops the cached value at
-// once; another replica picks the change up within this long.
-const auditCaptureCacheTTL = 30 * time.Second
-
-// auditCaptureReadTimeout bounds one read of the capture switch. The read runs
-// detached from the caller's cancellation (see readCapture), so this is what
-// keeps a stuck database from holding the recorder.
-const auditCaptureReadTimeout = 5 * time.Second
-
 // InstanceAuditSettingsServiceInterface is the instance audit-log settings
-// surface (#1512, epic #1510): the admin read and writes, and the capture
-// switch the audit recorder consults. Instance-admin authorization is the route
-// middleware's job, so no method takes a permission check of its own.
+// surface (#1512, epic #1510): the admin read and writes. The switch the audit
+// recorder consults is AuditClientInfoCapture. Instance-admin authorization is
+// the route middleware's job, so no method takes a permission check of its
+// own.
 type InstanceAuditSettingsServiceInterface interface {
 	// Get returns the settings in effect and the stored row's metadata: the
 	// built-in defaults, marked IsDefault, when nothing is stored. Unlike
-	// CaptureClientInfo it returns a repository error, so a caller sees real
-	// state.
+	// AuditClientInfoCapture it returns a repository error, so a caller sees
+	// real state.
 	Get(ctx context.Context) (*models.InstanceAuditSettingsView, error)
 	// Update validates and stores a complete replacement set of settings,
 	// auditing the change in the same transaction. Invalid input returns an
@@ -52,46 +42,40 @@ type InstanceAuditSettingsServiceInterface interface {
 	// auditing the change in the same transaction. Resetting with nothing
 	// stored is a no-op and writes no audit entry.
 	Reset(ctx context.Context, actorUserID string) error
-	// CaptureClientInfo reports whether a newly recorded audit event stores
-	// the client IP address and user agent. It never fails: see
-	// InstanceAuditSettingsService.CaptureClientInfo.
-	CaptureClientInfo(ctx context.Context) bool
 }
 
 // InstanceAuditSettingsService implements
 // InstanceAuditSettingsServiceInterface.
 //
-// Get, Update and Reset read the row on every call. CaptureClientInfo runs on
-// every recorded audit event, so it serves a cached value for up to
-// auditCaptureCacheTTL; Update and Reset drop the cache, so a change made
-// through this process applies to the very next event.
+// Get, Update and Reset read the row on every call. A successful Update or
+// Reset drops the cached capture switch, so the change applies to the very
+// next event recorded through this process, and records an
+// audit.settings.updated event with the values before and after.
 type InstanceAuditSettingsService struct {
-	repo   repositories.InstanceAuditSettingsRepository
-	logger *slog.Logger
-	now    func() time.Time
-
-	mu sync.Mutex
-	// capture is the cached capture switch; nil when nothing is cached.
-	capture *cachedAuditCapture
-	// generation is bumped by every write, so a read that started before a
-	// write cannot cache what it read after the write dropped the cache.
-	generation uint64
+	repo     repositories.InstanceAuditSettingsRepository
+	capture  auditCaptureInvalidator
+	recorder audit.Recorder
+	logger   *slog.Logger
 }
 
-// cachedAuditCapture is one resolved capture switch and when it was read.
-type cachedAuditCapture struct {
-	value  bool
-	readAt time.Time
+// auditCaptureInvalidator drops a cached capture switch after a write;
+// *AuditClientInfoCapture implements it.
+type auditCaptureInvalidator interface {
+	Invalidate()
 }
 
 var _ InstanceAuditSettingsServiceInterface = (*InstanceAuditSettingsService)(nil)
 
 // NewInstanceAuditSettingsService creates a new InstanceAuditSettingsService.
+// capture is the switch the audit recorder consults; recorder records each
+// change in the audit log itself.
 func NewInstanceAuditSettingsService(
 	repo repositories.InstanceAuditSettingsRepository,
+	capture auditCaptureInvalidator,
+	recorder audit.Recorder,
 	logger *slog.Logger,
 ) *InstanceAuditSettingsService {
-	return &InstanceAuditSettingsService{repo: repo, logger: logger, now: time.Now}
+	return &InstanceAuditSettingsService{repo: repo, capture: capture, recorder: recorder, logger: logger}
 }
 
 // Get implements InstanceAuditSettingsServiceInterface.
@@ -122,85 +106,69 @@ func (s *InstanceAuditSettingsService) Update(
 		CaptureIPUA:    values.CaptureIPUA,
 		UpdatedBy:      optionalActor(actorUserID),
 	}
+	change := &auditSettingsChange{}
 	err := s.repo.UpsertAudited(ctx, stored, expectedVersion,
-		instanceAuditSettingsAuditFunc(models.InstanceSettingsAuditActionUpsert, actorUserID))
+		change.observe(instanceAuditSettingsAuditFunc(models.InstanceSettingsAuditActionUpsert, actorUserID)))
 	if err != nil {
 		return nil, fmt.Errorf("InstanceAuditSettingsService.Update: %w", err)
 	}
-	s.invalidateCapture()
+	s.applied(ctx, change)
 
 	return instanceAuditSettingsView(stored), nil
 }
 
 // Reset implements InstanceAuditSettingsServiceInterface.
 func (s *InstanceAuditSettingsService) Reset(ctx context.Context, actorUserID string) error {
+	change := &auditSettingsChange{}
 	deleted, err := s.repo.DeleteAudited(ctx,
-		instanceAuditSettingsAuditFunc(models.InstanceSettingsAuditActionDelete, actorUserID))
+		change.observe(instanceAuditSettingsAuditFunc(models.InstanceSettingsAuditActionDelete, actorUserID)))
 	if err != nil {
 		return fmt.Errorf("InstanceAuditSettingsService.Reset: %w", err)
 	}
 	if deleted {
-		s.invalidateCapture()
+		s.applied(ctx, change)
 	}
 	return nil
 }
 
-// CaptureClientInfo implements InstanceAuditSettingsServiceInterface.
-//
-// With nothing stored it returns models.DefaultAuditCaptureClientInfo. When
-// the settings cannot be read it FAILS CLOSED to false (store no IP address or
-// user agent): an admin who switched capture off must never have it silently
-// switched back on by a database blip, while losing the client info of the
-// few events recorded during an outage costs little. That fallback is cached
-// like a real read, so an outage costs one failed read per TTL rather than one
-// per event.
-func (s *InstanceAuditSettingsService) CaptureClientInfo(ctx context.Context) bool {
-	s.mu.Lock()
-	if c := s.capture; c != nil && s.now().Before(c.readAt.Add(auditCaptureCacheTTL)) {
-		s.mu.Unlock()
-		return c.value
-	}
-	generation := s.generation
-	s.mu.Unlock()
-
-	resolved := s.readCapture(ctx)
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.generation == generation {
-		s.capture = &resolved
-	}
-	return resolved.value
+// applied runs after a committed write: it drops the cached capture switch and
+// records the change in the audit log. The settings are in effect either way,
+// so nothing here can fail the write.
+func (s *InstanceAuditSettingsService) applied(ctx context.Context, change *auditSettingsChange) {
+	s.capture.Invalidate()
+	s.recorder.Record(ctx, audit.Event{
+		Operation: models.AuditOpAuditSettingsUpdated,
+		Metadata: map[string]any{
+			"before": auditSettingsEventValues(change.before),
+			"after":  auditSettingsEventValues(change.after),
+		},
+	})
 }
 
-// readCapture reads the capture switch from the database.
-//
-// The read is detached from the caller's cancellation, as AuthPolicyResolver's
-// refresh is: its result is cached for every caller, so one request that goes
-// away mid-read must not turn into a cached "database fault" that strips the
-// client info from everyone's events for a whole TTL.
-func (s *InstanceAuditSettingsService) readCapture(ctx context.Context) cachedAuditCapture {
-	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), auditCaptureReadTimeout)
-	defer cancel()
-	stored, err := s.repo.Get(readCtx)
-	switch {
-	case errors.Is(err, repositories.ErrInstanceAuditSettingsNotFound):
-		return cachedAuditCapture{value: models.DefaultAuditCaptureClientInfo, readAt: s.now()}
-	case err != nil:
-		s.logger.With("error", err).
-			Warn("failed to read instance audit settings; not capturing client info")
-		return cachedAuditCapture{value: false, readAt: s.now()}
-	default:
-		return cachedAuditCapture{value: stored.CaptureIPUA, readAt: s.now()}
+// auditSettingsChange captures the rows the repository hands the audit
+// builder inside its transaction, so the audit event reports exactly the
+// before and after the settings audit entry stored.
+type auditSettingsChange struct {
+	before, after *models.InstanceAuditSettings
+}
+
+// observe wraps build so the rows it is called with are kept.
+func (c *auditSettingsChange) observe(
+	build repositories.InstanceAuditSettingsAuditFunc,
+) repositories.InstanceAuditSettingsAuditFunc {
+	return func(before, after *models.InstanceAuditSettings) (*models.InstanceSettingsAuditEntry, error) {
+		c.before, c.after = before, after
+		return build(before, after)
 	}
 }
 
-// invalidateCapture drops the cached capture switch after a write.
-func (s *InstanceAuditSettingsService) invalidateCapture() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.capture = nil
-	s.generation++
+// auditSettingsEventValues renders a row as the event metadata's values: nil
+// (JSON null) for no row, meaning the built-in defaults applied.
+func auditSettingsEventValues(row *models.InstanceAuditSettings) any {
+	if row == nil {
+		return nil
+	}
+	return instanceAuditSettingsValues(row)
 }
 
 // instanceAuditSettingsAuditFunc builds the instance_settings_audit entry for

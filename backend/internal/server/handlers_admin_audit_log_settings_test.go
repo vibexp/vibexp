@@ -22,6 +22,7 @@ import (
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	"github.com/vibexp/vibexp/internal/services"
+	"github.com/vibexp/vibexp/internal/services/audit"
 	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
 	"github.com/vibexp/vibexp/internal/specconformance"
 )
@@ -82,7 +83,18 @@ type auditLogSettingsFixture struct {
 	audit    *fakeInstanceAuditRepo
 	repo     *fakeAuditSettingsRepo
 	service  *services.InstanceAuditSettingsService
+	capture  *services.AuditClientInfoCapture
+	recorder *recordingRecorder
 	userRepo *repomocks.MockUserRepository
+}
+
+// recordingRecorder is an audit.Recorder that keeps every event.
+type recordingRecorder struct {
+	events []audit.Event
+}
+
+func (r *recordingRecorder) Record(_ context.Context, e audit.Event) {
+	r.events = append(r.events, e)
 }
 
 func newAuditLogSettingsFixture(t *testing.T) *auditLogSettingsFixture {
@@ -98,7 +110,9 @@ func newAuditLogSettingsFixture(t *testing.T) *auditLogSettingsFixture {
 		}},
 		userRepo: repomocks.NewMockUserRepository(t),
 	}
-	f.service = services.NewInstanceAuditSettingsService(f.repo, slog.New(slog.DiscardHandler))
+	f.capture = services.NewAuditClientInfoCapture(f.repo, slog.New(slog.DiscardHandler))
+	f.recorder = &recordingRecorder{}
+	f.service = services.NewInstanceAuditSettingsService(f.repo, f.capture, f.recorder, slog.New(slog.DiscardHandler))
 	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{
 		userRepo:                     f.userRepo,
 		instanceAuditRepo:            audit,
@@ -229,6 +243,15 @@ func TestAdminAuditLogSettings_RoundTrip(t *testing.T) {
 	assert.JSONEq(t, `{"retention_weeks":4,"capture_ip_ua":false}`, string(f.audit.entries[1].Before))
 	assert.JSONEq(t, `{"retention_weeks":52,"capture_ip_ua":true}`, string(f.audit.entries[1].After))
 	assert.Nil(t, f.audit.entries[2].After, "a reset removes the row")
+
+	require.Len(t, f.recorder.events, 3, "each real change is also an audit.settings.updated event")
+	for _, e := range f.recorder.events {
+		assert.Equal(t, models.AuditOpAuditSettingsUpdated, e.Operation)
+	}
+	assert.Equal(t, map[string]any{
+		"before": models.InstanceAuditSettingsValues{RetentionWeeks: 52, CaptureIPUA: true},
+		"after":  nil,
+	}, f.recorder.events[2].Metadata)
 }
 
 // A PUT through the API switches the capture the recorder consults at once,
@@ -237,14 +260,14 @@ func TestAdminAuditLogSettings_PutAppliesToCaptureImmediately(t *testing.T) {
 	f := newAuditLogSettingsFixture(t)
 	f.resolveAdminName()
 	ctx := context.Background()
-	require.True(t, f.service.CaptureClientInfo(ctx), "capture is on by default")
+	require.True(t, f.capture.CaptureClientInfo(ctx), "capture is on by default")
 
 	require.Equal(t, http.StatusOK,
 		f.serve(t, http.MethodPut, auditLogSettingsPath, auditLogSettingsBody(2, false)).Code)
-	assert.False(t, f.service.CaptureClientInfo(ctx))
+	assert.False(t, f.capture.CaptureClientInfo(ctx))
 
 	require.Equal(t, http.StatusNoContent, f.serve(t, http.MethodDelete, auditLogSettingsPath, nil).Code)
-	assert.True(t, f.service.CaptureClientInfo(ctx))
+	assert.True(t, f.capture.CaptureClientInfo(ctx))
 }
 
 // expected_version 0 saves only while nothing is stored; a positive version

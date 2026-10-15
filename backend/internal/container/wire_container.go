@@ -142,7 +142,7 @@ type WireContainer struct {
 
 	// Instance audit-log settings: retention and client-info capture (#1512)
 	instanceAuditSettingsService services.InstanceAuditSettingsServiceInterface
-	auditPurgeService            services.AuditPurgeServiceInterface `wire:"-"`
+	auditPurgeService            services.AuditPurgeServiceInterface
 
 	// Legacy config.yaml search:/ai_summary: imports run at boot (#1201)
 	instanceSearchSettingsRepo    repositories.InstanceSearchSettingsRepository

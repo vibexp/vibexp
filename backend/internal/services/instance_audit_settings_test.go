@@ -16,14 +16,36 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	"github.com/vibexp/vibexp/internal/services"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
-func newInstanceAuditSettingsService(t *testing.T, logs *bytes.Buffer) (
-	*services.InstanceAuditSettingsService, *repomocks.MockInstanceAuditSettingsRepository,
-) {
+// auditSettingsHarness is the REAL settings service and the REAL capture switch
+// over one repository mock, with a recorder that keeps what it is given.
+type auditSettingsHarness struct {
+	svc      *services.InstanceAuditSettingsService
+	repo     *repomocks.MockInstanceAuditSettingsRepository
+	capture  *services.AuditClientInfoCapture
+	recorder *recordingAuditRecorder
+}
+
+func newAuditSettingsHarness(t *testing.T, logs *bytes.Buffer) *auditSettingsHarness {
 	t.Helper()
-	repo := repomocks.NewMockInstanceAuditSettingsRepository(t)
-	return services.NewInstanceAuditSettingsService(repo, testLogger(logs)), repo
+	h := &auditSettingsHarness{
+		repo:     repomocks.NewMockInstanceAuditSettingsRepository(t),
+		recorder: &recordingAuditRecorder{},
+	}
+	h.capture = services.NewAuditClientInfoCapture(h.repo, testLogger(logs))
+	h.svc = services.NewInstanceAuditSettingsService(h.repo, h.capture, h.recorder, testLogger(logs))
+	return h
+}
+
+// recordingAuditRecorder is an audit.Recorder that keeps every event.
+type recordingAuditRecorder struct {
+	events []audit.Event
+}
+
+func (r *recordingAuditRecorder) Record(_ context.Context, e audit.Event) {
+	r.events = append(r.events, e)
 }
 
 func storedAuditSettingsRow() *models.InstanceAuditSettings {
@@ -44,7 +66,8 @@ func (c *fakeClock) Now() time.Time          { return c.now }
 func (c *fakeClock) Advance(d time.Duration) { c.now = c.now.Add(d) }
 
 func TestInstanceAuditSettingsService_Get_NoRowIsTheDefaults(t *testing.T) {
-	svc, repo := newInstanceAuditSettingsService(t, nil)
+	h := newAuditSettingsHarness(t, nil)
+	svc, repo := h.svc, h.repo
 	repo.EXPECT().Get(mock.Anything).Return(nil, repositories.ErrInstanceAuditSettingsNotFound)
 
 	view, err := svc.Get(context.Background())
@@ -60,7 +83,8 @@ func TestInstanceAuditSettingsService_Get_NoRowIsTheDefaults(t *testing.T) {
 }
 
 func TestInstanceAuditSettingsService_Get_StoredRow(t *testing.T) {
-	svc, repo := newInstanceAuditSettingsService(t, nil)
+	h := newAuditSettingsHarness(t, nil)
+	svc, repo := h.svc, h.repo
 	stored := storedAuditSettingsRow()
 	repo.EXPECT().Get(mock.Anything).Return(stored, nil)
 
@@ -78,7 +102,8 @@ func TestInstanceAuditSettingsService_Get_StoredRow(t *testing.T) {
 
 // Get is the admin read: a repository fault is an error, never the defaults.
 func TestInstanceAuditSettingsService_Get_RepositoryErrorIsReturned(t *testing.T) {
-	svc, repo := newInstanceAuditSettingsService(t, nil)
+	h := newAuditSettingsHarness(t, nil)
+	svc, repo := h.svc, h.repo
 	boom := errors.New("db down")
 	repo.EXPECT().Get(mock.Anything).Return(nil, boom)
 
@@ -117,7 +142,8 @@ func TestValidateInstanceAuditSettings(t *testing.T) {
 // An invalid value is refused before the repository is touched (the strict
 // mock fails on any call).
 func TestInstanceAuditSettingsService_Update_InvalidWritesNothing(t *testing.T) {
-	svc, _ := newInstanceAuditSettingsService(t, nil)
+	h := newAuditSettingsHarness(t, nil)
+	svc := h.svc
 
 	view, err := svc.Update(context.Background(), testInstanceAdminID,
 		models.InstanceAuditSettingsValues{RetentionWeeks: 53, CaptureIPUA: true}, nil)
@@ -130,7 +156,8 @@ func TestInstanceAuditSettingsService_Update_InvalidWritesNothing(t *testing.T) 
 // audit entry it hands the repository snapshots before and after under the
 // audit_log setting.
 func TestInstanceAuditSettingsService_Update_StoresAndAudits(t *testing.T) {
-	svc, repo := newInstanceAuditSettingsService(t, nil)
+	h := newAuditSettingsHarness(t, nil)
+	svc, repo := h.svc, h.repo
 	expected := int64(3)
 	var entry *models.InstanceSettingsAuditEntry
 	repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, &expected, mock.Anything).
@@ -164,10 +191,19 @@ func TestInstanceAuditSettingsService_Update_StoresAndAudits(t *testing.T) {
 	assert.Equal(t, testInstanceAdminID, *entry.ActorUserID)
 	assert.JSONEq(t, `{"retention_weeks":6,"capture_ip_ua":false}`, string(entry.Before))
 	assert.JSONEq(t, `{"retention_weeks":12,"capture_ip_ua":true}`, string(entry.After))
+
+	require.Len(t, h.recorder.events, 1, "the change is recorded in the audit log itself")
+	event := h.recorder.events[0]
+	assert.Equal(t, models.AuditOpAuditSettingsUpdated, event.Operation)
+	assert.Equal(t, map[string]any{
+		"before": models.InstanceAuditSettingsValues{RetentionWeeks: 6, CaptureIPUA: false},
+		"after":  models.InstanceAuditSettingsValues{RetentionWeeks: 12, CaptureIPUA: true},
+	}, event.Metadata, "the event reports the rows the settings audit entry stored")
 }
 
 func TestInstanceAuditSettingsService_Update_ConflictIsPassedThrough(t *testing.T) {
-	svc, repo := newInstanceAuditSettingsService(t, nil)
+	h := newAuditSettingsHarness(t, nil)
+	svc, repo := h.svc, h.repo
 	repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(repositories.ErrInstanceSettingsVersionConflict)
 
@@ -178,7 +214,8 @@ func TestInstanceAuditSettingsService_Update_ConflictIsPassedThrough(t *testing.
 }
 
 func TestInstanceAuditSettingsService_Reset_AuditsTheDelete(t *testing.T) {
-	svc, repo := newInstanceAuditSettingsService(t, nil)
+	h := newAuditSettingsHarness(t, nil)
+	svc, repo := h.svc, h.repo
 	var entry *models.InstanceSettingsAuditEntry
 	repo.EXPECT().DeleteAudited(mock.Anything, mock.Anything).
 		RunAndReturn(func(_ context.Context, audit repositories.InstanceAuditSettingsAuditFunc) (bool, error) {
@@ -194,10 +231,18 @@ func TestInstanceAuditSettingsService_Reset_AuditsTheDelete(t *testing.T) {
 	assert.Equal(t, models.InstanceSettingsAuditActionDelete, entry.Action)
 	assert.JSONEq(t, `{"retention_weeks":6,"capture_ip_ua":false}`, string(entry.Before))
 	assert.Nil(t, entry.After)
+
+	require.Len(t, h.recorder.events, 1)
+	assert.Equal(t, models.AuditOpAuditSettingsUpdated, h.recorder.events[0].Operation)
+	assert.Equal(t, map[string]any{
+		"before": models.InstanceAuditSettingsValues{RetentionWeeks: 6, CaptureIPUA: false},
+		"after":  nil,
+	}, h.recorder.events[0].Metadata, "after a reset the built-in defaults apply: after is null")
 }
 
 func TestInstanceAuditSettingsService_Reset_Error(t *testing.T) {
-	svc, repo := newInstanceAuditSettingsService(t, nil)
+	h := newAuditSettingsHarness(t, nil)
+	svc, repo := h.svc, h.repo
 	boom := errors.New("db down")
 	repo.EXPECT().DeleteAudited(mock.Anything, mock.Anything).Return(false, boom)
 
@@ -213,38 +258,41 @@ func TestInstanceAuditSettingsValues_SnapshotShape(t *testing.T) {
 }
 
 func TestInstanceAuditSettingsService_CaptureClientInfo_DefaultsToOn(t *testing.T) {
-	svc, repo := newInstanceAuditSettingsService(t, nil)
+	h := newAuditSettingsHarness(t, nil)
+	repo := h.repo
 	repo.EXPECT().Get(mock.Anything).Return(nil, repositories.ErrInstanceAuditSettingsNotFound).Once()
 
-	assert.True(t, svc.CaptureClientInfo(context.Background()))
+	assert.True(t, h.capture.CaptureClientInfo(context.Background()))
 }
 
 // The switch is read once and served from memory until the TTL passes.
 func TestInstanceAuditSettingsService_CaptureClientInfo_CachesUntilTTL(t *testing.T) {
-	svc, repo := newInstanceAuditSettingsService(t, nil)
+	h := newAuditSettingsHarness(t, nil)
+	repo := h.repo
 	clock := &fakeClock{now: time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)}
-	svc.SetClockForTest(clock.Now)
+	h.capture.SetClockForTest(clock.Now)
 	repo.EXPECT().Get(mock.Anything).Return(storedAuditSettingsRow(), nil).Once()
 	ctx := context.Background()
 
-	assert.False(t, svc.CaptureClientInfo(ctx))
+	assert.False(t, h.capture.CaptureClientInfo(ctx))
 	clock.Advance(services.AuditCaptureCacheTTL - time.Second)
-	assert.False(t, svc.CaptureClientInfo(ctx), "served from the cache: the mock allows one read only")
+	assert.False(t, h.capture.CaptureClientInfo(ctx), "served from the cache: the mock allows one read only")
 
 	on := storedAuditSettingsRow()
 	on.CaptureIPUA = true
 	repo.EXPECT().Get(mock.Anything).Return(on, nil).Once()
 	clock.Advance(time.Second)
-	assert.True(t, svc.CaptureClientInfo(ctx), "an expired cache reads again")
+	assert.True(t, h.capture.CaptureClientInfo(ctx), "an expired cache reads again")
 }
 
 // A write through this process drops the cached switch, so the very next event
 // follows it, as does a reset.
 func TestInstanceAuditSettingsService_CaptureClientInfo_WriteInvalidates(t *testing.T) {
-	svc, repo := newInstanceAuditSettingsService(t, nil)
+	h := newAuditSettingsHarness(t, nil)
+	svc, repo := h.svc, h.repo
 	ctx := context.Background()
 	repo.EXPECT().Get(mock.Anything).Return(nil, repositories.ErrInstanceAuditSettingsNotFound).Once()
-	require.True(t, svc.CaptureClientInfo(ctx))
+	require.True(t, h.capture.CaptureClientInfo(ctx))
 
 	repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 	_, err := svc.Update(ctx, testInstanceAdminID,
@@ -252,44 +300,47 @@ func TestInstanceAuditSettingsService_CaptureClientInfo_WriteInvalidates(t *test
 	require.NoError(t, err)
 
 	repo.EXPECT().Get(mock.Anything).Return(storedAuditSettingsRow(), nil).Once()
-	assert.False(t, svc.CaptureClientInfo(ctx), "the update must drop the cached true")
+	assert.False(t, h.capture.CaptureClientInfo(ctx), "the update must drop the cached true")
 
 	repo.EXPECT().DeleteAudited(mock.Anything, mock.Anything).Return(true, nil).Once()
 	require.NoError(t, svc.Reset(ctx, testInstanceAdminID))
 	repo.EXPECT().Get(mock.Anything).Return(nil, repositories.ErrInstanceAuditSettingsNotFound).Once()
-	assert.True(t, svc.CaptureClientInfo(ctx), "the reset must drop the cached false")
+	assert.True(t, h.capture.CaptureClientInfo(ctx), "the reset must drop the cached false")
 }
 
 // A reset with nothing stored changes nothing, so it keeps the cache.
 func TestInstanceAuditSettingsService_CaptureClientInfo_NoOpResetKeepsCache(t *testing.T) {
-	svc, repo := newInstanceAuditSettingsService(t, nil)
+	h := newAuditSettingsHarness(t, nil)
+	svc, repo := h.svc, h.repo
 	ctx := context.Background()
 	repo.EXPECT().Get(mock.Anything).Return(storedAuditSettingsRow(), nil).Once()
-	require.False(t, svc.CaptureClientInfo(ctx))
+	require.False(t, h.capture.CaptureClientInfo(ctx))
 
 	repo.EXPECT().DeleteAudited(mock.Anything, mock.Anything).Return(false, nil).Once()
 	require.NoError(t, svc.Reset(ctx, testInstanceAdminID))
 
-	assert.False(t, svc.CaptureClientInfo(ctx), "served from the cache: no second read")
+	assert.False(t, h.capture.CaptureClientInfo(ctx), "served from the cache: no second read")
 }
 
 // An unreadable setting must never switch capture back on behind an admin who
 // turned it off: the fallback is false, logged, and cached like a read.
 func TestInstanceAuditSettingsService_CaptureClientInfo_FailsClosed(t *testing.T) {
 	var logs bytes.Buffer
-	svc, repo := newInstanceAuditSettingsService(t, &logs)
+	h := newAuditSettingsHarness(t, &logs)
+	repo := h.repo
 	repo.EXPECT().Get(mock.Anything).Return(nil, errors.New("db down")).Once()
 	ctx := context.Background()
 
-	assert.False(t, svc.CaptureClientInfo(ctx))
-	assert.False(t, svc.CaptureClientInfo(ctx), "the fallback is cached: one failed read per TTL")
+	assert.False(t, h.capture.CaptureClientInfo(ctx))
+	assert.False(t, h.capture.CaptureClientInfo(ctx), "the fallback is cached: one failed read per TTL")
 	assert.Contains(t, logs.String(), "not capturing client info")
 }
 
 // A read that raced a write must not cache what it read: the write's
 // invalidation wins.
 func TestInstanceAuditSettingsService_CaptureClientInfo_RacingWriteIsNotCached(t *testing.T) {
-	svc, repo := newInstanceAuditSettingsService(t, nil)
+	h := newAuditSettingsHarness(t, nil)
+	svc, repo := h.svc, h.repo
 	ctx := context.Background()
 
 	repo.EXPECT().Get(mock.Anything).RunAndReturn(
@@ -302,17 +353,18 @@ func TestInstanceAuditSettingsService_CaptureClientInfo_RacingWriteIsNotCached(t
 		}).Once()
 	repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 
-	assert.True(t, svc.CaptureClientInfo(ctx), "the in-flight read answers with what it read")
+	assert.True(t, h.capture.CaptureClientInfo(ctx), "the in-flight read answers with what it read")
 
 	repo.EXPECT().Get(mock.Anything).Return(storedAuditSettingsRow(), nil).Once()
-	assert.False(t, svc.CaptureClientInfo(ctx), "but did not cache it over the write")
+	assert.False(t, h.capture.CaptureClientInfo(ctx), "but did not cache it over the write")
 }
 
 // One caller going away mid-read must not poison the shared cache: the read
 // runs detached from the caller's cancellation, so a cancelled request still
 // resolves the real value.
 func TestInstanceAuditSettingsService_CaptureClientInfo_CallerCancellationDoesNotPoisonCache(t *testing.T) {
-	svc, repo := newInstanceAuditSettingsService(t, nil)
+	h := newAuditSettingsHarness(t, nil)
+	repo := h.repo
 	on := storedAuditSettingsRow()
 	on.CaptureIPUA = true
 	repo.EXPECT().Get(mock.Anything).RunAndReturn(
@@ -327,6 +379,30 @@ func TestInstanceAuditSettingsService_CaptureClientInfo_CallerCancellationDoesNo
 	cancelled, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	assert.True(t, svc.CaptureClientInfo(cancelled), "a cancelled caller still gets the real value")
-	assert.True(t, svc.CaptureClientInfo(context.Background()), "and the cache holds it, not a fallback")
+	assert.True(t, h.capture.CaptureClientInfo(cancelled), "a cancelled caller still gets the real value")
+	assert.True(t, h.capture.CaptureClientInfo(context.Background()), "and the cache holds it, not a fallback")
+}
+
+// A write that did not happen is not an event: a rejected value, a version
+// conflict, a failed reset and a reset with nothing stored record nothing.
+func TestInstanceAuditSettingsService_RecordsOnlyCommittedChanges(t *testing.T) {
+	h := newAuditSettingsHarness(t, nil)
+	ctx := context.Background()
+
+	_, err := h.svc.Update(ctx, testInstanceAdminID, models.InstanceAuditSettingsValues{RetentionWeeks: 0}, nil)
+	require.Error(t, err)
+
+	h.repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(repositories.ErrInstanceSettingsVersionConflict).Once()
+	_, err = h.svc.Update(ctx, testInstanceAdminID,
+		models.InstanceAuditSettingsValues{RetentionWeeks: 2, CaptureIPUA: true}, nil)
+	require.Error(t, err)
+
+	h.repo.EXPECT().DeleteAudited(mock.Anything, mock.Anything).Return(false, errors.New("db down")).Once()
+	require.Error(t, h.svc.Reset(ctx, testInstanceAdminID))
+
+	h.repo.EXPECT().DeleteAudited(mock.Anything, mock.Anything).Return(false, nil).Once()
+	require.NoError(t, h.svc.Reset(ctx, testInstanceAdminID))
+
+	assert.Empty(t, h.recorder.events)
 }
