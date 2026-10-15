@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"time"
@@ -50,6 +51,39 @@ func (r *resourceAccessRepository) Create(ctx context.Context, event *models.Res
 	}
 
 	return nil
+}
+
+// knowledgeLoopQuery reads the user's first AI-tool read and write. The
+// sources that mean an AI tool acted for the user are the CLI, MCP, and the
+// REST API with an API key; "web" (the app itself) and "unknown" do not count.
+const knowledgeLoopQuery = `
+	SELECT
+		(SELECT MIN(created_at) FROM resource_access_events
+		  WHERE user_id = $1::uuid AND source IN ('cli', 'mcp', 'api')),
+		(SELECT MIN(created_at) FROM resource_write_events
+		  WHERE user_id = $1::uuid AND source IN ('cli', 'mcp', 'api'))`
+
+// GetUserKnowledgeLoop returns the user's first AI-tool read and write. Both
+// lookups ride a (user_id, created_at) index, so MIN is a single index probe.
+func (r *resourceAccessRepository) GetUserKnowledgeLoop(
+	ctx context.Context, userID string,
+) (models.KnowledgeLoop, error) {
+	var loop models.KnowledgeLoop
+	if r.db == nil {
+		return loop, fmt.Errorf("database connection is nil")
+	}
+
+	var firstRead, firstWrite sql.NullTime
+	if err := r.db.QueryRowContext(ctx, knowledgeLoopQuery, userID).Scan(&firstRead, &firstWrite); err != nil {
+		return loop, fmt.Errorf("failed to read the user's knowledge loop: %w", err)
+	}
+	if firstRead.Valid {
+		loop.FirstReadAt = &firstRead.Time
+	}
+	if firstWrite.Valid {
+		loop.FirstWriteAt = &firstWrite.Time
+	}
+	return loop, nil
 }
 
 // GetMetricsByResource returns daily access counts grouped by source for a specific resource.

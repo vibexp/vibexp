@@ -157,6 +157,8 @@ components:
       $ref: "./schemas/auth.yaml#/User"
     CurrentUser:
       $ref: "./schemas/auth.yaml#/CurrentUser"
+    KnowledgeLoop:
+      $ref: "./schemas/auth.yaml#/KnowledgeLoop"
     LoginResponse:
       $ref: "./schemas/auth.yaml#/LoginResponse"
     LogoutResponse:
