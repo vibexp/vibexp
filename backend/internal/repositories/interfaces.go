@@ -313,6 +313,11 @@ var (
 	// configured (#1353).
 	ErrInstanceSiteInfoNotFound = errors.New("instance site info not found")
 
+	// ErrInstanceAuditSettingsNotFound is returned by
+	// InstanceAuditSettingsRepository.Get when no row exists. This is an
+	// ordinary state, not a fault: the built-in defaults are in effect (#1512).
+	ErrInstanceAuditSettingsNotFound = errors.New("instance audit settings not found")
+
 	// ErrInstanceSettingsVersionConflict is returned by an instance settings
 	// repository's UpsertAudited when the caller's expected version does not
 	// match the stored state: a positive version that is not the stored row's
@@ -2114,6 +2119,52 @@ type InstanceSiteInfoRepository interface {
 // (nil when none was stored); after is the row as written (nil for a delete).
 type InstanceSiteInfoAuditFunc func(
 	before, after *models.InstanceSiteInfo,
+) (*models.InstanceSettingsAuditEntry, error)
+
+// InstanceAuditSettingsRepository defines the data access operations for the
+// instance's audit-log settings (#1512, epic #1510).
+//
+// It has the same singleton contract as InstanceSiteInfoRepository: no method
+// takes a key, there are no team or role predicates, Get returns
+// ErrInstanceAuditSettingsNotFound on a miss, and every write is audited.
+type InstanceAuditSettingsRepository interface {
+	// Get returns the stored settings, or ErrInstanceAuditSettingsNotFound
+	// when none are stored.
+	Get(ctx context.Context) (*models.InstanceAuditSettings, error)
+	// UpsertAudited creates or replaces the settings and appends one
+	// instance_settings_audit entry, in one transaction, bumping Version and
+	// refreshing CreatedAt/UpdatedAt/Version on the passed struct. A
+	// table-level write lock serializes audited writers; before is the row
+	// read under it (nil when none was stored), and an audit error rolls the
+	// upsert back.
+	//
+	// A non-nil expectedVersion makes the write a compare-and-set against the
+	// row read under the lock, by the InstanceSettingsVersionConflicts rule;
+	// a mismatch returns ErrInstanceSettingsVersionConflict and writes
+	// nothing. nil is last-write-wins.
+	UpsertAudited(
+		ctx context.Context, settings *models.InstanceAuditSettings, expectedVersion *int64,
+		audit InstanceAuditSettingsAuditFunc,
+	) error
+	// DeleteAudited removes the settings and appends one
+	// instance_settings_audit entry, in one transaction. It reports whether a
+	// row was deleted; when none was stored it writes nothing and audit is not
+	// called.
+	DeleteAudited(ctx context.Context, audit InstanceAuditSettingsAuditFunc) (deleted bool, err error)
+	// TryPurgeLock attempts the non-blocking, session-scoped Postgres advisory
+	// lock that lets only one replica run the audit retention purge at a
+	// time. The lock lives on one pinned connection. When acquired is true
+	// the caller holds it and MUST call release exactly once; when false
+	// another session holds it and release is a no-op.
+	TryPurgeLock(ctx context.Context) (acquired bool, release func() error, err error)
+}
+
+// InstanceAuditSettingsAuditFunc builds the audit entry for one change to the
+// instance audit-log settings. before is the row read inside the change's
+// transaction (nil when none was stored); after is the row as written (nil for
+// a delete).
+type InstanceAuditSettingsAuditFunc func(
+	before, after *models.InstanceAuditSettings,
 ) (*models.InstanceSettingsAuditEntry, error)
 
 // InstanceAISummarySettingsRepository defines the data access operations for

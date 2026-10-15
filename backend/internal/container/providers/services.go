@@ -386,11 +386,25 @@ func ProvideResourceWriteService(
 	return resourceaccess.NewWriteService(repo, pool, logger)
 }
 
-// ProvideAuditClientInfoCapturer decides whether audit events store the client's
-// IP and user agent. Capture is on until the instance audit settings (#1512)
-// replace this provider.
-func ProvideAuditClientInfoCapturer() audit.ClientInfoCapturer {
-	return audit.AlwaysCapture{}
+// ProvideAuditClientInfoCapture creates the switch that decides whether audit
+// events store the client's IP and user agent: the instance's capture_ip_ua
+// setting (#1512), cached and invalidated by the settings service. wire.Bind in
+// wire.go maps it to audit.ClientInfoCapturer for the recorder.
+func ProvideAuditClientInfoCapture(
+	repo repositories.InstanceAuditSettingsRepository,
+	logger *slog.Logger,
+) *services.AuditClientInfoCapture {
+	return services.NewAuditClientInfoCapture(repo, logger)
+}
+
+// ProvideAuditPurgeService creates the audit retention purge (#1512): it
+// deletes the audit events older than the configured retention.
+func ProvideAuditPurgeService(
+	settings repositories.InstanceAuditSettingsRepository,
+	events repositories.AuditEventRepository,
+	logger *slog.Logger,
+) services.AuditPurger {
+	return services.NewAuditPurgeService(settings, events, logger)
 }
 
 // ProvideAuditRecorder creates the instance audit log recorder. It shares the
@@ -776,6 +790,19 @@ func ProvideInstanceSiteInfoService(
 	logger *slog.Logger,
 ) *services.InstanceSiteInfoService {
 	return services.NewInstanceSiteInfoService(repo, logger)
+}
+
+// ProvideInstanceAuditSettingsService creates the instance audit-log settings
+// service (#1512): the surface an instance admin edits the retention and the
+// client-info capture switch through. It drops capture's cache after every
+// write and records each change through recorder.
+func ProvideInstanceAuditSettingsService(
+	repo repositories.InstanceAuditSettingsRepository,
+	capture *services.AuditClientInfoCapture,
+	recorder audit.Recorder,
+	logger *slog.Logger,
+) *services.InstanceAuditSettingsService {
+	return services.NewInstanceAuditSettingsService(repo, capture, recorder, logger)
 }
 
 // ProvideTeamSearchSettingsService creates the team search settings service.

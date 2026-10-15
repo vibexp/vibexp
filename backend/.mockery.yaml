@@ -90,6 +90,8 @@ packages:
       InstanceSearchSettingsResolver:
       InstanceSiteInfoResolver:
       InstanceSiteInfoServiceInterface:
+      InstanceAuditSettingsServiceInterface:
+      AuditPurger:
       InstanceAISummarySettingsResolver:
       InstanceAISummarySettingsServiceInterface:
       InstanceSearchSettingsServiceInterface:
@@ -156,6 +158,7 @@ packages:
       InstanceSearchSettingsRepository:
       InstanceSettingsAuditRepository:
       InstanceSiteInfoRepository:
+      InstanceAuditSettingsRepository:
       MemoryRepository:
       MetadataCatalogRepository:
       ModelProviderRepository:

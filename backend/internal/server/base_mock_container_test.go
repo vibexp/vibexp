@@ -510,6 +510,18 @@ func (b *BaseMockContainer) InstanceAuthSettingsService() services.InstanceAuthS
 	return nil
 }
 
+// InstanceAuditSettingsService returns nil; suites that exercise it install
+// their own.
+func (b *BaseMockContainer) InstanceAuditSettingsService() services.InstanceAuditSettingsServiceInterface {
+	return nil
+}
+
+// AuditPurgeService returns nil, so a test server runs no purge loop; the
+// suites that exercise it install their own.
+func (b *BaseMockContainer) AuditPurgeService() services.AuditPurger {
+	return nil
+}
+
 // InstanceSiteInfoService returns nil; suites that exercise it install their own.
 func (b *BaseMockContainer) InstanceSiteInfoService() services.InstanceSiteInfoServiceInterface {
 	return nil

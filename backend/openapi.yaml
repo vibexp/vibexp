@@ -1136,6 +1136,14 @@ components:
       $ref: "./schemas/admin.yaml#/AdminInstanceSearchSettings"
     AdminInstanceSearchSettingsUpdate:
       $ref: "./schemas/admin.yaml#/AdminInstanceSearchSettingsUpdate"
+    AdminAuditLogSettingsValues:
+      $ref: "./schemas/admin.yaml#/AdminAuditLogSettingsValues"
+    AdminAuditLogSettingsLimits:
+      $ref: "./schemas/admin.yaml#/AdminAuditLogSettingsLimits"
+    AdminAuditLogSettings:
+      $ref: "./schemas/admin.yaml#/AdminAuditLogSettings"
+    AdminAuditLogSettingsUpdate:
+      $ref: "./schemas/admin.yaml#/AdminAuditLogSettingsUpdate"
     AdminSiteInfoValues:
       $ref: "./schemas/admin.yaml#/AdminSiteInfoValues"
     AdminSiteInfoLimits:
@@ -1604,6 +1612,10 @@ paths:
     $ref: "./paths/admin.yaml#/api-v1-admin-settings-search"
   /api/v1/admin/settings/search/audit:
     $ref: "./paths/admin.yaml#/api-v1-admin-settings-search-audit"
+  /api/v1/admin/settings/audit-log:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-audit-log"
+  /api/v1/admin/settings/audit-log/audit:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-audit-log-audit"
   /api/v1/admin/settings/site-info:
     $ref: "./paths/admin.yaml#/api-v1-admin-settings-site-info"
   /api/v1/admin/settings/site-info/audit:

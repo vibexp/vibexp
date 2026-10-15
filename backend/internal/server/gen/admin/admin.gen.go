@@ -230,6 +230,7 @@ func (e AdminInstanceSettingsAuditEntryAction) Valid() bool {
 // Defines values for AdminInstanceSettingsAuditEntrySetting.
 const (
 	AdminInstanceSettingsAuditEntrySettingAiSummary      AdminInstanceSettingsAuditEntrySetting = "ai_summary"
+	AdminInstanceSettingsAuditEntrySettingAuditLog       AdminInstanceSettingsAuditEntrySetting = "audit_log"
 	AdminInstanceSettingsAuditEntrySettingAuthAllowlist  AdminInstanceSettingsAuditEntrySetting = "auth_allowlist"
 	AdminInstanceSettingsAuditEntrySettingAuthPolicy     AdminInstanceSettingsAuditEntrySetting = "auth_policy"
 	AdminInstanceSettingsAuditEntrySettingAuthProviders  AdminInstanceSettingsAuditEntrySetting = "auth_providers"
@@ -244,6 +245,8 @@ const (
 func (e AdminInstanceSettingsAuditEntrySetting) Valid() bool {
 	switch e {
 	case AdminInstanceSettingsAuditEntrySettingAiSummary:
+		return true
+	case AdminInstanceSettingsAuditEntrySettingAuditLog:
 		return true
 	case AdminInstanceSettingsAuditEntrySettingAuthAllowlist:
 		return true
@@ -1379,6 +1382,80 @@ type AdminArtifactType struct {
 	Name      string    `json:"name"`
 	Slug      string    `json:"slug"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// AdminAuditLogSettings The instance audit-log settings in effect, where they come from, the
+// built-in defaults, the bounds and the stored row's metadata. With nothing
+// stored the built-in defaults apply, `source` is `default` and the metadata
+// fields are null.
+type AdminAuditLogSettings struct {
+	// BuiltInDefaults The instance audit-log settings.
+	BuiltInDefaults AdminAuditLogSettingsValues `json:"built_in_defaults"`
+
+	// Limits The bounds `retention_weeks` must respect, for form validation.
+	Limits AdminAuditLogSettingsLimits `json:"limits"`
+
+	// Source Where the instance values come from: `instance` when an instance admin (or
+	// the boot-time config import) stored them, `default` when nothing is stored
+	// and the built-in defaults apply.
+	Source AdminInstanceSettingsSource `json:"source"`
+
+	// UpdatedAt When the settings were last stored; null when `source` is `default`.
+	UpdatedAt *time.Time `json:"updated_at"`
+
+	// UpdatedByName That admin's display name (or email), when it could be resolved.
+	UpdatedByName *string `json:"updated_by_name"`
+
+	// UpdatedByUserId The admin who last stored the settings. Null when `source` is
+	// `default`, or once that user has been deleted.
+	UpdatedByUserId *openapi_types.UUID `json:"updated_by_user_id"`
+
+	// Values The instance audit-log settings.
+	Values AdminAuditLogSettingsValues `json:"values"`
+
+	// Version The stored row's optimistic-lock version; null when nothing is stored.
+	// Send it back as `expected_version` (`0` when it is null) to reject a
+	// save that would overwrite someone else's change.
+	Version *int64 `json:"version"`
+}
+
+// AdminAuditLogSettingsLimits The bounds `retention_weeks` must respect, for form validation.
+type AdminAuditLogSettingsLimits struct {
+	RetentionWeeksMax int `json:"retention_weeks_max"`
+	RetentionWeeksMin int `json:"retention_weeks_min"`
+}
+
+// AdminAuditLogSettingsUpdate A whole replacement of the instance audit-log settings. Both settings are
+// required. `expected_version` is optional and makes the save a
+// compare-and-set:
+//
+//   - omitted or null: last-write-wins, never a conflict.
+//   - `0`: nothing may be stored yet; the save is rejected with 409 when a row
+//     is stored. Send it when the `version` last read was null.
+//   - a positive value: the save is rejected with 409 unless it equals the
+//     stored `version`, and also when nothing is stored.
+type AdminAuditLogSettingsUpdate struct {
+	// CaptureIpUa Whether a newly recorded audit event stores the client IP address and user agent.
+	CaptureIpUa bool `json:"capture_ip_ua"`
+
+	// ExpectedVersion The `version` the caller last read. Send `0` when that `version` was
+	// null, to save only while nothing is stored. Omit it or send null for
+	// last-write-wins. A negative value matches nothing and is a 409.
+	ExpectedVersion *int64 `json:"expected_version,omitempty"`
+
+	// RetentionWeeks How many weeks an audit event is kept, 1 to 52.
+	RetentionWeeks int `json:"retention_weeks"`
+}
+
+// AdminAuditLogSettingsValues The instance audit-log settings.
+type AdminAuditLogSettingsValues struct {
+	// CaptureIpUa Whether a newly recorded audit event stores the client IP address and
+	// user agent. Events already stored keep theirs.
+	CaptureIpUa bool `json:"capture_ip_ua"`
+
+	// RetentionWeeks How many weeks an audit event is kept. A daily purge deletes events
+	// older than that.
+	RetentionWeeks int `json:"retention_weeks"`
 }
 
 // AdminAuthAllowlist The instance's sign-in access allowlist. A user may sign in when their
@@ -4098,6 +4175,15 @@ type ListAdminAISummarySettingsAuditParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ListAdminAuditLogSettingsAuditParams defines parameters for ListAdminAuditLogSettingsAudit.
+type ListAdminAuditLogSettingsAuditParams struct {
+	// Cursor Opaque cursor from a previous page's `next_cursor`.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Page size.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListAdminAuthSettingsAuditParams defines parameters for ListAdminAuthSettingsAudit.
 type ListAdminAuthSettingsAuditParams struct {
 	// Setting Which authentication setting's audit log to read.
@@ -4738,6 +4824,9 @@ type ReplaceAdminSavedFiltersJSONRequestBody = AdminSavedFiltersReplaceRequest
 // UpdateAdminAISummarySettingsJSONRequestBody defines body for UpdateAdminAISummarySettings for application/json ContentType.
 type UpdateAdminAISummarySettingsJSONRequestBody = AdminInstanceAISummarySettingsUpdate
 
+// UpdateAdminAuditLogSettingsJSONRequestBody defines body for UpdateAdminAuditLogSettings for application/json ContentType.
+type UpdateAdminAuditLogSettingsJSONRequestBody = AdminAuditLogSettingsUpdate
+
 // GrantAdminInstanceAdminJSONRequestBody defines body for GrantAdminInstanceAdmin for application/json ContentType.
 type GrantAdminInstanceAdminJSONRequestBody = AdminInstanceAdminGrant
 
@@ -4833,6 +4922,18 @@ type ServerInterface interface {
 	// List the instance AI summary settings audit log
 	// (GET /api/v1/admin/settings/ai-summary/audit)
 	ListAdminAISummarySettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminAISummarySettingsAuditParams)
+	// Reset the instance audit-log settings to the built-in defaults
+	// (DELETE /api/v1/admin/settings/audit-log)
+	ResetAdminAuditLogSettings(w http.ResponseWriter, r *http.Request)
+	// Get the instance audit-log settings
+	// (GET /api/v1/admin/settings/audit-log)
+	GetAdminAuditLogSettings(w http.ResponseWriter, r *http.Request)
+	// Replace the instance audit-log settings
+	// (PUT /api/v1/admin/settings/audit-log)
+	UpdateAdminAuditLogSettings(w http.ResponseWriter, r *http.Request)
+	// List the instance audit-log settings change history
+	// (GET /api/v1/admin/settings/audit-log/audit)
+	ListAdminAuditLogSettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminAuditLogSettingsAuditParams)
 	// List the instance admins
 	// (GET /api/v1/admin/settings/auth/admins)
 	ListAdminInstanceAdmins(w http.ResponseWriter, r *http.Request)
@@ -5103,6 +5204,30 @@ func (_ Unimplemented) UpdateAdminAISummarySettings(w http.ResponseWriter, r *ht
 // List the instance AI summary settings audit log
 // (GET /api/v1/admin/settings/ai-summary/audit)
 func (_ Unimplemented) ListAdminAISummarySettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminAISummarySettingsAuditParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Reset the instance audit-log settings to the built-in defaults
+// (DELETE /api/v1/admin/settings/audit-log)
+func (_ Unimplemented) ResetAdminAuditLogSettings(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get the instance audit-log settings
+// (GET /api/v1/admin/settings/audit-log)
+func (_ Unimplemented) GetAdminAuditLogSettings(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Replace the instance audit-log settings
+// (PUT /api/v1/admin/settings/audit-log)
+func (_ Unimplemented) UpdateAdminAuditLogSettings(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List the instance audit-log settings change history
+// (GET /api/v1/admin/settings/audit-log/audit)
+func (_ Unimplemented) ListAdminAuditLogSettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminAuditLogSettingsAuditParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -6661,6 +6786,126 @@ func (siw *ServerInterfaceWrapper) ListAdminAISummarySettingsAudit(w http.Respon
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListAdminAISummarySettingsAudit(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ResetAdminAuditLogSettings operation middleware
+func (siw *ServerInterfaceWrapper) ResetAdminAuditLogSettings(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResetAdminAuditLogSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminAuditLogSettings operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminAuditLogSettings(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminAuditLogSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAdminAuditLogSettings operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminAuditLogSettings(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAdminAuditLogSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminAuditLogSettingsAudit operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminAuditLogSettingsAudit(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminAuditLogSettingsAuditParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminAuditLogSettingsAudit(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -10871,6 +11116,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/admin/settings/ai-summary/audit", wrapper.ListAdminAISummarySettingsAudit)
 	})
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/admin/settings/audit-log", wrapper.ResetAdminAuditLogSettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/settings/audit-log", wrapper.GetAdminAuditLogSettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/admin/settings/audit-log", wrapper.UpdateAdminAuditLogSettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/settings/audit-log/audit", wrapper.ListAdminAuditLogSettingsAudit)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/settings/auth/admins", wrapper.ListAdminInstanceAdmins)
 	})
 	r.Group(func(r chi.Router) {
@@ -11997,6 +12254,240 @@ func (response ListAdminAISummarySettingsAudit404ApplicationProblemPlusJSONRespo
 type ListAdminAISummarySettingsAudit500ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response ListAdminAISummarySettingsAudit500ApplicationProblemPlusJSONResponse) VisitListAdminAISummarySettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetAdminAuditLogSettingsRequestObject struct {
+}
+
+type ResetAdminAuditLogSettingsResponseObject interface {
+	VisitResetAdminAuditLogSettingsResponse(w http.ResponseWriter) error
+}
+
+type ResetAdminAuditLogSettings204Response struct {
+}
+
+func (response ResetAdminAuditLogSettings204Response) VisitResetAdminAuditLogSettingsResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ResetAdminAuditLogSettings404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ResetAdminAuditLogSettings404ApplicationProblemPlusJSONResponse) VisitResetAdminAuditLogSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetAdminAuditLogSettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ResetAdminAuditLogSettings500ApplicationProblemPlusJSONResponse) VisitResetAdminAuditLogSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminAuditLogSettingsRequestObject struct {
+}
+
+type GetAdminAuditLogSettingsResponseObject interface {
+	VisitGetAdminAuditLogSettingsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminAuditLogSettings200JSONResponse AdminAuditLogSettings
+
+func (response GetAdminAuditLogSettings200JSONResponse) VisitGetAdminAuditLogSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminAuditLogSettings404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminAuditLogSettings404ApplicationProblemPlusJSONResponse) VisitGetAdminAuditLogSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminAuditLogSettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminAuditLogSettings500ApplicationProblemPlusJSONResponse) VisitGetAdminAuditLogSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuditLogSettingsRequestObject struct {
+	Body *UpdateAdminAuditLogSettingsJSONRequestBody
+}
+
+type UpdateAdminAuditLogSettingsResponseObject interface {
+	VisitUpdateAdminAuditLogSettingsResponse(w http.ResponseWriter) error
+}
+
+type UpdateAdminAuditLogSettings200JSONResponse AdminAuditLogSettings
+
+func (response UpdateAdminAuditLogSettings200JSONResponse) VisitUpdateAdminAuditLogSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuditLogSettings400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAuditLogSettings400ApplicationProblemPlusJSONResponse) VisitUpdateAdminAuditLogSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuditLogSettings404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAuditLogSettings404ApplicationProblemPlusJSONResponse) VisitUpdateAdminAuditLogSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuditLogSettings409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAuditLogSettings409ApplicationProblemPlusJSONResponse) VisitUpdateAdminAuditLogSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuditLogSettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAuditLogSettings500ApplicationProblemPlusJSONResponse) VisitUpdateAdminAuditLogSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAuditLogSettingsAuditRequestObject struct {
+	Params ListAdminAuditLogSettingsAuditParams
+}
+
+type ListAdminAuditLogSettingsAuditResponseObject interface {
+	VisitListAdminAuditLogSettingsAuditResponse(w http.ResponseWriter) error
+}
+
+type ListAdminAuditLogSettingsAudit200JSONResponse AdminInstanceSettingsAuditPage
+
+func (response ListAdminAuditLogSettingsAudit200JSONResponse) VisitListAdminAuditLogSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAuditLogSettingsAudit400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminAuditLogSettingsAudit400ApplicationProblemPlusJSONResponse) VisitListAdminAuditLogSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAuditLogSettingsAudit404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminAuditLogSettingsAudit404ApplicationProblemPlusJSONResponse) VisitListAdminAuditLogSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAuditLogSettingsAudit500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminAuditLogSettingsAudit500ApplicationProblemPlusJSONResponse) VisitListAdminAuditLogSettingsAuditResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -15892,6 +16383,18 @@ type StrictServerInterface interface {
 	// List the instance AI summary settings audit log
 	// (GET /api/v1/admin/settings/ai-summary/audit)
 	ListAdminAISummarySettingsAudit(ctx context.Context, request ListAdminAISummarySettingsAuditRequestObject) (ListAdminAISummarySettingsAuditResponseObject, error)
+	// Reset the instance audit-log settings to the built-in defaults
+	// (DELETE /api/v1/admin/settings/audit-log)
+	ResetAdminAuditLogSettings(ctx context.Context, request ResetAdminAuditLogSettingsRequestObject) (ResetAdminAuditLogSettingsResponseObject, error)
+	// Get the instance audit-log settings
+	// (GET /api/v1/admin/settings/audit-log)
+	GetAdminAuditLogSettings(ctx context.Context, request GetAdminAuditLogSettingsRequestObject) (GetAdminAuditLogSettingsResponseObject, error)
+	// Replace the instance audit-log settings
+	// (PUT /api/v1/admin/settings/audit-log)
+	UpdateAdminAuditLogSettings(ctx context.Context, request UpdateAdminAuditLogSettingsRequestObject) (UpdateAdminAuditLogSettingsResponseObject, error)
+	// List the instance audit-log settings change history
+	// (GET /api/v1/admin/settings/audit-log/audit)
+	ListAdminAuditLogSettingsAudit(ctx context.Context, request ListAdminAuditLogSettingsAuditRequestObject) (ListAdminAuditLogSettingsAuditResponseObject, error)
 	// List the instance admins
 	// (GET /api/v1/admin/settings/auth/admins)
 	ListAdminInstanceAdmins(ctx context.Context, request ListAdminInstanceAdminsRequestObject) (ListAdminInstanceAdminsResponseObject, error)
@@ -16492,6 +16995,111 @@ func (sh *strictHandler) ListAdminAISummarySettingsAudit(w http.ResponseWriter, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListAdminAISummarySettingsAuditResponseObject); ok {
 		if err := validResponse.VisitListAdminAISummarySettingsAuditResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ResetAdminAuditLogSettings operation middleware
+func (sh *strictHandler) ResetAdminAuditLogSettings(w http.ResponseWriter, r *http.Request) {
+	var request ResetAdminAuditLogSettingsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResetAdminAuditLogSettings(ctx, request.(ResetAdminAuditLogSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResetAdminAuditLogSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResetAdminAuditLogSettingsResponseObject); ok {
+		if err := validResponse.VisitResetAdminAuditLogSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminAuditLogSettings operation middleware
+func (sh *strictHandler) GetAdminAuditLogSettings(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminAuditLogSettingsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminAuditLogSettings(ctx, request.(GetAdminAuditLogSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminAuditLogSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminAuditLogSettingsResponseObject); ok {
+		if err := validResponse.VisitGetAdminAuditLogSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateAdminAuditLogSettings operation middleware
+func (sh *strictHandler) UpdateAdminAuditLogSettings(w http.ResponseWriter, r *http.Request) {
+	var request UpdateAdminAuditLogSettingsRequestObject
+
+	var body UpdateAdminAuditLogSettingsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateAdminAuditLogSettings(ctx, request.(UpdateAdminAuditLogSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateAdminAuditLogSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateAdminAuditLogSettingsResponseObject); ok {
+		if err := validResponse.VisitUpdateAdminAuditLogSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAdminAuditLogSettingsAudit operation middleware
+func (sh *strictHandler) ListAdminAuditLogSettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminAuditLogSettingsAuditParams) {
+	var request ListAdminAuditLogSettingsAuditRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdminAuditLogSettingsAudit(ctx, request.(ListAdminAuditLogSettingsAuditRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdminAuditLogSettingsAudit")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAdminAuditLogSettingsAuditResponseObject); ok {
+		if err := validResponse.VisitListAdminAuditLogSettingsAuditResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

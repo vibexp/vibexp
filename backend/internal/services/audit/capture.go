@@ -12,8 +12,9 @@ type ClientInfoCapturer interface {
 	CaptureClientInfo(ctx context.Context) bool
 }
 
-// AlwaysCapture is the ClientInfoCapturer in force until the instance audit
-// settings exist (#1512): capture is on, the documented default.
+// AlwaysCapture is the ClientInfoCapturer the recorder falls back to when
+// RecorderDeps.Capture is nil: capture is on, the documented default. Production
+// wiring binds the instance's capture_ip_ua setting instead (#1512).
 type AlwaysCapture struct{}
 
 var _ ClientInfoCapturer = AlwaysCapture{}

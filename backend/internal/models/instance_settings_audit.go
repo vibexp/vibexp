@@ -38,6 +38,9 @@ const (
 	// password login switch and the registration mode (table
 	// instance_auth_policy, #1429).
 	InstanceSettingAuthPolicy = "auth_policy"
+	// InstanceSettingAuditLog is the instance audit-log settings: event
+	// retention and client-info capture (table instance_audit_settings, #1512).
+	InstanceSettingAuditLog = "audit_log"
 )
 
 // Actions an instance settings audit entry records. Unlike the setting, the
