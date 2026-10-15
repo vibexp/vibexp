@@ -18,6 +18,7 @@ import (
 	sesslib "github.com/vibexp/vibexp/internal/auth/session"
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	apierrors "github.com/vibexp/vibexp/internal/errors"
+	"github.com/vibexp/vibexp/internal/models"
 	accountgen "github.com/vibexp/vibexp/internal/server/gen/account"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
@@ -284,12 +285,13 @@ func (h *accountStrictServer) SetAccountPassword(
 		return nil, h.accountError("SetAccountPassword", caller.userID, err)
 	}
 
-	activityType := activities.ActivityTypeAuthCredentialChanged
+	activityType, op := activities.ActivityTypeAuthCredentialChanged, models.AuditOpAuthLocalCredentialChanged
 	if first {
-		activityType = activities.ActivityTypeAuthCredentialSet
+		activityType, op = activities.ActivityTypeAuthCredentialSet, models.AuditOpAuthLocalCredentialSet
 	}
 	revokeAPIAccess := request.Body.RevokeApiAccess != nil && *request.Body.RevokeApiAccess
 	h.recordActivity(ctx, caller.userID, activityType, map[string]interface{}{"revoke_api_access": revokeAPIAccess})
+	h.s.auditUserEvent(ctx, op, auditSelf(caller.userID, map[string]any{"revoke_api_access": revokeAPIAccess}))
 
 	if err = h.afterPasswordChange(ctx, caller.userID, revokeAPIAccess); err != nil {
 		return nil, err
@@ -363,6 +365,7 @@ func (h *accountStrictServer) DeleteAccountPassword(
 		return nil, h.accountError("DeleteAccountPassword", caller.userID, err)
 	}
 	h.recordActivity(ctx, caller.userID, activities.ActivityTypeAuthCredentialRemoved, nil)
+	h.s.auditUserEvent(ctx, models.AuditOpAuthLocalCredentialRemoved, auditSelf(caller.userID, nil))
 	if err = h.endOtherSessions(ctx, "DeleteAccountPassword", caller.userID); err != nil {
 		return nil, err
 	}
@@ -384,6 +387,8 @@ func (h *accountStrictServer) DeleteAccountIdentity(
 	}
 	h.recordActivity(ctx, caller.userID, activities.ActivityTypeAuthIdentityDisconnected,
 		map[string]interface{}{"provider": provider})
+	h.s.auditUserEvent(ctx, models.AuditOpAuthIdentityUnlinked,
+		auditSelf(caller.userID, map[string]any{auditMetaProvider: provider}))
 	if err = h.endOtherSessions(ctx, "DeleteAccountIdentity", caller.userID); err != nil {
 		return nil, err
 	}

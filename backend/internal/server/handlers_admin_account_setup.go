@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	apierrors "github.com/vibexp/vibexp/internal/errors"
+	"github.com/vibexp/vibexp/internal/models"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
@@ -30,6 +31,7 @@ func (a *adminStrictServer) IssueAdminUserSetupLink(
 
 	a.recordUserMutationActivity(ctx, activities.ActivityTypeAdminUserSetupLinkIssued, userID, link.Email,
 		map[string]interface{}{"delivery": string(link.Delivery)})
+	a.s.auditLinkIssued(ctx, userID, link.Email, auditLinkPurposeSetup, string(link.Delivery), false)
 
 	out := admingen.IssueAdminUserSetupLink200JSONResponse{
 		Delivery:  admingen.AdminUserSetupLinkDelivery(link.Delivery),
@@ -102,12 +104,14 @@ func (a *adminStrictServer) IssueAdminUserResetLink(
 			// failed: that change is audited even though nothing was issued.
 			a.recordUserMutationActivity(ctx, activities.ActivityTypeAdminUserResetLinkIssued, userID, link.Email,
 				map[string]interface{}{"delivery": string(link.Delivery), "invalidated": true, "issued": false})
+			a.s.auditLinkIssued(ctx, userID, link.Email, auditLinkPurposeReset, string(link.Delivery), true)
 		}
 		return nil, a.mapAdminAccountError(err, "IssueAdminUserResetLink")
 	}
 
 	a.recordUserMutationActivity(ctx, activities.ActivityTypeAdminUserResetLinkIssued, userID, link.Email,
 		map[string]interface{}{"delivery": string(link.Delivery), "invalidated": link.Invalidated, "issued": true})
+	a.s.auditLinkIssued(ctx, userID, link.Email, auditLinkPurposeReset, string(link.Delivery), link.Invalidated)
 
 	out := admingen.IssueAdminUserResetLink200JSONResponse{
 		Delivery:    admingen.AdminUserResetLinkDelivery(link.Delivery),
@@ -133,5 +137,9 @@ func (a *adminStrictServer) DeleteAdminUserPassword(
 	}
 	a.recordUserMutationActivity(ctx, activities.ActivityTypeAdminUserLocalSignInRemoved, userID, email,
 		map[string]interface{}{"confirmed_last_method": allowLast})
+	a.s.auditUserEvent(ctx, models.AuditOpAuthLocalCredentialRemoved, auditTarget{
+		userID: userID, email: email,
+		metadata: map[string]any{auditMetaBy: auditByAdmin, auditMetaTarget: userID, "confirmed_last_method": allowLast},
+	})
 	return admingen.DeleteAdminUserPassword204Response{}, nil
 }

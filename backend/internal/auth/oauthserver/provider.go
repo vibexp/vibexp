@@ -9,6 +9,7 @@ import (
 	"github.com/ory/fosite/compose"
 
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 const (
@@ -66,6 +67,7 @@ type Service struct {
 	cfg           Config
 	consentMACKey []byte
 	logger        *slog.Logger
+	audit         audit.Recorder
 }
 
 // Dependencies bundles the storage and policy collaborators NewService wires
@@ -82,6 +84,9 @@ type Dependencies struct {
 	// disable the re-check (an unconfigured allowlist is open access anyway).
 	AccessPolicy ConsentAccessChecker
 	Logger       *slog.Logger
+	// Audit records client registrations and consent decisions (#1514); nil
+	// records nothing.
+	Audit audit.Recorder
 }
 
 // NewService wires the Authorization Server. encKey is the 32-byte app encryption
@@ -101,6 +106,7 @@ func NewService(cfg Config, encKey []byte, deps Dependencies) *Service {
 		cfg:           cfg,
 		consentMACKey: deriveSecret(encKey, consentMACTag),
 		logger:        deps.Logger,
+		audit:         deps.Audit,
 	}
 }
 

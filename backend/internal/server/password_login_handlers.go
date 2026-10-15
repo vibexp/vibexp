@@ -173,7 +173,7 @@ func (h *passwordAuthStrictServer) PasswordLogin(
 	user, err := h.s.container.PasswordAuthService().
 		Login(ctx, string(request.Body.Email), request.Body.Password)
 	if err != nil {
-		return nil, h.loginFailure(ctx, err)
+		return nil, h.loginFailure(ctx, string(request.Body.Email), err)
 	}
 
 	setCookie, err := h.signInWithPassword(ctx, signInHandlerName, user, "")
@@ -189,7 +189,10 @@ func (h *passwordAuthStrictServer) PasswordLogin(
 // loginFailure maps a Login error onto its response and records it. Every
 // *services.PasswordLoginError becomes the same 401; only what is logged and
 // recorded differs.
-func (h *passwordAuthStrictServer) loginFailure(ctx context.Context, err error) error {
+//
+// email is the address the caller submitted; it is recorded in the audit log
+// with a refusal, the password never is.
+func (h *passwordAuthStrictServer) loginFailure(ctx context.Context, email string, err error) error {
 	var invalid *services.PasswordLoginError
 	var suspended *services.AccountSuspendedError
 	switch {
@@ -199,11 +202,13 @@ func (h *passwordAuthStrictServer) loginFailure(ctx context.Context, err error) 
 		return apierrors.NewResourceNotFoundError(endpointResource, endpointNotFoundMsg)
 	case errors.Is(err, services.ErrAccessRestricted):
 		h.recordLoginFailed(ctx, "access_restricted")
+		h.auditPasswordLoginFailed(ctx, "access_restricted", email, "")
 		return apierrors.NewAccessRestrictedError("Your account is not permitted to sign in")
 	case errors.As(err, &invalid):
 		h.s.logger.With("handler", signInHandlerName, "reason", invalid.Reason, "user_id", invalid.UserID).
 			Info("Password sign-in refused")
 		h.recordLoginFailed(ctx, invalid.Reason)
+		h.auditPasswordLoginFailed(ctx, invalid.Reason, email, invalid.UserID)
 		if invalid.UserID != "" {
 			h.recordAuthActivity(ctx, invalid.UserID, activities.ActivityTypeAuthFailure, map[string]interface{}{
 				"provider": services.LocalSignInProvider,
@@ -215,6 +220,7 @@ func (h *passwordAuthStrictServer) loginFailure(ctx context.Context, err error) 
 		// The caller proved they hold the password, so this refusal is recorded
 		// against the account.
 		h.recordLoginFailed(ctx, services.SignInRefusalSuspended)
+		h.auditPasswordLoginFailed(ctx, services.SignInRefusalSuspended, email, suspended.UserID)
 		h.recordAuthActivity(ctx, suspended.UserID, activities.ActivityTypeAuthFailure, map[string]interface{}{
 			"provider": services.LocalSignInProvider,
 			"reason":   services.SignInRefusalSuspended,
@@ -240,6 +246,15 @@ func (h *passwordAuthStrictServer) recordLoginFailed(ctx context.Context, reason
 	if h.s.metrics != nil {
 		h.s.metrics.RecordUserLoginFailed(ctx, reason)
 	}
+}
+
+// auditPasswordLoginFailed records a refused password sign-in or link
+// completion. userID is set when the refusal identified the account.
+func (h *passwordAuthStrictServer) auditPasswordLoginFailed(ctx context.Context, reason, email, userID string) {
+	h.s.auditLoginFailed(ctx, auditLoginFailure{
+		method: auditAuthMethodLocalCredential, provider: services.LocalSignInProvider,
+		reason: reason, email: email, userID: userID,
+	})
 }
 
 // recordAuthActivity records a sign-in activity with the client address and

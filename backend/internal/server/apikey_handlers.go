@@ -73,8 +73,7 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		r.Context(), userID, activities.ActivityTypeAPIKeyCreated,
 		apiKey.ID, "Created new API key: "+req.Name, r,
 	)
-
-	// Record metrics
+	s.auditAPIKey(r.Context(), models.AuditOpAuthAPIKeyCreated, apiKey.ID, apiKey.Name)
 	if s.metrics != nil {
 		s.metrics.RecordAPIKeyCreated(r.Context())
 	}
@@ -236,6 +235,7 @@ func (s *Server) handleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	keyName := s.apiKeyAuditName(r.Context(), userID, apiKeyID) // gone after the delete
 	err := s.container.APIKeyService().DeleteAPIKey(r.Context(), userID, apiKeyID)
 	if err != nil {
 		s.logger.With(
@@ -268,6 +268,7 @@ func (s *Server) handleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 		r.Context(), userID, activities.ActivityTypeAPIKeyDeleted,
 		apiKeyID, "Deleted API key: "+apiKeyID, r,
 	)
+	s.auditAPIKey(r.Context(), models.AuditOpAuthAPIKeyRevoked, apiKeyID, keyName)
 
 	writeNoContent(w)
 }

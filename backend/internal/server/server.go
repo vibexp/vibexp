@@ -423,6 +423,7 @@ func newOAuthAuthorizationServer(
 			LoginSessions: postgres.NewOAuthLoginSessionRepository(db),
 			AccessPolicy:  newConsentAccessChecker(c),
 			Logger:        logger,
+			Audit:         c.AuditRecorder(),
 		},
 	)
 	logger.Info("Embedded OAuth 2.1 Authorization Server enabled", "issuer", cfg.Auth.OAuthAS.IssuerURL)

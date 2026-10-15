@@ -177,6 +177,7 @@ func (h *passwordAuthStrictServer) accountLinkFailure(ctx context.Context, handl
 		h.s.logger.With("handler", handler).Info("Account link refused")
 		if completing {
 			h.recordLoginFailed(ctx, "account_link_invalid")
+			h.auditPasswordLoginFailed(ctx, "account_link_invalid", "", "")
 		}
 		return apierrors.NewAuthInvalidError(accountLinkInvalidDetail)
 	case errors.Is(err, services.ErrAccountLinkSpent):
@@ -187,6 +188,7 @@ func (h *passwordAuthStrictServer) accountLinkFailure(ctx context.Context, handl
 	case errors.Is(err, services.ErrAccessRestricted):
 		if completing {
 			h.recordLoginFailed(ctx, "access_restricted")
+			h.auditPasswordLoginFailed(ctx, "access_restricted", "", "")
 		}
 		return apierrors.NewAccessRestrictedError("Your account is not permitted to sign in")
 	case errors.As(err, &policy):
@@ -254,6 +256,9 @@ func (h *passwordAuthStrictServer) signInWithPassword(
 		h.s.metrics.RecordUserLoginSuccessful(ctx)
 	}
 	h.recordAuthActivity(ctx, user.ID, activities.ActivityTypeAuthLogin, metadata)
+	h.s.auditLoginSucceeded(ctx, user, auditLogin{
+		method: auditAuthMethodLocalCredential, provider: services.LocalSignInProvider, via: via,
+	})
 	// A root admin signing in with a password, or through a link that set
 	// one, ends setup mode as a provider sign-in does: on a password-only
 	// instance nothing else ever would (#1438).

@@ -7,7 +7,12 @@ import (
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
+
+// auditResourceTypeUser is the audit resource type of an event about a user
+// account.
+const auditResourceTypeUser = "user"
 
 // APIAccessServiceInterface revokes a user's non-browser access.
 type APIAccessServiceInterface interface {
@@ -27,13 +32,21 @@ type APIAccessServiceInterface interface {
 type APIAccessService struct {
 	repo   repositories.APIAccessRepository
 	logger *slog.Logger
+	// audit records each revocation (#1514); nil records nothing.
+	audit audit.Recorder
 }
 
 var _ APIAccessServiceInterface = (*APIAccessService)(nil)
 
-// NewAPIAccessService creates a new APIAccessService.
-func NewAPIAccessService(repo repositories.APIAccessRepository, logger *slog.Logger) *APIAccessService {
-	return &APIAccessService{repo: repo, logger: logger}
+// NewAPIAccessService creates a new APIAccessService. recorder may be nil.
+func NewAPIAccessService(
+	repo repositories.APIAccessRepository, logger *slog.Logger, recorder ...audit.Recorder,
+) *APIAccessService {
+	s := &APIAccessService{repo: repo, logger: logger}
+	if len(recorder) > 0 {
+		s.audit = recorder[0]
+	}
+	return s
 }
 
 // RevokeAPIAccess implements APIAccessServiceInterface.
@@ -48,5 +61,12 @@ func (s *APIAccessService) RevokeAPIAccess(ctx context.Context, userID string) (
 		"oauth_grants", revoked.OAuthGrants,
 		"tokens_valid_after", revoked.TokensValidAfter,
 	).Info("Revoked the user's API access")
+	// The only grant revocation there is: it stands in for a per-app
+	// auth.mcp_grant.revoked until one exists. The actor is the caller from
+	// the context; for a reset link or an account claim there is none.
+	audit.SafeRecord(ctx, s.audit, audit.Event{
+		Operation: models.AuditOpAuthAPIAccessRevoked, ResourceType: auditResourceTypeUser, ResourceID: userID,
+		Metadata: map[string]any{"api_keys": revoked.APIKeys, "oauth_grants": revoked.OAuthGrants},
+	})
 	return revoked, nil
 }

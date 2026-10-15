@@ -68,6 +68,7 @@ func (a *adminStrictServer) CreateAdminUser(
 	if setup.Delivery != "none" {
 		a.recordUserMutationActivity(ctx, activities.ActivityTypeAdminUserSetupLinkIssued, detail.ID, detail.Email,
 			map[string]interface{}{"delivery": string(setup.Delivery)})
+		a.s.auditLinkIssued(ctx, detail.ID, detail.Email, auditLinkPurposeSetup, string(setup.Delivery), false)
 	}
 
 	genDetail, convErr := toGenAdminUserDetail(detail)

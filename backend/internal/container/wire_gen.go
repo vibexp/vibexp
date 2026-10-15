@@ -63,7 +63,24 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	userIdentityRepository := providers.ProvideUserIdentityRepository(db)
 	accountTokenRepository := providers.ProvideAccountTokenRepository(db)
 	apiAccessRepository := providers.ProvideAPIAccessRepository(db)
-	apiAccessServiceInterface := providers.ProvideAPIAccessService(apiAccessRepository, logger)
+	auditEventRepository := providers.ProvideAuditEventRepository(db)
+	instanceAuditSettingsRepository := providers.ProvideInstanceAuditSettingsRepository(db)
+	auditClientInfoCapture := providers.ProvideAuditClientInfoCapture(instanceAuditSettingsRepository, logger)
+	workerPool := providers.ProvideResourceAccessWorkerPool()
+	metrics := providers.ProvideMetrics(cfg, logger)
+	recorderDeps := audit.RecorderDeps{
+		Repo:     auditEventRepository,
+		Users:    userRepository,
+		APIKeys:  apiKeyRepository,
+		Teams:    teamRepository,
+		Projects: projectRepository,
+		Capture:  auditClientInfoCapture,
+		Pool:     workerPool,
+		Drops:    metrics,
+		Logger:   logger,
+	}
+	recorder := providers.ProvideAuditRecorder(recorderDeps)
+	apiAccessServiceInterface := providers.ProvideAPIAccessService(apiAccessRepository, logger, recorder)
 	instanceAuthPolicyRepository := providers.ProvideInstanceAuthPolicyRepository(db)
 	instanceAuthSettingsVersionRepository := providers.ProvideInstanceAuthSettingsVersionRepository(db)
 	instanceEmailProviderRepository := providers.ProvideInstanceEmailProviderRepository(db)
@@ -81,7 +98,6 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	accountNotifier := providers.ProvideAccountNotifier(userRepository, authPolicyResolver, accountEmailSender, accountEmailRunners, logger)
 	instanceAuthProviderRepository := providers.ProvideInstanceAuthProviderRepository(db)
 	identityProviderResolver := providers.ProvideIdentityProviderResolver(instanceAuthProviderRepository, instanceAuthSettingsVersionRepository, encryptionServiceInterface, cfg, logger)
-	metrics := providers.ProvideMetrics(cfg, logger)
 	eventManager := providers.ProvideEventManager(cfg, logger, metrics)
 	instanceAuthAllowlistRepository := providers.ProvideInstanceAuthAllowlistRepository(db)
 	instanceAdminRepository := providers.ProvideInstanceAdminRepository(db)
@@ -100,6 +116,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		Logger:        logger,
 		Allowlist:     accessAllowlistResolver,
 		Gate:          registrationGate,
+		Audit:         recorder,
 		Methods:       signInMethodRepository,
 	}
 	authServiceInterface := providers.ProvideAuthService(authServiceDeps)
@@ -201,25 +218,9 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	}
 	activityService := providers.ProvideActivityService(activityServiceDeps)
 	resourceLastAccessedRepository := providers.ProvideResourceLastAccessedRepository(db)
-	workerPool := providers.ProvideResourceAccessWorkerPool()
 	resourceAccessService := providers.ProvideResourceAccessService(resourceAccessRepository, resourceLastAccessedRepository, clearer, workerPool, logger, cfg)
 	resourceWriteEventRepository := providers.ProvideResourceWriteEventRepository(db)
 	resourceWriteService := providers.ProvideResourceWriteService(resourceWriteEventRepository, workerPool, logger)
-	auditEventRepository := providers.ProvideAuditEventRepository(db)
-	instanceAuditSettingsRepository := providers.ProvideInstanceAuditSettingsRepository(db)
-	auditClientInfoCapture := providers.ProvideAuditClientInfoCapture(instanceAuditSettingsRepository, logger)
-	recorderDeps := audit.RecorderDeps{
-		Repo:     auditEventRepository,
-		Users:    userRepository,
-		APIKeys:  apiKeyRepository,
-		Teams:    teamRepository,
-		Projects: projectRepository,
-		Capture:  auditClientInfoCapture,
-		Pool:     workerPool,
-		Drops:    metrics,
-		Logger:   logger,
-	}
-	recorder := providers.ProvideAuditRecorder(recorderDeps)
 	agentServiceInterface := providers.ProvideAgentService(agentRepository, agentExecutionRepository, encryptionServiceInterface, teamServiceInterface, authorizationServiceInterface, cfg, logger)
 	cardFetcher := providers.ProvideAgentCardFetcher(cfg)
 	agentAuthenticator := providers.ProvideAgentAuthenticator(encryptionServiceInterface)
