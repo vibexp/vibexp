@@ -251,17 +251,6 @@ func TestInstanceAuditSettingsValues_SnapshotShape(t *testing.T) {
 	assert.JSONEq(t, `{"retention_weeks":2,"capture_ip_ua":true}`, string(raw))
 }
 
-// The switch is read once and served from memory until the TTL passes.
-// A write through this process drops the cached switch, so the very next event
-// follows it, as does a reset.
-// A reset with nothing stored changes nothing, so it keeps the cache.
-// An unreadable setting must never switch capture back on behind an admin who
-// turned it off: the fallback is false, logged, and cached like a read.
-// A read that raced a write must not cache what it read: the write's
-// invalidation wins.
-// One caller going away mid-read must not poison the shared cache: the read
-// runs detached from the caller's cancellation, so a cancelled request still
-// resolves the real value.
 // A write that did not happen is not an event: a rejected value, a version
 // conflict, a failed reset and a reset with nothing stored record nothing.
 func TestInstanceAuditSettingsService_RecordsOnlyCommittedChanges(t *testing.T) {

@@ -30,6 +30,7 @@ func TestAuditClientInfoCapture_DefaultsToOn(t *testing.T) {
 	assert.True(t, h.capture.CaptureClientInfo(context.Background()))
 }
 
+// The switch is read once and served from memory until the TTL passes.
 func TestAuditClientInfoCapture_CachesUntilTTL(t *testing.T) {
 	h := newAuditSettingsHarness(t, nil)
 	repo := h.repo
@@ -49,6 +50,8 @@ func TestAuditClientInfoCapture_CachesUntilTTL(t *testing.T) {
 	assert.True(t, h.capture.CaptureClientInfo(ctx), "an expired cache reads again")
 }
 
+// A write through this process drops the cached switch, so the very next event
+// follows it, as does a reset.
 func TestAuditClientInfoCapture_WriteInvalidates(t *testing.T) {
 	h := newAuditSettingsHarness(t, nil)
 	svc, repo := h.svc, h.repo
@@ -70,6 +73,7 @@ func TestAuditClientInfoCapture_WriteInvalidates(t *testing.T) {
 	assert.True(t, h.capture.CaptureClientInfo(ctx), "the reset must drop the cached false")
 }
 
+// A reset with nothing stored changes nothing, so it keeps the cache.
 func TestAuditClientInfoCapture_NoOpResetKeepsCache(t *testing.T) {
 	h := newAuditSettingsHarness(t, nil)
 	svc, repo := h.svc, h.repo
@@ -83,6 +87,8 @@ func TestAuditClientInfoCapture_NoOpResetKeepsCache(t *testing.T) {
 	assert.False(t, h.capture.CaptureClientInfo(ctx), "served from the cache: no second read")
 }
 
+// An unreadable setting must never switch capture back on behind an admin who
+// turned it off: the fallback is false, logged, and cached like a read.
 func TestAuditClientInfoCapture_FailsClosed(t *testing.T) {
 	var logs bytes.Buffer
 	h := newAuditSettingsHarness(t, &logs)
@@ -95,6 +101,8 @@ func TestAuditClientInfoCapture_FailsClosed(t *testing.T) {
 	assert.Contains(t, logs.String(), "not capturing client info")
 }
 
+// A read that raced a write must not cache what it read: the write's
+// invalidation wins.
 func TestAuditClientInfoCapture_RacingWriteIsNotCached(t *testing.T) {
 	h := newAuditSettingsHarness(t, nil)
 	svc, repo := h.svc, h.repo
@@ -116,6 +124,9 @@ func TestAuditClientInfoCapture_RacingWriteIsNotCached(t *testing.T) {
 	assert.False(t, h.capture.CaptureClientInfo(ctx), "but did not cache it over the write")
 }
 
+// One caller going away mid-read must not poison the shared cache: the read
+// runs detached from the caller's cancellation, so a cancelled request still
+// resolves the real value.
 func TestAuditClientInfoCapture_CallerCancellationDoesNotPoisonCache(t *testing.T) {
 	h := newAuditSettingsHarness(t, nil)
 	repo := h.repo
