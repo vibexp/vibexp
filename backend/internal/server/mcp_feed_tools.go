@@ -225,10 +225,13 @@ func (s *Server) listFeeds(
 //nolint:funlen // MCP tool handler requires team resolution, inline validation, quota check, and response building
 func (s *Server) postToFeed(
 	ctx context.Context,
-	_ *mcp.CallToolRequest,
+	req *mcp.CallToolRequest,
 	params *PostToFeedParams,
 	userID string,
 ) (*mcp.CallToolResult, any, error) {
+	// A feed post records no resource write event, but the audit log
+	// attributes it to MCP and the client's name like the create tools.
+	ctx = withMCPWriteOrigin(ctx, req)
 	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
 	if errResult != nil {
 		return errResult, nil, nil
@@ -254,14 +257,14 @@ func (s *Server) postToFeed(
 		}, nil, nil
 	}
 
-	req := &models.CreateFeedItemRequest{
+	createReq := &models.CreateFeedItemRequest{
 		Title:           params.Title,
 		Content:         params.Content,
 		AIAssistantName: params.AIAssistantName,
 		ProjectID:       params.ProjectID,
 	}
 
-	item, err := s.container.FeedItemService().CreateFeedItem(ctx, userID, teamID, params.FeedID, req)
+	item, err := s.container.FeedItemService().CreateFeedItem(ctx, userID, teamID, params.FeedID, createReq)
 	if err != nil {
 		slog.Error(
 			"Failed to post to feed via MCP",
@@ -279,6 +282,8 @@ func (s *Server) postToFeed(
 			IsError: true,
 		}, nil, nil
 	}
+
+	s.recordAuditWrite(ctx, auditFeedItem(teamID, auditVerbCreate, item.ID, feedItemAuditState(item)))
 
 	baseURL := strings.TrimRight(s.config.Frontend.BaseURL, "/")
 	result := &postToFeedResponse{

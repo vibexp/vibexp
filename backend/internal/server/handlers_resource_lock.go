@@ -28,6 +28,9 @@ type lockTarget struct {
 	teamID       string
 	resourceID   string
 	slug         string
+	// auditState is the resource as it was resolved, for the name and project
+	// the audit log records (#1513). Nil records the lock without them.
+	auditState *auditState
 }
 
 // lockEntityTypes maps a lockable resource type to the activity entity type its
@@ -47,6 +50,7 @@ func (s *Server) lockResource(ctx context.Context, userID string, target lockTar
 		return s.resourceLockError("lock", target, err)
 	}
 	s.recordLockActivity(ctx, userID, activities.ActivityTypeResourceLocked, target)
+	s.recordAuditLock(ctx, target, auditVerbLock)
 	return nil
 }
 
@@ -59,7 +63,15 @@ func (s *Server) unlockResource(ctx context.Context, userID string, target lockT
 		return s.resourceLockError("unlock", target, err)
 	}
 	s.recordLockActivity(ctx, userID, activities.ActivityTypeResourceUnlocked, target)
+	s.recordAuditLock(ctx, target, auditVerbUnlock)
 	return nil
+}
+
+// recordAuditLock records a lock or unlock in the audit log.
+func (s *Server) recordAuditLock(ctx context.Context, target lockTarget, verb string) {
+	w := auditCreate(target.teamID, target.resourceType, target.resourceID, target.auditState)
+	w.op = auditResourceOp(target.resourceType, verb)
+	s.recordAuditWrite(ctx, w)
 }
 
 // resourceLockHistory returns the target's lock and unlock events, newest

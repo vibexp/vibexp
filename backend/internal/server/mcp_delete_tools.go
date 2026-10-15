@@ -49,10 +49,13 @@ const deleteResourceToolName = "vibexp_io_delete_resource"
 // cleanup, so the end state is identical regardless of entry point.
 func (s *Server) deleteResource(
 	ctx context.Context,
-	_ *mcp.CallToolRequest,
+	req *mcp.CallToolRequest,
 	params *DeleteResourceParams,
 	userID string,
 ) (*mcp.CallToolResult, any, error) {
+	// A delete records no resource write event, but the audit log attributes
+	// it to MCP and the client's name like the create and update tools.
+	ctx = withMCPWriteOrigin(ctx, req)
 	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
 	if errResult != nil {
 		return errResult, nil, nil
@@ -84,9 +87,11 @@ func (s *Server) deleteMemoryResource(
 		return mcpTextError("id is required to delete a memory"), nil, nil
 	}
 
+	before := s.memoryAuditBefore(userID, teamID, id)
 	if err := s.container.MemoryService().DeleteMemory(userID, teamID, id); err != nil {
 		return s.mcpDeleteError(resourceTypeMemory, userID, teamID, err), nil, nil
 	}
+	s.recordAuditWrite(ctx, auditDelete(teamID, resourceTypeMemory, id, before))
 
 	// Best-effort embeddings cleanup mirrors handleDeleteMemory; keyed on entity id only.
 	s.deleteMCPResourceEmbeddings(resourceTypeMemory, userID, teamID, id)
@@ -115,6 +120,7 @@ func (s *Server) deletePromptResource(
 		return s.mcpDeleteError(resourceTypePrompt, userID, teamID, err), nil, nil
 	}
 
+	s.recordAuditWrite(ctx, auditDelete(teamID, resourceTypePrompt, prompt.ID, promptAuditState(prompt)))
 	s.deleteMCPResourceEmbeddings(resourceTypePrompt, userID, teamID, prompt.ID)
 
 	return s.deleteResourceSuccess(ctx, &deleteResourceResponse{
@@ -150,6 +156,7 @@ func (s *Server) deleteArtifactResource(
 		return s.mcpDeleteError(resourceTypeArtifact, userID, teamID, err), nil, nil
 	}
 
+	s.recordAuditWrite(ctx, auditDelete(teamID, resourceTypeArtifact, artifact.ID, artifactAuditState(artifact)))
 	s.deleteArtifactEmbeddings(userID, artifact.ID, params.ProjectID, slug)
 	s.deleteArtifactAttachments(userID, artifact.ID)
 
@@ -186,6 +193,7 @@ func (s *Server) deleteBlueprintResource(
 		return s.mcpDeleteError(resourceTypeBlueprint, userID, teamID, err), nil, nil
 	}
 
+	s.recordAuditWrite(ctx, auditDelete(teamID, resourceTypeBlueprint, blueprint.ID, blueprintAuditState(blueprint)))
 	s.deleteBlueprintEmbeddings(userID, blueprint.ID, params.ProjectID, slug)
 
 	return s.deleteResourceSuccess(ctx, &deleteResourceResponse{

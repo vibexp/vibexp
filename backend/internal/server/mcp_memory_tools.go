@@ -132,6 +132,7 @@ func (s *Server) storeMemory(
 	}
 
 	s.recordResourceWrite(ctx, userID, models.WriteActionCreate, writtenMemory(teamID, memory))
+	s.recordAuditWrite(ctx, auditCreate(teamID, resourceTypeMemory, memory.ID, memoryAuditState(memory)))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPCreateMemory(ctx)
@@ -226,6 +227,7 @@ func (s *Server) updateMemory(
 	statusPtr := optionalString(params.Status)
 
 	updateReq := buildMemoryUpdateRequest(params, statusPtr)
+	before := s.memoryAuditBefore(userID, teamID, params.MemoryID)
 	updateReq.WriteOrigin = resourceaccess.WriteOriginFromContext(ctx)
 
 	memory, err := s.container.MemoryService().UpdateMemory(userID, teamID, params.MemoryID, updateReq)
@@ -248,6 +250,7 @@ func (s *Server) updateMemory(
 	}
 
 	s.recordResourceWrite(ctx, userID, models.WriteActionUpdate, writtenMemory(teamID, memory))
+	s.recordAuditWrite(ctx, auditUpdated(teamID, resourceTypeMemory, memory.ID, before, memoryAuditState(memory)))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPUpdateMemory(ctx)

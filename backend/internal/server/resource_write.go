@@ -8,6 +8,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/services/audit"
 	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 )
 
@@ -170,12 +171,91 @@ func (s *Server) recordImportedBlueprintWrites(
 			resourceType: resourceTypeBlueprint, teamID: teamID, projectID: report.ProjectID, id: blueprintID,
 		}
 	}
+	audited := func(verb, blueprintID, title string) auditedWrite {
+		w := auditCreate(teamID, resourceTypeBlueprint, blueprintID,
+			&auditState{projectID: report.ProjectID, name: title})
+		w.op = auditResourceOp(resourceTypeBlueprint, verb)
+		w.metadata[auditMetaVia] = auditViaGitHubImport
+		return w
+	}
 	for i := range report.SuccessfulItems {
-		s.recordResourceWrite(ctx, userID, models.WriteActionCreate, written(report.SuccessfulItems[i].BlueprintID))
+		item := &report.SuccessfulItems[i]
+		s.recordResourceWrite(ctx, userID, models.WriteActionCreate, written(item.BlueprintID))
+		s.recordAuditWrite(ctx, audited(auditVerbCreate, item.BlueprintID, item.Title))
 	}
 	for i := range report.UpdatedItems {
-		s.recordResourceWrite(ctx, userID, models.WriteActionUpdate, written(report.UpdatedItems[i].BlueprintID))
+		item := &report.UpdatedItems[i]
+		s.recordResourceWrite(ctx, userID, models.WriteActionUpdate, written(item.BlueprintID))
+		s.recordAuditWrite(ctx, audited(auditVerbUpdate, item.BlueprintID, item.Title))
 	}
+}
+
+// auditedWrite is one successful write as the audit log records it (#1513).
+// The names are snapshots: pass the resource's name as it is after a create
+// or update, and as it was before a delete, which cannot be looked up later.
+type auditedWrite struct {
+	op           models.AuditOperation
+	teamID       string
+	projectID    string
+	projectName  string
+	resourceType string
+	resourceID   string
+	resourceName string
+	// metadata holds changed-field names and old/new values of small scalar
+	// fields only. Resource content never goes here (epic #1510, decision 4).
+	metadata map[string]any
+}
+
+// auditRecorder returns the audit recorder, or nil when none is wired (unit
+// tests on a mock container). Callers that must do extra work for the audit
+// log, such as reading a resource before updating it, check it first so that
+// work is skipped when nothing would record it.
+func (s *Server) auditRecorder() audit.Recorder {
+	if s.container == nil {
+		return nil
+	}
+	return s.container.AuditRecorder()
+}
+
+// recordAuditWrite records a resource write in the audit log. Like
+// recordResourceWrite it is called only on the success path, so a failed or
+// denied write records nothing here (denials are recorded by the
+// authorization service). The channel, MCP client name, API key, IP and user
+// agent come from ctx, which is why the routes and tools that call it carry a
+// write origin. Recording is asynchronous and can never fail the write.
+func (s *Server) recordAuditWrite(ctx context.Context, w auditedWrite) {
+	recorder := s.auditRecorder()
+	if recorder == nil {
+		return
+	}
+	recorder.Record(ctx, audit.Event{
+		Operation:    w.op,
+		TeamID:       w.teamID,
+		ProjectID:    w.projectID,
+		ProjectName:  w.projectName,
+		ResourceType: w.resourceType,
+		ResourceID:   w.resourceID,
+		ResourceName: w.resourceName,
+		Metadata:     w.metadata,
+	})
+}
+
+// annotateWriteSourceOnWrites is annotateWriteSource for a route group that
+// also serves reads: it labels only the requests that can write (anything but
+// GET, HEAD and OPTIONS). It is mounted on the strict-server prompt, artifact
+// and blueprint groups, whose only writes are lock and unlock, so those are
+// attributed to their channel in the audit log while the reads stay as they
+// were.
+func (s *Server) annotateWriteSourceOnWrites(next http.Handler) http.Handler {
+	annotated := s.annotateWriteSource(next)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			next.ServeHTTP(w, r)
+		default:
+			annotated.ServeHTTP(w, r)
+		}
+	})
 }
 
 // toGenWriteSource converts a resource's stored last-write channel to a

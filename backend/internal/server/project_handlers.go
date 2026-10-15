@@ -57,6 +57,7 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.recordAuditWrite(r.Context(), auditCreate(teamID, resourceTypeProject, project.ID, projectAuditState(project)))
 	writeCreated(w, project, s.logger)
 }
 
@@ -213,11 +214,14 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	before := s.projectAuditBefore(teamID, userID, decodedSlug)
 	project, err := s.container.ProjectService().UpdateProject(teamID, userID, decodedSlug, &req)
 	if err != nil {
 		s.handleUpdateProjectError(w, r, userID, decodedSlug, err)
 		return
 	}
+	s.recordAuditWrite(r.Context(),
+		auditUpdated(teamID, resourceTypeProject, project.ID, before, projectAuditState(project)))
 
 	writeOK(w, project, s.logger)
 }
@@ -240,6 +244,9 @@ func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 		"slug", decodedSlug,
 	).Info("Delete project request received")
 
+	// Read first: the project's id and name cannot be looked up once it is
+	// gone. Its cascaded resource deletes are not recorded one by one.
+	before := s.projectAuditBefore(teamID, userID, decodedSlug)
 	err := s.container.ProjectService().DeleteProject(teamID, userID, decodedSlug)
 	if err != nil {
 		if writeLockedResources(w, r, err) {
@@ -248,6 +255,7 @@ func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 		s.handleDeleteProjectError(w, r, userID, decodedSlug, err)
 		return
 	}
+	s.recordAuditWrite(r.Context(), auditProjectDeleted(teamID, decodedSlug, before))
 
 	writeNoContent(w)
 }

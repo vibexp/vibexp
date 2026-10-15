@@ -922,6 +922,9 @@ func (s *Server) mountPromptsHandlers(r chi.Router) {
 	// access to.
 	r.Group(func(rr chi.Router) {
 		rr.Use(s.recordResourceAccess(resourceTypePrompt))
+		// Lock and unlock are this group's only writes; the audit log needs
+		// their channel (#1513).
+		rr.Use(s.annotateWriteSourceOnWrites)
 		// An empty query value meant "no filter" to the chi parser these handlers
 		// replaced; the generated binder would treat it as a present parameter
 		// and 400. See dropEmptyQueryValues (#779).
@@ -948,7 +951,7 @@ func (s *Server) mountPromptsHandlers(r chi.Router) {
 	r.With(s.annotateWriteSource).Post(base, s.handleCreatePrompt)
 	r.Get(base+"/labels", s.handleGetPromptLabels)
 	r.With(s.annotateWriteSource).Put(base+routePatternSlug, s.handleUpdatePrompt)
-	r.Delete(base+routePatternSlug, s.handleDeletePrompt)
+	r.With(s.annotateWriteSource).Delete(base+routePatternSlug, s.handleDeletePrompt)
 	// Prompt content versions (generic content-versioning core, resource_type=prompt).
 	r.Get(base+"/{slug}/versions", s.handleListPromptVersions)
 	r.Get(base+"/{slug}/versions/{version_number}", s.handleGetPromptVersion)
@@ -1010,6 +1013,9 @@ func (s *Server) mountArtifactsHandlers(r chi.Router) {
 	// to attribute an access to.
 	r.Group(func(rr chi.Router) {
 		rr.Use(s.recordResourceAccess(resourceTypeArtifact))
+		// Lock and unlock are this group's only writes; the audit log needs
+		// their channel (#1513).
+		rr.Use(s.annotateWriteSourceOnWrites)
 		// An empty query value meant "no filter" to the chi parser these
 		// handlers replaced; the generated binder would treat it as a present
 		// parameter and 400. See dropEmptyQueryValues (#779).
@@ -1032,7 +1038,7 @@ func (s *Server) mountArtifactsHandlers(r chi.Router) {
 	r.With(s.annotateWriteSource).Post(base, s.handleCreateArtifact)
 	r.Get(base+routePatternStats, s.handleGetArtifactStats)
 	r.With(s.annotateWriteSource).Put(base+routePatternProjectSlug, s.handleUpdateArtifact)
-	r.Delete(base+routePatternProjectSlug, s.handleDeleteArtifact)
+	r.With(s.annotateWriteSource).Delete(base+routePatternProjectSlug, s.handleDeleteArtifact)
 	// Artifact file attachments — DEPRECATED aliases of the universal
 	// /api/v1/{team_id}/attachments endpoint (see setupAttachmentsRoutes).
 	// Kept for one release so the frontend can cut over safely; remove once no
@@ -1276,6 +1282,9 @@ func (s *Server) mountBlueprintsHandlers(r chi.Router) {
 	// to attribute an access to.
 	r.Group(func(rr chi.Router) {
 		rr.Use(s.recordResourceAccess(resourceTypeBlueprint))
+		// Lock and unlock are this group's only writes; the audit log needs
+		// their channel (#1513).
+		rr.Use(s.annotateWriteSourceOnWrites)
 		// An empty query value meant "no filter" to the chi parser these
 		// handlers replaced; the generated binder would treat it as a present
 		// parameter and 400. See dropEmptyQueryValues (#779).
@@ -1298,7 +1307,7 @@ func (s *Server) mountBlueprintsHandlers(r chi.Router) {
 	r.With(s.annotateWriteSource).Post(base, s.handleCreateBlueprint)
 	r.Get(base+routePatternStats, s.handleGetBlueprintStats)
 	r.With(s.annotateWriteSource).Put(base+routePatternProjectSlug, s.handleUpdateBlueprint)
-	r.Delete(base+routePatternProjectSlug, s.handleDeleteBlueprint)
+	r.With(s.annotateWriteSource).Delete(base+routePatternProjectSlug, s.handleDeleteBlueprint)
 	// Blueprint content versions (generic content-versioning core, resource_type=blueprint).
 	r.Get(base+"/{project_id}/{slug}/versions", s.handleListBlueprintVersions)
 	r.Get(base+"/{project_id}/{slug}/versions/{version_number}", s.handleGetBlueprintVersion)
@@ -1311,14 +1320,14 @@ func (s *Server) setupFeedsRoutes(r chi.Router) {
 	// Feed CRUD — team-scoped
 	r.Route("/api/v1/{team_id}/feeds", func(r chi.Router) {
 		r.Use(s.teamValidationMiddleware())
-		r.Post("/", s.handleCreateFeed)
+		r.With(s.annotateWriteSource).Post("/", s.handleCreateFeed)
 		r.Get("/", s.handleListFeeds)
 		r.Get(routePatternFeedID, s.handleGetFeed)
-		r.Put(routePatternFeedID, s.handleUpdateFeed)
-		r.Delete(routePatternFeedID, s.handleDeleteFeed)
+		r.With(s.annotateWriteSource).Put(routePatternFeedID, s.handleUpdateFeed)
+		r.With(s.annotateWriteSource).Delete(routePatternFeedID, s.handleDeleteFeed)
 
 		// Items nested under a specific feed
-		r.Post("/{feed_id}/items", s.handleCreateFeedItem)
+		r.With(s.annotateWriteSource).Post("/{feed_id}/items", s.handleCreateFeedItem)
 		r.Get("/{feed_id}/items", s.handleListFeedItemsByFeed)
 	})
 
@@ -1327,9 +1336,9 @@ func (s *Server) setupFeedsRoutes(r chi.Router) {
 		r.Use(s.teamValidationMiddleware())
 		r.Get("/", s.handleListFeedItems)
 		r.Get("/{item_id}", s.handleGetFeedItem)
-		r.Post("/{item_id}/archive", s.handleArchiveFeedItem)
-		r.Post("/{item_id}/unarchive", s.handleUnarchiveFeedItem)
-		r.Delete("/{item_id}", s.handleDeleteFeedItem)
+		r.With(s.annotateWriteSource).Post("/{item_id}/archive", s.handleArchiveFeedItem)
+		r.With(s.annotateWriteSource).Post("/{item_id}/unarchive", s.handleUnarchiveFeedItem)
+		r.With(s.annotateWriteSource).Delete("/{item_id}", s.handleDeleteFeedItem)
 		// Threaded replies
 		r.Post("/{item_id}/replies", s.handleCreateFeedItemReply)
 		r.Get("/{item_id}/replies", s.handleListFeedItemReplies)
@@ -1448,7 +1457,7 @@ func (s *Server) mountMemoriesHandlers(r chi.Router) {
 	const base = "/api/v1/{team_id}/memories"
 	r.With(s.annotateWriteSource).Post(base, s.handleCreateMemory)
 	r.With(s.annotateWriteSource).Put(base+"/{id}", s.handleUpdateMemory)
-	r.Delete(base+"/{id}", s.handleDeleteMemory)
+	r.With(s.annotateWriteSource).Delete(base+"/{id}", s.handleDeleteMemory)
 	// Memory content versions
 	r.Get(base+"/{id}/versions", s.handleListMemoryVersions)
 	r.Get(base+"/{id}/versions/{version_number}", s.handleGetMemoryVersion)
@@ -1508,16 +1517,16 @@ func (s *Server) setupResourceAccessMetricsRoutes(r chi.Router) {
 func (s *Server) setupProjectsRoutes(r chi.Router) {
 	r.Route("/api/v1/{team_id}/projects", func(r chi.Router) {
 		r.Use(s.teamValidationMiddleware()) // Validate team_id from URL and team access
-		r.Post("/", s.handleCreateProject)
+		r.With(s.annotateWriteSource).Post("/", s.handleCreateProject)
 		r.Get("/", s.handleListProjects)
 		r.Get("/{slug}/stats", s.handleGetProjectStats)
 		r.With(s.recordResourceAccess(resourceTypeProject)).Get(routePatternSlug, s.handleGetProject)
-		r.Put(routePatternSlug, s.handleUpdateProject)
-		r.Delete(routePatternSlug, s.handleDeleteProject)
+		r.With(s.annotateWriteSource).Put(routePatternSlug, s.handleUpdateProject)
+		r.With(s.annotateWriteSource).Delete(routePatternSlug, s.handleDeleteProject)
 
 		// Project migration endpoints.
 		r.Get("/{project_id}/migration/inventory", s.handleGetMigrationInventory)
-		r.Post("/{project_id}/migration", s.handleMigrateProject)
+		r.With(s.annotateWriteSource).Post("/{project_id}/migration", s.handleMigrateProject)
 	})
 }
 
@@ -1598,7 +1607,7 @@ func (s *Server) setupGitHubIntegrationRoutes(r chi.Router) {
 		r.Get("/install-url", s.handleGitHubInstallURL)
 		r.Post("/callback", s.handleGitHubCallback)
 		r.Get("/repositories", s.handleGitHubRepositories)
-		r.Post("/repositories/{repo_id}/import-project", s.handleGitHubImportProject)
+		r.With(s.annotateWriteSource).Post("/repositories/{repo_id}/import-project", s.handleGitHubImportProject)
 		r.With(s.annotateWriteSource).Post("/import-blueprints", s.handleGitHubImportBlueprints)
 		r.Delete("/disconnect", s.handleGitHubDisconnect)
 	})

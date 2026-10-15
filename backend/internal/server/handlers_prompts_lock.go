@@ -88,6 +88,7 @@ func (ps *promptsStrictServer) promptLockTarget(
 		teamID:       teamID,
 		resourceID:   prompt.ID,
 		slug:         prompt.Slug,
+		auditState:   promptAuditState(prompt),
 	}, nil
 }
 

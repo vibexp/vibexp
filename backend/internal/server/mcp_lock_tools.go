@@ -51,8 +51,9 @@ const lockResourceToolName = "vibexp_io_lock_resource"
 // lockableResource is what the lock tool needs from a loaded prompt, blueprint
 // or artifact: the id the lock service takes and the lock it already carries.
 type lockableResource struct {
-	id   string
-	lock *models.ResourceLock
+	id    string
+	lock  *models.ResourceLock
+	audit *auditState
 }
 
 // lockResourceTool implements the generic lock tool. It resolves and
@@ -62,10 +63,13 @@ type lockableResource struct {
 // activity record are the same from either entry point.
 func (s *Server) lockResourceTool(
 	ctx context.Context,
-	_ *mcp.CallToolRequest,
+	req *mcp.CallToolRequest,
 	params *LockResourceParams,
 	userID string,
 ) (*mcp.CallToolResult, any, error) {
+	// A lock records no resource write event, but the audit log attributes it
+	// to MCP and the client's name like the create and update tools.
+	ctx = withMCPWriteOrigin(ctx, req)
 	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
 	if errResult != nil {
 		return errResult, nil, nil
@@ -82,7 +86,9 @@ func (s *Server) lockResourceTool(
 		return mcpLockLoadError(resourceType, userID, teamID, err), nil, nil
 	}
 
-	target := lockTarget{resourceType: resourceType, teamID: teamID, resourceID: resource.id, slug: slug}
+	target := lockTarget{
+		resourceType: resourceType, teamID: teamID, resourceID: resource.id, slug: slug, auditState: resource.audit,
+	}
 	if err := s.lockResource(ctx, userID, target, params.Comment); err != nil {
 		return mcpTextError(s.lockFailureMessage(err, userID, params.ProjectID, target, resource.lock)), nil, nil
 	}
@@ -127,7 +133,7 @@ func (s *Server) loadLockableResource(
 		if err != nil {
 			return nil, err
 		}
-		return &lockableResource{id: prompt.ID, lock: prompt.Lock}, nil
+		return &lockableResource{id: prompt.ID, lock: prompt.Lock, audit: promptAuditState(prompt)}, nil
 	case resourceTypeBlueprint:
 		blueprint, err := s.container.BlueprintService().GetBlueprintByProjectIDAndSlugInTeam(
 			userID, teamID, projectID, slug,
@@ -135,7 +141,7 @@ func (s *Server) loadLockableResource(
 		if err != nil {
 			return nil, err
 		}
-		return &lockableResource{id: blueprint.ID, lock: blueprint.Lock}, nil
+		return &lockableResource{id: blueprint.ID, lock: blueprint.Lock, audit: blueprintAuditState(blueprint)}, nil
 	default:
 		artifact, err := s.container.ArtifactService().GetArtifactByProjectIDAndSlugInTeam(
 			userID, teamID, projectID, slug,
@@ -143,7 +149,7 @@ func (s *Server) loadLockableResource(
 		if err != nil {
 			return nil, err
 		}
-		return &lockableResource{id: artifact.ID, lock: artifact.Lock}, nil
+		return &lockableResource{id: artifact.ID, lock: artifact.Lock, audit: artifactAuditState(artifact)}, nil
 	}
 }
 

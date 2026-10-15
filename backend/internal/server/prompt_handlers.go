@@ -192,6 +192,7 @@ func (s *Server) handleCreatePrompt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.recordResourceWrite(r.Context(), userID, models.WriteActionCreate, writtenPrompt(teamID, prompt))
+	s.recordAuditWrite(r.Context(), auditCreate(teamID, resourceTypePrompt, prompt.ID, promptAuditState(prompt)))
 	s.recordPromptActivity(
 		r.Context(), userID, activities.ActivityTypePromptCreated,
 		prompt.ID, req.Slug, "Created new prompt: "+req.Name, r,
@@ -370,6 +371,7 @@ func (s *Server) handleUpdatePrompt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	before := s.promptAuditBefore(userID, teamID, promptSlug)
 	req.WriteOrigin = resourceaccess.WriteOriginFromContext(r.Context())
 	prompt, err := s.container.PromptService().UpdatePromptBySlug(userID, teamID, promptSlug, &req)
 	if writeResourceWriteLocked(w, r, err) {
@@ -389,6 +391,7 @@ func (s *Server) handleUpdatePrompt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.recordResourceWrite(r.Context(), userID, models.WriteActionUpdate, writtenPrompt(teamID, prompt))
+	s.recordAuditWrite(r.Context(), auditUpdated(teamID, resourceTypePrompt, prompt.ID, before, promptAuditState(prompt)))
 	// Record activity for prompt update
 	s.recordPromptActivity(
 		r.Context(), userID, activities.ActivityTypePromptUpdated,
@@ -482,6 +485,8 @@ func (s *Server) handleRestorePromptVersion(w http.ResponseWriter, r *http.Reque
 	// A restore is an update that arrived through a channel like any other
 	// (#1418): recorded, it is not an unknown write in the metrics.
 	s.recordResourceWrite(r.Context(), userID, models.WriteActionUpdate, writtenPrompt(teamID, prompt))
+	s.recordAuditWrite(r.Context(),
+		auditRestored(teamID, resourceTypePrompt, prompt.ID, promptAuditState(prompt), versionNumber))
 	s.recordPromptActivity(
 		r.Context(), userID, activities.ActivityTypePromptUpdated,
 		prompt.ID, promptSlug, "Restored prompt: "+promptSlug, r,
@@ -532,6 +537,7 @@ func (s *Server) handleDeletePrompt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.recordAuditWrite(r.Context(), auditDelete(teamID, resourceTypePrompt, prompt.ID, promptAuditState(prompt)))
 	s.recordPromptActivity(
 		r.Context(), userID, activities.ActivityTypePromptDeleted,
 		prompt.ID, promptSlug, "Deleted prompt: "+promptSlug, r,
