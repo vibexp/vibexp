@@ -68,7 +68,7 @@ async function runTheLoopAsAnAITool(page: Page): Promise<void> {
   expect(projectId, 'the team has a default project').toBeTruthy()
 
   const created = await page.request.post('/api/v1/api-keys', {
-    data: { name: 'Onboarding e2e agent', integration_codes: ['ai_tools'] },
+    data: { name: 'Onboarding e2e agent', integration_codes: ['cli'] },
   })
   expect(created.ok(), `create API key: ${created.status()}`).toBe(true)
   const { full_key: apiKey } = (await created.json()) as { full_key: string }

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { ADMIN_EMAIL, ADMIN_NAME } from '../features/admin/admin-emails'
-import { devLogin } from '../fixtures/auth'
+import { devLogin, SIGNED_IN_LANDING } from '../fixtures/auth'
 import { e2eAppAvailable, rearmSetup } from '../helpers/e2eApp'
 import {
   freshPage,
@@ -60,7 +60,7 @@ test.describe.serial('Password journeys: bootstrap', () => {
         .getByRole('button', { name: 'Set up admin and sign in' })
         .click()
 
-      await expect(operator).toHaveURL(/\/$/, { timeout: 20_000 })
+      await expect(operator).toHaveURL(SIGNED_IN_LANDING, { timeout: 20_000 })
       expect(await whoAmI(operator)).toBe(ROOT_EMAIL)
       const status = await operator.request.get('/api/v1/setup/status')
       expect(await status.json()).toMatchObject({ setup_required: false })

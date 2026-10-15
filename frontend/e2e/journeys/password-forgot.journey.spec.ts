@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { ADMIN_EMAIL, ADMIN_NAME } from '../features/admin/admin-emails'
-import { devLogin } from '../fixtures/auth'
+import { devLogin, SIGNED_IN_LANDING } from '../fixtures/auth'
 import { e2eAppAvailable } from '../helpers/e2eApp'
 import {
   createPasswordAccount,
@@ -89,7 +89,7 @@ test.describe.serial('Password journeys: forgot password', () => {
       await reset
         .getByRole('button', { name: 'Set password and sign in' })
         .click()
-      await expect(person).toHaveURL(/\/$/, { timeout: UI_TIMEOUT })
+      await expect(person).toHaveURL(SIGNED_IN_LANDING, { timeout: UI_TIMEOUT })
       expect(await whoAmI(person)).toBe(email)
     } finally {
       await context.close()

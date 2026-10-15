@@ -92,6 +92,12 @@ async function performDevLogin(
 export const ONBOARDING_PATH = '/getting-started'
 
 /**
+ * Where a sign-in lands: the dashboard, or for a user who has not finished
+ * the first-run onboarding, the onboarding the dashboard hands them to.
+ */
+export const SIGNED_IN_LANDING = /\/(getting-started\?step=\d+)?$/
+
+/**
  * Mark the signed-in user's first-run onboarding as finished, and load the
  * dashboard.
  *

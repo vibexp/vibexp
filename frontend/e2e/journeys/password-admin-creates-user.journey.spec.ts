@@ -1,7 +1,7 @@
 import { expect, type Page, test } from '@playwright/test'
 
 import { ADMIN_EMAIL, ADMIN_NAME } from '../features/admin/admin-emails'
-import { devLogin } from '../fixtures/auth'
+import { devLogin, SIGNED_IN_LANDING } from '../fixtures/auth'
 import { e2eAppAvailable } from '../helpers/e2eApp'
 import {
   createTeam,
@@ -66,7 +66,7 @@ async function completeSetup(
   await form
     .getByRole('button', { name: 'Create password and sign in' })
     .click()
-  await expect(page).toHaveURL(/\/$/, { timeout: UI_TIMEOUT })
+  await expect(page).toHaveURL(SIGNED_IN_LANDING, { timeout: UI_TIMEOUT })
   expect(await whoAmI(page)).toBe(email)
   const teams = await (await page.request.get('/api/v1/teams')).text()
   expect(teams).toContain(team)

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { devLogin, isAuthenticated } from './fixtures/auth'
+import { devLogin, isAuthenticated, SIGNED_IN_LANDING } from './fixtures/auth'
 
 test.describe('Dev Login', () => {
   test('should successfully login with dev login and access dashboard', async ({
@@ -23,10 +23,10 @@ test.describe('Dev Login', () => {
     await page.click('button:has-text("Dev Login")')
 
     // Wait for navigation to home page
-    await page.waitForURL('/', { timeout: 10000 })
+    await page.waitForURL(SIGNED_IN_LANDING, { timeout: 10000 })
 
     // Verify we're on the home page
-    expect(page.url()).toMatch(/\/$|\/\?/)
+    expect(page.url()).toMatch(SIGNED_IN_LANDING)
 
     // Wait for the session to hydrate (team context persisted) before asserting
     await page.waitForFunction(
@@ -96,8 +96,8 @@ test.describe('Dev Login', () => {
     await page.click('button:has-text("Dev Login")')
 
     // Should successfully redirect to home page
-    await page.waitForURL('/', { timeout: 10000 })
-    expect(page.url()).toMatch(/\/$|\/\?/)
+    await page.waitForURL(SIGNED_IN_LANDING, { timeout: 10000 })
+    expect(page.url()).toMatch(SIGNED_IN_LANDING)
   })
 
   test('should create new user on first login', async ({ page }) => {
@@ -106,7 +106,7 @@ test.describe('Dev Login', () => {
     await devLogin(page, uniqueEmail, 'Playwright New User')
 
     // Verify we're authenticated and on home page
-    expect(page.url()).toMatch(/\/$|\/\?/)
+    expect(page.url()).toMatch(SIGNED_IN_LANDING)
     const authenticated = await isAuthenticated(page)
     expect(authenticated).toBe(true)
   })
@@ -122,7 +122,7 @@ test.describe('Home Page Access', () => {
 
     // Verify home page loads
     await expect(page.locator('body')).toBeVisible()
-    expect(page.url()).toMatch(/\/$|\/\?/)
+    expect(page.url()).toMatch(SIGNED_IN_LANDING)
   })
 
   test('unauthenticated user sees login page', async ({ page }) => {
