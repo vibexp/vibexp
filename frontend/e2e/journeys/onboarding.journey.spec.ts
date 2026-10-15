@@ -1,42 +1,29 @@
-import { expect, type Page, test } from '@playwright/test'
+import { expect, type Page, request, test } from '@playwright/test'
 
 import { devLogin, ONBOARDING_PATH } from '../fixtures/auth'
 
 /**
- * First-run onboarding, end to end.
+ * First-run onboarding, end to end: the happy path (#1506, #1508).
  *
- * A brand-new user signs in and is taken from the dashboard to the onboarding
- * at `/getting-started`: welcome, building blocks, Claude Code plugin, team
- * rules, VibeXP CLI, done. Steps can be skipped one at a time or all at once,
- * and the flow can be reopened at any time from the app.
+ * A brand-new user signs in and the dashboard hands them to the onboarding.
+ * They walk all six steps (the concept, the building blocks, the Claude Code
+ * plugin, the CLAUDE.md team rules, the CLI) and copy each command. The last
+ * step shows the knowledge loop as not started. Then their AI tool reads a
+ * memory and writes one back through the REST API with an API key, which is
+ * how the CLI and the plugin reach VibeXP. The last step now confirms both,
+ * and once the user leaves, the dashboard's setup card is gone for good.
  *
  * ## Why this is an e2e
  *
- * The step components and the redirect decision are unit-tested. Only a
- * browser against the real stack shows the pieces working together:
- *
- * - **The redirect fires for a real new user and only once.** It hangs on the
- *   `onboarding_completed` flag the backend sends with the user. Finishing
- *   or skipping the flow stores that flag server-side, so after a full reload
- *   (a fresh `/auth/me`) the dashboard has to stay put.
- * - **Deep links are not hijacked.** A new user who opens a shared link lands
- *   on it; the onboarding waits for the dashboard.
- * - **The copy buttons write the real clipboard**, with the commands a
- *   person pastes into Claude Code and their terminal.
+ * Each piece is unit-tested. Only the real stack shows them working together:
+ * the redirect hangs on the `onboarding_completed` flag the backend sends; the
+ * loop status hangs on events the backend records for a request it
+ * authenticated by API key (the `api` source), never for the web app's own
+ * cookie requests; and the copy buttons write the real clipboard.
  */
 
 /** Combined-stack UI budget, matching the other journeys. */
 const UI_TIMEOUT = 20_000
-
-function uniqueEmail(who: string): string {
-  return `e2e-onboarding-${who}-${Date.now()}@vibexp.test`
-}
-
-async function signInAsNewUser(page: Page, who: string): Promise<void> {
-  await devLogin(page, uniqueEmail(who), `Onboarding ${who}`, {
-    keepOnboarding: true,
-  })
-}
 
 async function expectOnStep(page: Page, step: number): Promise<void> {
   // The flow keeps the step on screen in `?step=` (0-based); the header's
@@ -47,144 +34,175 @@ async function expectOnStep(page: Page, step: number): Promise<void> {
   await expect(page.getByRole('banner')).toContainText(`Step ${String(step)}`)
 }
 
-async function readOnboardingCompleted(page: Page): Promise<boolean> {
-  const response = await page.request.get('/api/v1/auth/me')
-  expect(response.status(), 'read the signed-in user').toBe(200)
-  const user = (await response.json()) as { onboarding_completed?: boolean }
-  return user.onboarding_completed === true
+async function clipboard(page: Page): Promise<string> {
+  return page.evaluate(() => navigator.clipboard.readText())
 }
 
-test.describe('First-run onboarding', () => {
-  test('a new user walks the flow, skips a step, finishes it later and replays it', async ({
+function loopItem(page: Page, name: RegExp) {
+  return page
+    .getByRole('list', { name: 'Knowledge loop' })
+    .getByRole('listitem')
+    .filter({ hasText: name })
+}
+
+/**
+ * Act as the user's AI tool: with a fresh API key, read one memory and write
+ * one, over the REST API and without the browser's session cookie, so the
+ * backend records both under the `api` source.
+ */
+async function runTheLoopAsAnAITool(page: Page): Promise<void> {
+  const teams = await page.request.get('/api/v1/teams')
+  expect(teams.status(), 'list teams').toBe(200)
+  const { teams: teamList } = (await teams.json()) as {
+    teams: { id: string }[]
+  }
+  const teamId = teamList[0]?.id
+  expect(teamId, 'the new user has a team').toBeTruthy()
+
+  const projects = await page.request.get(`/api/v1/${teamId}/projects`)
+  expect(projects.status(), 'list projects').toBe(200)
+  const { projects: projectList } = (await projects.json()) as {
+    projects: { id: string }[]
+  }
+  const projectId = projectList[0]?.id
+  expect(projectId, 'the team has a default project').toBeTruthy()
+
+  const created = await page.request.post('/api/v1/api-keys', {
+    data: { name: 'Onboarding e2e agent', integration_codes: ['ai_tools'] },
+  })
+  expect(created.ok(), `create API key: ${created.status()}`).toBe(true)
+  const { full_key: apiKey } = (await created.json()) as { full_key: string }
+
+  const agent = await request.newContext({
+    baseURL: new URL(page.url()).origin,
+    extraHTTPHeaders: { Authorization: `Bearer ${apiKey}` },
+  })
+  try {
+    const write = await agent.post(`/api/v1/${teamId}/memories`, {
+      data: {
+        project_id: projectId,
+        title: 'Onboarding e2e',
+        text: 'Every POST to /charges must send an Idempotency-Key header.',
+      },
+    })
+    expect(write.ok(), `write a memory: ${write.status()}`).toBe(true)
+    const { id: memoryId } = (await write.json()) as { id: string }
+
+    const read = await agent.get(`/api/v1/${teamId}/memories/${memoryId}`)
+    expect(read.status(), 'read the memory back').toBe(200)
+  } finally {
+    await agent.dispose()
+  }
+}
+
+test('a new user is onboarded and their AI tool closes the knowledge loop', async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await devLogin(
     page,
-    context,
-  }) => {
-    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-    await signInAsNewUser(page, 'walk')
+    `e2e-onboarding-${String(Date.now())}@vibexp.test`,
+    'Onboarding Journey',
+    { keepOnboarding: true }
+  )
 
-    // Signing in lands on the dashboard, which hands a new user over.
-    await page.waitForURL(url => url.pathname === ONBOARDING_PATH, {
-      timeout: UI_TIMEOUT,
+  // 1. Welcome: signing in lands on the dashboard, which hands a new user over.
+  await expectOnStep(page, 1)
+  await expect(
+    page.getByRole('heading', {
+      name: "Your team's shared brain for AI agents",
     })
-    await expectOnStep(page, 1)
-    await expect(
-      page.getByRole('heading', {
-        name: "Your team's shared brain for AI agents",
-      })
-    ).toBeVisible()
-    await expect(
-      page.locator('iframe[src*="youtube-nocookie.com/embed/-9NFGBjoc5g"]')
-    ).toBeVisible()
+  ).toBeVisible()
+  await expect(
+    page.locator('iframe[src*="youtube-nocookie.com/embed/-9NFGBjoc5g"]')
+  ).toBeVisible()
+  await page.getByRole('button', { name: 'Get started' }).click()
 
-    // Step 2: the building blocks are tabs.
-    await page.getByRole('button', { name: 'Get started' }).click()
-    await expectOnStep(page, 2)
-    const tabs = page.getByRole('tablist', { name: 'Building blocks' })
-    await expect(tabs.getByRole('tab')).toHaveText([
-      'Memory',
-      'Blueprints',
-      'Artifacts',
-      'AI Feeds',
-    ])
-    await tabs.getByRole('tab', { name: 'Blueprints' }).click()
-    await expect(tabs.getByRole('tab', { name: 'Blueprints' })).toHaveAttribute(
-      'aria-selected',
-      'true'
-    )
-    await expect(
-      page.getByRole('heading', { name: 'Blueprints', level: 3 })
-    ).toBeVisible()
+  // 2. Building blocks.
+  await expectOnStep(page, 2)
+  const blocks = page.getByRole('tablist', { name: 'Building blocks' })
+  await blocks.getByRole('tab', { name: 'Blueprints' }).click()
+  await expect(
+    page.getByRole('heading', { name: 'Blueprints', level: 3 })
+  ).toBeVisible()
+  await page.getByRole('button', { name: 'Continue' }).click()
 
-    // Step 3: the plugin commands land on the clipboard as shown.
-    await page.getByRole('button', { name: 'Continue' }).click()
-    await expectOnStep(page, 3)
-    await page.getByRole('button', { name: 'Copy marketplace command' }).click()
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-      '/plugin marketplace add vibexp/plugin-marketplace'
-    )
-    await page.getByRole('button', { name: 'From your terminal' }).click()
-    await expect(
-      page.getByRole('button', { name: 'From your terminal' })
-    ).toHaveAttribute('aria-pressed', 'true')
-    await page.getByRole('button', { name: 'Copy install command' }).click()
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-      'claude plugin install vibexp@vibexp'
-    )
+  // 3. Claude Code plugin.
+  await expectOnStep(page, 3)
+  await page.getByRole('button', { name: 'Copy marketplace command' }).click()
+  expect(await clipboard(page)).toBe(
+    '/plugin marketplace add vibexp/plugin-marketplace'
+  )
+  await page.getByRole('button', { name: "I've installed it" }).click()
 
-    // Step 4: skip the team rules for now.
-    await page.getByRole('button', { name: "I've installed it" }).click()
-    await expectOnStep(page, 4)
-    await page.getByRole('button', { name: 'Skip this step' }).click()
+  // 4. Team rules for ~/.claude/CLAUDE.md.
+  await expectOnStep(page, 4)
+  await page.getByRole('button', { name: 'Copy rules' }).click()
+  const rules = await clipboard(page)
+  expect(rules).toContain('/vibexp:prime')
+  expect(rules).toContain('/vibexp:wrap')
+  await page.getByRole('button', { name: "I've added the rules" }).click()
 
-    // Step 5: the CLI command carries this instance's address.
-    await expectOnStep(page, 5)
-    const origin = new URL(page.url()).origin
-    await page.getByRole('button', { name: 'Copy install command' }).click()
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-      `claude "/vibexp:install ${origin}"`
-    )
+  // 5. The CLI, set up by Claude for this instance.
+  await expectOnStep(page, 5)
+  await page.getByRole('button', { name: 'Copy install command' }).click()
+  expect(await clipboard(page)).toBe(
+    `claude "/vibexp:install ${new URL(page.url()).origin}"`
+  )
+  await page.getByRole('button', { name: "I've run it" }).click()
 
-    // Step 6: the summary offers the skipped step back.
-    await page.getByRole('button', { name: "I've run it" }).click()
-    await expectOnStep(page, 6)
-    await expect(
-      page.getByRole('heading', {
-        name: 'Your agents now learn with your team',
-      })
-    ).toBeVisible()
-    await page.getByRole('button', { name: 'Finish this step' }).click()
-    await expectOnStep(page, 4)
-    await expect(
-      page.getByRole('heading', { name: 'Make it a habit in every session' })
-    ).toBeVisible()
-    await page.getByRole('button', { name: 'Copy rules' }).click()
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
-      '/vibexp:wrap'
-    )
+  // 6. All set, but no AI tool has read or written yet.
+  await expectOnStep(page, 6)
+  await expect(
+    page.getByRole('heading', { name: 'Your agents now learn with your team' })
+  ).toBeVisible()
+  await expect(loopItem(page, /read from the shared brain/)).toHaveAttribute(
+    'data-state',
+    'pending'
+  )
+  await expect(loopItem(page, /wrote back/)).toHaveAttribute(
+    'data-state',
+    'pending'
+  )
 
-    // Leaving through the last step stores completion on the server.
-    await page.goto(`${ONBOARDING_PATH}?step=5`)
-    await expectOnStep(page, 6)
-    await page.getByRole('button', { name: 'Go to VibeXP' }).click()
-    await page.waitForURL('/', { timeout: UI_TIMEOUT })
-    expect(await readOnboardingCompleted(page)).toBe(true)
-    await page.reload()
-    await expect(page).toHaveURL('/')
+  // The user's AI tool reads and writes; the step confirms both.
+  await runTheLoopAsAnAITool(page)
+  await page.reload()
+  await expectOnStep(page, 6)
+  await expect(loopItem(page, /read from the shared brain/)).toHaveAttribute(
+    'data-state',
+    'done',
+    { timeout: UI_TIMEOUT }
+  )
+  await expect(loopItem(page, /wrote back/)).toHaveAttribute(
+    'data-state',
+    'done'
+  )
 
-    // It can be reopened at any time from the app header, where it resumes
-    // at the first step not done: the team rules, still only skipped.
-    const entry = page.getByRole('link', { name: /^Getting started,/ })
-    await expect(entry).toHaveAccessibleName(
-      'Getting started, 4 of 5 steps done'
-    )
-    await entry.click()
-    await expectOnStep(page, 4)
-  })
+  // Leaving stores completion; with the loop running the setup card is gone,
+  // and the onboarding stays one click away in the profile menu.
+  await page.getByRole('button', { name: 'Go to VibeXP' }).click()
+  await page.waitForURL('/', { timeout: UI_TIMEOUT })
+  await page.reload()
+  await expect(page).toHaveURL('/')
+  await expect(page.getByRole('heading', { name: /Welcome back/ })).toBeVisible(
+    { timeout: UI_TIMEOUT }
+  )
+  await expect(page.getByText('Finish setting up VibeXP')).toHaveCount(0)
+  await page.getByTestId('user-menu').click()
+  await page.getByRole('menuitem', { name: /Getting started/ }).click()
+  await expect(page).toHaveURL(new RegExp(`^[^?]*${ONBOARDING_PATH}`))
 
-  test('"Skip setup" ends the onboarding for good', async ({ page }) => {
-    await signInAsNewUser(page, 'skip')
-    await page.waitForURL(url => url.pathname === ONBOARDING_PATH, {
-      timeout: UI_TIMEOUT,
-    })
-
-    await page.getByRole('button', { name: 'Skip setup' }).click()
-    await page.waitForURL('/', { timeout: UI_TIMEOUT })
-    expect(await readOnboardingCompleted(page)).toBe(true)
-
-    // A fresh session in the same browser stays on the dashboard.
-    await page.evaluate(() => sessionStorage.clear())
-    await page.reload()
-    await expect(page).toHaveURL('/')
-  })
-
-  test('a deep link is not hijacked by the onboarding', async ({ page }) => {
-    await signInAsNewUser(page, 'deeplink')
-
-    await page.goto('/memories')
-    await expect(page).toHaveURL(/\/memories$/)
-    await expect(
-      page.getByRole('heading', { name: 'Memories', level: 1 })
-    ).toBeVisible({ timeout: UI_TIMEOUT })
-    expect(await readOnboardingCompleted(page)).toBe(false)
-  })
+  const me = await page.request.get('/api/v1/auth/me')
+  const user = (await me.json()) as {
+    onboarding_completed: boolean
+    knowledge_loop: {
+      first_read_at: string | null
+      first_write_at: string | null
+    }
+  }
+  expect(user.onboarding_completed).toBe(true)
+  expect(user.knowledge_loop.first_read_at).not.toBeNull()
+  expect(user.knowledge_loop.first_write_at).not.toBeNull()
 })

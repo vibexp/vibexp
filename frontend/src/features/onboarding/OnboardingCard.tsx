@@ -6,7 +6,8 @@ import { useOnboardingEntry } from './useOnboardingEntry'
 /**
  * The home page's "Finish setting up VibeXP" card, from the design's shell
  * view: progress through the onboarding, with Resume and Replay. It shows
- * only while steps are left, and the user can dismiss it for good (most who
+ * only while steps are left and no agent has completed the read/write loop
+ * yet, and the user can dismiss it for good (most who
  * skip the setup would otherwise carry it forever). Either way "Getting
  * started" in the profile menu stays the way back.
  */
@@ -19,9 +20,12 @@ export function OnboardingCard() {
     replayHref,
     cardDismissed,
     dismissCard,
+    loopRunning,
   } = useOnboardingEntry()
 
-  if (allDone || cardDismissed) return null
+  // Once an agent reads and writes back, the setup did its job, whatever
+  // the checklist says.
+  if (allDone || cardDismissed || loopRunning) return null
 
   const pct = Math.round((doneCount / total) * 100)
 

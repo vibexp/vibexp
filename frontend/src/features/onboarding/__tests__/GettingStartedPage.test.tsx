@@ -14,6 +14,7 @@ import { readProgress, resetProgressCache } from '../progress'
 const mockAuth = vi.hoisted(() => ({
   user: { id: 'u1', onboarding_completed: false },
   markOnboardingComplete: vi.fn<() => Promise<void>>(),
+  refreshUser: vi.fn<() => Promise<void>>(() => Promise.resolve()),
 }))
 
 vi.mock('@/contexts/useAuth', () => ({

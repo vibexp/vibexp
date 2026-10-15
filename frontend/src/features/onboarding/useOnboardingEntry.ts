@@ -2,6 +2,7 @@ import { useAuth } from '@/contexts/useAuth'
 
 import { gettingStartedHref } from './autoOpen'
 import { ACTIONABLE_STEP_COUNT } from './content'
+import { isLoopRunning, knowledgeLoopOf } from './knowledgeLoop'
 import {
   countDone,
   isAllDone,
@@ -27,6 +28,8 @@ export function useOnboardingEntry() {
     replayHref: gettingStartedHref(0),
     /** Whether the user hid the home card; replaying does not bring it back. */
     cardDismissed: progress.cardDismissed === true,
+    /** An agent has both read from VibeXP and written back: setup worked. */
+    loopRunning: isLoopRunning(knowledgeLoopOf(user)),
     dismissCard: () => {
       updateProgress(p => ({ ...p, cardDismissed: true }))
     },

@@ -14,9 +14,18 @@ import {
   writeProgress,
 } from '../progress'
 
-vi.mock('@/contexts/useAuth', () => ({
-  useAuth: () => ({ user: { id: 'u1', onboarding_completed: true } }),
+interface MockUser {
+  id: string
+  onboarding_completed: boolean
+  knowledge_loop?: {
+    first_read_at: string | null
+    first_write_at: string | null
+  }
+}
+const mockAuth = vi.hoisted(() => ({
+  user: null as MockUser | null,
 }))
+vi.mock('@/contexts/useAuth', () => ({ useAuth: () => mockAuth }))
 
 function setProgress(status: OnboardingProgress['status']) {
   writeProgress('u1', { status, lastStep: 0 })
@@ -27,6 +36,7 @@ function renderIn(node: React.ReactNode) {
 }
 
 beforeEach(() => {
+  mockAuth.user = { id: 'u1', onboarding_completed: true }
   window.localStorage.clear()
   resetProgressCache()
 })
@@ -94,6 +104,34 @@ describe('OnboardingCard', () => {
       writeProgress('u1', withStepStatus(readProgress('u1'), 1, 'done'))
     })
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it('is gone once an agent has read and written back, whatever the checklist says', () => {
+    mockAuth.user = {
+      id: 'u1',
+      onboarding_completed: true,
+      knowledge_loop: {
+        first_read_at: '2026-10-15T10:00:00Z',
+        first_write_at: '2026-10-15T10:05:00Z',
+      },
+    }
+    const { container } = renderIn(<OnboardingCard />)
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it('stays while the loop is only half done', () => {
+    mockAuth.user = {
+      id: 'u1',
+      onboarding_completed: true,
+      knowledge_loop: {
+        first_read_at: '2026-10-15T10:00:00Z',
+        first_write_at: null,
+      },
+    }
+    renderIn(<OnboardingCard />)
+    expect(
+      screen.getByRole('heading', { name: 'Finish setting up VibeXP' })
+    ).toBeInTheDocument()
   })
 
   it('is gone once all five steps are done', () => {

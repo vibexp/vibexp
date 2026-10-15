@@ -17,6 +17,7 @@ vi.mock('@/contexts/useAuth', () => ({
     isLoading: false,
     user: { id: 'u1', onboarding_completed: false },
     markOnboardingComplete: vi.fn(),
+    refreshUser: vi.fn(() => Promise.resolve()),
   }),
 }))
 

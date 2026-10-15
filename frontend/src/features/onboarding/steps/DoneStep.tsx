@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { ONBOARDING_STEPS } from '../content'
 import type { StepStatus } from '../progress'
 import { STEP_HEADING_ATTR } from '../shared'
+import { KnowledgeLoopStatus } from './KnowledgeLoopStatus'
 
 /** The steps the summary lists: the welcome screen has nothing to finish. */
 const SUMMARY_STEPS = [1, 2, 3, 4] as const
@@ -49,6 +50,8 @@ export function DoneStep({
           hundred knows your codebase, your rules and your history.
         </p>
       </div>
+
+      <KnowledgeLoopStatus />
 
       <ul className="m-0 flex list-none flex-col overflow-hidden rounded-lg border p-0">
         {SUMMARY_STEPS.map((step, n) => {
