@@ -146,7 +146,7 @@ function FooterButton({
 /**
  * The first-run onboarding (`/getting-started`): six steps from what VibeXP
  * is to a working Claude Code setup, every one skippable, replayable from the
- * header's "Getting started". Full-screen with its own header, outside the
+ * profile menu's "Getting started". Full-screen with its own header, outside the
  * app shell, as designed.
  *
  * `?step=N` is the step on screen; without it the flow resumes at the first

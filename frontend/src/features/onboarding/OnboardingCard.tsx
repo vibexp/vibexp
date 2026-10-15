@@ -7,8 +7,8 @@ import { useOnboardingEntry } from './useOnboardingEntry'
  * The home page's "Finish setting up VibeXP" card, from the design's shell
  * view: progress through the onboarding, with Resume and Replay. It shows
  * only while steps are left, and the user can dismiss it for good (most who
- * skip the setup would otherwise carry it forever). Either way the header's
- * "Getting started" stays the way back.
+ * skip the setup would otherwise carry it forever). Either way "Getting
+ * started" in the profile menu stays the way back.
  */
 export function OnboardingCard() {
   const {
@@ -81,7 +81,7 @@ export function OnboardingCard() {
       <p className="text-muted-foreground mx-1 mt-4 mb-0 text-[13px]">
         Onboarding is always available from{' '}
         <strong className="text-foreground font-medium">Getting started</strong>{' '}
-        in the top bar.
+        in your profile menu.
       </p>
     </section>
   )

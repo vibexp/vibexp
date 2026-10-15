@@ -10,8 +10,8 @@ import {
 } from './progress'
 
 /**
- * What the ways back into the onboarding show and where they go: the header
- * button, the user menu, the command palette and the home card.
+ * What the ways back into the onboarding show and where they go: the profile
+ * menu, the command palette and the home card.
  *
  * - `resumeHref` opens the first step not done yet (the start once all are).
  * - `replayHref` opens the first step.

@@ -23,9 +23,6 @@ vi.mock('@/components/layout/UserMenu', () => ({
 vi.mock('@/components/layout/MobileSidebar', () => ({
   MobileSidebar: () => <div data-testid="mobile-sidebar" />,
 }))
-vi.mock('@/features/onboarding/GettingStartedButton', () => ({
-  GettingStartedButton: () => <a href="/getting-started">Getting started</a>,
-}))
 
 function ReadingPageStub() {
   useReadingShell({ details: true })

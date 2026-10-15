@@ -16,7 +16,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
-import { GettingStartedButton } from '@/features/onboarding/GettingStartedButton'
 
 /**
  * Top bar (#886).
@@ -109,8 +108,6 @@ export function Header() {
             <CommandPalette />
           </>
         )}
-        {/* The way back into the first-run onboarding, with its progress. */}
-        <GettingStartedButton />
         <NotificationBell />
         <UserMenu />
         {showDetailsToggle && (

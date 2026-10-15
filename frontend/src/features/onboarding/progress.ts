@@ -129,7 +129,7 @@ export function resumeStep(progress: OnboardingProgress): number {
 
 /**
  * One user's onboarding progress, shared live between everything on screen
- * that shows it (the flow, the header entry, the home card).
+ * that shows it (the flow, the profile menu, the command palette, the home card).
  */
 export function useOnboardingProgress(userId: string | undefined) {
   const progress = useSyncExternalStore(subscribe, () =>

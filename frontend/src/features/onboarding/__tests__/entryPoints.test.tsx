@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { STORAGE_KEYS } from '@/constants/storageKeys'
 
-import { GettingStartedButton } from '../GettingStartedButton'
 import { OnboardingCard } from '../OnboardingCard'
 import {
   type OnboardingProgress,
@@ -30,26 +29,6 @@ function renderIn(node: React.ReactNode) {
 beforeEach(() => {
   window.localStorage.clear()
   resetProgressCache()
-})
-
-describe('GettingStartedButton', () => {
-  it('shows the progress and resumes at the first step not done', () => {
-    setProgress(['done', 'done', 'skipped', 'todo', 'todo', 'todo'])
-    renderIn(<GettingStartedButton />)
-    const link = screen.getByRole('link', {
-      name: 'Getting started, 2 of 5 steps done',
-    })
-    expect(link).toHaveAttribute('href', '/getting-started?step=2')
-    expect(link).toHaveTextContent('2/5')
-  })
-
-  it('stays once everything is done, and then replays from the start', () => {
-    setProgress(['done', 'done', 'done', 'done', 'done', 'todo'])
-    renderIn(<GettingStartedButton />)
-    expect(
-      screen.getByRole('link', { name: /5 of 5 steps done/ })
-    ).toHaveAttribute('href', '/getting-started?step=0')
-  })
 })
 
 describe('OnboardingCard', () => {

@@ -101,7 +101,7 @@ export function DoneStep({
       <p className="text-muted-foreground m-0 text-[13px]">
         You can replay this onboarding anytime from{' '}
         <strong className="text-foreground font-medium">Getting started</strong>{' '}
-        in the top bar.
+        in your profile menu.
       </p>
     </>
   )
