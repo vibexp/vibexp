@@ -23,6 +23,11 @@ var ErrInvalidAuditSettings = errors.New("invalid audit settings")
 // once; another replica picks the change up within this long.
 const auditCaptureCacheTTL = 30 * time.Second
 
+// auditCaptureReadTimeout bounds one read of the capture switch. The read runs
+// detached from the caller's cancellation (see readCapture), so this is what
+// keeps a stuck database from holding the recorder.
+const auditCaptureReadTimeout = 5 * time.Second
+
 // InstanceAuditSettingsServiceInterface is the instance audit-log settings
 // surface (#1512, epic #1510): the admin read and writes, and the capture
 // switch the audit recorder consults. Instance-admin authorization is the route
@@ -169,8 +174,15 @@ func (s *InstanceAuditSettingsService) CaptureClientInfo(ctx context.Context) bo
 }
 
 // readCapture reads the capture switch from the database.
+//
+// The read is detached from the caller's cancellation, as AuthPolicyResolver's
+// refresh is: its result is cached for every caller, so one request that goes
+// away mid-read must not turn into a cached "database fault" that strips the
+// client info from everyone's events for a whole TTL.
 func (s *InstanceAuditSettingsService) readCapture(ctx context.Context) cachedAuditCapture {
-	stored, err := s.repo.Get(ctx)
+	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), auditCaptureReadTimeout)
+	defer cancel()
+	stored, err := s.repo.Get(readCtx)
 	switch {
 	case errors.Is(err, repositories.ErrInstanceAuditSettingsNotFound):
 		return cachedAuditCapture{value: models.DefaultAuditCaptureClientInfo, readAt: s.now()}

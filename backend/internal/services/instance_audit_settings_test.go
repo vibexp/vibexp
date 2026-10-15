@@ -307,3 +307,26 @@ func TestInstanceAuditSettingsService_CaptureClientInfo_RacingWriteIsNotCached(t
 	repo.EXPECT().Get(mock.Anything).Return(storedAuditSettingsRow(), nil).Once()
 	assert.False(t, svc.CaptureClientInfo(ctx), "but did not cache it over the write")
 }
+
+// One caller going away mid-read must not poison the shared cache: the read
+// runs detached from the caller's cancellation, so a cancelled request still
+// resolves the real value.
+func TestInstanceAuditSettingsService_CaptureClientInfo_CallerCancellationDoesNotPoisonCache(t *testing.T) {
+	svc, repo := newInstanceAuditSettingsService(t, nil)
+	on := storedAuditSettingsRow()
+	on.CaptureIPUA = true
+	repo.EXPECT().Get(mock.Anything).RunAndReturn(
+		func(ctx context.Context) (*models.InstanceAuditSettings, error) {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			_, hasDeadline := ctx.Deadline()
+			assert.True(t, hasDeadline, "the detached read is still bounded")
+			return on, nil
+		}).Once()
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	assert.True(t, svc.CaptureClientInfo(cancelled), "a cancelled caller still gets the real value")
+	assert.True(t, svc.CaptureClientInfo(context.Background()), "and the cache holds it, not a fallback")
+}
