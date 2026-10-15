@@ -235,6 +235,61 @@ describe('GettingStartedPage', () => {
     )
   })
 
+  it('shows each building block with its example', async () => {
+    const user = userEvent.setup()
+    renderFlow('/getting-started?step=1')
+    const examples: Record<string, string> = {
+      Memory: 'Idempotency-Key',
+      Blueprints: 'Never expose stack traces',
+      Artifacts: 'Checkout latency investigation',
+      'AI Feeds': 'Terraform module naming',
+    }
+    for (const [tab, example] of Object.entries(examples)) {
+      await user.click(screen.getByRole('tab', { name: tab }))
+      expect(screen.getByRole('tabpanel')).toHaveTextContent(example)
+    }
+  })
+
+  it('lists done steps as done in the summary, without a way back', () => {
+    window.localStorage.setItem(
+      STORAGE_KEYS.ONBOARDING_PROGRESS,
+      JSON.stringify({
+        u1: {
+          status: ['done', 'done', 'skipped', 'done', 'todo', 'todo'],
+          lastStep: 5,
+        },
+      })
+    )
+    renderFlow('/getting-started?step=5')
+    // Building blocks and Team rules are done (Welcome is not listed).
+    expect(
+      within(screen.getByRole('main')).getAllByText(', done')
+    ).toHaveLength(2)
+    const finish = screen
+      .getAllByRole('button', { name: /^Finish this step:/ })
+      .map(b => b.getAttribute('aria-label'))
+    expect(finish).toEqual([
+      'Finish this step: Claude Code plugin',
+      'Finish this step: VibeXP CLI',
+    ])
+  })
+
+  it('falls back to a selection copy when the clipboard refuses', async () => {
+    writeText.mockRejectedValue(new Error('NotAllowedError'))
+    const execCommand = vi.fn(() => true)
+    Object.defineProperty(document, 'execCommand', {
+      value: execCommand,
+      configurable: true,
+    })
+    renderFlow('/getting-started?step=4')
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Copy install command' })
+    )
+    await vi.waitFor(() => {
+      expect(execCommand).toHaveBeenCalledWith('copy')
+    })
+  })
+
   it('copies the plugin commands for the chosen place', () => {
     renderFlow('/getting-started?step=2')
 
