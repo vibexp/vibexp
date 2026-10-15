@@ -42,6 +42,19 @@ async function performDevLogin(
     { timeout: 15000 }
   )
 
+  if (options.keepOnboarding) {
+    // The onboarding renders outside the team shell, so there is no team
+    // context to wait for: the journey asserts on the flow itself.
+    await page.waitForURL(url => url.pathname === ONBOARDING_PATH, {
+      timeout: 15000,
+    })
+    return
+  }
+
+  // Before the team wait: the onboarding renders outside the team shell, so
+  // a user the dashboard already sent there would never hydrate a team.
+  await completeOnboarding(page)
+
   // CRITICAL: Wait for team context to be initialized.
   // The TeamContext fetches teams asynchronously, and many components depend on
   // currentTeam. The current team id is persisted to localStorage once teams
@@ -62,18 +75,14 @@ async function performDevLogin(
 
   // Give an extra moment for React to process the team context update.
   await page.waitForTimeout(500)
-
-  if (!options.keepOnboarding) {
-    await completeOnboarding(page)
-  }
 }
 
 /** Where the first-run onboarding lives. */
 export const ONBOARDING_PATH = '/getting-started'
 
 /**
- * Mark the signed-in user's first-run onboarding as finished, and leave it
- * if the app already opened it.
+ * Mark the signed-in user's first-run onboarding as finished, and load the
+ * dashboard.
  *
  * Every dev login provisions a brand-new user, and a new user landing on the
  * dashboard is sent to the onboarding. Specs that are not about the
