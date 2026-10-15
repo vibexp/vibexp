@@ -145,6 +145,9 @@ type Container interface {
 	InstanceAISummarySettingsService() services.InstanceAISummarySettingsServiceInterface
 	// InstanceSiteInfoService serves the instance's company branding (#1353).
 	InstanceSiteInfoService() services.InstanceSiteInfoServiceInterface
+	// InstanceAuditSettingsService serves the instance audit-log settings
+	// (#1512).
+	InstanceAuditSettingsService() services.InstanceAuditSettingsServiceInterface
 	EmailSenderResolver() services.EmailSenderResolver
 	TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface
 	// TeamAISummarySettingsService serves the team AI summary settings API

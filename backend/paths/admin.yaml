@@ -4587,6 +4587,187 @@ api-v1-admin-settings-search-audit:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
 
+api-v1-admin-settings-audit-log:
+  get:
+    summary: Get the instance audit-log settings
+    description: |
+      Returns the instance's audit-log settings in effect (how many weeks audit
+      events are kept, and whether a new event stores the client IP address and
+      user agent), where they come from, the built-in defaults, the bounds for
+      form validation and the stored row's `version`. Always 200: with nothing
+      stored the built-in defaults apply, `source` is `default` and `version`
+      is null.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: getAdminAuditLogSettings
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: The instance audit-log settings
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminAuditLogSettings'
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+  put:
+    summary: Replace the instance audit-log settings
+    description: |
+      Validates and stores a whole replacement of the instance's audit-log
+      settings and appends one entry (`action: upsert`) to the `audit_log`
+      settings audit log in the same transaction. Turning `capture_ip_ua` off
+      applies to events recorded from then on; events already stored keep
+      theirs. A shorter `retention_weeks` is applied by the next daily purge.
+      Pass `expected_version` to reject the save with 409 when someone else
+      changed the settings since they were read. A body that omits a setting,
+      sends one as null, or carries an unknown field is rejected with 400.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: updateAdminAuditLogSettings
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/AdminAuditLogSettingsUpdate'
+    responses:
+      '200':
+        description: The stored audit-log settings
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminAuditLogSettings'
+      '400':
+        description: |
+          Bad request — `retention_weeks` is outside 1 to 52
+          (`INSTANCE_SETTINGS_VALIDATION_FAILED`, with `validation_errors`
+          naming the field), or the body is malformed, omits or nulls a
+          setting (both are required), or carries an unknown field
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Conflict — `expected_version` does not match the stored version (`INSTANCE_SETTINGS_VERSION_CONFLICT`); nothing was changed
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+  delete:
+    summary: Reset the instance audit-log settings to the built-in defaults
+    description: |
+      Removes the stored audit-log settings, so the built-in defaults apply
+      from the next request, and appends one entry (`action: delete`) to the
+      `audit_log` settings audit log. Idempotent: with nothing stored it is
+      still a 204 and writes no audit entry.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: resetAdminAuditLogSettings
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '204':
+        description: The built-in defaults apply now
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-settings-audit-log-audit:
+  get:
+    summary: List the instance audit-log settings change history
+    description: |
+      Returns one page of the instance audit-log settings' change history
+      (setting `audit_log`), newest first, with each actor's display name
+      resolved. Pass the previous page's `next_cursor` to continue.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: listAdminAuditLogSettingsAudit
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: cursor
+        in: query
+        description: Opaque cursor from a previous page's `next_cursor`.
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        description: Page size.
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: One page of audit entries, newest first
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminInstanceSettingsAuditPage'
+      '400':
+        description: Bad request — malformed cursor, or `limit` out of range
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
 api-v1-admin-settings-site-info:
   get:
     summary: Get the instance site info

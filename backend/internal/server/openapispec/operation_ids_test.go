@@ -199,6 +199,11 @@ var settingsAliasExclusions = map[string]string{
 		"settings (getAdminAISummarySettings / updateAdminAISummarySettings / " +
 		"resetAdminAISummarySettings, issue #1200) — the suffix is the noun. There is no " +
 		"other copy: the team AI summary settings are different operations on team paths.",
+
+	"/api/v1/admin/settings/audit-log": "the DOMAIN is the instance audit-log " +
+		"settings (getAdminAuditLogSettings / updateAdminAuditLogSettings / " +
+		"resetAdminAuditLogSettings, issue #1512) — the suffix is the noun. There is no " +
+		"other copy of these operations.",
 }
 
 // TestEverySettingsSuffixedPathIsRegistered is the completeness half of the

@@ -255,6 +255,12 @@ func ProvideInstanceEmailProviderRepository(db *database.DB) repositories.Instan
 	return postgres.NewInstanceEmailProviderRepository(db)
 }
 
+// ProvideInstanceAuditSettingsRepository creates a new
+// InstanceAuditSettingsRepository (#1512).
+func ProvideInstanceAuditSettingsRepository(db *database.DB) repositories.InstanceAuditSettingsRepository {
+	return postgres.NewInstanceAuditSettingsRepository(db)
+}
+
 // ProvideInstanceSiteInfoRepository creates a new InstanceSiteInfoRepository
 func ProvideInstanceSiteInfoRepository(db *database.DB) repositories.InstanceSiteInfoRepository {
 	return postgres.NewInstanceSiteInfoRepository(db)

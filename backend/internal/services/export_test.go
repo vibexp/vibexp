@@ -12,3 +12,12 @@ func (s *SearchService) SetClockForTest(now func() time.Time) {
 // It converts the service-layer filter string into the repository's optional
 // pointer, and it is the seam where an unrecognized value becomes "no filter".
 func ExportedFreshnessFilter(value string) *string { return freshnessFilter(value) }
+
+// SetClockForTest overrides the clock the capture-switch cache expires by.
+// Test-only.
+func (s *InstanceAuditSettingsService) SetClockForTest(now func() time.Time) {
+	s.now = now
+}
+
+// AuditCaptureCacheTTL exposes how long the capture switch is cached.
+const AuditCaptureCacheTTL = auditCaptureCacheTTL

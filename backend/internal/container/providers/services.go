@@ -778,6 +778,17 @@ func ProvideInstanceSiteInfoService(
 	return services.NewInstanceSiteInfoService(repo, logger)
 }
 
+// ProvideInstanceAuditSettingsService creates the instance audit-log settings
+// service (#1512): the surface an instance admin edits the retention and the
+// client-info capture switch through, and the cached capture switch the audit
+// recorder consults.
+func ProvideInstanceAuditSettingsService(
+	repo repositories.InstanceAuditSettingsRepository,
+	logger *slog.Logger,
+) *services.InstanceAuditSettingsService {
+	return services.NewInstanceAuditSettingsService(repo, logger)
+}
+
 // ProvideTeamSearchSettingsService creates the team search settings service.
 // The instance reader supplies, per request, both the fallback for a team with
 // no stored profile and the instance_defaults reported on every read; the

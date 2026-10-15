@@ -190,7 +190,8 @@ func (a *adminStrictServer) mapInstanceSettingsError(handler, invalidMsg string,
 	switch {
 	case errors.Is(err, services.ErrInvalidSearchSettings),
 		errors.Is(err, services.ErrInvalidInstanceAISummarySettings),
-		errors.Is(err, services.ErrInvalidSiteInfo):
+		errors.Is(err, services.ErrInvalidSiteInfo),
+		errors.Is(err, services.ErrInvalidAuditSettings):
 		return apierrors.NewInstanceSettingsValidationError(invalidMsg, instanceSettingsValidationErrors(err))
 	case errors.Is(err, repositories.ErrInstanceSettingsVersionConflict):
 		return apierrors.NewInstanceSettingsVersionConflictError()

@@ -3000,6 +3000,7 @@ AdminInstanceSettingsAuditEntry:
         - auth_setup
         - site_info
         - auth_policy
+        - audit_log
       # Explicit constant names: generated clients emit every schema into one
       # package, so bare names risk colliding with another enum's values.
       x-enum-varnames:
@@ -3012,6 +3013,7 @@ AdminInstanceSettingsAuditEntry:
         - AdminInstanceSettingsAuditEntrySettingAuthSetup
         - AdminInstanceSettingsAuditEntrySettingSiteInfo
         - AdminInstanceSettingsAuditEntrySettingAuthPolicy
+        - AdminInstanceSettingsAuditEntrySettingAuditLog
       example: "email_provider"
     action:
       type: string
@@ -3262,6 +3264,133 @@ AdminInstanceSearchSettingsUpdate:
       type: integer
       minimum: 1
       maximum: 5000
+    expected_version:
+      type: integer
+      format: int64
+      minimum: 0
+      nullable: true
+      description: |
+        The `version` the caller last read. Send `0` when that `version` was
+        null, to save only while nothing is stored. Omit it or send null for
+        last-write-wins. A negative value matches nothing and is a 409.
+
+AdminAuditLogSettingsValues:
+  type: object
+  description: The instance audit-log settings.
+  additionalProperties: false
+  required:
+    - retention_weeks
+    - capture_ip_ua
+  properties:
+    retention_weeks:
+      type: integer
+      minimum: 1
+      maximum: 52
+      description: |
+        How many weeks an audit event is kept. A daily purge deletes events
+        older than that.
+      example: 2
+    capture_ip_ua:
+      type: boolean
+      description: |
+        Whether a newly recorded audit event stores the client IP address and
+        user agent. Events already stored keep theirs.
+      example: true
+
+AdminAuditLogSettingsLimits:
+  type: object
+  description: The bounds `retention_weeks` must respect, for form validation.
+  additionalProperties: false
+  required:
+    - retention_weeks_min
+    - retention_weeks_max
+  properties:
+    retention_weeks_min:
+      type: integer
+      example: 1
+    retention_weeks_max:
+      type: integer
+      example: 52
+
+AdminAuditLogSettings:
+  type: object
+  description: |
+    The instance audit-log settings in effect, where they come from, the
+    built-in defaults, the bounds and the stored row's metadata. With nothing
+    stored the built-in defaults apply, `source` is `default` and the metadata
+    fields are null.
+  additionalProperties: false
+  required:
+    - values
+    - source
+    - built_in_defaults
+    - limits
+    - updated_at
+    - updated_by_user_id
+    - updated_by_name
+    - version
+  properties:
+    values:
+      $ref: '#/AdminAuditLogSettingsValues'
+    source:
+      $ref: '#/AdminInstanceSettingsSource'
+    built_in_defaults:
+      $ref: '#/AdminAuditLogSettingsValues'
+    limits:
+      $ref: '#/AdminAuditLogSettingsLimits'
+    updated_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the settings were last stored; null when `source` is `default`.
+    updated_by_user_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: |
+        The admin who last stored the settings. Null when `source` is
+        `default`, or once that user has been deleted.
+    updated_by_name:
+      type: string
+      nullable: true
+      description: That admin's display name (or email), when it could be resolved.
+    version:
+      type: integer
+      format: int64
+      nullable: true
+      description: |
+        The stored row's optimistic-lock version; null when nothing is stored.
+        Send it back as `expected_version` (`0` when it is null) to reject a
+        save that would overwrite someone else's change.
+      example: 4
+
+AdminAuditLogSettingsUpdate:
+  type: object
+  description: |
+    A whole replacement of the instance audit-log settings. Both settings are
+    required. `expected_version` is optional and makes the save a
+    compare-and-set:
+
+    - omitted or null: last-write-wins, never a conflict.
+    - `0`: nothing may be stored yet; the save is rejected with 409 when a row
+      is stored. Send it when the `version` last read was null.
+    - a positive value: the save is rejected with 409 unless it equals the
+      stored `version`, and also when nothing is stored.
+  additionalProperties: false
+  required:
+    - retention_weeks
+    - capture_ip_ua
+  properties:
+    retention_weeks:
+      type: integer
+      minimum: 1
+      maximum: 52
+      description: How many weeks an audit event is kept, 1 to 52.
+      example: 4
+    capture_ip_ua:
+      type: boolean
+      description: Whether a newly recorded audit event stores the client IP address and user agent.
+      example: false
     expected_version:
       type: integer
       format: int64
