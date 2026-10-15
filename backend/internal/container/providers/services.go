@@ -386,10 +386,10 @@ func ProvideResourceWriteService(
 	return resourceaccess.NewWriteService(repo, pool, logger)
 }
 
-// ProvideAuditCaptureSettings decides whether audit events store the client's
+// ProvideAuditClientInfoCapturer decides whether audit events store the client's
 // IP and user agent. Capture is on until the instance audit settings (#1512)
 // replace this provider.
-func ProvideAuditCaptureSettings() audit.CaptureSettings {
+func ProvideAuditClientInfoCapturer() audit.ClientInfoCapturer {
 	return audit.AlwaysCapture{}
 }
 

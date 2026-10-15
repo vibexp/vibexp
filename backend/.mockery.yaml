@@ -101,7 +101,7 @@ packages:
       UserPreferencesServiceInterface:
   github.com/vibexp/vibexp/internal/services/audit:
     interfaces:
-      CaptureSettings:
+      ClientInfoCapturer:
       DropCounter:
       Recorder:
   github.com/vibexp/vibexp/internal/services/resourceaccess:

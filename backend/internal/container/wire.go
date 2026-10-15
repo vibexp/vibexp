@@ -157,7 +157,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideResourceAccessWorkerPool,
 	providers.ProvideResourceAccessService,
 	providers.ProvideResourceWriteService,
-	providers.ProvideAuditCaptureSettings,
+	providers.ProvideAuditClientInfoCapturer,
 	wire.Bind(new(audit.DropCounter), new(*metrics.Metrics)),
 	wire.Struct(new(audit.RecorderDeps), "*"),
 	providers.ProvideAuditRecorder,

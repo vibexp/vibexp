@@ -131,7 +131,7 @@ type RecorderDeps struct {
 	APIKeys  repositories.APIKeyRepository
 	Teams    repositories.TeamRepository
 	Projects repositories.ProjectRepository
-	Capture  CaptureSettings
+	Capture  ClientInfoCapturer
 	Pool     *events.WorkerPool
 	Drops    DropCounter
 	Logger   *slog.Logger
@@ -144,7 +144,7 @@ type AsyncRecorder struct {
 	apiKeys   repositories.APIKeyRepository
 	teams     repositories.TeamRepository
 	projects  repositories.ProjectRepository
-	capture   CaptureSettings
+	capture   ClientInfoCapturer
 	submitter taskSubmitter
 	drops     DropCounter
 	logger    *slog.Logger

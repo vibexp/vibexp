@@ -61,7 +61,7 @@ func (d *dropCounter) got() []string {
 	return append([]string(nil), d.reasons...)
 }
 
-// captureFunc adapts a func to CaptureSettings.
+// captureFunc adapts a func to ClientInfoCapturer.
 type captureFunc func(context.Context) bool
 
 func (f captureFunc) CaptureClientInfo(ctx context.Context) bool { return f(ctx) }
@@ -82,7 +82,7 @@ type harness struct {
 	stored    []models.AuditEvent
 }
 
-func newHarness(t *testing.T, capture CaptureSettings) *harness {
+func newHarness(t *testing.T, capture ClientInfoCapturer) *harness {
 	t.Helper()
 	h := &harness{
 		repo:      mocks.NewMockAuditEventRepository(t),
