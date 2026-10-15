@@ -123,6 +123,20 @@ export const STORAGE_KEYS = {
    * once the user lands back authenticated. Session scoped.
    */
   RETURN_TO: 'vx_return_to',
+
+  // First-run onboarding
+  /**
+   * Which onboarding steps each user did or skipped, and the step they were
+   * on, as a `Record<userId, OnboardingProgress>`. A per-browser convenience:
+   * the server keeps only whether the flow is finished. Read it through
+   * `useOnboardingProgress`.
+   */
+  ONBOARDING_PROGRESS: 'vx_onboarding_progress',
+  /**
+   * The id of the user the onboarding already opened for on its own in this
+   * browser session, so it opens at most once per session. Session scoped.
+   */
+  ONBOARDING_AUTO_OPENED: 'vx_onboarding_auto_opened',
 } as const
 
 /**
@@ -153,6 +167,7 @@ export const LOCAL_STORAGE_KEYS: ReadonlySet<StorageKey> = new Set([
   STORAGE_KEYS.NAV_COLLAPSED,
   STORAGE_KEYS.DETAILS_COLLAPSED,
   STORAGE_KEYS.USAGE_OPEN,
+  STORAGE_KEYS.ONBOARDING_PROGRESS,
 ])
 
 export const SESSION_STORAGE_KEYS: ReadonlySet<StorageKey> = new Set([
@@ -164,4 +179,5 @@ export const SESSION_STORAGE_KEYS: ReadonlySet<StorageKey> = new Set([
   STORAGE_KEYS.PURCHASE_TRACKED,
   STORAGE_KEYS.LOGIN_METHOD,
   STORAGE_KEYS.RETURN_TO,
+  STORAGE_KEYS.ONBOARDING_AUTO_OPENED,
 ])

@@ -5,6 +5,7 @@ import {
   LogOut,
   Monitor,
   Moon,
+  Rocket,
   Settings as SettingsIcon,
   Shield,
   Sun,
@@ -24,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/contexts/useAuth'
+import { useOnboardingEntry } from '@/features/onboarding/useOnboardingEntry'
 import { useSiteInfo } from '@/features/site-info/useSiteInfo'
 import { useTheme } from '@/lib/theme'
 
@@ -62,6 +64,7 @@ export function UserMenu() {
   const navigate = useNavigate()
   const { supportHref, terms_url, privacy_url } = useSiteInfo()
   const { theme, setTheme } = useTheme()
+  const onboarding = useOnboardingEntry()
   const hasSiteLinks =
     supportHref !== null || terms_url !== null || privacy_url !== null
 
@@ -111,6 +114,17 @@ export function UserMenu() {
           </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => {
+            void navigate(onboarding.resumeHref)
+          }}
+        >
+          <Rocket className="mr-2 size-4" />
+          Getting started
+          <span className="text-muted-foreground ml-auto text-xs tabular-nums">
+            {onboarding.doneCount}/{onboarding.total}
+          </span>
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={handleSettings}>
           <SettingsIcon className="mr-2 size-4" />
           Settings

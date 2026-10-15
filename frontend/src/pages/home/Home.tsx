@@ -11,6 +11,7 @@ import { TeamResourceCumulativeChart } from '@/components/TeamResourceCumulative
 import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAuth } from '@/contexts/useAuth'
+import { OnboardingCard } from '@/features/onboarding/OnboardingCard'
 import { buildOverviewStats } from '@/pages/home/buildOverviewStats'
 import { DashboardSection } from '@/pages/home/DashboardSection'
 import { GettingStarted } from '@/pages/home/GettingStarted'
@@ -236,6 +237,7 @@ export function Home() {
     return (
       <div className="space-y-8">
         <PageHeader title={greeting} className="pb-0" />
+        <OnboardingCard />
         {teamId && <GettingStarted />}
         {teamId && totals}
       </div>
@@ -245,6 +247,8 @@ export function Home() {
   return (
     <div className="space-y-8">
       <PageHeader title={greeting} className="pb-0" />
+
+      <OnboardingCard />
 
       <NeedsAttention
         teamId={teamId}

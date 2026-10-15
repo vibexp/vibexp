@@ -371,6 +371,12 @@ body {
   outline: none;
 }
 
+/* The onboarding's step heading takes focus programmatically when the step
+ * changes (`tabIndex={-1}`); it is not a control, so it shows no ring. */
+.v2-root .onboarding-step-heading:focus-visible {
+  outline: none;
+}
+
 /* Inline reply thread: vertical line + horizontal connector to each reply.
  * Mirrors the prototype design (a_2.html). */
 .v2-root .feed-thread {
@@ -476,4 +482,19 @@ body {
  */
 @utility min-h-editor {
   min-height: 60vh;
+}
+
+/*
+ * The onboarding celebration's pulsing rings around the logo, from the
+ * approved design. Used as `animate-[vx-ring_2.4s_ease-out_infinite]`.
+ */
+@keyframes vx-ring {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.45;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
 }

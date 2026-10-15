@@ -15,6 +15,9 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import { ProjectProvider } from '@/contexts/ProjectContext'
 import { TeamProvider } from '@/contexts/TeamContext'
 import { useAuth } from '@/contexts/useAuth'
+import { GETTING_STARTED_PATH } from '@/features/onboarding/autoOpen'
+import { GettingStartedPage } from '@/features/onboarding/GettingStartedPage'
+import { OnboardingRedirect } from '@/features/onboarding/OnboardingRedirect'
 import { SiteInfoProvider } from '@/features/site-info/SiteInfoProvider'
 import { SiteInfoTitle } from '@/features/site-info/SiteInfoTitle'
 import { usePageTracking } from '@/hooks'
@@ -68,6 +71,9 @@ function MainApp() {
   return (
     <Root>
       <AuthGate>
+        {/* Before the resume components, so it sees a pending invitation or
+            return_to before they consume it, and stands aside. */}
+        <OnboardingRedirect />
         <ReturnToResumeAfterAuth />
         <InvitationResumeAfterAuth />
         <TeamProvider>
@@ -78,6 +84,21 @@ function MainApp() {
             </Layout>
           </ProjectProvider>
         </TeamProvider>
+      </AuthGate>
+      <Toaster />
+    </Root>
+  )
+}
+
+/**
+ * The first-run onboarding: signed in, full-screen with its own header, so
+ * outside the app shell and its team/project providers.
+ */
+function OnboardingApp() {
+  return (
+    <Root>
+      <AuthGate>
+        <GettingStartedPage />
       </AuthGate>
       <Toaster />
     </Root>
@@ -200,6 +221,10 @@ function App() {
                     {/* Must precede the catch-all, which would otherwise swallow
                       /admin into the team-scoped MainApp shell. */}
                     <Route path="/admin/*" element={<AdminApp />} />
+                    <Route
+                      path={GETTING_STARTED_PATH}
+                      element={<OnboardingApp />}
+                    />
                     <Route path="/*" element={<MainApp />} />
                   </Routes>
                   <AlertContainer />

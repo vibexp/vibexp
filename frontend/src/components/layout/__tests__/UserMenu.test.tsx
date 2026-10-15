@@ -5,7 +5,7 @@
  */
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router'
+import { MemoryRouter, Route, Routes } from 'react-router'
 
 import { UserMenu } from '@/components/layout/UserMenu'
 import {
@@ -204,4 +204,24 @@ describe('theme', () => {
     expect(mockTheme.setTheme).toHaveBeenCalledWith('dark')
     expect(screen.getByRole('menu')).toBeInTheDocument()
   })
+})
+
+it('opens the onboarding where the user left off, with its progress', async () => {
+  mockUseAuth.mockReturnValue(authUser(false))
+  render(
+    <MemoryRouter>
+      <UserMenu />
+      <Routes>
+        <Route path="/getting-started" element={<p>onboarding page</p>} />
+        <Route path="*" element={null} />
+      </Routes>
+    </MemoryRouter>
+  )
+
+  await userEvent.click(screen.getByTestId('user-menu'))
+  const item = await screen.findByRole('menuitem', { name: /Getting started/ })
+  expect(item).toHaveTextContent('0/5')
+  await userEvent.click(item)
+
+  expect(await screen.findByText('onboarding page')).toBeInTheDocument()
 })

@@ -1,4 +1,4 @@
-import { ArrowRight, Search as SearchIcon } from 'lucide-react'
+import { ArrowRight, Rocket, Search as SearchIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 
@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useTeam } from '@/contexts/TeamContext'
+import { useOnboardingEntry } from '@/features/onboarding/useOnboardingEntry'
 import { RESOURCE_TYPE_META } from '@/pages/home/resourceTypeMeta'
 import { displayTitle, resourceUrl } from '@/pages/search/resourceUrl'
 import { type SearchResultItem, searchService } from '@/services/searchService'
@@ -80,6 +81,7 @@ function usePaletteSearch(teamId: string | undefined, query: string) {
 }
 
 const SEE_ALL_VALUE = 'see-all-results'
+const GETTING_STARTED_VALUE = 'nav:getting-started'
 const navValue = (href: string): string => `nav:${href}`
 const resultValue = (item: SearchResultItem): string =>
   `${item.type}:${item.id}`
@@ -116,6 +118,7 @@ export function CommandPalette() {
   const [value, setValue] = useState('')
   const query = value.trim()
   const search = usePaletteSearch(currentTeam?.id, query)
+  const onboarding = useOnboardingEntry()
 
   // The highlighted row. cmdk keeps the highlight on a row only while that
   // row exists, so when the list is replaced (results arrive, the query is
@@ -205,6 +208,19 @@ export function CommandPalette() {
                       {item.label}
                     </CommandItem>
                   ))}
+                  <CommandItem
+                    value={GETTING_STARTED_VALUE}
+                    onSelect={() => {
+                      go(onboarding.resumeHref)
+                    }}
+                    data-testid="command-palette-getting-started"
+                  >
+                    <Rocket className="text-muted-foreground mr-2 size-4" />
+                    Getting started
+                    <span className="text-muted-foreground ml-auto text-xs tabular-nums">
+                      {onboarding.doneCount}/{onboarding.total}
+                    </span>
+                  </CommandItem>
                 </CommandGroup>
               ) : (
                 <>

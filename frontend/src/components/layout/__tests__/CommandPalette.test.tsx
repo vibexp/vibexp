@@ -11,6 +11,15 @@ vi.mock('@/contexts/TeamContext', () => ({
 vi.mock('@/services/searchService', () => ({
   searchService: { search: vi.fn() },
 }))
+vi.mock('@/features/onboarding/useOnboardingEntry', () => ({
+  useOnboardingEntry: () => ({
+    doneCount: 2,
+    total: 5,
+    allDone: false,
+    resumeHref: '/getting-started?step=2',
+    replayHref: '/getting-started?step=0',
+  }),
+}))
 
 import { searchService } from '@/services/searchService'
 
@@ -132,6 +141,19 @@ describe('CommandPalette', () => {
     await user.click(screen.getByRole('option', { name: 'Artifacts' }))
     expect(screen.getByTestId('where')).toHaveTextContent('/artifacts')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('offers the onboarding, where the user left off', async () => {
+    const user = userEvent.setup()
+    renderPalette()
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+
+    const option = screen.getByRole('option', { name: /Getting started/ })
+    expect(option).toHaveTextContent('2/5')
+    await user.click(option)
+    expect(screen.getByTestId('where')).toHaveTextContent(
+      '/getting-started?step=2'
+    )
   })
 
   it('searches as you type, once per pause, and groups results by type with their project', async () => {
