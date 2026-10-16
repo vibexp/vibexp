@@ -52,11 +52,11 @@ ARG TARGETARCH
 
 WORKDIR /app
 
-# Copy go mod and sum files, download dependencies (cached until they change).
-# The module cache and the build cache below are BuildKit cache mounts, so a
-# source change recompiles only what changed instead of every package. CI
-# carries them across runs (ci-e2e.yml, #1562); a plain `docker build` simply
-# starts with them empty.
+# Copy go mod and sum files and download the dependencies into the module
+# cache. The module cache and the build cache below are BuildKit cache mounts,
+# not image layers: a builder keeps them between builds, so a source change
+# recompiles only what changed instead of every package. ci-e2e.yml carries
+# them across CI runs (#1562); a fresh builder starts with them empty.
 COPY backend/go.mod backend/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 

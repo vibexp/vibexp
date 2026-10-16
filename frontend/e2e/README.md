@@ -58,9 +58,34 @@ you can run it against any branch from anywhere:
 gh workflow run ci-e2e.yml -f branch=<your-branch>
 ```
 
-It delegates entirely to `make e2e`, so a green run there means the same
-`make e2e` is green locally. The Playwright HTML report + traces/videos are
-uploaded as a build artifact.
+CI builds the stack images once, then runs the suite in parallel lanes, each on
+its own stack (#1562):
+
+- **shard 1..6**: the `chromium`, `smoke`, `journeys` and `features` projects,
+  split with Playwright `--shard`.
+- **global**: the `password-journeys` project with `--no-deps`. Those journeys
+  switch instance-wide settings, and Playwright would otherwise pull all four
+  projects they depend on into whichever shard drew one of them.
+
+Every lane is the same `make e2e` with a few variables set (the Playwright
+arguments, `E2E_UP_FLAGS` and `PLAYWRIGHT_BLOB_REPORT`). To reproduce one lane
+locally:
+
+```bash
+make e2e E2E_PLAYWRIGHT_ARGS="--project=chromium --project=smoke --project=journeys --project=features --shard=2/6"
+make e2e E2E_PLAYWRIGHT_ARGS="--project=password-journeys --no-deps"
+```
+
+(`E2E_UP_FLAGS=--no-build` is how CI starts a lane from images it already
+loaded; locally the default `--build` applies.) A report job merges the lanes'
+blob reports into one Playwright HTML + JSON report, uploaded as the
+`playwright-report` artifact; a failing lane also uploads its traces/videos as
+`test-results-<lane>`.
+
+The shards run on separate stacks, so they cannot affect each other. Within a
+shard, specs share one stack and run two at a time, as they did before the
+split. Moving every spec that changes **instance-wide** state into the global
+lane is tracked in #1567.
 
 ### Quick iteration against the Vite dev server
 

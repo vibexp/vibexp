@@ -77,7 +77,7 @@ services:
   # advertised agent-card URL the app dials; the app is allowed to reach this
   # private host because it runs in local-development mode (see #208).
   a2a-test-agent:
-    image: vibexp-e2e/a2a-test-agent:local
+    image: ${E2E_COMPOSE_PROJECT:-vibexp-e2e}/a2a-test-agent:local
     build:
       context: .
       dockerfile: backend/cmd/a2a-test-agent/Dockerfile
@@ -103,7 +103,7 @@ services:
   # completion delay keeps the loading skeleton observable. Reachable from the
   # app for the same local-development reason as a2a-test-agent.
   llm-test-provider:
-    image: vibexp-e2e/llm-test-provider:local
+    image: ${E2E_COMPOSE_PROJECT:-vibexp-e2e}/llm-test-provider:local
     build:
       context: .
       dockerfile: backend/cmd/llm-test-provider/Dockerfile
@@ -139,10 +139,13 @@ services:
       retries: 20
 
   app:
-    # Fixed image names (here and on the two test services above) so CI can
-    # build every image ONCE, `docker save` them, and start any number of shard
-    # stacks from the loaded images with `up --no-build` (#1562).
-    image: vibexp-e2e/app:local
+    # Explicit image names (here and on the two test services above) so CI can
+    # build every image ONCE, hand it to each shard as a tarball, and start the
+    # shard's stack from the loaded image with `up --no-build` (#1562). The
+    # compose project is part of the name, so two stacks side by side
+    # (E2E_COMPOSE_PROJECT) never run each other's build. CI uses the default
+    # project, which is what its `vibexp-e2e/<image>:local` tags match.
+    image: ${E2E_COMPOSE_PROJECT:-vibexp-e2e}/app:local
     build:
       context: .
       dockerfile: backend/Dockerfile

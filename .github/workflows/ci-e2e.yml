@@ -70,8 +70,9 @@ jobs:
       # them into the builder so a code change recompiles only what changed
       # (cold `go build`: ~80s). One entry per go.sum: the key misses, and so
       # saves, only when the dependencies change, which keeps a ~0.5GB entry
-      # from being written on every run. Entries saved on a branch are visible
-      # only to that branch; main's serves everyone.
+      # from being written on every run. The entry belongs to the ref the
+      # workflow runs ON (`gh workflow run --ref`, default main), not to the
+      # `branch` input it tests; main's entry is visible to every run.
       - name: Cache Go build for the app image
         if: ${{ matrix.image == 'app' }}
         id: go-cache
@@ -197,7 +198,8 @@ jobs:
   report:
     name: E2E report (${{ inputs.branch }})
     needs: test
-    if: ${{ !cancelled() }}
+    # Skipped lanes (a failed image build) leave nothing to merge.
+    if: ${{ !cancelled() && needs.test.result != 'skipped' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
