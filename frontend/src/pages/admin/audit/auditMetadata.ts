@@ -11,7 +11,7 @@
  *   the built-in defaults applied;
  * - a team settings change (#1520): `surface` and `action`, then the same
  *   `changed_fields` plus `{old, new}` pairs as a resource update, where a
- *   secret is named without values.
+ *   secret, a free-form blob or a list is named without values.
  *
  * Every other key is listed as a detail. Kept pure so each shape is tested
  * without rendering.
@@ -45,7 +45,10 @@ export interface DescribedMetadata {
 /** A changed resource field whose content is never recorded (#1513). */
 export const CONTENT_WITHHELD = 'changed (content is not recorded)'
 
-/** A changed team setting whose value is never recorded: a secret (#1520). */
+/**
+ * A changed team setting recorded without its value (#1520): a secret, the
+ * free-form provider configuration, or any value that is not a single scalar.
+ */
 export const VALUE_WITHHELD = 'changed (value not recorded)'
 
 /** The team settings surfaces (#1520), as `surface` names them. */
@@ -247,8 +250,10 @@ function teamSettingsDetails(details: readonly AuditDetail[]): AuditDetail[] {
     .sort((a, b) => rank(a.key) - rank(b.key))
     .map(detail => ({
       key: TEAM_SETTINGS_DETAIL_LABELS[detail.key] ?? detail.key,
+      // An empty value (a copy that skipped nothing) reads as none.
       value:
-        TEAM_SETTINGS_VALUE_LABELS[detail.key]?.[detail.value] ?? detail.value,
+        TEAM_SETTINGS_VALUE_LABELS[detail.key]?.[detail.value] ??
+        (detail.value === '' ? '—' : detail.value),
     }))
 }
 

@@ -389,15 +389,12 @@ it("renders a team settings change: its label, resource, and the drawer's surfac
   const changes = drawer.getByRole('list', { name: 'Changes' })
   expect(changes).toHaveTextContent('gpt-4o')
   expect(changes).toHaveTextContent('api_key: changed (value not recorded)')
-  expect(drawer.getByText('Settings').nextSibling).toHaveTextContent(
-    'Model provider'
-  )
-  expect(drawer.getByText('Action').nextSibling).toHaveTextContent(
-    'Copied from another team'
-  )
-  expect(drawer.getByText('Source team').nextSibling).toHaveTextContent(
-    'team-src'
-  )
+  // Each detail is its own label/value pair.
+  const detail = (label: string) =>
+    drawer.getByText(label, { selector: 'dt' }).closest('dl')
+  expect(detail('Settings')).toHaveTextContent('Model provider')
+  expect(detail('Action')).toHaveTextContent('Copied from another team')
+  expect(detail('Source team')).toHaveTextContent('team-src')
 })
 
 it('filters by the team settings operation (#1520)', async () => {

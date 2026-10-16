@@ -156,6 +156,18 @@ describe('describeAuditMetadata', () => {
     })
   })
 
+  it('shows an empty team settings detail as none, as a copy that skipped nothing records it (#1520)', () => {
+    const got = describeAuditMetadata({
+      surface: 'custom_types',
+      action: 'copy',
+      source_team_id: 'team-src',
+      added_slugs: 'runbook',
+      skipped_slugs: '',
+    })
+    expect(got.details).toContainEqual({ key: 'Added', value: 'runbook' })
+    expect(got.details).toContainEqual({ key: 'Skipped', value: '—' })
+  })
+
   it('labels every team settings surface and action, and falls back to the raw value', () => {
     // The backend's vocabulary (#1520), exactly.
     expect(Object.keys(TEAM_SETTINGS_SURFACE_LABELS).sort()).toEqual(

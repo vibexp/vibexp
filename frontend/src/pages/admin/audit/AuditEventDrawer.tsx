@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/sheet'
 import type { AdminAuditEvent } from '@/services/adminAuditService'
 
-import { describeAuditMetadata } from './auditMetadata'
+import { CONTENT_WITHHELD, describeAuditMetadata } from './auditMetadata'
 import {
   AuditOutcomeBadge,
   formatUtc,
@@ -140,7 +140,7 @@ function AuditEventDetail({ event }: Readonly<{ event: AdminAuditEvent }>) {
                 <span className="text-muted-foreground">: </span>
                 {change.valuesWithheld ? (
                   <span className="text-muted-foreground">
-                    {change.withheldNote}
+                    {change.withheldNote ?? CONTENT_WITHHELD}
                   </span>
                 ) : (
                   <>
