@@ -92,14 +92,17 @@ export function DateRangePicker({
           aria-label={
             ariaLabel ?? (label ? `Date range: ${label}` : placeholder)
           }
+          // The full range on hover, for a trigger whose label truncates.
+          title={label}
           className={cn(
             'justify-start gap-2 font-normal',
             !label && 'text-muted-foreground',
             className
           )}
         >
-          <CalendarIcon className="size-4" aria-hidden />
-          {label ?? placeholder}
+          <CalendarIcon className="size-4 shrink-0" aria-hidden />
+          {/* Truncates when a caller caps the trigger's width. */}
+          <span className="truncate">{label ?? placeholder}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent align={align} className="w-auto p-0">

@@ -5,6 +5,7 @@ import {
   DEFAULTS_LABEL,
   describeAuditMetadata,
   formatAuditValue,
+  INHERITED_SUFFIX,
   TEAM_SETTINGS_ACTION_LABELS,
   TEAM_SETTINGS_SURFACE_LABELS,
   VALUE_WITHHELD,
@@ -166,6 +167,40 @@ describe('describeAuditMetadata', () => {
     })
     expect(got.details).toContainEqual({ key: 'Added', value: 'runbook' })
     expect(got.details).toContainEqual({ key: 'Skipped', value: '—' })
+  })
+
+  it('labels the inherited old side of a team\'s first save "(default)" (#1551)', () => {
+    const got = describeAuditMetadata({
+      surface: 'search',
+      action: 'update',
+      before_source: 'instance_default',
+      changed_fields: ['rank_half_life_days'],
+      rank_half_life_days: { old: 90, new: 45 },
+    })
+    expect(got.changes).toEqual([
+      { field: 'rank_half_life_days', old: `90${INHERITED_SUFFIX}`, new: '45' },
+    ])
+    expect(got.details.map(detail => detail.key)).toEqual([
+      'Settings',
+      'Action',
+    ])
+  })
+
+  it('labels the inherited new side of a reset "(default)" (#1551)', () => {
+    const got = describeAuditMetadata({
+      surface: 'ai_summary',
+      action: 'reset',
+      after_source: 'instance_default',
+      changed_fields: ['top_n'],
+      top_n: { old: 8, new: 5 },
+    })
+    expect(got.changes).toEqual([
+      { field: 'top_n', old: '8', new: `5${INHERITED_SUFFIX}` },
+    ])
+    expect(got.details.map(detail => detail.key)).toEqual([
+      'Settings',
+      'Action',
+    ])
   })
 
   it('labels every team settings surface and action, and falls back to the raw value', () => {

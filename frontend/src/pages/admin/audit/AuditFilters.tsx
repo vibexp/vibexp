@@ -47,9 +47,13 @@ const OUTCOME_CHOICES = AUDIT_OUTCOMES.map(value => ({
 /**
  * At phone width every picker takes the full row and the operation filter and
  * date range share one row in equal halves, so the bar has no ragged gutter.
+ * From sm up the date trigger is as wide as its label (at most 180px) and Clear
+ * is a short "Clear", which keep the actions on the second row at 1280 with a
+ * filter applied (#1551).
  */
 const PICKER_WIDTH = 'w-full sm:w-[200px]'
 const HALF_WIDTH = 'w-[calc(50%-0.25rem)] sm:w-[180px]'
+const DATE_WIDTH = 'w-[calc(50%-0.25rem)] sm:w-auto sm:max-w-[180px]'
 
 export interface AuditFiltersProps {
   /** Uncommitted free text; the page debounces it into the URL as `q`. */
@@ -192,7 +196,8 @@ export function AuditFilters(props: Readonly<AuditFiltersProps>) {
       created={props.range}
       onCreatedChange={props.onRangeChange}
       createdLabel="Filter by date"
-      createdClassName={HALF_WIDTH}
+      createdClassName={DATE_WIDTH}
+      compactClear
       onClear={props.onClear}
       hasActiveFilters={props.hasActiveFilters}
       advanced={advanced}

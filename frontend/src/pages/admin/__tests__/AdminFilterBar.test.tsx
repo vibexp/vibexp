@@ -106,3 +106,35 @@ describe('AdminFilterBar — actions slot', () => {
     )
   })
 })
+
+describe('AdminFilterBar — Clear', () => {
+  it('shows "Clear filters" only while something is applied', async () => {
+    const onClear = vi.fn()
+    const { rerender } = renderBar({ onClear })
+    expect(
+      screen.queryByRole('button', { name: 'Clear filters' })
+    ).not.toBeInTheDocument()
+
+    rerender(
+      <AdminFilterBar
+        searchInput=""
+        onSearchInputChange={vi.fn()}
+        searchPlaceholder="Search"
+        searchLabel="Search users"
+        created={{}}
+        onCreatedChange={vi.fn()}
+        hasActiveFilters
+        onClear={onClear}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(onClear).toHaveBeenCalledOnce()
+    expect(screen.getByText('Clear filters')).toBeInTheDocument()
+  })
+
+  it('reads a short "Clear" when compact, keeping its accessible name (#1551)', () => {
+    renderBar({ hasActiveFilters: true, onClear: vi.fn(), compactClear: true })
+    const clear = screen.getByRole('button', { name: 'Clear filters' })
+    expect(clear).toHaveTextContent(/^Clear$/)
+  })
+})

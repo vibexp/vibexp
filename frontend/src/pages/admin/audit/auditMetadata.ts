@@ -230,6 +230,35 @@ function withheldChanges(
     .map(field => ({ field, valuesWithheld: true, withheldNote: note }))
 }
 
+/** Marks the instance defaults a team inherited, on either side (#1551). */
+export const INHERITED_SUFFIX = ' (default)'
+
+/** The metadata value for a side holding the inherited instance defaults. */
+const INSTANCE_DEFAULT_SOURCE = 'instance_default'
+
+/** The keys that say which side of a team settings change was inherited. */
+const TEAM_SETTINGS_SOURCE_KEYS = new Set(['before_source', 'after_source'])
+
+/**
+ * A team settings change compares against the instance defaults a team
+ * inherited when it stored none: the old side of a first save, the new side of
+ * a reset. Those values read "(default)", like the settings history (#1518).
+ */
+function markInherited(
+  changes: readonly AuditChange[],
+  metadata: Readonly<JsonObject>
+): AuditChange[] {
+  const oldInherited = metadata.before_source === INSTANCE_DEFAULT_SOURCE
+  const newInherited = metadata.after_source === INSTANCE_DEFAULT_SOURCE
+  const mark = (value: string | undefined, inherited: boolean) =>
+    value !== undefined && inherited ? value + INHERITED_SUFFIX : value
+  return changes.map(change => ({
+    ...change,
+    old: mark(change.old, oldInherited),
+    new: mark(change.new, newInherited),
+  }))
+}
+
 /** Whether the metadata is a team settings change (#1520). */
 function isTeamSettingsChange(metadata: Readonly<JsonObject>): boolean {
   return (
@@ -246,7 +275,8 @@ function teamSettingsDetails(details: readonly AuditDetail[]): AuditDetail[] {
     const index = TEAM_SETTINGS_LEADING_KEYS.indexOf(key)
     return index === -1 ? TEAM_SETTINGS_LEADING_KEYS.length : index
   }
-  return [...details]
+  return details
+    .filter(detail => !TEAM_SETTINGS_SOURCE_KEYS.has(detail.key))
     .sort((a, b) => rank(a.key) - rank(b.key))
     .map(detail => ({
       key: TEAM_SETTINGS_DETAIL_LABELS[detail.key] ?? detail.key,
@@ -268,8 +298,12 @@ export function describeAuditMetadata(
     ? snapshotChanges(metadata.before, metadata.after)
     : []
   const { changes: pairs, details } = pairsAndDetails(metadata, snapshots)
-  const changes = [...(move ? [move] : []), ...fromSnapshots, ...pairs]
   const teamSettings = isTeamSettingsChange(metadata)
+  const changes = [
+    ...(move ? [move] : []),
+    ...fromSnapshots,
+    ...(teamSettings ? markInherited(pairs, metadata) : pairs),
+  ]
   const note = teamSettings ? VALUE_WITHHELD : CONTENT_WITHHELD
   return {
     changes: [
