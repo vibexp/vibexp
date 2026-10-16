@@ -375,7 +375,7 @@ test.describe.serial('Admin → Audit', () => {
       expect(record[col('outcome')]).toBe('success')
       expect(record[col('resource_id')]).toBe(promptId)
       expect(record[col('team_id')]).toBe(team.id)
-      if (projectId) expect(record[col('project_id')]).toBe(projectId)
+      expect(record[col('project_id')]).toBe(projectId ?? '')
     }
   })
 
@@ -413,17 +413,15 @@ test.describe.serial('Admin → Audit', () => {
       )
 
       // The change history shows this save, old → new.
-      await expect(
-        page
-          .getByTestId('instance-audit-log-audit-entry')
-          .filter({ hasText: 'Saved' })
-          .filter({
-            hasText: new RegExp(
-              `Retention \\(weeks\\).*\\b${String(before)}\\b.*→ ${String(retention)}\\b`
-            ),
-          })
-          .first()
-      ).toBeVisible({ timeout: UI_TIMEOUT })
+      // The newest entry, unfiltered: a retry saves the same old → new pair,
+      // so filtering first could match the previous attempt's entry.
+      const newest = page.getByTestId('instance-audit-log-audit-entry').first()
+      await expect(newest).toContainText('Saved', { timeout: UI_TIMEOUT })
+      await expect(newest).toContainText(
+        new RegExp(
+          `Retention \\(weeks\\).*\\b${String(before)}\\b.*→ ${String(retention)}\\b`
+        )
+      )
 
       // --- The change is itself an audit event ------------------------------
       await page.goto(
