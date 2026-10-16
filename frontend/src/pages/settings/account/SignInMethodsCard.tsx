@@ -90,6 +90,65 @@ function passwordDetail(account: Account): string {
     : 'A password is set.'
 }
 
+function passwordHint(
+  disabled: boolean,
+  passwordSet: boolean,
+  removePasswordAllowed: boolean
+): string | undefined {
+  if (disabled) return PASSWORD_DISABLED_HINT
+  if (passwordSet && !removePasswordAllowed) return PASSWORD_KEPT_HINT
+  return undefined
+}
+
+/**
+ * The body of the password section: a note when an administrator disabled the
+ * password or password sign-in is off, the password form otherwise.
+ */
+function PasswordSection({
+  state,
+  account,
+  disabled,
+  guarded,
+}: Readonly<{
+  state: AccountState
+  account: Account
+  disabled: boolean
+  guarded: boolean
+}>) {
+  const { password } = account
+  if (disabled) {
+    return (
+      <p
+        className="text-muted-foreground text-sm"
+        data-testid="account-password-admin-disabled"
+      >
+        An administrator disabled your password, so it cannot be changed here.
+        Ask them for a link to set a new one; using it lifts the block.
+      </p>
+    )
+  }
+  if (password.login_enabled) {
+    return (
+      <PasswordForm
+        state={state}
+        hasPassword={password.set}
+        blocked={!password.set && guarded}
+      />
+    )
+  }
+  return (
+    <p
+      className="text-muted-foreground text-sm"
+      data-testid="account-password-disabled"
+    >
+      Your administrator has not switched password sign-in on for this instance,
+      so a password cannot be set or changed here.
+      {password.set &&
+        ' The password you have is kept, but it cannot be used to sign in until password sign-in is switched on.'}
+    </p>
+  )
+}
+
 function identityDetail(identity: AccountIdentity): string {
   const connected = `Connected ${formatDate(identity.connected_at)}.`
   const used = identity.last_used_at
@@ -292,13 +351,7 @@ export function SignInMethodsCard({
               )
             }
             detail={passwordDetail(account)}
-            hint={
-              disabled
-                ? PASSWORD_DISABLED_HINT
-                : password.set && !removePasswordAllowed
-                  ? PASSWORD_KEPT_HINT
-                  : undefined
-            }
+            hint={passwordHint(disabled, password.set, removePasswordAllowed)}
             action={
               password.set && (
                 <Button
@@ -370,32 +423,12 @@ export function SignInMethodsCard({
           <h3 id="account-password-heading" className="font-medium">
             {password.set ? 'Change password' : 'Set a password'}
           </h3>
-          {disabled ? (
-            <p
-              className="text-muted-foreground text-sm"
-              data-testid="account-password-admin-disabled"
-            >
-              An administrator disabled your password, so it cannot be changed
-              here. Ask them for a link to set a new one; using it lifts the
-              block.
-            </p>
-          ) : password.login_enabled ? (
-            <PasswordForm
-              state={state}
-              hasPassword={password.set}
-              blocked={!password.set && guarded}
-            />
-          ) : (
-            <p
-              className="text-muted-foreground text-sm"
-              data-testid="account-password-disabled"
-            >
-              Your administrator has not switched password sign-in on for this
-              instance, so a password cannot be set or changed here.
-              {password.set &&
-                ' The password you have is kept, but it cannot be used to sign in until password sign-in is switched on.'}
-            </p>
-          )}
+          <PasswordSection
+            state={state}
+            account={account}
+            disabled={disabled}
+            guarded={guarded}
+          />
         </section>
       </CardContent>
 
