@@ -8,19 +8,24 @@ export const TEST_LOCK: ResourceLock = {
   locked_at: '2026-10-11T10:15:30Z',
 }
 
-/**
- * The 423 the API answers a write refused by a lock with (#1289) — the shape
- * of `ResourceWriteLockedError` in `backend/schemas/common.yaml`. Pass
- * `metadata` to replace the documented one, e.g. to drop `field` as a refused
- * delete does.
- */
-export function lockedWriteError(
-  metadata: Record<string, unknown> = {
+/** The documented `metadata` of a 423 refusing a write to a locked field. */
+const DEFAULT_LOCKED_WRITE_METADATA: Readonly<Record<string, unknown>> =
+  Object.freeze({
     resource_type: 'artifact',
     field: 'status',
     locked_by: TEST_LOCK.locked_by,
     comment: TEST_LOCK.comment,
-  }
+  })
+
+/**
+ * The 423 the API answers a write refused by a lock with (#1289) — the shape
+ * of `ResourceWriteLockedError` in `backend/schemas/common.yaml`. Pass
+ * `metadata` to replace the documented one, e.g. to drop `field` as a refused
+ * delete does. The error carries a copy, so a test mutating it cannot leak
+ * into the shared default.
+ */
+export function lockedWriteError(
+  metadata: Readonly<Record<string, unknown>> = DEFAULT_LOCKED_WRITE_METADATA
 ): ApiError {
   return new ApiError({
     type: 'https://api.vibexp.io/errors/RESOURCE_WRITE_LOCKED',
@@ -30,6 +35,6 @@ export function lockedWriteError(
     code: 'RESOURCE_WRITE_LOCKED',
     request_id: 'req-423',
     timestamp: '2026-10-11T10:16:00Z',
-    metadata,
+    metadata: { ...metadata },
   })
 }
