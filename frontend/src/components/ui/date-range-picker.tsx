@@ -92,8 +92,6 @@ export function DateRangePicker({
           aria-label={
             ariaLabel ?? (label ? `Date range: ${label}` : placeholder)
           }
-          // The full range on hover, for a trigger whose label truncates.
-          title={label}
           className={cn(
             'justify-start gap-2 font-normal',
             !label && 'text-muted-foreground',
