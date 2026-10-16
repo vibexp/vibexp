@@ -53,6 +53,11 @@ type RootAdminPasswordResult struct {
 	PasswordReplaced bool
 	// LoginSwitchedOn: password login was off and this call switched it on.
 	LoginSwitchedOn bool
+	// PasswordStored: the new password was stored. Set can fail AFTER storing
+	// it (ending the sessions, switching login on); it then returns the result
+	// alongside the error, with this set, so the caller can still audit the
+	// credential change that did happen (#1535).
+	PasswordStored bool
 }
 
 // RootAdminPasswordDeps are the collaborators of RootAdminPasswordService.
@@ -93,7 +98,8 @@ func NewRootAdminPasswordService(deps RootAdminPasswordDeps) *RootAdminPasswordS
 // account when there is none (and Events is set), and with enableLogin also
 // switches password login on. It returns ErrNotRootAdmin,
 // ErrRootAdminSuspended, ErrRootAdminAccountMissing or a *password.PolicyError
-// without changing anything.
+// without changing anything. A failure after the password was stored returns
+// the result (PasswordStored set) together with the error.
 //
 // On an existing account it ends every session, before and after the change
 // (the password of an account someone else may be signed in to is replaced). The email is marked verified
@@ -124,12 +130,12 @@ func (s *RootAdminPasswordService) Set(
 		}
 	}
 
-	if err = s.replacePassword(ctx, user, created, plaintext); err != nil {
-		return nil, err
+	if result.PasswordStored, err = s.replacePassword(ctx, user, created, plaintext); err != nil {
+		return partialResult(result, err)
 	}
 	if enableLogin {
 		if result.LoginSwitchedOn, err = s.switchLoginOn(ctx); err != nil {
-			return nil, err
+			return partialResult(result, err)
 		}
 	}
 
@@ -149,22 +155,34 @@ func (s *RootAdminPasswordService) Set(
 // After: a sign-in with the OLD password that slipped in while the new one was
 // being hashed got a session at the already bumped epoch, and only a second
 // bump ends it.
+//
+// stored reports whether the password was stored, also when a later step
+// failed.
 func (s *RootAdminPasswordService) replacePassword(
 	ctx context.Context, user *models.User, created bool, plaintext string,
-) error {
+) (stored bool, err error) {
 	if err := s.prepareExisting(ctx, user, created); err != nil {
-		return err
+		return false, err
 	}
 	if err := s.deps.Passwords.SetPassword(ctx, user.ID, plaintext); err != nil {
-		return err
+		return false, err
 	}
 	if created {
-		return nil
+		return true, nil
 	}
 	if _, err := s.deps.Users.BumpSessionEpoch(ctx, user.ID); err != nil {
-		return fmt.Errorf("failed to end the root admin's sessions: %w", err)
+		return true, fmt.Errorf("failed to end the root admin's sessions: %w", err)
 	}
-	return nil
+	return true, nil
+}
+
+// partialResult returns a failed Set's outcome: nil before the password was
+// stored, otherwise the result so far alongside err.
+func partialResult(result *RootAdminPasswordResult, err error) (*RootAdminPasswordResult, error) {
+	if !result.PasswordStored {
+		return nil, err
+	}
+	return result, err
 }
 
 // account returns the account with email, creating it when there is none.

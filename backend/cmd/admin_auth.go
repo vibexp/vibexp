@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/user"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/repositories/postgres"
 	"github.com/vibexp/vibexp/internal/services"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 // adminCommandTimeout bounds one `vibexp admin` command: a handful of
@@ -57,7 +59,9 @@ func newAdminCmd(open authRecoveryOpener) *cobra.Command {
 These commands load the same config.yaml as the server and write straight to
 the database, so they work when nobody can sign in. A running server picks a
 change up within seconds; no restart is needed. Every change is recorded in the
-instance settings audit log with no user and source "cli".
+instance settings audit log with no user and source "cli", and in the admin
+audit log as the system acting through the cli channel, with the OS user and
+host that ran the command.
 
 They never run database migrations: start the server once after an upgrade.`
 
@@ -429,7 +433,11 @@ func openAuthRecovery(ctx context.Context) (authRecovery, func(), error) {
 		closeQuietly(db)
 		return nil, nil, err
 	}
-	return newAuthRecoveryService(db, cfg), func() { closeQuietly(db) }, nil
+	recovery, unregister := newAuditedAuthRecovery(db, cfg, newCLIAuditLogger(os.Stderr))
+	return recovery, func() {
+		unregister()
+		closeQuietly(db)
+	}, nil
 }
 
 // closeQuietly closes db. The command's outcome is already decided by the time
@@ -440,9 +448,79 @@ func closeQuietly(db *database.DB) {
 	}
 }
 
+// newAuditedAuthRecovery builds the recovery service with its changes recorded
+// in the admin audit log (#1535), and returns a function removing the
+// observer it registers on db.
+//
+// The recorder is synchronous: the process exits right after its one change,
+// and an event still queued on a worker pool would be lost. Both recording
+// paths go through the same attributed recorder: the instance settings
+// observer (provider enable/disable, allowlist clear, setup re-arm, password
+// login switched on) and the service's own root-password event. A failed write
+// is logged to logger and never changes the command's outcome.
+func newAuditedAuthRecovery(
+	db *database.DB, cfg *config.Config, logger *slog.Logger,
+) (*services.AuthRecoveryService, func()) {
+	recorder := audit.NewAttributedRecorder(audit.NewSyncRecorder(audit.RecorderDeps{
+		Repo:     postgres.NewAuditEventRepository(db),
+		Users:    postgres.NewUserRepository(db),
+		APIKeys:  postgres.NewAPIKeyRepository(db),
+		Teams:    postgres.NewTeamRepository(db),
+		Projects: postgres.NewProjectRepository(db),
+		// A CLI has no client IP or user agent to capture.
+		Capture: audit.AlwaysCapture{},
+		Logger:  logger,
+	}), cliAuditAttribution())
+	unregister := postgres.RegisterInstanceSettingsAuditObserver(db, audit.NewInstanceSettingsObserver(recorder))
+	return newAuthRecoveryService(db, cfg, recorder), unregister
+}
+
+// newCLIAuditLogger reports a failed audit write on w (stderr), where an
+// operator running the command sees it.
+func newCLIAuditLogger(w io.Writer) *slog.Logger {
+	return slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: slog.LevelWarn}))
+}
+
+// cliAuditActorName names the recovery CLI as the actor of its audit events.
+const cliAuditActorName = "recovery-cli"
+
+// osUsername and osHostname resolve who ran the command and where. They are
+// variables so tests can pin them.
+var (
+	osUsername = func() (string, error) {
+		u, err := user.Current()
+		if err != nil {
+			return "", err
+		}
+		return u.Username, nil
+	}
+	osHostname = os.Hostname
+)
+
+// cliAuditAttribution attributes every CLI audit event to the system acting
+// through the cli channel, adding the OS user and the hostname to its metadata
+// when they can be resolved: a break-glass change must be traceable to whoever
+// ran it.
+func cliAuditAttribution() audit.Attribution {
+	metadata := map[string]any{}
+	if name, err := osUsername(); err == nil && name != "" {
+		metadata["os_user"] = name
+	}
+	if host, err := osHostname(); err == nil && host != "" {
+		metadata["hostname"] = host
+	}
+	return audit.Attribution{
+		Source:   models.AuditSourceCLI,
+		Actor:    audit.Actor{Type: models.AuditActorSystem, Name: cliAuditActorName},
+		Metadata: metadata,
+	}
+}
+
 // newAuthRecoveryService builds the recovery service over the PostgreSQL
-// repositories the server uses.
-func newAuthRecoveryService(db *database.DB, cfg *config.Config) *services.AuthRecoveryService {
+// repositories the server uses, recording through recorder.
+func newAuthRecoveryService(
+	db *database.DB, cfg *config.Config, recorder audit.Recorder,
+) *services.AuthRecoveryService {
 	return services.NewAuthRecoveryService(services.AuthRecoveryDeps{
 		Providers:     postgres.NewInstanceAuthProviderRepository(db),
 		Allowlist:     postgres.NewInstanceAuthAllowlistRepository(db),
@@ -451,6 +529,7 @@ func newAuthRecoveryService(db *database.DB, cfg *config.Config) *services.AuthR
 		WayIn:         newAuthWayIn(db, cfg),
 		RootPasswords: newRootAdminPasswordService(db, cfg),
 		BaseURL:       cfg.Frontend.BaseURL,
+		Recorder:      recorder,
 	})
 }
 
@@ -499,6 +578,7 @@ var authSettingsTables = []string{
 	"instance_auth_policy",
 	"users",
 	"user_credentials",
+	"audit_events",
 }
 
 // requireAuthSettingsTables fails, naming the first missing table, unless the

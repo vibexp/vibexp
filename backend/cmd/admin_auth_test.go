@@ -334,7 +334,7 @@ func TestNewAuthRecoveryService_BuildsOverTheDatabase(t *testing.T) {
 
 	cfg := &config.Config{}
 	cfg.Frontend.BaseURL = "https://vibexp.example.com"
-	svc := newAuthRecoveryService(db, cfg)
+	svc := newAuthRecoveryService(db, cfg, nil)
 
 	mock.ExpectQuery("SELECT .* FROM instance_auth_providers").WillReturnRows(sqlmock.NewRows(nil))
 	providers, err := svc.ListProviders(context.Background())
@@ -518,10 +518,54 @@ func TestNewAuthRecoveryService_PasswordIsRootAdminOnly(t *testing.T) {
 	})
 	cfg := &config.Config{}
 	cfg.Auth.InstanceAdmins = config.EnvStringSlice{"root@example.com"}
-	svc := newAuthRecoveryService(&database.DB{DB: sqlDB}, cfg)
+	svc := newAuthRecoveryService(&database.DB{DB: sqlDB}, cfg, nil)
 
 	_, err = svc.SetRootAdminPassword(context.Background(), "someone@example.com", cliTestPassphrase, true)
 
 	require.ErrorIs(t, err, services.ErrNotRootAdmin)
 	require.NoError(t, mock.ExpectationsWereMet(), "no query ran")
+}
+
+// pinOSIdentity makes cliAuditAttribution resolve the given user and host.
+func pinOSIdentity(t *testing.T, username string, userErr error, host string, hostErr error) {
+	t.Helper()
+	prevUser, prevHost := osUsername, osHostname
+	t.Cleanup(func() { osUsername, osHostname = prevUser, prevHost })
+	osUsername = func() (string, error) { return username, userErr }
+	osHostname = func() (string, error) { return host, hostErr }
+}
+
+func TestCLIAuditAttribution(t *testing.T) {
+	t.Run("names the CLI and adds the OS user and host", func(t *testing.T) {
+		pinOSIdentity(t, "operator", nil, "db-box", nil)
+
+		got := cliAuditAttribution()
+
+		assert.Equal(t, models.AuditSourceCLI, got.Source)
+		assert.Equal(t, models.AuditActorSystem, got.Actor.Type)
+		assert.Equal(t, "recovery-cli", got.Actor.Name)
+		assert.Nil(t, got.Actor.UserID)
+		assert.Equal(t, map[string]any{"os_user": "operator", "hostname": "db-box"}, got.Metadata)
+	})
+
+	t.Run("an unresolvable user or host is left out", func(t *testing.T) {
+		pinOSIdentity(t, "", errors.New("no passwd entry"), "", errors.New("no hostname"))
+
+		assert.Empty(t, cliAuditAttribution().Metadata)
+	})
+
+	t.Run("the real lookups do not fail the command", func(t *testing.T) {
+		assert.NotPanics(t, func() { cliAuditAttribution() })
+	})
+}
+
+func TestNewCLIAuditLogger_WarnsOnly(t *testing.T) {
+	var buf bytes.Buffer
+	logger := newCLIAuditLogger(&buf)
+
+	logger.Info("quiet")
+	logger.Warn("failed to record audit event")
+
+	assert.NotContains(t, buf.String(), "quiet")
+	assert.Contains(t, buf.String(), "failed to record audit event")
 }

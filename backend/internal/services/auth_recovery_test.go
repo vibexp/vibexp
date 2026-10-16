@@ -314,3 +314,92 @@ func TestAuthRecovery_ProviderToggleReportsPasswordLogin(t *testing.T) {
 		assert.True(t, got.Changed, "the toggle itself happened")
 	})
 }
+
+// TestAuthRecovery_SetRootAdminPasswordAudits: a successful change is recorded
+// once on the account it changed, with no secret; a refused one records
+// nothing (#1535).
+func TestAuthRecovery_SetRootAdminPasswordAudits(t *testing.T) {
+	ctx := context.Background()
+	newRecovery := func(t *testing.T) (*rootPwFixture, *AuthRecoveryService, *auditEvents) {
+		t.Helper()
+		pw := newRootPwFixture(t, false)
+		events := &auditEvents{}
+		return pw, NewAuthRecoveryService(AuthRecoveryDeps{RootPasswords: pw.svc, Recorder: events}), events
+	}
+	existing := func(pw *rootPwFixture, hasPassword bool) {
+		verified := pw.now
+		pw.existing(&models.User{ID: rootPwUserID, Email: rootPwEmail, EmailVerifiedAt: &verified}, hasPassword)
+		pw.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(1), nil).Twice()
+	}
+
+	for _, tc := range []struct {
+		name        string
+		hasPassword bool
+		want        models.AuditOperation
+	}{
+		{"a first password is auth.password.set", false, models.AuditOpAuthLocalCredentialSet},
+		{"a replaced password is auth.password.changed", true, models.AuditOpAuthLocalCredentialChanged},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pw, svc, events := newRecovery(t)
+			existing(pw, tc.hasPassword)
+
+			_, err := svc.SetRootAdminPassword(ctx, rootPwEmail, rootPwPhrase, false)
+
+			require.NoError(t, err)
+			got := events.only(t)
+			assert.Equal(t, tc.want, got.Operation)
+			assert.Equal(t, models.AuditResourceTypeUser, got.ResourceType)
+			assert.Equal(t, rootPwUserID, got.ResourceID)
+			assert.Equal(t, rootPwEmail, got.ResourceName)
+			assert.Equal(t, map[string]any{"login_switched_on": false}, got.Metadata)
+		})
+	}
+
+	t.Run("a refused password records nothing", func(t *testing.T) {
+		_, svc, events := newRecovery(t)
+
+		_, err := svc.SetRootAdminPassword(ctx, rootPwEmail, "short", false)
+
+		require.Error(t, err)
+		assert.Empty(t, events.got)
+	})
+
+	t.Run("a password stored before a later step failed is still recorded", func(t *testing.T) {
+		pw, svc, events := newRecovery(t)
+		verified := pw.now
+		pw.existing(&models.User{ID: rootPwUserID, Email: rootPwEmail, EmailVerifiedAt: &verified}, false)
+		pw.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(1), nil).Once()
+		pw.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(0), errRecoveryDB).Once()
+
+		result, err := svc.SetRootAdminPassword(ctx, rootPwEmail, rootPwPhrase, false)
+
+		require.ErrorIs(t, err, errRecoveryDB)
+		assert.Nil(t, result)
+		got := events.only(t)
+		assert.Equal(t, models.AuditOpAuthLocalCredentialSet, got.Operation)
+		assert.Equal(t, map[string]any{"login_switched_on": false, "completed": false}, got.Metadata)
+	})
+
+	t.Run("a failure before the password was stored records nothing", func(t *testing.T) {
+		pw, svc, events := newRecovery(t)
+		verified := pw.now
+		pw.existing(&models.User{ID: rootPwUserID, Email: rootPwEmail, EmailVerifiedAt: &verified}, false)
+		pw.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(0), errRecoveryDB).Once()
+
+		_, err := svc.SetRootAdminPassword(ctx, rootPwEmail, rootPwPhrase, false)
+
+		require.ErrorIs(t, err, errRecoveryDB)
+		assert.Empty(t, events.got)
+	})
+
+	t.Run("no recorder is fine", func(t *testing.T) {
+		pw := newRootPwFixture(t, false)
+		existing(pw, false)
+		svc := NewAuthRecoveryService(AuthRecoveryDeps{RootPasswords: pw.svc})
+
+		_, err := svc.SetRootAdminPassword(ctx, rootPwEmail, rootPwPhrase, false)
+
+		require.NoError(t, err)
+	})
+}

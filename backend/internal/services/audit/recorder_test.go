@@ -738,3 +738,43 @@ func TestRecord_NeverBlocksTheCaller(t *testing.T) {
 		returnsPromptly(t, r)
 	})
 }
+
+// TestNewSyncRecorder_PersistsBeforeRecordReturns: the CLI's recorder writes
+// the row on the caller's goroutine, so the row exists the moment Record
+// returns, on a time-bounded context of its own.
+func TestNewSyncRecorder_PersistsBeforeRecordReturns(t *testing.T) {
+	var stored []models.AuditEvent
+	repo := mocks.NewMockAuditEventRepository(t)
+	repo.EXPECT().Insert(mock.Anything, mock.Anything).
+		RunAndReturn(func(ctx context.Context, e *models.AuditEvent) error {
+			_, hasDeadline := ctx.Deadline()
+			assert.True(t, hasDeadline, "the insert runs on a time-bounded context")
+			stored = append(stored, *e)
+			return nil
+		})
+
+	NewSyncRecorder(RecorderDeps{Repo: repo}).Record(context.Background(), Event{
+		Operation: models.AuditOpInstanceSettingsUpdated, Source: models.AuditSourceCLI,
+	})
+
+	require.Len(t, stored, 1)
+	assert.Equal(t, models.AuditSourceCLI, stored[0].Source)
+	assert.Equal(t, models.AuditActorSystem, stored[0].ActorType)
+}
+
+// TestNewSyncRecorder_FailureIsLoggedNotReturned: a failed insert is logged
+// and counted, and Record still returns normally.
+func TestNewSyncRecorder_FailureIsLoggedNotReturned(t *testing.T) {
+	repo := mocks.NewMockAuditEventRepository(t)
+	repo.EXPECT().Insert(mock.Anything, mock.Anything).Return(errors.New("db down"))
+	logs := &bytes.Buffer{}
+	drops := &dropCounter{}
+
+	assert.NotPanics(t, func() {
+		NewSyncRecorder(RecorderDeps{Repo: repo, Drops: drops, Logger: slog.New(slog.NewTextHandler(logs, nil))}).
+			Record(context.Background(), Event{Operation: models.AuditOpInstanceSettingsUpdated})
+	})
+
+	assert.Equal(t, []string{DropReasonPersist}, drops.got())
+	assert.Contains(t, logs.String(), "failed to record audit event")
+}
