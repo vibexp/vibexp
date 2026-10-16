@@ -88,7 +88,7 @@ func (s *Server) deleteMemoryResource(
 	}
 
 	before := s.memoryAuditBefore(userID, teamID, id)
-	if err := s.container.MemoryService().DeleteMemory(userID, teamID, id); err != nil {
+	if err := s.container.MemoryService().DeleteMemory(ctx, userID, teamID, id); err != nil {
 		return s.mcpDeleteError(resourceTypeMemory, userID, teamID, err), nil, nil
 	}
 	s.recordAuditWrite(ctx, auditDelete(teamID, resourceTypeMemory, id, before))
@@ -151,7 +151,7 @@ func (s *Server) deleteArtifactResource(
 	}
 
 	if err := s.container.ArtifactService().DeleteArtifactByProjectIDAndSlug(
-		userID, teamID, params.ProjectID, slug,
+		ctx, userID, teamID, params.ProjectID, slug,
 	); err != nil {
 		return s.mcpDeleteError(resourceTypeArtifact, userID, teamID, err), nil, nil
 	}
@@ -188,7 +188,7 @@ func (s *Server) deleteBlueprintResource(
 	}
 
 	if err := s.container.BlueprintService().DeleteBlueprintByProjectIDAndSlug(
-		userID, teamID, params.ProjectID, slug,
+		ctx, userID, teamID, params.ProjectID, slug,
 	); err != nil {
 		return s.mcpDeleteError(resourceTypeBlueprint, userID, teamID, err), nil, nil
 	}

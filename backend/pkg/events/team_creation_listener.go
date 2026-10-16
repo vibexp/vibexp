@@ -24,7 +24,7 @@ type DefaultTeamCreator interface {
 // ProjectCreator defines the interface for project creation operations
 // This is defined here to avoid import cycles with the services package
 type ProjectCreator interface {
-	CreateProject(userID, teamID string, req *models.CreateProjectRequest) (*models.Project, error)
+	CreateProject(ctx context.Context, userID, teamID string, req *models.CreateProjectRequest) (*models.Project, error)
 }
 
 // TeamCreationListener handles user.created events and creates default teams and projects
@@ -131,7 +131,9 @@ func (l *TeamCreationListener) createDefaultProject(userID, teamID string) {
 		"team_id", teamID,
 	).Info("Creating default project for new user")
 
-	project, err := l.projectService.CreateProject(userID, teamID, models.DefaultProjectRequest())
+	// No request is behind a team-creation event, so the creation's
+	// authorization check runs on a background context (#1541).
+	project, err := l.projectService.CreateProject(context.Background(), userID, teamID, models.DefaultProjectRequest())
 	if err != nil {
 		l.logger.With(
 			"service", logServiceName,

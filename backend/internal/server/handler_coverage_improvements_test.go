@@ -336,7 +336,7 @@ func TestMemoryDeleteCoverage_SuccessWithNonStandardTeamID(t *testing.T) {
 	nonStandardTeamID := "invalid-uuid"
 
 	// Mock the service call - handler will pass whatever team_id it gets
-	container.memoryService.On("DeleteMemory", "user-123", nonStandardTeamID, memoryID).
+	container.memoryService.On("DeleteMemory", mock.Anything, "user-123", nonStandardTeamID, memoryID).
 		Return(nil)
 	container.embeddingService.On("DeleteEmbeddingsByEntity", "memory", memoryID).
 		Return(nil)
@@ -364,7 +364,7 @@ func TestMemoryDeleteCoverage_MemoryNotFound(t *testing.T) {
 	teamID := "550e8400-e29b-41d4-a716-446655440000"
 
 	// Mock service to return memory not found error
-	container.memoryService.On("DeleteMemory", "user-123", teamID, memoryID).
+	container.memoryService.On("DeleteMemory", mock.Anything, "user-123", teamID, memoryID).
 		Return(repositories.ErrMemoryNotFound)
 
 	req := makeCoverageAuthRequest("DELETE", "/api/v1/"+teamID+"/memories/"+memoryID, nil)

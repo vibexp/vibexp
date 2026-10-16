@@ -142,6 +142,7 @@ func TestHandleCreateBlueprint_Success(t *testing.T) {
 
 	mockBlueprintService.On(
 		"CreateBlueprint",
+		mock.Anything,
 		"user-123",
 		"550e8400-e29b-41d4-a716-446655440000",
 		mock.MatchedBy(func(req *models.CreateBlueprintRequest) bool {
@@ -230,7 +231,7 @@ func TestHandleCreateBlueprint_PathErrors(t *testing.T) {
 				Return(&models.APIKey{ID: "api-key-123", UserID: "user-123"}, nil)
 			mockTeamService.On("IsUserMemberOfTeam", mock.Anything, "user-123", "550e8400-e29b-41d4-a716-446655440000").
 				Return(true, nil)
-			mockBlueprintService.On("CreateBlueprint", "user-123", "550e8400-e29b-41d4-a716-446655440000",
+			mockBlueprintService.On("CreateBlueprint", mock.Anything, "user-123", "550e8400-e29b-41d4-a716-446655440000",
 				mock.Anything).Return(nil, tc.svcErr)
 
 			srv := New("8080", nil, "test-api-key", &config.Config{}, slog.New(slog.DiscardHandler))
@@ -323,7 +324,7 @@ func TestHandleCreateBlueprint_ServiceError(t *testing.T) {
 		specLibSvc *servicesmocks.MockBlueprintServiceInterface,
 		teamSvc *servicesmocks.MockTeamServiceInterface,
 	) {
-		specLibSvc.On("CreateBlueprint", "user-123", "550e8400-e29b-41d4-a716-446655440000", mock.Anything).
+		specLibSvc.On("CreateBlueprint", mock.Anything, "user-123", "550e8400-e29b-41d4-a716-446655440000", mock.Anything).
 			Return((*models.Blueprint)(nil), errors.New("blueprint already exists"))
 		teamSvc.On("IsUserMemberOfTeam", mock.Anything, "user-123", "550e8400-e29b-41d4-a716-446655440000").
 			Return(true, nil)
@@ -459,6 +460,7 @@ func TestHandleCreateBlueprint_ValidTypes(t *testing.T) {
 				}
 				mockSvc.On(
 					"CreateBlueprint",
+					mock.Anything,
 					"user-123",
 					"550e8400-e29b-41d4-a716-446655440000",
 					mock.Anything,
@@ -950,6 +952,7 @@ func TestHandleUpdateBlueprint_Success(t *testing.T) {
 
 	mockBlueprintService.On(
 		"UpdateBlueprintByProjectIDAndSlugInTeam",
+		mock.Anything,
 		"user-123",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
@@ -1011,6 +1014,7 @@ func TestHandleUpdateBlueprint_NotFound(t *testing.T) {
 
 	mockBlueprintService.On(
 		"UpdateBlueprintByProjectIDAndSlugInTeam",
+		mock.Anything,
 		"user-123",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
@@ -1053,7 +1057,7 @@ func TestHandleUpdateBlueprint_InvalidPath(t *testing.T) {
 		Return(&models.APIKey{ID: "api-key-123", UserID: "user-123"}, nil)
 	mockTeamService.On("IsUserMemberOfTeam", mock.Anything, "user-123", mock.AnythingOfType("string")).
 		Return(true, nil).Maybe()
-	mockBlueprintService.On("UpdateBlueprintByProjectIDAndSlugInTeam",
+	mockBlueprintService.On("UpdateBlueprintByProjectIDAndSlugInTeam", mock.Anything,
 		"user-123", "550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000", "s",
 		mock.Anything).Return((*models.Blueprint)(nil), services.ErrInvalidBlueprintPath)
@@ -1182,6 +1186,7 @@ func TestHandleDeleteBlueprint_Success(t *testing.T) {
 
 	mockBlueprintService.On(
 		"DeleteBlueprintByProjectIDAndSlug",
+		mock.Anything,
 		"user-123",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
@@ -1292,6 +1297,7 @@ func TestHandleDeleteBlueprint_ServiceError(t *testing.T) {
 
 	mockBlueprintService.On(
 		"DeleteBlueprintByProjectIDAndSlug",
+		mock.Anything,
 		"user-123",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
@@ -1513,7 +1519,7 @@ func runSubtypeValidationTest(t *testing.T, body string, expectedStatus int, err
 				mockTeam.On("IsUserMemberOfTeam", mock.Anything, "user-123", "550e8400-e29b-41d4-a716-446655440000").
 					Return(true, nil)
 
-				specLibSvc.On("CreateBlueprint", "user-123", "550e8400-e29b-41d4-a716-446655440000", mock.Anything).
+				specLibSvc.On("CreateBlueprint", mock.Anything, "user-123", "550e8400-e29b-41d4-a716-446655440000", mock.Anything).
 					Return(&models.Blueprint{ID: "spec-1"}, nil)
 			}
 		})
@@ -1925,6 +1931,7 @@ func TestHandleCreateBlueprint_NewTypes(t *testing.T) {
 				}
 				mockSvc.On(
 					"CreateBlueprint",
+					mock.Anything,
 					"user-123",
 					"550e8400-e29b-41d4-a716-446655440000",
 					mock.Anything,

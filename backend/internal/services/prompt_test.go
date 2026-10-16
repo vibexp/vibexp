@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -194,7 +195,7 @@ func TestPromptService_CreatePrompt(t *testing.T) {
 			service := createTestPromptService(mockRepo, mockProjectRepo)
 			tt.setup(mockRepo)
 
-			prompt, err := service.CreatePrompt(tt.userID, "team-123", tt.request)
+			prompt, err := service.CreatePrompt(context.Background(), tt.userID, "team-123", tt.request)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -505,7 +506,7 @@ func TestPromptService_UpdatePrompt(t *testing.T) {
 			service := createTestPromptService(mockRepo, nil)
 			tt.setup(mockRepo)
 
-			prompt, err := service.UpdatePrompt(tt.userID, "team-123", tt.promptID, tt.request)
+			prompt, err := service.UpdatePrompt(context.Background(), tt.userID, "team-123", tt.promptID, tt.request)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -538,7 +539,7 @@ func TestPromptService_UpdatePromptBySlug(t *testing.T) {
 		})).Return(nil)
 
 		request := createTestUpdatePromptRequest()
-		prompt, err := service.UpdatePromptBySlug("user-123", "team-123", "test-prompt", request)
+		prompt, err := service.UpdatePromptBySlug(context.Background(), "user-123", "team-123", "test-prompt", request)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, prompt)
@@ -1046,7 +1047,7 @@ func TestPromptService_PublishesPromptEvents(t *testing.T) {
 					Status:      "draft",
 					ProjectID:   "project-123",
 				}
-				_, err := service.CreatePrompt("user-123", "team-123", req)
+				_, err := service.CreatePrompt(context.Background(), "user-123", "team-123", req)
 				return err
 			},
 			expectEventCalls: 1,
@@ -1072,7 +1073,7 @@ func TestPromptService_PublishesPromptEvents(t *testing.T) {
 				req := &models.UpdatePromptRequest{
 					Name: &name,
 				}
-				_, err := service.UpdatePrompt("user-123", "team-123", "prompt-123", req)
+				_, err := service.UpdatePrompt(context.Background(), "user-123", "team-123", "prompt-123", req)
 				return err
 			},
 			expectEventCalls: 1,
@@ -1089,7 +1090,7 @@ func TestPromptService_PublishesPromptEvents(t *testing.T) {
 			},
 			executeAction: func(service *PromptService) error {
 				req := &models.UpdatePromptRequest{} // No updates
-				_, err := service.UpdatePrompt("user-123", "team-123", "prompt-123", req)
+				_, err := service.UpdatePrompt(context.Background(), "user-123", "team-123", "prompt-123", req)
 				return err
 			},
 			expectEventCalls: 0,
@@ -1224,7 +1225,7 @@ func TestPromptService_PublishesRenderedBodyInEvents(t *testing.T) {
 			ProjectID:   "project-123",
 		}
 
-		_, err := service.CreatePrompt("user-123", "team-123", req)
+		_, err := service.CreatePrompt(context.Background(), "user-123", "team-123", req)
 		assert.NoError(t, err)
 
 		// Verify event was published
@@ -1317,7 +1318,7 @@ func TestPromptService_PublishesRenderedBodyInEvents(t *testing.T) {
 			Body: &newBody,
 		}
 
-		_, err := service.UpdatePrompt("user-123", "team-123", "prompt-123", req)
+		_, err := service.UpdatePrompt(context.Background(), "user-123", "team-123", "prompt-123", req)
 		assert.NoError(t, err)
 
 		// Verify event was published
@@ -1400,7 +1401,7 @@ func TestPromptService_PublishesRenderedBodyInEvents(t *testing.T) {
 			ProjectID:   "project-123",
 		}
 
-		_, err := service.CreatePrompt("user-123", "team-123", req)
+		_, err := service.CreatePrompt(context.Background(), "user-123", "team-123", req)
 		assert.NoError(t, err)
 
 		// Verify event was published
@@ -1696,7 +1697,7 @@ func TestPromptService_CreatePrompt_MCPExposeTrue(t *testing.T) {
 	mockRefRepo.On("CreateBatch", mock.Anything, mock.Anything).Return(nil).Maybe()
 	mockEventManager.On("Publish", mock.Anything, mock.Anything).Return(nil).Maybe()
 
-	prompt, err := service.CreatePrompt(userID, "team-123", req)
+	prompt, err := service.CreatePrompt(context.Background(), userID, "team-123", req)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, prompt)
@@ -1746,7 +1747,7 @@ func TestPromptService_CreatePrompt_MCPExposeFalse(t *testing.T) {
 	mockRefRepo.On("CreateBatch", mock.Anything, mock.Anything).Return(nil).Maybe()
 	mockEventManager.On("Publish", mock.Anything, mock.Anything).Return(nil).Maybe()
 
-	prompt, err := service.CreatePrompt(userID, "team-123", req)
+	prompt, err := service.CreatePrompt(context.Background(), userID, "team-123", req)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, prompt)
@@ -1795,7 +1796,7 @@ func TestPromptService_CreatePrompt_MCPExposeDefaultsToTrue(t *testing.T) {
 	mockRefRepo.On("CreateBatch", mock.Anything, mock.Anything).Return(nil).Maybe()
 	mockEventManager.On("Publish", mock.Anything, mock.Anything).Return(nil).Maybe()
 
-	prompt, err := service.CreatePrompt(userID, "team-123", req)
+	prompt, err := service.CreatePrompt(context.Background(), userID, "team-123", req)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, prompt)
@@ -1838,7 +1839,7 @@ func TestPromptService_UpdatePrompt_MCPExposeToFalse(t *testing.T) {
 
 	mockEventManager.On("Publish", mock.Anything, mock.Anything).Return(nil).Maybe()
 
-	prompt, err := service.UpdatePrompt(userID, "team-123", promptID, req)
+	prompt, err := service.UpdatePrompt(context.Background(), userID, "team-123", promptID, req)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, prompt)
@@ -1881,7 +1882,7 @@ func TestPromptService_UpdatePrompt_MCPExposeToTrue(t *testing.T) {
 
 	mockEventManager.On("Publish", mock.Anything, mock.Anything).Return(nil).Maybe()
 
-	prompt, err := service.UpdatePrompt(userID, "team-123", promptID, req)
+	prompt, err := service.UpdatePrompt(context.Background(), userID, "team-123", promptID, req)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, prompt)
@@ -1926,7 +1927,7 @@ func TestPromptService_UpdatePrompt_PreservesMCPExpose(t *testing.T) {
 	mockRefRepo.On("CreateBatch", mock.Anything, mock.Anything).Return(nil).Maybe()
 	mockEventManager.On("Publish", mock.Anything, mock.Anything).Return(nil).Maybe()
 
-	prompt, err := service.UpdatePrompt(userID, "team-123", promptID, req)
+	prompt, err := service.UpdatePrompt(context.Background(), userID, "team-123", promptID, req)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, prompt)
@@ -1967,7 +1968,7 @@ func TestPromptService_UpdatePromptBySlug_WithVersion(t *testing.T) {
 		Name: &name,
 	}
 
-	prompt, err := service.UpdatePromptBySlug("user-123", "team-123", "test-prompt", request)
+	prompt, err := service.UpdatePromptBySlug(context.Background(), "user-123", "team-123", "test-prompt", request)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, prompt)
@@ -2002,7 +2003,7 @@ func TestPromptService_UpdatePromptBySlug_VersionZeroCausesFailure(t *testing.T)
 		Name: &name,
 	}
 
-	_, err := service.UpdatePromptBySlug("user-123", "team-123", "test-prompt", request)
+	_, err := service.UpdatePromptBySlug(context.Background(), "user-123", "team-123", "test-prompt", request)
 
 	// This should fail because version is 0
 	assert.Error(t, err)
@@ -2146,7 +2147,7 @@ func TestPromptService_UpdatePrompt_PreservesTeamID(t *testing.T) {
 		Name: &name,
 	}
 
-	prompt, err := service.UpdatePrompt("user-123", "team-123", "prompt-123", request)
+	prompt, err := service.UpdatePrompt(context.Background(), "user-123", "team-123", "prompt-123", request)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, prompt)

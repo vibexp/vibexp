@@ -341,7 +341,7 @@ func TestBootstrapDefaultProject_NilService(t *testing.T) {
 
 	srv := createTestTeamServer(mockContainer)
 
-	srv.bootstrapDefaultProject("user-789", &models.Team{ID: "team-new-123"})
+	srv.bootstrapDefaultProject(context.Background(), "user-789", &models.Team{ID: "team-new-123"})
 }
 
 // TestHandleCreateTeam_Success tests successful team creation
@@ -367,7 +367,7 @@ func TestHandleCreateTeam_Success(t *testing.T) {
 	mockContainer.teamService.On("CreateTeam", mock.Anything, "user-789", &createReq).
 		Return(expectedTeam, nil)
 
-	mockContainer.projectService.On("CreateProject", "user-789", "team-new-123", models.DefaultProjectRequest()).
+	mockContainer.projectService.On("CreateProject", mock.Anything, "user-789", "team-new-123", models.DefaultProjectRequest()).
 		Return(&models.Project{ID: "project-new-123", Slug: "project-1"}, nil)
 
 	srv := createTestTeamServer(mockContainer)
@@ -421,7 +421,7 @@ func TestHandleCreateTeam_DefaultProjectFailure(t *testing.T) {
 	mockContainer.teamService.On("CreateTeam", mock.Anything, "user-789", &createReq).
 		Return(expectedTeam, nil)
 
-	mockContainer.projectService.On("CreateProject", "user-789", "team-new-123", models.DefaultProjectRequest()).
+	mockContainer.projectService.On("CreateProject", mock.Anything, "user-789", "team-new-123", models.DefaultProjectRequest()).
 		Return(nil, errors.New("project creation failed"))
 
 	srv := createTestTeamServer(mockContainer)

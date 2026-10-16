@@ -103,12 +103,14 @@ func (s *ProjectService) validateTeamReassignment(requestedTeamID *string, curre
 
 // CreateProject creates a new project
 func (s *ProjectService) CreateProject(
+	ctx context.Context,
 	userID, teamID string, req *models.CreateProjectRequest,
 ) (*models.Project, error) {
-	ctx := context.Background()
+	// Only authorization takes the caller's ctx; the rest stays as before (#1541).
+	bgCtx := context.Background()
 
 	// Validate and resolve team ID
-	finalTeamID, err := s.validateAndResolveTeamID(ctx, userID, teamID, req.TeamID)
+	finalTeamID, err := s.validateAndResolveTeamID(bgCtx, userID, teamID, req.TeamID)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +135,7 @@ func (s *ProjectService) CreateProject(
 		UpdatedAt:   time.Now(),
 	}
 
-	err = s.repo.Create(ctx, project)
+	err = s.repo.Create(bgCtx, project)
 	if err != nil {
 		s.logger.With(
 			"service", "project",
@@ -156,7 +158,7 @@ func (s *ProjectService) CreateProject(
 			Homepage:    project.Homepage,
 			CreatedAt:   project.CreatedAt,
 		})
-		if err := s.eventManager.Publish(ctx, event); err != nil {
+		if err := s.eventManager.Publish(bgCtx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish project created event")
 		}
 	}
@@ -291,6 +293,7 @@ func applyProjectUpdates(project *models.Project, req *models.UpdateProjectReque
 
 // UpdateProject updates an existing project
 func (s *ProjectService) UpdateProject(
+	ctx context.Context,
 	teamID, userID, slug string, req *models.UpdateProjectRequest,
 ) (*models.Project, error) {
 	// First check if the project exists and get current data
@@ -307,15 +310,16 @@ func (s *ProjectService) UpdateProject(
 
 	// Updating a project is Admin+ (epic #220 D2). Authorize against the
 	// project's own team, which reassignment has just proven is unchanged.
-	authzErr := s.authz.Can(context.Background(), userID, existingProject.TeamID, authz.ProjectUpdate)
+	authzErr := s.authz.Can(ctx, userID, existingProject.TeamID, authz.ProjectUpdate)
 	if authzErr != nil {
 		return nil, authzErr
 	}
 
 	applyProjectUpdates(existingProject, req)
 
-	ctx := context.Background()
-	err = s.repo.Update(ctx, existingProject)
+	// Only authorization takes the caller's ctx; the rest stays as before (#1541).
+	bgCtx := context.Background()
+	err = s.repo.Update(bgCtx, existingProject)
 	if err != nil {
 		s.logger.With(
 			"service", "project",
@@ -339,7 +343,7 @@ func (s *ProjectService) UpdateProject(
 			Homepage:    existingProject.Homepage,
 			UpdatedAt:   existingProject.UpdatedAt,
 		})
-		if err := s.eventManager.Publish(ctx, event); err != nil {
+		if err := s.eventManager.Publish(bgCtx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish project updated event")
 		}
 	}
@@ -416,14 +420,15 @@ func (s *ProjectService) refuseLockedProject(ctx context.Context, teamID, projec
 // DeleteProject deletes a project by team ID, user ID, and slug. It refuses,
 // with a repositories.LockedResourcesError, while the project holds a locked
 // prompt, blueprint or artifact.
-func (s *ProjectService) DeleteProject(teamID, userID, slug string) error {
+func (s *ProjectService) DeleteProject(ctx context.Context, teamID, userID, slug string) error {
 	// First get the project to get its ID for event publishing
 	project, err := s.GetProjectBySlug(teamID, userID, slug)
 	if err != nil {
 		return err
 	}
 
-	ctx := context.Background()
+	// Only authorization takes the caller's ctx; the rest stays as before (#1541).
+	bgCtx := context.Background()
 
 	// Deleting a project is Admin+ (epic #220 D2), uniformly — there is no
 	// own-vs-any split, because members hold no project permission at all.
@@ -434,7 +439,7 @@ func (s *ProjectService) DeleteProject(teamID, userID, slug string) error {
 	}
 
 	// Check if this is the last project in the team
-	projectCount, err := s.repo.CountByTeamID(ctx, teamID)
+	projectCount, err := s.repo.CountByTeamID(bgCtx, teamID)
 	if err != nil {
 		s.logger.With(
 			"service", "project",
@@ -449,11 +454,11 @@ func (s *ProjectService) DeleteProject(teamID, userID, slug string) error {
 		return NewCannotDeleteLastProjectError(teamID, slug)
 	}
 
-	if lockedErr := s.refuseLockedProject(ctx, teamID, project.ID); lockedErr != nil {
+	if lockedErr := s.refuseLockedProject(bgCtx, teamID, project.ID); lockedErr != nil {
 		return lockedErr
 	}
 
-	err = s.repo.Delete(ctx, teamID, userID, slug)
+	err = s.repo.Delete(bgCtx, teamID, userID, slug)
 	if err != nil {
 		s.logger.With(
 			"service", "project",
@@ -473,7 +478,7 @@ func (s *ProjectService) DeleteProject(teamID, userID, slug string) error {
 			project.Slug,
 			time.Now(),
 		)
-		if err := s.eventManager.Publish(ctx, event); err != nil {
+		if err := s.eventManager.Publish(bgCtx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish project deleted event")
 		}
 	}

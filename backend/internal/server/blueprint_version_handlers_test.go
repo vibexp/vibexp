@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/config"
@@ -170,7 +171,7 @@ func TestHandleRestoreBlueprintVersion_Success(t *testing.T) {
 	}
 
 	mockBlueprintService.On(
-		"RestoreBlueprintVersionInTeam", "user-123", versionTeamID, versionProjectID, versionSlug, 1, (*models.WriteOrigin)(nil),
+		"RestoreBlueprintVersionInTeam", mock.Anything, "user-123", versionTeamID, versionProjectID, versionSlug, 1, (*models.WriteOrigin)(nil),
 	).Return(restored, nil)
 
 	srv := newBlueprintVersionTestServer(mockBlueprintService)

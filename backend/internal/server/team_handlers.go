@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
@@ -57,7 +58,7 @@ func (s *Server) handleCreateTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.bootstrapDefaultProject(userID, team)
+	s.bootstrapDefaultProject(r.Context(), userID, team)
 
 	writeCreated(w, team, s.logger)
 }
@@ -71,7 +72,7 @@ func (s *Server) handleCreateTeam(w http.ResponseWriter, r *http.Request) {
 // project exists before the 201 response returns — that ordering is what fixes
 // the mis-scoping race in #1579. CreateProject manages its own context
 // internally, so the write completes even if the client disconnects.
-func (s *Server) bootstrapDefaultProject(userID string, team *models.Team) {
+func (s *Server) bootstrapDefaultProject(ctx context.Context, userID string, team *models.Team) {
 	projectService := s.container.ProjectService()
 	if projectService == nil {
 		s.logger.With(
@@ -83,7 +84,7 @@ func (s *Server) bootstrapDefaultProject(userID string, team *models.Team) {
 		return
 	}
 
-	if _, err := projectService.CreateProject(userID, team.ID, models.DefaultProjectRequest()); err != nil {
+	if _, err := projectService.CreateProject(ctx, userID, team.ID, models.DefaultProjectRequest()); err != nil {
 		s.logger.With(
 			"service", serverLogServiceName,
 			"handler", "handleCreateTeam",

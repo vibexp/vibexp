@@ -3,7 +3,10 @@
 package mocks
 
 import (
+	context "context"
+
 	mock "github.com/stretchr/testify/mock"
+
 	models "github.com/vibexp/vibexp/internal/models"
 )
 
@@ -20,9 +23,9 @@ func (_m *MockProjectCreator) EXPECT() *MockProjectCreator_Expecter {
 	return &MockProjectCreator_Expecter{mock: &_m.Mock}
 }
 
-// CreateProject provides a mock function with given fields: userID, teamID, req
-func (_m *MockProjectCreator) CreateProject(userID string, teamID string, req *models.CreateProjectRequest) (*models.Project, error) {
-	ret := _m.Called(userID, teamID, req)
+// CreateProject provides a mock function with given fields: ctx, userID, teamID, req
+func (_m *MockProjectCreator) CreateProject(ctx context.Context, userID string, teamID string, req *models.CreateProjectRequest) (*models.Project, error) {
+	ret := _m.Called(ctx, userID, teamID, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateProject")
@@ -30,19 +33,19 @@ func (_m *MockProjectCreator) CreateProject(userID string, teamID string, req *m
 
 	var r0 *models.Project
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, *models.CreateProjectRequest) (*models.Project, error)); ok {
-		return rf(userID, teamID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, *models.CreateProjectRequest) (*models.Project, error)); ok {
+		return rf(ctx, userID, teamID, req)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, *models.CreateProjectRequest) *models.Project); ok {
-		r0 = rf(userID, teamID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, *models.CreateProjectRequest) *models.Project); ok {
+		r0 = rf(ctx, userID, teamID, req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Project)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, *models.CreateProjectRequest) error); ok {
-		r1 = rf(userID, teamID, req)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, *models.CreateProjectRequest) error); ok {
+		r1 = rf(ctx, userID, teamID, req)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -56,16 +59,17 @@ type MockProjectCreator_CreateProject_Call struct {
 }
 
 // CreateProject is a helper method to define mock.On call
+//   - ctx context.Context
 //   - userID string
 //   - teamID string
 //   - req *models.CreateProjectRequest
-func (_e *MockProjectCreator_Expecter) CreateProject(userID interface{}, teamID interface{}, req interface{}) *MockProjectCreator_CreateProject_Call {
-	return &MockProjectCreator_CreateProject_Call{Call: _e.mock.On("CreateProject", userID, teamID, req)}
+func (_e *MockProjectCreator_Expecter) CreateProject(ctx interface{}, userID interface{}, teamID interface{}, req interface{}) *MockProjectCreator_CreateProject_Call {
+	return &MockProjectCreator_CreateProject_Call{Call: _e.mock.On("CreateProject", ctx, userID, teamID, req)}
 }
 
-func (_c *MockProjectCreator_CreateProject_Call) Run(run func(userID string, teamID string, req *models.CreateProjectRequest)) *MockProjectCreator_CreateProject_Call {
+func (_c *MockProjectCreator_CreateProject_Call) Run(run func(ctx context.Context, userID string, teamID string, req *models.CreateProjectRequest)) *MockProjectCreator_CreateProject_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(*models.CreateProjectRequest))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(*models.CreateProjectRequest))
 	})
 	return _c
 }
@@ -75,7 +79,7 @@ func (_c *MockProjectCreator_CreateProject_Call) Return(_a0 *models.Project, _a1
 	return _c
 }
 
-func (_c *MockProjectCreator_CreateProject_Call) RunAndReturn(run func(string, string, *models.CreateProjectRequest) (*models.Project, error)) *MockProjectCreator_CreateProject_Call {
+func (_c *MockProjectCreator_CreateProject_Call) RunAndReturn(run func(context.Context, string, string, *models.CreateProjectRequest) (*models.Project, error)) *MockProjectCreator_CreateProject_Call {
 	_c.Call.Return(run)
 	return _c
 }

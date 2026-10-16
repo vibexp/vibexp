@@ -172,8 +172,11 @@ func (s *PromptService) resolvePromptStatus(ctx context.Context, teamID, status 
 	return status, nil
 }
 
-func (s *PromptService) CreatePrompt(userID, teamID string, req *models.CreatePromptRequest) (*models.Prompt, error) {
-	ctx := context.Background()
+// CreatePrompt creates a prompt in teamID. Only its authorization check takes
+// the caller's ctx; the rest stays on a background context, as before (#1541).
+func (s *PromptService) CreatePrompt(
+	ctx context.Context, userID, teamID string, req *models.CreatePromptRequest) (*models.Prompt, error) {
+	bgCtx := context.Background()
 
 	// Team ID comes from URL path and is already validated by middleware
 	finalTeamID := teamID
@@ -186,13 +189,13 @@ func (s *PromptService) CreatePrompt(userID, teamID string, req *models.CreatePr
 		return nil, authzErr
 	}
 
-	status, err := s.resolvePromptStatus(ctx, finalTeamID, req.Status)
+	status, err := s.resolvePromptStatus(bgCtx, finalTeamID, req.Status)
 	if err != nil {
 		return nil, err
 	}
 
 	// Validate that the project exists and belongs to the user
-	if err := s.validateProjectOwnership(ctx, userID, req.ProjectID); err != nil {
+	if err := s.validateProjectOwnership(bgCtx, userID, req.ProjectID); err != nil {
 		return nil, err
 	}
 
@@ -223,18 +226,18 @@ func (s *PromptService) CreatePrompt(userID, teamID string, req *models.CreatePr
 		UpdatedAt:   time.Now(),
 	}
 
-	if err := s.writePrompt(ctx, prompt, s.repo.Create, "Failed to create prompt"); err != nil {
+	if err := s.writePrompt(bgCtx, prompt, s.repo.Create, "Failed to create prompt"); err != nil {
 		return nil, err
 	}
 
 	// Extract and store references from the prompt body
-	if err := s.updatePromptReferences(ctx, prompt.TeamID, prompt.ID, prompt.Body); err != nil {
+	if err := s.updatePromptReferences(bgCtx, prompt.TeamID, prompt.ID, prompt.Body); err != nil {
 		s.logger.With("error", err).Warn("Failed to update prompt references")
 		// Don't fail the creation, just log the warning
 	}
 
 	// Publish prompt created event with rendered body
-	s.publishPromptCreatedEvent(ctx, prompt)
+	s.publishPromptCreatedEvent(bgCtx, prompt)
 
 	s.logger.With(
 		"prompt_id", prompt.ID,
@@ -343,6 +346,7 @@ func (s *PromptService) ListPrompts(userID string, filters PromptFilters) (*mode
 }
 
 func (s *PromptService) UpdatePromptBySlug(
+	ctx context.Context,
 	userID, teamID, slug string, req *models.UpdatePromptRequest,
 ) (*models.Prompt, error) {
 	existingPrompt, err := s.GetPromptBySlug(userID, teamID, slug)
@@ -350,13 +354,14 @@ func (s *PromptService) UpdatePromptBySlug(
 		return nil, err
 	}
 
-	return s.UpdatePrompt(userID, teamID, existingPrompt.ID, req)
+	return s.UpdatePrompt(ctx, userID, teamID, existingPrompt.ID, req)
 }
 
 func (s *PromptService) UpdatePrompt(
+	ctx context.Context,
 	userID, teamID, promptID string, req *models.UpdatePromptRequest,
 ) (*models.Prompt, error) {
-	return s.updatePromptInternal(userID, teamID, promptID, req, models.ActorTypeHuman, nil)
+	return s.updatePromptInternal(ctx, userID, teamID, promptID, req, models.ActorTypeHuman, nil)
 }
 
 // updatePromptInternal applies an update request to a prompt, snapshotting the prior raw Body
@@ -366,15 +371,17 @@ func (s *PromptService) UpdatePrompt(
 // changeSummary is an internal snapshot attribute only — it is never read from
 // UpdatePromptRequest, so the prompt update API exposes no user-facing change-summary field
 // (parity with artifacts/blueprints/memory). The versioned content is the raw Body template
-// (placeholders and @slug references), not any rendered output.
+// (placeholders and @slug references), not any rendered output. Only the
+// authorization check takes the caller's ctx; the rest stays on a background
+// context, as before (#1541).
 func (s *PromptService) updatePromptInternal(
-	userID, teamID, promptID string, req *models.UpdatePromptRequest,
+	ctx context.Context, userID, teamID, promptID string, req *models.UpdatePromptRequest,
 	actorType string, changeSummary *string,
 ) (*models.Prompt, error) {
-	ctx := context.Background()
+	bgCtx := context.Background()
 
 	// First get the existing prompt
-	existingPrompt, err := s.repo.GetByID(ctx, userID, teamID, promptID)
+	existingPrompt, err := s.repo.GetByID(bgCtx, userID, teamID, promptID)
 	if err != nil {
 		return nil, err
 	}
@@ -396,7 +403,7 @@ func (s *PromptService) updatePromptInternal(
 	// The catalog is the PROMPT's team's, read off the loaded row rather than
 	// the caller-supplied id (#1266).
 	if statusErr := s.statuses.ValidateOptional(
-		ctx, existingPrompt.TeamID, models.StatusResourceTypePrompt, req.Status,
+		bgCtx, existingPrompt.TeamID, models.StatusResourceTypePrompt, req.Status,
 	); statusErr != nil {
 		return nil, statusErr
 	}
@@ -411,31 +418,31 @@ func (s *PromptService) updatePromptInternal(
 
 	// Validate project ownership if project_id is being updated
 	if req.ProjectID != nil {
-		if validationErr := s.validateProjectOwnership(ctx, userID, *req.ProjectID); validationErr != nil {
+		if validationErr := s.validateProjectOwnership(bgCtx, userID, *req.ProjectID); validationErr != nil {
 			return nil, validationErr
 		}
 	}
 
 	updatedPrompt := buildUpdatedPrompt(existingPrompt, req)
 
-	s.snapshotPromptBody(ctx, userID, existingPrompt, updatedPrompt, actorType, changeSummary, req.WriteOrigin)
+	s.snapshotPromptBody(bgCtx, userID, existingPrompt, updatedPrompt, actorType, changeSummary, req.WriteOrigin)
 
-	if err = s.writePrompt(ctx, updatedPrompt, s.repo.Update, "Failed to update prompt"); err != nil {
+	if err = s.writePrompt(bgCtx, updatedPrompt, s.repo.Update, "Failed to update prompt"); err != nil {
 		return nil, err
 	}
 
 	// Update references if body changed
 	if req.Body != nil {
-		if err := s.updatePromptReferences(ctx, updatedPrompt.TeamID, updatedPrompt.ID, updatedPrompt.Body); err != nil {
+		if err := s.updatePromptReferences(bgCtx, updatedPrompt.TeamID, updatedPrompt.ID, updatedPrompt.Body); err != nil {
 			s.logger.With("error", err).Warn("Failed to update prompt references")
 			// Don't fail the update, just log the warning
 		}
 	}
 
-	clearFreshnessAfterEdit(ctx, s.freshnessClearer, s.logger,
+	clearFreshnessAfterEdit(bgCtx, s.freshnessClearer, s.logger,
 		updatedPrompt.TeamID, "prompt", updatedPrompt.ID)
 
-	s.publishPromptUpdatedEvent(ctx, updatedPrompt)
+	s.publishPromptUpdatedEvent(bgCtx, updatedPrompt)
 
 	s.logger.With(
 		"prompt_id", updatedPrompt.ID,
@@ -607,6 +614,7 @@ func (s *PromptService) GetPromptVersion(
 // The restore is non-destructive (the current body is preserved as a snapshot) and re-applies
 // the raw template verbatim, so placeholders and @slug references survive the round-trip.
 func (s *PromptService) RestorePromptVersion(
+	ctx context.Context,
 	userID, teamID, slug string, versionNumber int, origin *models.WriteOrigin,
 ) (*models.Prompt, error) {
 	prompt, err := s.GetPromptBySlug(userID, teamID, slug)
@@ -623,7 +631,7 @@ func (s *PromptService) RestorePromptVersion(
 	// default "Restored Version N" summary so the timeline reads clearly.
 	restoreSummary := fmt.Sprintf("Restored Version %d", versionNumber)
 	return s.updatePromptInternal(
-		userID, teamID, prompt.ID, &models.UpdatePromptRequest{Body: &target, WriteOrigin: origin},
+		ctx, userID, teamID, prompt.ID, &models.UpdatePromptRequest{Body: &target, WriteOrigin: origin},
 		models.ActorTypeSystem, &restoreSummary,
 	)
 }

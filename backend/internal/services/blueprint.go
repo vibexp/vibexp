@@ -235,9 +235,11 @@ func buildBlueprintFromRequest(userID, teamID string, req *models.CreateBlueprin
 }
 
 func (s *BlueprintService) CreateBlueprint(
+	ctx context.Context,
 	userID, teamID string, req *models.CreateBlueprintRequest,
 ) (*models.Blueprint, error) {
-	ctx := context.Background()
+	// Only authorization takes the caller's ctx; the rest stays as before (#1541).
+	bgCtx := context.Background()
 
 	// Reject an over-limit label list before anything else: the documented
 	// maxItems/maxLength are enforced nowhere else (issue #910).
@@ -257,7 +259,7 @@ func (s *BlueprintService) CreateBlueprint(
 	// Status is checked here so the MCP tools get the REST answer (#912), and
 	// after the authorization above: the rejection lists the team's custom
 	// statuses (#1266).
-	if statusErr := s.validateStatus(ctx, finalTeamID, &req.Status); statusErr != nil {
+	if statusErr := s.validateStatus(bgCtx, finalTeamID, &req.Status); statusErr != nil {
 		return nil, statusErr
 	}
 
@@ -279,7 +281,7 @@ func (s *BlueprintService) CreateBlueprint(
 		return nil, err
 	}
 
-	if err = s.insertBlueprint(ctx, blueprint); err != nil {
+	if err = s.insertBlueprint(bgCtx, blueprint); err != nil {
 		return nil, err
 	}
 
@@ -296,7 +298,7 @@ func (s *BlueprintService) CreateBlueprint(
 			Body:        blueprint.Content,
 			CreatedAt:   blueprint.CreatedAt,
 		})
-		if err := s.eventManager.Publish(ctx, event); err != nil {
+		if err := s.eventManager.Publish(bgCtx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish blueprint created event")
 		}
 	}
@@ -502,6 +504,7 @@ func validateBlueprintBusinessRules(blueprint *models.Blueprint) error {
 // every role may update any team member's resource) reaches the update path instead of 404ing
 // for a non-creator member (#258). Mirrors ArtifactService.UpdateArtifactByProjectIDAndSlugInTeam.
 func (s *BlueprintService) UpdateBlueprintByProjectIDAndSlugInTeam(
+	ctx context.Context,
 	userID, teamID, projectID, slug string, req *models.UpdateBlueprintRequest,
 ) (*models.Blueprint, error) {
 	blueprint, err := s.GetBlueprintByProjectIDAndSlugInTeam(userID, teamID, projectID, slug)
@@ -509,7 +512,7 @@ func (s *BlueprintService) UpdateBlueprintByProjectIDAndSlugInTeam(
 		return nil, err
 	}
 
-	return s.applyAndPersistBlueprintUpdate(userID, blueprint, req, models.ActorTypeHuman, nil, nil)
+	return s.applyAndPersistBlueprintUpdate(ctx, userID, blueprint, req, models.ActorTypeHuman, nil, nil)
 }
 
 // blueprintSnapshot carries the attributes of one content-version snapshot: the
@@ -555,6 +558,7 @@ func (s *BlueprintService) snapshotBlueprintContent(
 // is an internal snapshot attribute only — it is never read from UpdateBlueprintRequest, so the
 // blueprint update API exposes no user-facing change-summary field (parity with artifacts).
 func (s *BlueprintService) applyAndPersistBlueprintUpdate(
+	ctx context.Context,
 	userID string, blueprint *models.Blueprint, req *models.UpdateBlueprintRequest,
 	actorType string, changeSummary *string, rawOverride *string,
 ) (*models.Blueprint, error) {
@@ -562,7 +566,7 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 	// decision D1). Gated in the shared helper so the entry point and version
 	// restore both funnel through one check.
 	if authzErr := s.authz.Can(
-		context.Background(), userID, blueprint.TeamID, authz.ResourceUpdateAny,
+		ctx, userID, blueprint.TeamID, authz.ResourceUpdateAny,
 	); authzErr != nil {
 		return nil, authzErr
 	}
@@ -580,11 +584,12 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 		return nil, err
 	}
 
-	ctx := context.Background()
+	// Only authorization takes the caller's ctx; the rest stays as before (#1541).
+	bgCtx := context.Background()
 
 	// Status is checked here so the MCP tools get the REST answer (#912),
 	// against the catalog of the blueprint's own team (#1266).
-	if err := s.validateStatus(ctx, blueprint.TeamID, req.Status); err != nil {
+	if err := s.validateStatus(bgCtx, blueprint.TeamID, req.Status); err != nil {
 		return nil, err
 	}
 
@@ -624,16 +629,16 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 		blueprint.RawContent, blueprint.ContentSHA = s.regenerateRaw(blueprint)
 	}
 
-	s.snapshotBlueprintContent(ctx, userID, blueprint, snap)
+	s.snapshotBlueprintContent(bgCtx, userID, blueprint, snap)
 
-	if err := s.saveBlueprint(ctx, userID, blueprint); err != nil {
+	if err := s.saveBlueprint(bgCtx, userID, blueprint); err != nil {
 		return nil, err
 	}
 
-	clearFreshnessAfterEdit(ctx, s.freshnessClearer, s.logger,
+	clearFreshnessAfterEdit(bgCtx, s.freshnessClearer, s.logger,
 		blueprint.TeamID, "blueprint", blueprint.ID)
 
-	s.publishBlueprintUpdatedEvent(ctx, blueprint)
+	s.publishBlueprintUpdatedEvent(bgCtx, blueprint)
 
 	return blueprint, nil
 }
@@ -693,6 +698,7 @@ func (s *BlueprintService) GetBlueprintVersionInTeam(
 // by applying it through the shared update path, which snapshots the pre-restore content as a
 // new version. Resolves by team membership so a non-creator member can restore (#258).
 func (s *BlueprintService) RestoreBlueprintVersionInTeam(
+	ctx context.Context,
 	userID, teamID, projectID, slug string, versionNumber int, origin *models.WriteOrigin,
 ) (*models.Blueprint, error) {
 	blueprint, err := s.GetBlueprintByProjectIDAndSlugInTeam(userID, teamID, projectID, slug)
@@ -715,12 +721,14 @@ func (s *BlueprintService) RestoreBlueprintVersionInTeam(
 	restoreSummary := fmt.Sprintf("Restored Version %d", versionNumber)
 	rawOverride := target.RawContent
 	return s.applyAndPersistBlueprintUpdate(
-		userID, blueprint, &models.UpdateBlueprintRequest{Content: &target.Content, WriteOrigin: origin},
+		ctx, userID, blueprint, &models.UpdateBlueprintRequest{Content: &target.Content, WriteOrigin: origin},
 		models.ActorTypeSystem, &restoreSummary, &rawOverride,
 	)
 }
 
-func (s *BlueprintService) DeleteBlueprintByProjectIDAndSlug(userID, teamID, projectID, slug string) error {
+func (s *BlueprintService) DeleteBlueprintByProjectIDAndSlug(
+	ctx context.Context, userID, teamID, projectID, slug string,
+) error {
 	// Resolve team-scoped (by membership, not creator user_id) so an Admin/Owner can reach
 	// another member's blueprint and the delete.own/delete.any authorization below actually
 	// runs — the owner-scoped getter returned 404 first, making delete.any dead (#258).
@@ -729,7 +737,8 @@ func (s *BlueprintService) DeleteBlueprintByProjectIDAndSlug(userID, teamID, pro
 		return err
 	}
 
-	ctx := context.Background()
+	// Only authorization takes the caller's ctx; the rest stays as before (#1541).
+	bgCtx := context.Background()
 
 	// Delete is own-vs-any: members delete only what they authored, Admin+ delete
 	// anyone's. The repository no longer carries that decision in its SQL.
@@ -746,7 +755,7 @@ func (s *BlueprintService) DeleteBlueprintByProjectIDAndSlug(userID, teamID, pro
 		return lockErr
 	}
 
-	err = s.repo.Delete(ctx, userID, blueprint.TeamID, blueprint.ID)
+	err = s.repo.Delete(bgCtx, userID, blueprint.TeamID, blueprint.ID)
 	if err != nil {
 		s.logger.With(
 			"service", "blueprint",
@@ -758,9 +767,9 @@ func (s *BlueprintService) DeleteBlueprintByProjectIDAndSlug(userID, teamID, pro
 		return err
 	}
 
-	s.deleteBlueprintComments(ctx, blueprint.TeamID, blueprint.ID)
-	s.deleteBlueprintRelations(ctx, blueprint.TeamID, blueprint.ID)
-	s.deleteBlueprintFreshness(ctx, blueprint.TeamID, blueprint.ID)
+	s.deleteBlueprintComments(bgCtx, blueprint.TeamID, blueprint.ID)
+	s.deleteBlueprintRelations(bgCtx, blueprint.TeamID, blueprint.ID)
+	s.deleteBlueprintFreshness(bgCtx, blueprint.TeamID, blueprint.ID)
 
 	return nil
 }

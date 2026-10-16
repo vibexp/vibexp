@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -83,7 +84,7 @@ func TestProjectService_CreateProject_RoleMatrix(t *testing.T) {
 			}
 
 			svc := projectServiceForRole(t, repo, tc.role)
-			project, err := svc.CreateProject(projRBACUserID, projRBACTeamID, &models.CreateProjectRequest{
+			project, err := svc.CreateProject(context.Background(), projRBACUserID, projRBACTeamID, &models.CreateProjectRequest{
 				Name: "New Project",
 				Slug: "new-project",
 			})
@@ -119,7 +120,7 @@ func TestProjectService_UpdateProject_RoleMatrix(t *testing.T) {
 
 			name := "Renamed"
 			svc := projectServiceForRole(t, repo, tc.role)
-			project, err := svc.UpdateProject(projRBACTeamID, projRBACUserID, projRBACSlug,
+			project, err := svc.UpdateProject(context.Background(), projRBACTeamID, projRBACUserID, projRBACSlug,
 				&models.UpdateProjectRequest{Name: &name})
 
 			if tc.allowed {
@@ -150,7 +151,7 @@ func TestProjectService_UpdateProject_MemberCannotUpdateOwnProject(t *testing.T)
 
 	name := "Renamed"
 	svc := projectServiceForRole(t, repo, models.TeamMemberRoleMember)
-	project, err := svc.UpdateProject(projRBACTeamID, projRBACUserID, projRBACSlug,
+	project, err := svc.UpdateProject(context.Background(), projRBACTeamID, projRBACUserID, projRBACSlug,
 		&models.UpdateProjectRequest{Name: &name})
 
 	assert.ErrorIs(t, err, ErrPermissionDenied)
@@ -179,7 +180,7 @@ func TestProjectService_DeleteProject_RoleMatrix(t *testing.T) {
 			}
 
 			svc := projectServiceForRole(t, repo, tc.role)
-			err := svc.DeleteProject(projRBACTeamID, projRBACUserID, projRBACSlug)
+			err := svc.DeleteProject(context.Background(), projRBACTeamID, projRBACUserID, projRBACSlug)
 
 			if tc.allowed {
 				require.NoError(t, err)
@@ -209,7 +210,7 @@ func TestProjectService_DeleteProject_MemberCannotDeleteOwnProject(t *testing.T)
 		}, nil).Once()
 
 	svc := projectServiceForRole(t, repo, models.TeamMemberRoleMember)
-	err := svc.DeleteProject(projRBACTeamID, projRBACUserID, projRBACSlug)
+	err := svc.DeleteProject(context.Background(), projRBACTeamID, projRBACUserID, projRBACSlug)
 
 	assert.ErrorIs(t, err, ErrPermissionDenied)
 	repo.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
@@ -240,7 +241,7 @@ func TestProjectService_CreateProject_AuthorizesResolvedTeam(t *testing.T) {
 	svc := NewProjectService(repo, teamSvc, NewAuthorizationService(memberRepo, logger), nil, logger)
 
 	requested := targetTeamID
-	project, err := svc.CreateProject(projRBACUserID, urlTeamID, &models.CreateProjectRequest{
+	project, err := svc.CreateProject(context.Background(), projRBACUserID, urlTeamID, &models.CreateProjectRequest{
 		Name:   "Redirected",
 		Slug:   "redirected",
 		TeamID: &requested,

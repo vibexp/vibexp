@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -70,7 +71,7 @@ func TestMemoryService_CreateMemory_Title(t *testing.T) {
 				Authz:  permissiveAuthz(t),
 				Logger: logger,
 			})
-			memory, err := service.CreateMemory("user-123", "team-123", &models.CreateMemoryRequest{
+			memory, err := service.CreateMemory(context.Background(), "user-123", "team-123", &models.CreateMemoryRequest{
 				ProjectID: memoryTitleTestProjectID,
 				Title:     tt.title,
 				Text:      "some memory",

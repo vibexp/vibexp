@@ -3,6 +3,8 @@
 package mocks
 
 import (
+	context "context"
+
 	mock "github.com/stretchr/testify/mock"
 	models "github.com/vibexp/vibexp/internal/models"
 
@@ -22,9 +24,9 @@ func (_m *MockPromptServiceInterface) EXPECT() *MockPromptServiceInterface_Expec
 	return &MockPromptServiceInterface_Expecter{mock: &_m.Mock}
 }
 
-// CreatePrompt provides a mock function with given fields: userID, teamID, req
-func (_m *MockPromptServiceInterface) CreatePrompt(userID string, teamID string, req *models.CreatePromptRequest) (*models.Prompt, error) {
-	ret := _m.Called(userID, teamID, req)
+// CreatePrompt provides a mock function with given fields: ctx, userID, teamID, req
+func (_m *MockPromptServiceInterface) CreatePrompt(ctx context.Context, userID string, teamID string, req *models.CreatePromptRequest) (*models.Prompt, error) {
+	ret := _m.Called(ctx, userID, teamID, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreatePrompt")
@@ -32,19 +34,19 @@ func (_m *MockPromptServiceInterface) CreatePrompt(userID string, teamID string,
 
 	var r0 *models.Prompt
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, *models.CreatePromptRequest) (*models.Prompt, error)); ok {
-		return rf(userID, teamID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, *models.CreatePromptRequest) (*models.Prompt, error)); ok {
+		return rf(ctx, userID, teamID, req)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, *models.CreatePromptRequest) *models.Prompt); ok {
-		r0 = rf(userID, teamID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, *models.CreatePromptRequest) *models.Prompt); ok {
+		r0 = rf(ctx, userID, teamID, req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Prompt)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, *models.CreatePromptRequest) error); ok {
-		r1 = rf(userID, teamID, req)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, *models.CreatePromptRequest) error); ok {
+		r1 = rf(ctx, userID, teamID, req)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -58,16 +60,17 @@ type MockPromptServiceInterface_CreatePrompt_Call struct {
 }
 
 // CreatePrompt is a helper method to define mock.On call
+//   - ctx context.Context
 //   - userID string
 //   - teamID string
 //   - req *models.CreatePromptRequest
-func (_e *MockPromptServiceInterface_Expecter) CreatePrompt(userID interface{}, teamID interface{}, req interface{}) *MockPromptServiceInterface_CreatePrompt_Call {
-	return &MockPromptServiceInterface_CreatePrompt_Call{Call: _e.mock.On("CreatePrompt", userID, teamID, req)}
+func (_e *MockPromptServiceInterface_Expecter) CreatePrompt(ctx interface{}, userID interface{}, teamID interface{}, req interface{}) *MockPromptServiceInterface_CreatePrompt_Call {
+	return &MockPromptServiceInterface_CreatePrompt_Call{Call: _e.mock.On("CreatePrompt", ctx, userID, teamID, req)}
 }
 
-func (_c *MockPromptServiceInterface_CreatePrompt_Call) Run(run func(userID string, teamID string, req *models.CreatePromptRequest)) *MockPromptServiceInterface_CreatePrompt_Call {
+func (_c *MockPromptServiceInterface_CreatePrompt_Call) Run(run func(ctx context.Context, userID string, teamID string, req *models.CreatePromptRequest)) *MockPromptServiceInterface_CreatePrompt_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(*models.CreatePromptRequest))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(*models.CreatePromptRequest))
 	})
 	return _c
 }
@@ -77,7 +80,7 @@ func (_c *MockPromptServiceInterface_CreatePrompt_Call) Return(_a0 *models.Promp
 	return _c
 }
 
-func (_c *MockPromptServiceInterface_CreatePrompt_Call) RunAndReturn(run func(string, string, *models.CreatePromptRequest) (*models.Prompt, error)) *MockPromptServiceInterface_CreatePrompt_Call {
+func (_c *MockPromptServiceInterface_CreatePrompt_Call) RunAndReturn(run func(context.Context, string, string, *models.CreatePromptRequest) (*models.Prompt, error)) *MockPromptServiceInterface_CreatePrompt_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -895,9 +898,9 @@ func (_c *MockPromptServiceInterface_RenderPromptBody_Call) RunAndReturn(run fun
 	return _c
 }
 
-// RestorePromptVersion provides a mock function with given fields: userID, teamID, slug, versionNumber, origin
-func (_m *MockPromptServiceInterface) RestorePromptVersion(userID string, teamID string, slug string, versionNumber int, origin *models.WriteOrigin) (*models.Prompt, error) {
-	ret := _m.Called(userID, teamID, slug, versionNumber, origin)
+// RestorePromptVersion provides a mock function with given fields: ctx, userID, teamID, slug, versionNumber, origin
+func (_m *MockPromptServiceInterface) RestorePromptVersion(ctx context.Context, userID string, teamID string, slug string, versionNumber int, origin *models.WriteOrigin) (*models.Prompt, error) {
+	ret := _m.Called(ctx, userID, teamID, slug, versionNumber, origin)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RestorePromptVersion")
@@ -905,19 +908,19 @@ func (_m *MockPromptServiceInterface) RestorePromptVersion(userID string, teamID
 
 	var r0 *models.Prompt
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, string, int, *models.WriteOrigin) (*models.Prompt, error)); ok {
-		return rf(userID, teamID, slug, versionNumber, origin)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, int, *models.WriteOrigin) (*models.Prompt, error)); ok {
+		return rf(ctx, userID, teamID, slug, versionNumber, origin)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, string, int, *models.WriteOrigin) *models.Prompt); ok {
-		r0 = rf(userID, teamID, slug, versionNumber, origin)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, int, *models.WriteOrigin) *models.Prompt); ok {
+		r0 = rf(ctx, userID, teamID, slug, versionNumber, origin)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Prompt)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, string, int, *models.WriteOrigin) error); ok {
-		r1 = rf(userID, teamID, slug, versionNumber, origin)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, int, *models.WriteOrigin) error); ok {
+		r1 = rf(ctx, userID, teamID, slug, versionNumber, origin)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -931,18 +934,19 @@ type MockPromptServiceInterface_RestorePromptVersion_Call struct {
 }
 
 // RestorePromptVersion is a helper method to define mock.On call
+//   - ctx context.Context
 //   - userID string
 //   - teamID string
 //   - slug string
 //   - versionNumber int
 //   - origin *models.WriteOrigin
-func (_e *MockPromptServiceInterface_Expecter) RestorePromptVersion(userID interface{}, teamID interface{}, slug interface{}, versionNumber interface{}, origin interface{}) *MockPromptServiceInterface_RestorePromptVersion_Call {
-	return &MockPromptServiceInterface_RestorePromptVersion_Call{Call: _e.mock.On("RestorePromptVersion", userID, teamID, slug, versionNumber, origin)}
+func (_e *MockPromptServiceInterface_Expecter) RestorePromptVersion(ctx interface{}, userID interface{}, teamID interface{}, slug interface{}, versionNumber interface{}, origin interface{}) *MockPromptServiceInterface_RestorePromptVersion_Call {
+	return &MockPromptServiceInterface_RestorePromptVersion_Call{Call: _e.mock.On("RestorePromptVersion", ctx, userID, teamID, slug, versionNumber, origin)}
 }
 
-func (_c *MockPromptServiceInterface_RestorePromptVersion_Call) Run(run func(userID string, teamID string, slug string, versionNumber int, origin *models.WriteOrigin)) *MockPromptServiceInterface_RestorePromptVersion_Call {
+func (_c *MockPromptServiceInterface_RestorePromptVersion_Call) Run(run func(ctx context.Context, userID string, teamID string, slug string, versionNumber int, origin *models.WriteOrigin)) *MockPromptServiceInterface_RestorePromptVersion_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string), args[3].(int), args[4].(*models.WriteOrigin))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(int), args[5].(*models.WriteOrigin))
 	})
 	return _c
 }
@@ -952,14 +956,14 @@ func (_c *MockPromptServiceInterface_RestorePromptVersion_Call) Return(_a0 *mode
 	return _c
 }
 
-func (_c *MockPromptServiceInterface_RestorePromptVersion_Call) RunAndReturn(run func(string, string, string, int, *models.WriteOrigin) (*models.Prompt, error)) *MockPromptServiceInterface_RestorePromptVersion_Call {
+func (_c *MockPromptServiceInterface_RestorePromptVersion_Call) RunAndReturn(run func(context.Context, string, string, string, int, *models.WriteOrigin) (*models.Prompt, error)) *MockPromptServiceInterface_RestorePromptVersion_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// UpdatePrompt provides a mock function with given fields: userID, teamID, promptID, req
-func (_m *MockPromptServiceInterface) UpdatePrompt(userID string, teamID string, promptID string, req *models.UpdatePromptRequest) (*models.Prompt, error) {
-	ret := _m.Called(userID, teamID, promptID, req)
+// UpdatePrompt provides a mock function with given fields: ctx, userID, teamID, promptID, req
+func (_m *MockPromptServiceInterface) UpdatePrompt(ctx context.Context, userID string, teamID string, promptID string, req *models.UpdatePromptRequest) (*models.Prompt, error) {
+	ret := _m.Called(ctx, userID, teamID, promptID, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdatePrompt")
@@ -967,19 +971,19 @@ func (_m *MockPromptServiceInterface) UpdatePrompt(userID string, teamID string,
 
 	var r0 *models.Prompt
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, string, *models.UpdatePromptRequest) (*models.Prompt, error)); ok {
-		return rf(userID, teamID, promptID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, *models.UpdatePromptRequest) (*models.Prompt, error)); ok {
+		return rf(ctx, userID, teamID, promptID, req)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, string, *models.UpdatePromptRequest) *models.Prompt); ok {
-		r0 = rf(userID, teamID, promptID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, *models.UpdatePromptRequest) *models.Prompt); ok {
+		r0 = rf(ctx, userID, teamID, promptID, req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Prompt)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, string, *models.UpdatePromptRequest) error); ok {
-		r1 = rf(userID, teamID, promptID, req)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, *models.UpdatePromptRequest) error); ok {
+		r1 = rf(ctx, userID, teamID, promptID, req)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -993,17 +997,18 @@ type MockPromptServiceInterface_UpdatePrompt_Call struct {
 }
 
 // UpdatePrompt is a helper method to define mock.On call
+//   - ctx context.Context
 //   - userID string
 //   - teamID string
 //   - promptID string
 //   - req *models.UpdatePromptRequest
-func (_e *MockPromptServiceInterface_Expecter) UpdatePrompt(userID interface{}, teamID interface{}, promptID interface{}, req interface{}) *MockPromptServiceInterface_UpdatePrompt_Call {
-	return &MockPromptServiceInterface_UpdatePrompt_Call{Call: _e.mock.On("UpdatePrompt", userID, teamID, promptID, req)}
+func (_e *MockPromptServiceInterface_Expecter) UpdatePrompt(ctx interface{}, userID interface{}, teamID interface{}, promptID interface{}, req interface{}) *MockPromptServiceInterface_UpdatePrompt_Call {
+	return &MockPromptServiceInterface_UpdatePrompt_Call{Call: _e.mock.On("UpdatePrompt", ctx, userID, teamID, promptID, req)}
 }
 
-func (_c *MockPromptServiceInterface_UpdatePrompt_Call) Run(run func(userID string, teamID string, promptID string, req *models.UpdatePromptRequest)) *MockPromptServiceInterface_UpdatePrompt_Call {
+func (_c *MockPromptServiceInterface_UpdatePrompt_Call) Run(run func(ctx context.Context, userID string, teamID string, promptID string, req *models.UpdatePromptRequest)) *MockPromptServiceInterface_UpdatePrompt_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string), args[3].(*models.UpdatePromptRequest))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(*models.UpdatePromptRequest))
 	})
 	return _c
 }
@@ -1013,14 +1018,14 @@ func (_c *MockPromptServiceInterface_UpdatePrompt_Call) Return(_a0 *models.Promp
 	return _c
 }
 
-func (_c *MockPromptServiceInterface_UpdatePrompt_Call) RunAndReturn(run func(string, string, string, *models.UpdatePromptRequest) (*models.Prompt, error)) *MockPromptServiceInterface_UpdatePrompt_Call {
+func (_c *MockPromptServiceInterface_UpdatePrompt_Call) RunAndReturn(run func(context.Context, string, string, string, *models.UpdatePromptRequest) (*models.Prompt, error)) *MockPromptServiceInterface_UpdatePrompt_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// UpdatePromptBySlug provides a mock function with given fields: userID, teamID, slug, req
-func (_m *MockPromptServiceInterface) UpdatePromptBySlug(userID string, teamID string, slug string, req *models.UpdatePromptRequest) (*models.Prompt, error) {
-	ret := _m.Called(userID, teamID, slug, req)
+// UpdatePromptBySlug provides a mock function with given fields: ctx, userID, teamID, slug, req
+func (_m *MockPromptServiceInterface) UpdatePromptBySlug(ctx context.Context, userID string, teamID string, slug string, req *models.UpdatePromptRequest) (*models.Prompt, error) {
+	ret := _m.Called(ctx, userID, teamID, slug, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdatePromptBySlug")
@@ -1028,19 +1033,19 @@ func (_m *MockPromptServiceInterface) UpdatePromptBySlug(userID string, teamID s
 
 	var r0 *models.Prompt
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, string, *models.UpdatePromptRequest) (*models.Prompt, error)); ok {
-		return rf(userID, teamID, slug, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, *models.UpdatePromptRequest) (*models.Prompt, error)); ok {
+		return rf(ctx, userID, teamID, slug, req)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, string, *models.UpdatePromptRequest) *models.Prompt); ok {
-		r0 = rf(userID, teamID, slug, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, *models.UpdatePromptRequest) *models.Prompt); ok {
+		r0 = rf(ctx, userID, teamID, slug, req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Prompt)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, string, *models.UpdatePromptRequest) error); ok {
-		r1 = rf(userID, teamID, slug, req)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, *models.UpdatePromptRequest) error); ok {
+		r1 = rf(ctx, userID, teamID, slug, req)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -1054,17 +1059,18 @@ type MockPromptServiceInterface_UpdatePromptBySlug_Call struct {
 }
 
 // UpdatePromptBySlug is a helper method to define mock.On call
+//   - ctx context.Context
 //   - userID string
 //   - teamID string
 //   - slug string
 //   - req *models.UpdatePromptRequest
-func (_e *MockPromptServiceInterface_Expecter) UpdatePromptBySlug(userID interface{}, teamID interface{}, slug interface{}, req interface{}) *MockPromptServiceInterface_UpdatePromptBySlug_Call {
-	return &MockPromptServiceInterface_UpdatePromptBySlug_Call{Call: _e.mock.On("UpdatePromptBySlug", userID, teamID, slug, req)}
+func (_e *MockPromptServiceInterface_Expecter) UpdatePromptBySlug(ctx interface{}, userID interface{}, teamID interface{}, slug interface{}, req interface{}) *MockPromptServiceInterface_UpdatePromptBySlug_Call {
+	return &MockPromptServiceInterface_UpdatePromptBySlug_Call{Call: _e.mock.On("UpdatePromptBySlug", ctx, userID, teamID, slug, req)}
 }
 
-func (_c *MockPromptServiceInterface_UpdatePromptBySlug_Call) Run(run func(userID string, teamID string, slug string, req *models.UpdatePromptRequest)) *MockPromptServiceInterface_UpdatePromptBySlug_Call {
+func (_c *MockPromptServiceInterface_UpdatePromptBySlug_Call) Run(run func(ctx context.Context, userID string, teamID string, slug string, req *models.UpdatePromptRequest)) *MockPromptServiceInterface_UpdatePromptBySlug_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string), args[3].(*models.UpdatePromptRequest))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(*models.UpdatePromptRequest))
 	})
 	return _c
 }
@@ -1074,7 +1080,7 @@ func (_c *MockPromptServiceInterface_UpdatePromptBySlug_Call) Return(_a0 *models
 	return _c
 }
 
-func (_c *MockPromptServiceInterface_UpdatePromptBySlug_Call) RunAndReturn(run func(string, string, string, *models.UpdatePromptRequest) (*models.Prompt, error)) *MockPromptServiceInterface_UpdatePromptBySlug_Call {
+func (_c *MockPromptServiceInterface_UpdatePromptBySlug_Call) RunAndReturn(run func(context.Context, string, string, string, *models.UpdatePromptRequest) (*models.Prompt, error)) *MockPromptServiceInterface_UpdatePromptBySlug_Call {
 	_c.Call.Return(run)
 	return _c
 }

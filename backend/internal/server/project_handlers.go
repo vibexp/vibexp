@@ -51,7 +51,7 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	project, err := s.container.ProjectService().CreateProject(userID, teamID, &req)
+	project, err := s.container.ProjectService().CreateProject(r.Context(), userID, teamID, &req)
 	if err != nil {
 		s.handleCreateProjectError(w, r, userID, err)
 		return
@@ -216,7 +216,7 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	before := s.projectAuditBefore(teamID, userID, decodedSlug)
-	project, err := s.container.ProjectService().UpdateProject(teamID, userID, decodedSlug, &req)
+	project, err := s.container.ProjectService().UpdateProject(r.Context(), teamID, userID, decodedSlug, &req)
 	if err != nil {
 		s.handleUpdateProjectError(w, r, userID, decodedSlug, err)
 		return
@@ -248,7 +248,7 @@ func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 	// Read first: the project's id and name cannot be looked up once it is
 	// gone. Its cascaded resource deletes are not recorded one by one.
 	before := s.projectAuditBefore(teamID, userID, decodedSlug)
-	err := s.container.ProjectService().DeleteProject(teamID, userID, decodedSlug)
+	err := s.container.ProjectService().DeleteProject(r.Context(), teamID, userID, decodedSlug)
 	if err != nil {
 		if writeLockedResources(w, r, err) {
 			return

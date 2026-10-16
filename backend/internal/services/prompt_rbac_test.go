@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -101,7 +102,7 @@ func TestPromptService_CreatePrompt_RoleMatrix(t *testing.T) {
 			}
 
 			svc := promptServiceForRole(t, repo, refRepo, tc.role)
-			_, err := svc.CreatePrompt(promptRBACCaller, promptRBACTeamID, &models.CreatePromptRequest{
+			_, err := svc.CreatePrompt(context.Background(), promptRBACCaller, promptRBACTeamID, &models.CreatePromptRequest{
 				Name: "P", Slug: "p", Body: "b", ProjectID: "project-1",
 			})
 
@@ -129,7 +130,7 @@ func TestPromptService_UpdatePrompt_AnyMemberMayUpdateAnothers(t *testing.T) {
 
 	body := "edited by a plain member"
 	svc := promptServiceForRole(t, repo, refRepo, models.TeamMemberRoleMember)
-	_, err := svc.UpdatePrompt(promptRBACCaller, promptRBACTeamID, promptRBACPromptID,
+	_, err := svc.UpdatePrompt(context.Background(), promptRBACCaller, promptRBACTeamID, promptRBACPromptID,
 		&models.UpdatePromptRequest{Body: &body})
 
 	assert.NoError(t, err)
@@ -142,7 +143,7 @@ func TestPromptService_UpdatePrompt_NonMemberDenied(t *testing.T) {
 
 	body := "edited"
 	svc := promptServiceForRole(t, repo, mocks.NewMockPromptReferenceRepository(t), "")
-	_, err := svc.UpdatePrompt(promptRBACCaller, promptRBACTeamID, promptRBACPromptID,
+	_, err := svc.UpdatePrompt(context.Background(), promptRBACCaller, promptRBACTeamID, promptRBACPromptID,
 		&models.UpdatePromptRequest{Body: &body})
 
 	assert.ErrorIs(t, err, ErrPermissionDenied)

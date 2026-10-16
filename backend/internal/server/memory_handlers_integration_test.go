@@ -234,6 +234,7 @@ func TestHandleCreateMemory_Success(t *testing.T) {
 	// Mock service expectations (team validation is done by middleware, not tested here)
 	mockContainer.memoryService.On(
 		"CreateMemory",
+		mock.Anything,
 		"test-user-123",
 		memoriesTestTeamID,
 		mock.MatchedBy(func(req *models.CreateMemoryRequest) bool {
@@ -529,7 +530,7 @@ func TestHandleUpdateMemory_NotFound(t *testing.T) {
 func TestHandleDeleteMemory_Success(t *testing.T) {
 	mockContainer := newMockMemoryContainer(t)
 
-	mockContainer.memoryService.On("DeleteMemory", "test-user-123", mock.Anything, memoriesTestMemoryID).Return(nil)
+	mockContainer.memoryService.On("DeleteMemory", mock.Anything, "test-user-123", mock.Anything, memoriesTestMemoryID).Return(nil)
 	mockContainer.embeddingService.On("DeleteEmbeddingsByEntity", "memory", memoriesTestMemoryID).
 		Return(nil)
 
@@ -553,7 +554,7 @@ func TestHandleDeleteMemory_Success(t *testing.T) {
 func TestHandleDeleteMemory_NotFound(t *testing.T) {
 	mockContainer := newMockMemoryContainer(t)
 
-	mockContainer.memoryService.On("DeleteMemory", "test-user-123", mock.Anything, memoriesTestMissingID).
+	mockContainer.memoryService.On("DeleteMemory", mock.Anything, "test-user-123", mock.Anything, memoriesTestMissingID).
 		Return(repositories.ErrMemoryNotFound)
 
 	srv := createMemoryTestServer(mockContainer)

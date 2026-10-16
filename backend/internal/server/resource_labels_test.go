@@ -288,7 +288,7 @@ func TestCreateMemory_MapsInvalidLabelsTo400(t *testing.T) {
 	container := newMockMemoryContainer(t)
 	container.projectRepository.On("GetByID", mock.Anything, memoriesTestUserID, testHandlerProjectID).
 		Return(&models.Project{ID: testHandlerProjectID, UserID: memoriesTestUserID, TeamID: memoriesTestTeamID}, nil)
-	container.memoryService.On("CreateMemory", memoriesTestUserID, memoriesTestTeamID, mock.Anything).
+	container.memoryService.On("CreateMemory", mock.Anything, memoriesTestUserID, memoriesTestTeamID, mock.Anything).
 		Return(nil, services.ErrInvalidLabels)
 
 	srv := createMemoryTestServer(container)

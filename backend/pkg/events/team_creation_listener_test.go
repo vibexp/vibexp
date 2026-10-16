@@ -33,7 +33,7 @@ type MockProjectCreatorService struct {
 }
 
 func (m *MockProjectCreatorService) CreateProject(
-	userID, teamID string, req *models.CreateProjectRequest,
+	_ context.Context, userID, teamID string, req *models.CreateProjectRequest,
 ) (*models.Project, error) {
 	args := m.Called(userID, teamID, req)
 	if args.Get(0) == nil {

@@ -129,6 +129,7 @@ func TestUpdateBlueprint_RegeneratesRawAndRecomputesPath(t *testing.T) {
 	})).Return(nil)
 
 	updated, err := newLifecycleSvc(repo).UpdateBlueprintByProjectIDAndSlugInTeam(
+		context.Background(),
 		"u1", "team-1", "p1", "old",
 		&models.UpdateBlueprintRequest{Slug: lifecycleStr("new"), Content: lifecycleStr("new body")},
 	)
@@ -163,7 +164,7 @@ func TestRestoreBlueprint_RoundTripsRaw(t *testing.T) {
 		Repo: repo, Authz: allowAllAuthz{}, ContentVersionSvc: cvs,
 		Logger: func() *slog.Logger { l, _ := logtest.New(); return l }(),
 	})
-	_, err := svc.RestoreBlueprintVersionInTeam("u1", "t1", "p1", "s", 1, nil)
+	_, err := svc.RestoreBlueprintVersionInTeam(context.Background(), "u1", "t1", "p1", "s", 1, nil)
 	require.NoError(t, err)
 	// The exact snapshotted raw is reinstated, not regenerated from the content.
 	assert.Equal(t, "---\nname: original\n---\nv1 content", saved.RawContent)

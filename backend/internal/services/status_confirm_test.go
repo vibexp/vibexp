@@ -185,7 +185,7 @@ func promptStatusConfirmCase() statusConfirmCase {
 			repo := mocks.NewMockPromptRepository(t)
 			repo.EXPECT().Create(mock.Anything, mock.Anything).
 				Run(func(_ context.Context, p *models.Prompt) { p.ID = statusConfirmID }).Return(nil).Once()
-			prompt, err := newSvc(t, repo, catalog).CreatePrompt(statusConfirmUser, statusTestTeam,
+			prompt, err := newSvc(t, repo, catalog).CreatePrompt(context.Background(), statusConfirmUser, statusTestTeam,
 				&models.CreatePromptRequest{
 					Name: "n", Slug: "s", Body: statusConfirmText, ProjectID: "project-123", Status: status,
 				})
@@ -201,7 +201,7 @@ func promptStatusConfirmCase() statusConfirmCase {
 					Status: stored}, nil).Once()
 			repo.EXPECT().Update(mock.Anything, mock.Anything).Return(nil).Once()
 			body := statusConfirmText
-			prompt, err := newSvc(t, repo, catalog).UpdatePrompt(statusConfirmUser, statusTestTeam, statusConfirmID,
+			prompt, err := newSvc(t, repo, catalog).UpdatePrompt(context.Background(), statusConfirmUser, statusTestTeam, statusConfirmID,
 				&models.UpdatePromptRequest{Body: &body, Status: status})
 			if err != nil {
 				return "", "", err
@@ -225,7 +225,7 @@ func artifactStatusConfirmCase() statusConfirmCase {
 			repo := mocks.NewMockArtifactRepository(t)
 			repo.EXPECT().Create(mock.Anything, mock.Anything).
 				Run(func(_ context.Context, a *models.Artifact) { a.ID = statusConfirmID }).Return(nil).Once()
-			artifact, err := newSvc(repo, catalog).CreateArtifact(statusConfirmUser, statusTestTeam,
+			artifact, err := newSvc(repo, catalog).CreateArtifact(context.Background(), statusConfirmUser, statusTestTeam,
 				&models.CreateArtifactRequest{
 					ProjectID: testServiceProjectID, Slug: slug, Title: "t", Content: statusConfirmText, Status: status,
 				})
@@ -243,6 +243,7 @@ func artifactStatusConfirmCase() statusConfirmCase {
 			repo.EXPECT().Update(mock.Anything, mock.Anything).Return(nil).Once()
 			content := statusConfirmText
 			artifact, err := newSvc(repo, catalog).UpdateArtifactByProjectIDAndSlugInTeam(
+				context.Background(),
 				statusConfirmUser, statusTestTeam, testServiceProjectID, slug,
 				&models.UpdateArtifactRequest{Content: &content, Status: status})
 			if err != nil {
@@ -267,7 +268,7 @@ func blueprintStatusConfirmCase() statusConfirmCase {
 			repo := mocks.NewMockBlueprintRepository(t)
 			repo.EXPECT().Create(mock.Anything, mock.Anything).
 				Run(func(_ context.Context, b *models.Blueprint) { b.ID = statusConfirmID }).Return(nil).Once()
-			blueprint, err := newSvc(repo, catalog).CreateBlueprint(statusConfirmUser, statusTestTeam,
+			blueprint, err := newSvc(repo, catalog).CreateBlueprint(context.Background(), statusConfirmUser, statusTestTeam,
 				&models.CreateBlueprintRequest{
 					ProjectID: testServiceProjectID, Slug: slug, Title: "t", Content: statusConfirmText, Status: status,
 				})
@@ -285,6 +286,7 @@ func blueprintStatusConfirmCase() statusConfirmCase {
 			repo.EXPECT().Update(mock.Anything, mock.Anything).Return(nil).Once()
 			content := statusConfirmText
 			blueprint, err := newSvc(repo, catalog).UpdateBlueprintByProjectIDAndSlugInTeam(
+				context.Background(),
 				statusConfirmUser, statusTestTeam, testServiceProjectID, slug,
 				&models.UpdateBlueprintRequest{Content: &content, Status: status})
 			if err != nil {
@@ -308,7 +310,7 @@ func memoryStatusConfirmCase() statusConfirmCase {
 			repo := mocks.NewMockMemoryRepository(t)
 			repo.EXPECT().Create(mock.Anything, mock.Anything).
 				Run(func(_ context.Context, m *models.Memory) { m.ID = statusConfirmID }).Return(nil).Once()
-			memory, err := newSvc(repo, catalog).CreateMemory(statusConfirmUser, statusTestTeam,
+			memory, err := newSvc(repo, catalog).CreateMemory(context.Background(), statusConfirmUser, statusTestTeam,
 				&models.CreateMemoryRequest{ProjectID: testServiceProjectID, Text: statusConfirmText, Status: &status})
 			if err != nil {
 				return "", "", err

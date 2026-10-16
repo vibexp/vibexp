@@ -76,7 +76,7 @@ func TestCreatePrompt_Success(t *testing.T) {
 		Body:      "Test body",
 	}
 	mockPromptService.On(
-		"CreatePrompt", testMemberUserID, testTeamUUID,
+		"CreatePrompt", mock.Anything, testMemberUserID, testTeamUUID,
 		mock.MatchedBy(func(req *models.CreatePromptRequest) bool {
 			return req.ProjectID == testPromptProjectID && req.Slug == "test-slug" &&
 				req.Name == "Test Prompt" && req.Body == "Test body"
@@ -114,7 +114,7 @@ func TestCreatePrompt_ForwardsMCPExposeAndLabels(t *testing.T) {
 
 	expose := false
 	mockPromptService.On(
-		"CreatePrompt", testMemberUserID, testTeamUUID,
+		"CreatePrompt", mock.Anything, testMemberUserID, testTeamUUID,
 		mock.MatchedBy(func(req *models.CreatePromptRequest) bool {
 			return req.MCPExpose != nil && !*req.MCPExpose &&
 				len(req.Labels) == 1 && req.Labels[0] == "team"
@@ -144,7 +144,7 @@ func TestCreatePrompt_ServiceError(t *testing.T) {
 	srv, mockPromptService := newPromptTestServer(t)
 
 	mockPromptService.On(
-		"CreatePrompt", testMemberUserID, testTeamUUID, mock.AnythingOfType("*models.CreatePromptRequest"),
+		"CreatePrompt", mock.Anything, testMemberUserID, testTeamUUID, mock.AnythingOfType("*models.CreatePromptRequest"),
 	).Return(nil, errors.New("service error"))
 
 	params := &CreatePromptParams{
@@ -188,7 +188,7 @@ func TestCreatePrompt_NonMemberTeamDenied(t *testing.T) {
 		t.Error("expected nil structured result on access denied")
 	}
 	assertGenericAccessDenied(t, result)
-	mockPromptService.AssertNotCalled(t, "CreatePrompt")
+	mockPromptService.AssertNotCalled(t, "CreatePrompt", mock.Anything)
 }
 
 // TestCreatePrompt_MissingTeamID verifies missing team_id yields a model-actionable error.
@@ -208,7 +208,7 @@ func TestCreatePrompt_MissingTeamID(t *testing.T) {
 	if !strings.Contains(text, "team_id is required") || !strings.Contains(text, "vibexp_io_list_teams") {
 		t.Errorf("expected model-actionable missing team_id error, got %q", text)
 	}
-	mockPromptService.AssertNotCalled(t, "CreatePrompt")
+	mockPromptService.AssertNotCalled(t, "CreatePrompt", mock.Anything)
 }
 
 func TestCreatePrompt_InvalidProjectID(t *testing.T) {
@@ -231,7 +231,7 @@ func TestCreatePrompt_InvalidProjectID(t *testing.T) {
 				t.Error("expected nil structured result on validation rejection")
 			}
 			assertValidationFailure(t, result, tc.substrMust)
-			mockPromptService.AssertNotCalled(t, "CreatePrompt")
+			mockPromptService.AssertNotCalled(t, "CreatePrompt", mock.Anything)
 		})
 	}
 }
@@ -244,6 +244,7 @@ func TestUpdatePrompt_Success(t *testing.T) {
 	}
 	mockPromptService.On(
 		"UpdatePromptBySlug",
+		mock.Anything,
 		testMemberUserID, testTeamUUID, "test-slug",
 		mock.MatchedBy(func(req *models.UpdatePromptRequest) bool {
 			return req.Name != nil && *req.Name == "Updated" &&
@@ -275,6 +276,7 @@ func TestUpdatePrompt_OptionalFields(t *testing.T) {
 	expose := true
 	mockPromptService.On(
 		"UpdatePromptBySlug",
+		mock.Anything,
 		testMemberUserID, testTeamUUID, "test-slug",
 		mock.MatchedBy(func(req *models.UpdatePromptRequest) bool {
 			// only status + mcp_expose provided; name/body/description must remain nil
@@ -305,6 +307,7 @@ func TestUpdatePrompt_ServiceError(t *testing.T) {
 
 	mockPromptService.On(
 		"UpdatePromptBySlug",
+		mock.Anything,
 		testMemberUserID, testTeamUUID, "nonexistent",
 		mock.AnythingOfType("*models.UpdatePromptRequest"),
 	).Return(nil, errors.New("prompt not found"))
@@ -334,7 +337,7 @@ func TestUpdatePrompt_NonMemberTeamDenied(t *testing.T) {
 		t.Error("expected nil structured result")
 	}
 	assertGenericAccessDenied(t, result)
-	mockPromptService.AssertNotCalled(t, "UpdatePromptBySlug")
+	mockPromptService.AssertNotCalled(t, "UpdatePromptBySlug", mock.Anything)
 }
 
 func TestRenderPrompt_Success(t *testing.T) {

@@ -95,7 +95,7 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	memory, err := s.container.MemoryService().CreateMemory(userID, teamID, &req)
+	memory, err := s.container.MemoryService().CreateMemory(r.Context(), userID, teamID, &req)
 	if err != nil {
 		s.handleCreateMemoryError(w, userID, err)
 		return
@@ -261,7 +261,7 @@ func (s *Server) handleDeleteMemory(w http.ResponseWriter, r *http.Request) {
 
 	before := s.memoryAuditBefore(userID, teamID, memoryID) // its title is gone after the delete
 	// Delete the memory
-	err := s.container.MemoryService().DeleteMemory(userID, teamID, memoryID)
+	err := s.container.MemoryService().DeleteMemory(r.Context(), userID, teamID, memoryID)
 	if err != nil {
 		if errors.Is(err, services.ErrPermissionDenied) {
 			s.logger.With("service", serverLogServiceName, "handler", "handleDeleteMemory", "user_id", userID).

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -144,7 +145,7 @@ func TestProjectService_CreateProject(t *testing.T) {
 			tt.setupMock(mockRepo)
 
 			service := createTestProjectService(mockRepo)
-			result, err := service.CreateProject(tt.userID, tt.teamID, tt.request)
+			result, err := service.CreateProject(context.Background(), tt.userID, tt.teamID, tt.request)
 
 			if tt.expectErr {
 				assert.Error(t, err)
@@ -589,7 +590,7 @@ func TestProjectService_UpdateProject(t *testing.T) {
 			tt.setupMock(mockRepo)
 
 			service := createTestProjectService(mockRepo)
-			result, err := service.UpdateProject(tt.teamID, tt.userID, tt.slug, tt.request)
+			result, err := service.UpdateProject(context.Background(), tt.teamID, tt.userID, tt.slug, tt.request)
 
 			if tt.expectErr {
 				assert.Error(t, err)
@@ -706,7 +707,7 @@ func TestProjectService_DeleteProject(t *testing.T) {
 			tt.setupMock(mockRepo)
 
 			service := createTestProjectService(mockRepo)
-			err := service.DeleteProject(tt.teamID, tt.userID, tt.slug)
+			err := service.DeleteProject(context.Background(), tt.teamID, tt.userID, tt.slug)
 
 			if tt.expectErr {
 				assert.Error(t, err)
@@ -729,7 +730,7 @@ func TestProjectService_DeleteProject_LastProjectError(t *testing.T) {
 	mockRepo.EXPECT().CountByTeamID(mock.Anything, "team-123").Return(1, nil).Once()
 
 	service := createTestProjectService(mockRepo)
-	err := service.DeleteProject("team-123", "user-123", "last-project")
+	err := service.DeleteProject(context.Background(), "team-123", "user-123", "last-project")
 
 	assert.Error(t, err)
 
@@ -756,7 +757,7 @@ func TestProjectService_DeleteProject_RefusedWhileLocked(t *testing.T) {
 	mockRepo.EXPECT().CountByTeamID(mock.Anything, "team-123").Return(2, nil).Once()
 	mockRepo.EXPECT().ListLockedResources(mock.Anything, "team-123", project.ID).Return(locked, nil).Once()
 
-	err := createTestProjectService(mockRepo).DeleteProject("team-123", "user-123", "test-project")
+	err := createTestProjectService(mockRepo).DeleteProject(context.Background(), "team-123", "user-123", "test-project")
 
 	var lockedErr *repositories.LockedResourcesError
 	require.ErrorAs(t, err, &lockedErr)
@@ -775,7 +776,7 @@ func TestProjectService_DeleteProject_LockedLookupFails(t *testing.T) {
 	mockRepo.EXPECT().ListLockedResources(mock.Anything, "team-123", project.ID).
 		Return(nil, fmt.Errorf("database error")).Once()
 
-	err := createTestProjectService(mockRepo).DeleteProject("team-123", "user-123", "test-project")
+	err := createTestProjectService(mockRepo).DeleteProject(context.Background(), "team-123", "user-123", "test-project")
 
 	require.ErrorContains(t, err, "failed to check the project for locked resources")
 	var lockedErr *repositories.LockedResourcesError

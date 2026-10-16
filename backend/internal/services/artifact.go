@@ -161,9 +161,11 @@ func buildArtifactFromRequest(
 }
 
 func (s *ArtifactService) CreateArtifact(
+	ctx context.Context,
 	userID, teamID string, req *models.CreateArtifactRequest,
 ) (*models.Artifact, error) {
-	ctx := context.Background()
+	// Only authorization takes the caller's ctx; the rest stays as before (#1541).
+	bgCtx := context.Background()
 
 	// Reject an over-limit label list before anything else: the documented
 	// maxItems/maxLength are enforced nowhere else (issue #910).
@@ -172,7 +174,7 @@ func (s *ArtifactService) CreateArtifact(
 	}
 
 	// Validate and resolve team ID
-	finalTeamID, err := s.validateAndResolveTeamID(ctx, userID, teamID, nil)
+	finalTeamID, err := s.validateAndResolveTeamID(bgCtx, userID, teamID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -187,14 +189,14 @@ func (s *ArtifactService) CreateArtifact(
 	// against the RESOLVED team's catalog, after the authorization above: the
 	// rejection lists that team's custom statuses (#1266).
 	if statusErr := s.statuses.Validate(
-		ctx, finalTeamID, models.StatusResourceTypeArtifact, req.Status,
+		bgCtx, finalTeamID, models.StatusResourceTypeArtifact, req.Status,
 	); statusErr != nil {
 		return nil, statusErr
 	}
 
 	artifact := buildArtifactFromRequest(userID, finalTeamID, req)
 
-	if err = s.insertArtifact(ctx, artifact); err != nil {
+	if err = s.insertArtifact(bgCtx, artifact); err != nil {
 		return nil, err
 	}
 
@@ -211,7 +213,7 @@ func (s *ArtifactService) CreateArtifact(
 			Body:        artifact.Content,
 			CreatedAt:   artifact.CreatedAt,
 		})
-		if err := s.eventManager.Publish(ctx, event); err != nil {
+		if err := s.eventManager.Publish(bgCtx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish artifact created event")
 		}
 	}
@@ -454,6 +456,7 @@ func applyArtifactUpdates(artifact *models.Artifact, req *models.UpdateArtifactR
 
 //nolint:gocyclo // Artifact update requires validation of multiple optional fields
 func (s *ArtifactService) UpdateArtifactByProjectIDAndSlug(
+	ctx context.Context,
 	userID, projectID, slug string, req *models.UpdateArtifactRequest,
 ) (*models.Artifact, error) {
 	// First check if the artifact exists and get current data (across all user's teams)
@@ -462,13 +465,14 @@ func (s *ArtifactService) UpdateArtifactByProjectIDAndSlug(
 		return nil, err
 	}
 
-	return s.applyAndPersistArtifactUpdate(userID, artifact, req, models.ActorTypeHuman)
+	return s.applyAndPersistArtifactUpdate(ctx, userID, artifact, req, models.ActorTypeHuman)
 }
 
 // UpdateArtifactByProjectIDAndSlugInTeam updates an artifact scoped to a single team the
 // user belongs to. Unlike UpdateArtifactByProjectIDAndSlug (which spans all of the user's
 // teams), this enforces that the artifact lives in teamID before applying the update.
 func (s *ArtifactService) UpdateArtifactByProjectIDAndSlugInTeam(
+	ctx context.Context,
 	userID, teamID, projectID, slug string, req *models.UpdateArtifactRequest,
 ) (*models.Artifact, error) {
 	artifact, err := s.GetArtifactByProjectIDAndSlugInTeam(userID, teamID, projectID, slug)
@@ -476,13 +480,14 @@ func (s *ArtifactService) UpdateArtifactByProjectIDAndSlugInTeam(
 		return nil, err
 	}
 
-	return s.applyAndPersistArtifactUpdate(userID, artifact, req, models.ActorTypeHuman)
+	return s.applyAndPersistArtifactUpdate(ctx, userID, artifact, req, models.ActorTypeHuman)
 }
 
 // applyAndPersistArtifactUpdate applies the update request to an already-loaded artifact,
 // persists it, and publishes the updated event. The artifact must already have been loaded
 // through an authorization-enforcing lookup.
 func (s *ArtifactService) applyAndPersistArtifactUpdate(
+	ctx context.Context,
 	userID string, artifact *models.Artifact, req *models.UpdateArtifactRequest, actorType string,
 ) (*models.Artifact, error) {
 	// Any member may update any artifact, including another member's (epic #220
@@ -490,7 +495,7 @@ func (s *ArtifactService) applyAndPersistArtifactUpdate(
 	// team-scoped and cross-team lookups, and version restore, all funnel through
 	// one check. artifact.TeamID is the artifact's own team.
 	if authzErr := s.authz.Can(
-		context.Background(), userID, artifact.TeamID, authz.ResourceUpdateAny,
+		ctx, userID, artifact.TeamID, authz.ResourceUpdateAny,
 	); authzErr != nil {
 		return nil, authzErr
 	}
@@ -507,12 +512,13 @@ func (s *ArtifactService) applyAndPersistArtifactUpdate(
 		return nil, err
 	}
 
-	ctx := context.Background()
+	// Only authorization takes the caller's ctx; the rest stays as before (#1541).
+	bgCtx := context.Background()
 
 	// Status is checked here so the MCP tools get the REST answer (#912),
 	// against the catalog of the artifact's own team (#1266).
 	if err := s.statuses.ValidateOptional(
-		ctx, artifact.TeamID, models.StatusResourceTypeArtifact, req.Status,
+		bgCtx, artifact.TeamID, models.StatusResourceTypeArtifact, req.Status,
 	); err != nil {
 		return nil, err
 	}
@@ -530,7 +536,7 @@ func (s *ArtifactService) applyAndPersistArtifactUpdate(
 	// Best-effort content-version snapshot: record the pre-update content when it
 	// changed. A snapshot failure must not fail the update (mirrors event publishing).
 	if s.contentVersionSvc != nil && oldContent != artifact.Content {
-		if err := s.contentVersionSvc.SnapshotIfChanged(ctx, SnapshotRequest{
+		if err := s.contentVersionSvc.SnapshotIfChanged(bgCtx, SnapshotRequest{
 			ResourceType:  "artifact",
 			ResourceID:    artifact.ID,
 			TeamID:        artifact.TeamID,
@@ -545,14 +551,14 @@ func (s *ArtifactService) applyAndPersistArtifactUpdate(
 		}
 	}
 
-	if err := s.saveArtifact(ctx, userID, artifact); err != nil {
+	if err := s.saveArtifact(bgCtx, userID, artifact); err != nil {
 		return nil, err
 	}
 
-	clearFreshnessAfterEdit(ctx, s.freshnessClearer, s.logger,
+	clearFreshnessAfterEdit(bgCtx, s.freshnessClearer, s.logger,
 		artifact.TeamID, "artifact", artifact.ID)
 
-	s.publishArtifactUpdatedEvent(ctx, artifact)
+	s.publishArtifactUpdatedEvent(bgCtx, artifact)
 
 	return artifact, nil
 }
@@ -581,7 +587,9 @@ func (s *ArtifactService) publishArtifactUpdatedEvent(ctx context.Context, artif
 	}
 }
 
-func (s *ArtifactService) DeleteArtifactByProjectIDAndSlug(userID, teamID, projectID, slug string) error {
+func (s *ArtifactService) DeleteArtifactByProjectIDAndSlug(
+	ctx context.Context, userID, teamID, projectID, slug string,
+) error {
 	// Resolve team-scoped (by membership, not creator user_id) so an Admin/Owner can
 	// reach another member's artifact and the delete.own/delete.any authorization below
 	// actually runs — the owner-scoped getter returned 404 first, making delete.any dead (#258).
@@ -590,7 +598,8 @@ func (s *ArtifactService) DeleteArtifactByProjectIDAndSlug(userID, teamID, proje
 		return err
 	}
 
-	ctx := context.Background()
+	// Only authorization takes the caller's ctx; the rest stays as before (#1541).
+	bgCtx := context.Background()
 
 	// Delete is own-vs-any: members delete only what they authored, Admin+ delete
 	// anyone's. The repository no longer carries that decision in its SQL.
@@ -607,7 +616,7 @@ func (s *ArtifactService) DeleteArtifactByProjectIDAndSlug(userID, teamID, proje
 		return lockErr
 	}
 
-	err = s.repo.Delete(ctx, userID, artifact.TeamID, artifact.ID)
+	err = s.repo.Delete(bgCtx, userID, artifact.TeamID, artifact.ID)
 	if err != nil {
 		s.logger.With(
 			"service", "artifact",
@@ -619,9 +628,9 @@ func (s *ArtifactService) DeleteArtifactByProjectIDAndSlug(userID, teamID, proje
 		return err
 	}
 
-	s.deleteArtifactComments(ctx, artifact.TeamID, artifact.ID)
-	s.deleteArtifactRelations(ctx, artifact.TeamID, artifact.ID)
-	s.deleteArtifactFreshness(ctx, artifact.TeamID, artifact.ID)
+	s.deleteArtifactComments(bgCtx, artifact.TeamID, artifact.ID)
+	s.deleteArtifactRelations(bgCtx, artifact.TeamID, artifact.ID)
+	s.deleteArtifactFreshness(bgCtx, artifact.TeamID, artifact.ID)
 
 	return nil
 }
@@ -718,6 +727,7 @@ func (s *ArtifactService) GetArtifactVersionInTeam(
 // version by applying it through the normal update path, which snapshots the pre-restore
 // content as a new version.
 func (s *ArtifactService) RestoreArtifactVersionInTeam(
+	ctx context.Context,
 	userID, teamID, projectID, slug string, versionNumber int, origin *models.WriteOrigin,
 ) (*models.Artifact, error) {
 	artifact, err := s.GetArtifactByProjectIDAndSlugInTeam(userID, teamID, projectID, slug)
@@ -733,7 +743,7 @@ func (s *ArtifactService) RestoreArtifactVersionInTeam(
 	// A restore is a system-authored edit: the pre-restore content is snapshotted with a
 	// default "Restored Version N" summary so the timeline reads clearly.
 	restoreSummary := fmt.Sprintf("Restored Version %d", versionNumber)
-	return s.applyAndPersistArtifactUpdate(userID, artifact, &models.UpdateArtifactRequest{
+	return s.applyAndPersistArtifactUpdate(ctx, userID, artifact, &models.UpdateArtifactRequest{
 		Content:       &target,
 		ChangeSummary: &restoreSummary,
 		WriteOrigin:   origin,

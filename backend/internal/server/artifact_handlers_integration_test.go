@@ -211,6 +211,7 @@ func TestHandleCreateArtifact_Success(t *testing.T) {
 
 	mockArtifactService.On(
 		"CreateArtifact",
+		mock.Anything,
 		"user-123",
 		teamID,
 		mock.MatchedBy(func(req *models.CreateArtifactRequest) bool {
@@ -373,6 +374,7 @@ func TestHandleUpdateArtifact_Success(t *testing.T) {
 
 	mockArtifactService.On(
 		"UpdateArtifactByProjectIDAndSlugInTeam",
+		mock.Anything,
 		"user-123",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
@@ -420,6 +422,7 @@ func TestHandleUpdateArtifact_NotFound(t *testing.T) {
 
 	mockArtifactService.On(
 		"UpdateArtifactByProjectIDAndSlugInTeam",
+		mock.Anything,
 		"user-123",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
@@ -475,6 +478,7 @@ func TestHandleDeleteArtifact_Success(t *testing.T) {
 
 	mockArtifactService.On(
 		"DeleteArtifactByProjectIDAndSlug",
+		mock.Anything,
 		"user-123",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",

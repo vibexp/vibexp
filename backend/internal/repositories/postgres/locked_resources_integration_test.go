@@ -96,7 +96,7 @@ func TestIntegrationProjectDelete_RefusedWhileLockedThenAllowed(t *testing.T) {
 			unlocked := target.insert(t, s)
 			require.NoError(t, target.setLock(ctx, s.teamID, locked.id, s.userID, "freeze"))
 
-			err := svc.DeleteProject(s.teamID, s.userID, slug)
+			err := svc.DeleteProject(context.Background(), s.teamID, s.userID, slug)
 			requireRefusedByLock(t, err, repositories.ErrProjectHasLockedResources, lockedRefOf(t, target, locked.id))
 			assert.Equal(t, 1, countRows(t, integrationDB.DB, "SELECT count(*) FROM projects WHERE id = $1", s.projectID))
 			assert.Equal(t, 2, countRows(t, integrationDB.DB,
@@ -105,7 +105,7 @@ func TestIntegrationProjectDelete_RefusedWhileLockedThenAllowed(t *testing.T) {
 			assert.True(t, lockIsHeld(t, target.table, locked.id))
 
 			require.NoError(t, target.clearLock(ctx, s.teamID, locked.id))
-			require.NoError(t, svc.DeleteProject(s.teamID, s.userID, slug))
+			require.NoError(t, svc.DeleteProject(context.Background(), s.teamID, s.userID, slug))
 			assert.Zero(t, countRows(t, integrationDB.DB, "SELECT count(*) FROM projects WHERE id = $1", s.projectID))
 			assert.Zero(t, countRows(t, integrationDB.DB,
 				"SELECT count(*) FROM "+target.table+" WHERE id IN ($1, $2)", locked.id, unlocked.id))

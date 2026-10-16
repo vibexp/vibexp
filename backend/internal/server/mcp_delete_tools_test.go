@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services/mocks"
@@ -90,7 +91,7 @@ func assertDeleteIsError(t *testing.T, result *mcp.CallToolResult, structured an
 
 func TestDeleteResource_MemorySuccess(t *testing.T) {
 	srv, m := newDeleteResourceTestServer(t)
-	m.memory.On("DeleteMemory", testMemberUserID, testTeamUUID, "mem-1").Return(nil)
+	m.memory.On("DeleteMemory", mock.Anything, testMemberUserID, testTeamUUID, "mem-1").Return(nil)
 	m.embedding.On("DeleteEmbeddingsByEntity", resourceTypeMemory, "mem-1").Return(nil)
 
 	params := &DeleteResourceParams{TeamID: testTeamSlug, ResourceType: "memory", ID: "mem-1"}
@@ -126,7 +127,7 @@ func TestDeleteResource_ArtifactSuccess(t *testing.T) {
 	srv, m := newDeleteResourceTestServer(t)
 	m.artifact.On("GetArtifactByProjectIDAndSlugInTeam", testMemberUserID, testTeamUUID, testProjectID, "art").
 		Return(&models.Artifact{ID: "artifact-1"}, nil)
-	m.artifact.On("DeleteArtifactByProjectIDAndSlug", testMemberUserID, testTeamUUID, testProjectID, "art").Return(nil)
+	m.artifact.On("DeleteArtifactByProjectIDAndSlug", mock.Anything, testMemberUserID, testTeamUUID, testProjectID, "art").Return(nil)
 	m.embedding.On("DeleteEmbeddingsByEntity", resourceTypeArtifact, "artifact-1").Return(nil)
 
 	params := &DeleteResourceParams{
@@ -146,7 +147,7 @@ func TestDeleteResource_BlueprintSuccess(t *testing.T) {
 	srv, m := newDeleteResourceTestServer(t)
 	m.blueprint.On("GetBlueprintByProjectIDAndSlugInTeam", testMemberUserID, testTeamUUID, testProjectID, "bp").
 		Return(&models.Blueprint{ID: "blueprint-1"}, nil)
-	m.blueprint.On("DeleteBlueprintByProjectIDAndSlug", testMemberUserID, testTeamUUID, testProjectID, "bp").Return(nil)
+	m.blueprint.On("DeleteBlueprintByProjectIDAndSlug", mock.Anything, testMemberUserID, testTeamUUID, testProjectID, "bp").Return(nil)
 	m.embedding.On("DeleteEmbeddingsByEntity", resourceTypeBlueprint, "blueprint-1").Return(nil)
 
 	params := &DeleteResourceParams{
@@ -166,7 +167,7 @@ func TestDeleteResource_BlueprintSuccess(t *testing.T) {
 // normalized (trimmed + lowercased) before dispatch.
 func TestDeleteResource_ResourceTypeCaseInsensitive(t *testing.T) {
 	srv, m := newDeleteResourceTestServer(t)
-	m.memory.On("DeleteMemory", testMemberUserID, testTeamUUID, "mem-1").Return(nil)
+	m.memory.On("DeleteMemory", mock.Anything, testMemberUserID, testTeamUUID, "mem-1").Return(nil)
 	m.embedding.On("DeleteEmbeddingsByEntity", resourceTypeMemory, "mem-1").Return(nil)
 
 	params := &DeleteResourceParams{TeamID: testTeamUUID, ResourceType: "  Memory  ", ID: "mem-1"}
@@ -253,7 +254,7 @@ func TestDeleteResource_NonMemberTeamDenied(t *testing.T) {
 		t.Error("expected nil structured result")
 	}
 	assertGenericAccessDenied(t, result)
-	m.memory.AssertNotCalled(t, "DeleteMemory")
+	m.memory.AssertNotCalled(t, "DeleteMemory", mock.Anything)
 }
 
 func TestDeleteResource_MissingTeamID(t *testing.T) {
@@ -264,14 +265,14 @@ func TestDeleteResource_MissingTeamID(t *testing.T) {
 
 	assertDeleteIsError(t, result, structured, err)
 	assertValidationFailure(t, result, []string{"team_id is required", "vibexp_io_list_teams"})
-	m.memory.AssertNotCalled(t, "DeleteMemory")
+	m.memory.AssertNotCalled(t, "DeleteMemory", mock.Anything)
 }
 
 // TestDeleteResource_ServiceError verifies a delete failure surfaces as an
 // IsError result and no embeddings cleanup is attempted.
 func TestDeleteResource_ServiceError(t *testing.T) {
 	srv, m := newDeleteResourceTestServer(t)
-	m.memory.On("DeleteMemory", testMemberUserID, testTeamUUID, "mem-1").
+	m.memory.On("DeleteMemory", mock.Anything, testMemberUserID, testTeamUUID, "mem-1").
 		Return(errors.New("boom"))
 
 	params := &DeleteResourceParams{TeamID: testTeamUUID, ResourceType: "memory", ID: "mem-1"}
@@ -299,7 +300,7 @@ func TestDeleteResource_PromptNotFound(t *testing.T) {
 // cleanup failure does not fail the delete (the row is already gone).
 func TestDeleteResource_EmbeddingFailureNonFatal(t *testing.T) {
 	srv, m := newDeleteResourceTestServer(t)
-	m.memory.On("DeleteMemory", testMemberUserID, testTeamUUID, "mem-1").Return(nil)
+	m.memory.On("DeleteMemory", mock.Anything, testMemberUserID, testTeamUUID, "mem-1").Return(nil)
 	m.embedding.On("DeleteEmbeddingsByEntity", resourceTypeMemory, "mem-1").
 		Return(errors.New("embedding store down"))
 

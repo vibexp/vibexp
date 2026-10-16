@@ -113,7 +113,7 @@ func (s *Server) createPrompt(
 		Labels:      params.Labels,
 	}
 
-	prompt, err := s.container.PromptService().CreatePrompt(userID, teamID, createReq)
+	prompt, err := s.container.PromptService().CreatePrompt(ctx, userID, teamID, createReq)
 	if err != nil {
 		slog.With(
 			"user_id", userID,
@@ -177,7 +177,7 @@ func (s *Server) updatePrompt(
 
 	before := s.promptAuditBefore(userID, teamID, params.Slug)
 	updateReq.WriteOrigin = resourceaccess.WriteOriginFromContext(ctx)
-	prompt, err := s.container.PromptService().UpdatePromptBySlug(userID, teamID, params.Slug, updateReq)
+	prompt, err := s.container.PromptService().UpdatePromptBySlug(ctx, userID, teamID, params.Slug, updateReq)
 	if err != nil {
 		slog.With(
 			"tool", "vibexp_io_update_prompt",

@@ -134,7 +134,7 @@ func TestMemoryService_Delete_RelationCascadeErrorIsSwallowed(t *testing.T) {
 		Logger:       logger,
 		RelationRepo: relationRepo,
 	})
-	require.NoError(t, svc.DeleteMemory(resRBACCaller, resRBACTeamID, memoryID))
+	require.NoError(t, svc.DeleteMemory(context.Background(), resRBACCaller, resRBACTeamID, memoryID))
 }
 
 func TestArtifactService_Delete_RelationCascadeErrorIsSwallowed(t *testing.T) {
@@ -159,7 +159,7 @@ func TestArtifactService_Delete_RelationCascadeErrorIsSwallowed(t *testing.T) {
 		Logger:       logger,
 		RelationRepo: relationRepo,
 	})
-	require.NoError(t, svc.DeleteArtifactByProjectIDAndSlug(resRBACCaller, resRBACTeamID, projectID, slug))
+	require.NoError(t, svc.DeleteArtifactByProjectIDAndSlug(context.Background(), resRBACCaller, resRBACTeamID, projectID, slug))
 }
 
 func TestBlueprintService_Delete_RelationCascadeErrorIsSwallowed(t *testing.T) {
@@ -184,7 +184,7 @@ func TestBlueprintService_Delete_RelationCascadeErrorIsSwallowed(t *testing.T) {
 		Logger:       logger,
 		RelationRepo: relationRepo,
 	})
-	require.NoError(t, svc.DeleteBlueprintByProjectIDAndSlug(resRBACCaller, resRBACTeamID, projectID, slug))
+	require.NoError(t, svc.DeleteBlueprintByProjectIDAndSlug(context.Background(), resRBACCaller, resRBACTeamID, projectID, slug))
 }
 
 func TestPromptService_Delete_RelationCascadeErrorIsSwallowed(t *testing.T) {

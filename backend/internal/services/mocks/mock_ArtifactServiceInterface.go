@@ -3,6 +3,8 @@
 package mocks
 
 import (
+	context "context"
+
 	mock "github.com/stretchr/testify/mock"
 	models "github.com/vibexp/vibexp/internal/models"
 
@@ -22,9 +24,9 @@ func (_m *MockArtifactServiceInterface) EXPECT() *MockArtifactServiceInterface_E
 	return &MockArtifactServiceInterface_Expecter{mock: &_m.Mock}
 }
 
-// CreateArtifact provides a mock function with given fields: userID, teamID, req
-func (_m *MockArtifactServiceInterface) CreateArtifact(userID string, teamID string, req *models.CreateArtifactRequest) (*models.Artifact, error) {
-	ret := _m.Called(userID, teamID, req)
+// CreateArtifact provides a mock function with given fields: ctx, userID, teamID, req
+func (_m *MockArtifactServiceInterface) CreateArtifact(ctx context.Context, userID string, teamID string, req *models.CreateArtifactRequest) (*models.Artifact, error) {
+	ret := _m.Called(ctx, userID, teamID, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateArtifact")
@@ -32,19 +34,19 @@ func (_m *MockArtifactServiceInterface) CreateArtifact(userID string, teamID str
 
 	var r0 *models.Artifact
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, *models.CreateArtifactRequest) (*models.Artifact, error)); ok {
-		return rf(userID, teamID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, *models.CreateArtifactRequest) (*models.Artifact, error)); ok {
+		return rf(ctx, userID, teamID, req)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, *models.CreateArtifactRequest) *models.Artifact); ok {
-		r0 = rf(userID, teamID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, *models.CreateArtifactRequest) *models.Artifact); ok {
+		r0 = rf(ctx, userID, teamID, req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Artifact)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, *models.CreateArtifactRequest) error); ok {
-		r1 = rf(userID, teamID, req)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, *models.CreateArtifactRequest) error); ok {
+		r1 = rf(ctx, userID, teamID, req)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -58,16 +60,17 @@ type MockArtifactServiceInterface_CreateArtifact_Call struct {
 }
 
 // CreateArtifact is a helper method to define mock.On call
+//   - ctx context.Context
 //   - userID string
 //   - teamID string
 //   - req *models.CreateArtifactRequest
-func (_e *MockArtifactServiceInterface_Expecter) CreateArtifact(userID interface{}, teamID interface{}, req interface{}) *MockArtifactServiceInterface_CreateArtifact_Call {
-	return &MockArtifactServiceInterface_CreateArtifact_Call{Call: _e.mock.On("CreateArtifact", userID, teamID, req)}
+func (_e *MockArtifactServiceInterface_Expecter) CreateArtifact(ctx interface{}, userID interface{}, teamID interface{}, req interface{}) *MockArtifactServiceInterface_CreateArtifact_Call {
+	return &MockArtifactServiceInterface_CreateArtifact_Call{Call: _e.mock.On("CreateArtifact", ctx, userID, teamID, req)}
 }
 
-func (_c *MockArtifactServiceInterface_CreateArtifact_Call) Run(run func(userID string, teamID string, req *models.CreateArtifactRequest)) *MockArtifactServiceInterface_CreateArtifact_Call {
+func (_c *MockArtifactServiceInterface_CreateArtifact_Call) Run(run func(ctx context.Context, userID string, teamID string, req *models.CreateArtifactRequest)) *MockArtifactServiceInterface_CreateArtifact_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(*models.CreateArtifactRequest))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(*models.CreateArtifactRequest))
 	})
 	return _c
 }
@@ -77,22 +80,22 @@ func (_c *MockArtifactServiceInterface_CreateArtifact_Call) Return(_a0 *models.A
 	return _c
 }
 
-func (_c *MockArtifactServiceInterface_CreateArtifact_Call) RunAndReturn(run func(string, string, *models.CreateArtifactRequest) (*models.Artifact, error)) *MockArtifactServiceInterface_CreateArtifact_Call {
+func (_c *MockArtifactServiceInterface_CreateArtifact_Call) RunAndReturn(run func(context.Context, string, string, *models.CreateArtifactRequest) (*models.Artifact, error)) *MockArtifactServiceInterface_CreateArtifact_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// DeleteArtifactByProjectIDAndSlug provides a mock function with given fields: userID, teamID, projectID, slug
-func (_m *MockArtifactServiceInterface) DeleteArtifactByProjectIDAndSlug(userID string, teamID string, projectID string, slug string) error {
-	ret := _m.Called(userID, teamID, projectID, slug)
+// DeleteArtifactByProjectIDAndSlug provides a mock function with given fields: ctx, userID, teamID, projectID, slug
+func (_m *MockArtifactServiceInterface) DeleteArtifactByProjectIDAndSlug(ctx context.Context, userID string, teamID string, projectID string, slug string) error {
+	ret := _m.Called(ctx, userID, teamID, projectID, slug)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteArtifactByProjectIDAndSlug")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, string, string, string) error); ok {
-		r0 = rf(userID, teamID, projectID, slug)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string) error); ok {
+		r0 = rf(ctx, userID, teamID, projectID, slug)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -106,17 +109,18 @@ type MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call struct {
 }
 
 // DeleteArtifactByProjectIDAndSlug is a helper method to define mock.On call
+//   - ctx context.Context
 //   - userID string
 //   - teamID string
 //   - projectID string
 //   - slug string
-func (_e *MockArtifactServiceInterface_Expecter) DeleteArtifactByProjectIDAndSlug(userID interface{}, teamID interface{}, projectID interface{}, slug interface{}) *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call {
-	return &MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call{Call: _e.mock.On("DeleteArtifactByProjectIDAndSlug", userID, teamID, projectID, slug)}
+func (_e *MockArtifactServiceInterface_Expecter) DeleteArtifactByProjectIDAndSlug(ctx interface{}, userID interface{}, teamID interface{}, projectID interface{}, slug interface{}) *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call {
+	return &MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call{Call: _e.mock.On("DeleteArtifactByProjectIDAndSlug", ctx, userID, teamID, projectID, slug)}
 }
 
-func (_c *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call) Run(run func(userID string, teamID string, projectID string, slug string)) *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call {
+func (_c *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call) Run(run func(ctx context.Context, userID string, teamID string, projectID string, slug string)) *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string), args[3].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(string))
 	})
 	return _c
 }
@@ -126,7 +130,7 @@ func (_c *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call) Re
 	return _c
 }
 
-func (_c *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call) RunAndReturn(run func(string, string, string, string) error) *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call {
+func (_c *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call) RunAndReturn(run func(context.Context, string, string, string, string) error) *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -673,9 +677,9 @@ func (_c *MockArtifactServiceInterface_ListArtifactsByProjectCrossTeam_Call) Run
 	return _c
 }
 
-// RestoreArtifactVersionInTeam provides a mock function with given fields: userID, teamID, projectID, slug, versionNumber, origin
-func (_m *MockArtifactServiceInterface) RestoreArtifactVersionInTeam(userID string, teamID string, projectID string, slug string, versionNumber int, origin *models.WriteOrigin) (*models.Artifact, error) {
-	ret := _m.Called(userID, teamID, projectID, slug, versionNumber, origin)
+// RestoreArtifactVersionInTeam provides a mock function with given fields: ctx, userID, teamID, projectID, slug, versionNumber, origin
+func (_m *MockArtifactServiceInterface) RestoreArtifactVersionInTeam(ctx context.Context, userID string, teamID string, projectID string, slug string, versionNumber int, origin *models.WriteOrigin) (*models.Artifact, error) {
+	ret := _m.Called(ctx, userID, teamID, projectID, slug, versionNumber, origin)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RestoreArtifactVersionInTeam")
@@ -683,19 +687,19 @@ func (_m *MockArtifactServiceInterface) RestoreArtifactVersionInTeam(userID stri
 
 	var r0 *models.Artifact
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, string, string, int, *models.WriteOrigin) (*models.Artifact, error)); ok {
-		return rf(userID, teamID, projectID, slug, versionNumber, origin)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string, int, *models.WriteOrigin) (*models.Artifact, error)); ok {
+		return rf(ctx, userID, teamID, projectID, slug, versionNumber, origin)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, string, string, int, *models.WriteOrigin) *models.Artifact); ok {
-		r0 = rf(userID, teamID, projectID, slug, versionNumber, origin)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string, int, *models.WriteOrigin) *models.Artifact); ok {
+		r0 = rf(ctx, userID, teamID, projectID, slug, versionNumber, origin)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Artifact)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, string, string, int, *models.WriteOrigin) error); ok {
-		r1 = rf(userID, teamID, projectID, slug, versionNumber, origin)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, string, int, *models.WriteOrigin) error); ok {
+		r1 = rf(ctx, userID, teamID, projectID, slug, versionNumber, origin)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -709,19 +713,20 @@ type MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call struct {
 }
 
 // RestoreArtifactVersionInTeam is a helper method to define mock.On call
+//   - ctx context.Context
 //   - userID string
 //   - teamID string
 //   - projectID string
 //   - slug string
 //   - versionNumber int
 //   - origin *models.WriteOrigin
-func (_e *MockArtifactServiceInterface_Expecter) RestoreArtifactVersionInTeam(userID interface{}, teamID interface{}, projectID interface{}, slug interface{}, versionNumber interface{}, origin interface{}) *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call {
-	return &MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call{Call: _e.mock.On("RestoreArtifactVersionInTeam", userID, teamID, projectID, slug, versionNumber, origin)}
+func (_e *MockArtifactServiceInterface_Expecter) RestoreArtifactVersionInTeam(ctx interface{}, userID interface{}, teamID interface{}, projectID interface{}, slug interface{}, versionNumber interface{}, origin interface{}) *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call {
+	return &MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call{Call: _e.mock.On("RestoreArtifactVersionInTeam", ctx, userID, teamID, projectID, slug, versionNumber, origin)}
 }
 
-func (_c *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call) Run(run func(userID string, teamID string, projectID string, slug string, versionNumber int, origin *models.WriteOrigin)) *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call {
+func (_c *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call) Run(run func(ctx context.Context, userID string, teamID string, projectID string, slug string, versionNumber int, origin *models.WriteOrigin)) *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string), args[3].(string), args[4].(int), args[5].(*models.WriteOrigin))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(string), args[5].(int), args[6].(*models.WriteOrigin))
 	})
 	return _c
 }
@@ -731,14 +736,14 @@ func (_c *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call) Return
 	return _c
 }
 
-func (_c *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call) RunAndReturn(run func(string, string, string, string, int, *models.WriteOrigin) (*models.Artifact, error)) *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call {
+func (_c *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call) RunAndReturn(run func(context.Context, string, string, string, string, int, *models.WriteOrigin) (*models.Artifact, error)) *MockArtifactServiceInterface_RestoreArtifactVersionInTeam_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// UpdateArtifactByProjectIDAndSlug provides a mock function with given fields: userID, projectID, slug, req
-func (_m *MockArtifactServiceInterface) UpdateArtifactByProjectIDAndSlug(userID string, projectID string, slug string, req *models.UpdateArtifactRequest) (*models.Artifact, error) {
-	ret := _m.Called(userID, projectID, slug, req)
+// UpdateArtifactByProjectIDAndSlug provides a mock function with given fields: ctx, userID, projectID, slug, req
+func (_m *MockArtifactServiceInterface) UpdateArtifactByProjectIDAndSlug(ctx context.Context, userID string, projectID string, slug string, req *models.UpdateArtifactRequest) (*models.Artifact, error) {
+	ret := _m.Called(ctx, userID, projectID, slug, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateArtifactByProjectIDAndSlug")
@@ -746,19 +751,19 @@ func (_m *MockArtifactServiceInterface) UpdateArtifactByProjectIDAndSlug(userID 
 
 	var r0 *models.Artifact
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, string, *models.UpdateArtifactRequest) (*models.Artifact, error)); ok {
-		return rf(userID, projectID, slug, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, *models.UpdateArtifactRequest) (*models.Artifact, error)); ok {
+		return rf(ctx, userID, projectID, slug, req)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, string, *models.UpdateArtifactRequest) *models.Artifact); ok {
-		r0 = rf(userID, projectID, slug, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, *models.UpdateArtifactRequest) *models.Artifact); ok {
+		r0 = rf(ctx, userID, projectID, slug, req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Artifact)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, string, *models.UpdateArtifactRequest) error); ok {
-		r1 = rf(userID, projectID, slug, req)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, *models.UpdateArtifactRequest) error); ok {
+		r1 = rf(ctx, userID, projectID, slug, req)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -772,17 +777,18 @@ type MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlug_Call struct {
 }
 
 // UpdateArtifactByProjectIDAndSlug is a helper method to define mock.On call
+//   - ctx context.Context
 //   - userID string
 //   - projectID string
 //   - slug string
 //   - req *models.UpdateArtifactRequest
-func (_e *MockArtifactServiceInterface_Expecter) UpdateArtifactByProjectIDAndSlug(userID interface{}, projectID interface{}, slug interface{}, req interface{}) *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlug_Call {
-	return &MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlug_Call{Call: _e.mock.On("UpdateArtifactByProjectIDAndSlug", userID, projectID, slug, req)}
+func (_e *MockArtifactServiceInterface_Expecter) UpdateArtifactByProjectIDAndSlug(ctx interface{}, userID interface{}, projectID interface{}, slug interface{}, req interface{}) *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlug_Call {
+	return &MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlug_Call{Call: _e.mock.On("UpdateArtifactByProjectIDAndSlug", ctx, userID, projectID, slug, req)}
 }
 
-func (_c *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlug_Call) Run(run func(userID string, projectID string, slug string, req *models.UpdateArtifactRequest)) *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlug_Call {
+func (_c *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlug_Call) Run(run func(ctx context.Context, userID string, projectID string, slug string, req *models.UpdateArtifactRequest)) *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlug_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string), args[3].(*models.UpdateArtifactRequest))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(*models.UpdateArtifactRequest))
 	})
 	return _c
 }
@@ -792,14 +798,14 @@ func (_c *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlug_Call) Re
 	return _c
 }
 
-func (_c *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlug_Call) RunAndReturn(run func(string, string, string, *models.UpdateArtifactRequest) (*models.Artifact, error)) *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlug_Call {
+func (_c *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlug_Call) RunAndReturn(run func(context.Context, string, string, string, *models.UpdateArtifactRequest) (*models.Artifact, error)) *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlug_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// UpdateArtifactByProjectIDAndSlugInTeam provides a mock function with given fields: userID, teamID, projectID, slug, req
-func (_m *MockArtifactServiceInterface) UpdateArtifactByProjectIDAndSlugInTeam(userID string, teamID string, projectID string, slug string, req *models.UpdateArtifactRequest) (*models.Artifact, error) {
-	ret := _m.Called(userID, teamID, projectID, slug, req)
+// UpdateArtifactByProjectIDAndSlugInTeam provides a mock function with given fields: ctx, userID, teamID, projectID, slug, req
+func (_m *MockArtifactServiceInterface) UpdateArtifactByProjectIDAndSlugInTeam(ctx context.Context, userID string, teamID string, projectID string, slug string, req *models.UpdateArtifactRequest) (*models.Artifact, error) {
+	ret := _m.Called(ctx, userID, teamID, projectID, slug, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateArtifactByProjectIDAndSlugInTeam")
@@ -807,19 +813,19 @@ func (_m *MockArtifactServiceInterface) UpdateArtifactByProjectIDAndSlugInTeam(u
 
 	var r0 *models.Artifact
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, string, string, *models.UpdateArtifactRequest) (*models.Artifact, error)); ok {
-		return rf(userID, teamID, projectID, slug, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string, *models.UpdateArtifactRequest) (*models.Artifact, error)); ok {
+		return rf(ctx, userID, teamID, projectID, slug, req)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, string, string, *models.UpdateArtifactRequest) *models.Artifact); ok {
-		r0 = rf(userID, teamID, projectID, slug, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string, *models.UpdateArtifactRequest) *models.Artifact); ok {
+		r0 = rf(ctx, userID, teamID, projectID, slug, req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Artifact)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, string, string, *models.UpdateArtifactRequest) error); ok {
-		r1 = rf(userID, teamID, projectID, slug, req)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, string, *models.UpdateArtifactRequest) error); ok {
+		r1 = rf(ctx, userID, teamID, projectID, slug, req)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -833,18 +839,19 @@ type MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlugInTeam_Call st
 }
 
 // UpdateArtifactByProjectIDAndSlugInTeam is a helper method to define mock.On call
+//   - ctx context.Context
 //   - userID string
 //   - teamID string
 //   - projectID string
 //   - slug string
 //   - req *models.UpdateArtifactRequest
-func (_e *MockArtifactServiceInterface_Expecter) UpdateArtifactByProjectIDAndSlugInTeam(userID interface{}, teamID interface{}, projectID interface{}, slug interface{}, req interface{}) *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlugInTeam_Call {
-	return &MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlugInTeam_Call{Call: _e.mock.On("UpdateArtifactByProjectIDAndSlugInTeam", userID, teamID, projectID, slug, req)}
+func (_e *MockArtifactServiceInterface_Expecter) UpdateArtifactByProjectIDAndSlugInTeam(ctx interface{}, userID interface{}, teamID interface{}, projectID interface{}, slug interface{}, req interface{}) *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlugInTeam_Call {
+	return &MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlugInTeam_Call{Call: _e.mock.On("UpdateArtifactByProjectIDAndSlugInTeam", ctx, userID, teamID, projectID, slug, req)}
 }
 
-func (_c *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlugInTeam_Call) Run(run func(userID string, teamID string, projectID string, slug string, req *models.UpdateArtifactRequest)) *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlugInTeam_Call {
+func (_c *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlugInTeam_Call) Run(run func(ctx context.Context, userID string, teamID string, projectID string, slug string, req *models.UpdateArtifactRequest)) *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlugInTeam_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string), args[3].(string), args[4].(*models.UpdateArtifactRequest))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(string), args[5].(*models.UpdateArtifactRequest))
 	})
 	return _c
 }
@@ -854,7 +861,7 @@ func (_c *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlugInTeam_Ca
 	return _c
 }
 
-func (_c *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlugInTeam_Call) RunAndReturn(run func(string, string, string, string, *models.UpdateArtifactRequest) (*models.Artifact, error)) *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlugInTeam_Call {
+func (_c *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlugInTeam_Call) RunAndReturn(run func(context.Context, string, string, string, string, *models.UpdateArtifactRequest) (*models.Artifact, error)) *MockArtifactServiceInterface_UpdateArtifactByProjectIDAndSlugInTeam_Call {
 	_c.Call.Return(run)
 	return _c
 }

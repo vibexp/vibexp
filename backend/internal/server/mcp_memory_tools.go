@@ -113,7 +113,7 @@ func (s *Server) storeMemory(
 		Labels:   params.Labels,
 	}
 
-	memory, err := s.container.MemoryService().CreateMemory(userID, teamID, createReq)
+	memory, err := s.container.MemoryService().CreateMemory(ctx, userID, teamID, createReq)
 	if err != nil {
 		slog.Error(
 			"Failed to create memory via MCP",

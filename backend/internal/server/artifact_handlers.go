@@ -45,7 +45,7 @@ func (s *Server) handleCreateArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	artifact, err := s.container.ArtifactService().CreateArtifact(userID, teamID, &req)
+	artifact, err := s.container.ArtifactService().CreateArtifact(r.Context(), userID, teamID, &req)
 	if err != nil {
 		s.handleCreateArtifactError(w, userID, err)
 		return
@@ -111,7 +111,7 @@ func (s *Server) handleUpdateArtifact(w http.ResponseWriter, r *http.Request) {
 	before := s.artifactAuditBefore(userID, teamID, decodedProjectID, decodedSlug)
 	req.WriteOrigin = resourceaccess.WriteOriginFromContext(r.Context())
 	artifact, err := s.container.ArtifactService().UpdateArtifactByProjectIDAndSlugInTeam(
-		userID, teamID, decodedProjectID, decodedSlug, &req,
+		r.Context(), userID, teamID, decodedProjectID, decodedSlug, &req,
 	)
 	if writeResourceWriteLocked(w, r, err) {
 		return
@@ -177,14 +177,14 @@ func (s *Server) handleDeleteArtifact(w http.ResponseWriter, r *http.Request) {
 	).Info("Delete artifact request received")
 
 	artifact, err := s.container.ArtifactService().GetArtifactByProjectIDAndSlugInTeam(
-		userID, teamID, decodedProjectID, decodedSlug,
-	)
+		userID, teamID, decodedProjectID, decodedSlug)
 	if err != nil {
 		s.handleGetArtifactError(w, userID, decodedProjectID, decodedSlug, err)
 		return
 	}
 
-	err = s.container.ArtifactService().DeleteArtifactByProjectIDAndSlug(userID, teamID, decodedProjectID, decodedSlug)
+	err = s.container.ArtifactService().DeleteArtifactByProjectIDAndSlug(
+		r.Context(), userID, teamID, decodedProjectID, decodedSlug)
 	if err != nil {
 		if writeResourceWriteLocked(w, r, err) || s.writeArtifactDeleteDenial(w, userID, decodedSlug, err) {
 			return
@@ -361,6 +361,7 @@ func (s *Server) handleRestoreArtifactVersion(w http.ResponseWriter, r *http.Req
 	).Info("Restore artifact version request received")
 
 	artifact, err := s.container.ArtifactService().RestoreArtifactVersionInTeam(
+		r.Context(),
 		userID, teamID, decodedProjectID, decodedSlug, versionNumber, resourceaccess.WriteOriginFromContext(r.Context()),
 	)
 	if err != nil {

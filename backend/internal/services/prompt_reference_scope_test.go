@@ -160,7 +160,7 @@ func TestCreatePrompt_ResolvesReferencesInTheCreatedPromptsTeam(t *testing.T) {
 		return len(refs) == 1 && refs[0].ReferencedPromptID == "sg-id"
 	})).Return(nil).Once()
 
-	_, err := svc.CreatePrompt(refScopeAuthor, refScopeTeam, &models.CreatePromptRequest{
+	_, err := svc.CreatePrompt(context.Background(), refScopeAuthor, refScopeTeam, &models.CreatePromptRequest{
 		Name: "Review", Slug: "review", Body: "Use @style-guide", ProjectID: "project-1",
 	})
 
