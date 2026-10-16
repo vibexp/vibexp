@@ -105,9 +105,10 @@ list and polls (`toPass`) until it holds.
 
 **Restore.** The audit settings are one instance-wide record. The test reads
 them first and, in a `finally`, writes the stored values back (or resets to
-defaults when none were stored), then reads them again to verify. It needs the
-journeys project's single worker: run with `--repeat-each` and more workers
-and the copies race on that record.
+defaults when none were stored), then reads them again to verify. No other spec
+writes that record, and `describe.serial` keeps this file's tests on one
+worker, so a normal run never races on it. `--repeat-each` does run copies in
+parallel, so repeat this file with `--workers=1`.
 
 **Not covered:** authorization denials and MCP-channel events (the backend
 tests of #1513 and #1515 cover them; the stack has no MCP client), sign-in

@@ -11,6 +11,12 @@ import {
 } from '@/components/patterns/list-page'
 import { Button } from '@/components/ui/button'
 import type { DateRangeValue } from '@/components/ui/date-range'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { AdminExportButton } from '@/pages/admin/AdminExportButton'
 import { useAdminListFilters } from '@/pages/admin/useAdminListFilters'
 import type { AdminAuditEvent } from '@/services/adminAuditService'
@@ -254,13 +260,23 @@ export function AdminAudit() {
             onApplyPreset={applyQuery}
             actions={
               <>
-                {/* Retention and IP/UA capture live in Settings (#1518). */}
-                <Button variant="outline" size="sm" asChild>
-                  <Link to="/admin/settings/audit-log">
-                    <Settings2 className="mr-2 size-4" aria-hidden />
-                    Audit settings
-                  </Link>
-                </Button>
+                {/* Retention and IP/UA capture live in Settings (#1518). An
+                    icon button, so the actions fit the filter row at 1280. */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline" size="icon-sm" asChild>
+                        <Link
+                          to="/admin/settings/audit-log"
+                          aria-label="Audit settings"
+                        >
+                          <Settings2 className="size-4" aria-hidden />
+                        </Link>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Audit settings</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <AdminExportButton
                   noun="audit events"
                   disabled={status === 'empty'}

@@ -168,10 +168,12 @@ it('links to the audit log settings from the header (#1518)', async () => {
   renderAudit()
 
   await screen.findByRole('table')
-  expect(screen.getByRole('link', { name: 'Audit settings' })).toHaveAttribute(
-    'href',
-    '/admin/settings/audit-log'
-  )
+  const link = screen.getByRole('link', { name: 'Audit settings' })
+  expect(link).toHaveAttribute('href', '/admin/settings/audit-log')
+  // An icon button: its name comes from aria-label, and the tooltip trigger
+  // is the link itself (a real box to anchor on, #891), not a wrapper.
+  expect(link).toHaveTextContent('')
+  expect(link).toHaveAttribute('data-state', 'closed')
 })
 
 it('shows the absolute UTC instant on hover of a row time', async () => {
