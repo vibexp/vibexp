@@ -176,6 +176,7 @@ func (s *TypeService) customTypeForAudit(ctx context.Context, teamID, id string)
 	for _, resourceType := range copyableResourceTypes() {
 		types, err := s.repo.List(ctx, teamID, resourceType)
 		if err != nil {
+			s.logger.WarnContext(ctx, "reading custom types for the audit log", "team_id", teamID, "error", err)
 			return nil
 		}
 		for i := range types {
@@ -218,8 +219,6 @@ func (s *TypeService) CopyFromTeam(ctx context.Context, params CopyTypesParams) 
 	if err := s.recordCopy(ctx, params, result); err != nil {
 		return nil, err
 	}
-	// The team history above is fail-closed; the instance log is best-effort.
-	s.recordCopyEvent(ctx, params, result)
 
 	s.logger.Info("Copied custom types between teams",
 		"team_id", params.TeamID, "source_team_id", params.SourceTeamID,
@@ -334,29 +333,17 @@ func (s *TypeService) recordCopy(
 	}); err != nil {
 		return fmt.Errorf("failed to record custom types copy: %w", err)
 	}
-	return nil
-}
-
-// recordCopyEvent records a custom types copy in the instance audit log, with
-// the slugs added and skipped.
-func (s *TypeService) recordCopyEvent(ctx context.Context, params CopyTypesParams, result *CopyTypesResult) {
-	added := make([]string, 0, len(result.Added))
-	for i := range result.Added {
-		added = append(added, result.Added[i].Slug)
-	}
-	skipped := make([]string, 0, len(result.Skipped))
-	for i := range result.Skipped {
-		skipped = append(skipped, result.Skipped[i].Slug)
-	}
+	// The team history above is fail-closed; the instance log is best-effort.
 	s.record(ctx, teamSettingsChange{
 		TeamID: params.TeamID, ActorID: params.UserID, Surface: teamSettingsSurfaceCustomTypes,
 		Action: teamSettingsActionCopy,
 		Details: map[string]any{
 			"source_team_id": params.SourceTeamID,
-			"added_slugs":    strings.Join(added, ", "),
-			"skipped_slugs":  strings.Join(skipped, ", "),
+			"added_slugs":    strings.Join(addedSlugs, ", "),
+			"skipped_slugs":  strings.Join(skippedSlugs, ", "),
 		},
 	})
+	return nil
 }
 
 func (s *TypeService) ValidateType(

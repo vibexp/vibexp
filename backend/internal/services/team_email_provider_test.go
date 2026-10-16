@@ -25,8 +25,15 @@ func newTestTeamEmailProviderService(
 	t.Helper()
 	enc, err := NewEncryptionService(testEncryptionKey)
 	require.NoError(t, err)
-	return NewTeamEmailProviderService(
-		repo, repomocks.NewMockInstanceEmailProviderRepository(t), userRepo, enc, localDevProviderConfig(), authz, slog.New(slog.DiscardHandler))
+	return NewTeamEmailProviderService(TeamEmailProviderServiceDeps{
+		Repo:         repo,
+		InstanceRepo: repomocks.NewMockInstanceEmailProviderRepository(t),
+		UserRepo:     userRepo,
+		Enc:          enc,
+		Config:       localDevProviderConfig(),
+		Authz:        authz,
+		Logger:       slog.New(slog.DiscardHandler),
+	})
 }
 
 func validSMTPRequest() models.UpsertTeamEmailProviderRequest {
@@ -530,11 +537,15 @@ func TestTeamEmailProvider_Test_DoesNotRequireEncryption(t *testing.T) {
 	userRepo.On("GetByID", mock.Anything, testProviderUserID).
 		Return(&models.User{ID: testProviderUserID, Email: "admin@example.com"}, nil)
 
-	svc := NewTeamEmailProviderService(
-		repomocks.NewMockTeamEmailProviderRepository(t),
-		repomocks.NewMockInstanceEmailProviderRepository(t),
-		userRepo, nil,
-		localDevProviderConfig(), permissiveProviderAuthz{}, slog.New(slog.DiscardHandler))
+	svc := NewTeamEmailProviderService(TeamEmailProviderServiceDeps{
+		Repo:         repomocks.NewMockTeamEmailProviderRepository(t),
+		InstanceRepo: repomocks.NewMockInstanceEmailProviderRepository(t),
+		UserRepo:     userRepo,
+		Enc:          nil,
+		Config:       localDevProviderConfig(),
+		Authz:        permissiveProviderAuthz{},
+		Logger:       slog.New(slog.DiscardHandler),
+	})
 
 	req := validSMTPRequest()
 	req.Settings.SMTP.Port = "1"
@@ -629,9 +640,15 @@ func TestTeamEmailProvider_Upsert_NilEncryptionFailsClosed(t *testing.T) {
 	repo.On("GetByTeamID", mock.Anything, testProviderTeamID).
 		Return(nil, repositories.ErrTeamEmailProviderNotFound)
 
-	svc := NewTeamEmailProviderService(
-		repo, repomocks.NewMockInstanceEmailProviderRepository(t), repomocks.NewMockUserRepository(t), nil,
-		localDevProviderConfig(), permissiveProviderAuthz{}, slog.New(slog.DiscardHandler))
+	svc := NewTeamEmailProviderService(TeamEmailProviderServiceDeps{
+		Repo:         repo,
+		InstanceRepo: repomocks.NewMockInstanceEmailProviderRepository(t),
+		UserRepo:     repomocks.NewMockUserRepository(t),
+		Enc:          nil,
+		Config:       localDevProviderConfig(),
+		Authz:        permissiveProviderAuthz{},
+		Logger:       slog.New(slog.DiscardHandler),
+	})
 
 	_, err := svc.Upsert(context.Background(), testProviderUserID, testProviderTeamID, validSMTPRequest())
 
@@ -655,9 +672,15 @@ func TestTeamEmailProvider_GetEffective_InstanceFallback(t *testing.T) {
 	enc, err := NewEncryptionService(testEncryptionKey)
 	require.NoError(t, err)
 
-	svc := NewTeamEmailProviderService(
-		repo, instanceRepo, repomocks.NewMockUserRepository(t), enc, localDevProviderConfig(),
-		permissiveProviderAuthz{}, slog.New(slog.DiscardHandler))
+	svc := NewTeamEmailProviderService(TeamEmailProviderServiceDeps{
+		Repo:         repo,
+		InstanceRepo: instanceRepo,
+		UserRepo:     repomocks.NewMockUserRepository(t),
+		Enc:          enc,
+		Config:       localDevProviderConfig(),
+		Authz:        permissiveProviderAuthz{},
+		Logger:       slog.New(slog.DiscardHandler),
+	})
 
 	effective, err := svc.GetEffective(context.Background(), testProviderUserID, testProviderTeamID)
 
@@ -679,9 +702,15 @@ func TestTeamEmailProvider_GetEffective_InstanceRowStates(t *testing.T) {
 		instanceRepo := repomocks.NewMockInstanceEmailProviderRepository(t)
 		instanceRepo.On("Get", mock.Anything).Return(nil, repositories.ErrInstanceEmailProviderNotFound)
 
-		svc := NewTeamEmailProviderService(
-			repo, instanceRepo, repomocks.NewMockUserRepository(t), nil, localDevProviderConfig(),
-			permissiveProviderAuthz{}, slog.New(slog.DiscardHandler))
+		svc := NewTeamEmailProviderService(TeamEmailProviderServiceDeps{
+			Repo:         repo,
+			InstanceRepo: instanceRepo,
+			UserRepo:     repomocks.NewMockUserRepository(t),
+			Enc:          nil,
+			Config:       localDevProviderConfig(),
+			Authz:        permissiveProviderAuthz{},
+			Logger:       slog.New(slog.DiscardHandler),
+		})
 
 		effective, err := svc.GetEffective(context.Background(), testProviderUserID, testProviderTeamID)
 
@@ -696,9 +725,15 @@ func TestTeamEmailProvider_GetEffective_InstanceRowStates(t *testing.T) {
 		instanceRepo := repomocks.NewMockInstanceEmailProviderRepository(t)
 		instanceRepo.On("Get", mock.Anything).Return(nil, errors.New("db down"))
 
-		svc := NewTeamEmailProviderService(
-			repo, instanceRepo, repomocks.NewMockUserRepository(t), nil, localDevProviderConfig(),
-			permissiveProviderAuthz{}, slog.New(slog.DiscardHandler))
+		svc := NewTeamEmailProviderService(TeamEmailProviderServiceDeps{
+			Repo:         repo,
+			InstanceRepo: instanceRepo,
+			UserRepo:     repomocks.NewMockUserRepository(t),
+			Enc:          nil,
+			Config:       localDevProviderConfig(),
+			Authz:        permissiveProviderAuthz{},
+			Logger:       slog.New(slog.DiscardHandler),
+		})
 
 		_, err := svc.GetEffective(context.Background(), testProviderUserID, testProviderTeamID)
 

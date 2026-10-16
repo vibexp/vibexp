@@ -234,9 +234,11 @@ func (s *FreshnessService) UpdateRule(
 	if s.enabled() {
 		// Old values for the audit event only; a failed read must not block
 		// the update.
-		if stored, err := s.rules.GetByID(ctx, teamID, ruleID); err == nil {
-			before = stored
+		stored, err := s.rules.GetByID(ctx, teamID, ruleID)
+		if err != nil {
+			s.logger.WarnContext(ctx, "reading a freshness rule for the audit log", "rule_id", ruleID, "error", err)
 		}
+		before = stored
 	}
 	if err := s.rules.Update(ctx, rule); err != nil {
 		if errors.Is(err, repositories.ErrFreshnessRuleNotFound) {
@@ -335,6 +337,7 @@ func (s *FreshnessService) storedSettingsAuditValues(ctx context.Context, teamID
 	}
 	stored, err := s.settings.Get(ctx, teamID)
 	if err != nil {
+		s.logger.WarnContext(ctx, "reading team freshness settings for the audit log", "team_id", teamID, "error", err)
 		return nil
 	}
 	return freshnessSettingsAuditValues(stored)

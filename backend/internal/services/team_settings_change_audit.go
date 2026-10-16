@@ -152,17 +152,13 @@ func teamSettingsChangeMetadata(change teamSettingsChange) map[string]any {
 // before and after, or that exist on one side only.
 func changedSettingsFields(before, after map[string]any) []string {
 	changed := []string{}
-	if before == nil && after == nil {
-		return changed
-	}
 	for field, value := range after {
-		old, ok := before[field]
-		if before == nil || !ok || !reflect.DeepEqual(old, value) {
+		if old, ok := before[field]; !ok || !reflect.DeepEqual(old, value) {
 			changed = append(changed, field)
 		}
 	}
 	for field := range before {
-		if _, ok := after[field]; after == nil || !ok {
+		if _, ok := after[field]; !ok {
 			changed = append(changed, field)
 		}
 	}
@@ -218,19 +214,10 @@ func providerChange(w providerWrite) teamSettingsChange {
 	return change
 }
 
-// providerCopyChange describes a cross-team provider copy (#828/#831): the
-// created provider's values, with the API key and configuration named only.
-func providerCopyChange(
-	teamID, actorID, sourceTeamID, surface, sourceProviderID, providerID string,
-	after map[string]any, apiKeyEncrypted *string, configuration string,
-) teamSettingsChange {
-	return providerChange(providerWrite{
-		TeamID: teamID, ActorID: actorID, Surface: surface, Action: teamSettingsActionCopy,
-		ProviderID: providerID, After: after,
-		APIKeySet:        nonEmpty(apiKeyEncrypted),
-		ConfigurationSet: configurationSet(configuration),
-		Details:          map[string]any{"source_team_id": sourceTeamID, "source_provider_id": sourceProviderID},
-	})
+// providerCopyDetails names the source of a cross-team provider copy
+// (#828/#831).
+func providerCopyDetails(sourceTeamID, sourceProviderID string) map[string]any {
+	return map[string]any{"source_team_id": sourceTeamID, "source_provider_id": sourceProviderID}
 }
 
 // nonEmpty reports whether p holds a non-empty string.

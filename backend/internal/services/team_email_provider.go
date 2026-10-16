@@ -59,42 +59,36 @@ type TeamEmailProviderService struct {
 	teamSettingsAuditor
 }
 
-// TeamEmailProviderServiceOption customizes a TeamEmailProviderService.
-type TeamEmailProviderServiceOption func(*TeamEmailProviderService)
-
-// WithTeamEmailProviderAuditRecorder records changes in the instance audit log
-// (#1520).
-func WithTeamEmailProviderAuditRecorder(recorder audit.Recorder) TeamEmailProviderServiceOption {
-	return func(s *TeamEmailProviderService) { s.recorder = recorder }
-}
-
 // Ensure TeamEmailProviderService implements TeamEmailProviderServiceInterface
 var _ TeamEmailProviderServiceInterface = (*TeamEmailProviderService)(nil)
 
+// TeamEmailProviderServiceDeps groups the dependencies injected into
+// TeamEmailProviderService. Wire fills it via wire.Struct.
+type TeamEmailProviderServiceDeps struct {
+	Repo         repositories.TeamEmailProviderRepository
+	InstanceRepo repositories.InstanceEmailProviderRepository
+	UserRepo     repositories.UserRepository
+	Enc          EncryptionServiceInterface
+	Config       *config.Config
+	Authz        AuthorizationServiceInterface
+	Logger       *slog.Logger
+	// AuditRecorder, when set, records provider changes in the instance audit
+	// log (#1520).
+	AuditRecorder audit.Recorder
+}
+
 // NewTeamEmailProviderService creates a new TeamEmailProviderService.
-func NewTeamEmailProviderService(
-	repo repositories.TeamEmailProviderRepository,
-	instanceRepo repositories.InstanceEmailProviderRepository,
-	userRepo repositories.UserRepository,
-	enc EncryptionServiceInterface,
-	cfg *config.Config,
-	authzSvc AuthorizationServiceInterface,
-	logger *slog.Logger,
-	opts ...TeamEmailProviderServiceOption,
-) *TeamEmailProviderService {
-	s := &TeamEmailProviderService{
-		repo:         repo,
-		instanceRepo: instanceRepo,
-		userRepo:     userRepo,
-		enc:          enc,
-		guard:        ssrfGuardForConfig(cfg),
-		authz:        authzSvc,
-		logger:       logger,
+func NewTeamEmailProviderService(deps TeamEmailProviderServiceDeps) *TeamEmailProviderService {
+	return &TeamEmailProviderService{
+		repo:                deps.Repo,
+		instanceRepo:        deps.InstanceRepo,
+		userRepo:            deps.UserRepo,
+		enc:                 deps.Enc,
+		guard:               ssrfGuardForConfig(deps.Config),
+		authz:               deps.Authz,
+		logger:              deps.Logger,
+		teamSettingsAuditor: teamSettingsAuditor{recorder: deps.AuditRecorder},
 	}
-	for _, opt := range opts {
-		opt(s)
-	}
-	return s
 }
 
 // authorizeMutation gates upsert/delete/test. A nil authz service is a wiring
@@ -305,7 +299,10 @@ func (s *TeamEmailProviderService) Delete(ctx context.Context, userID, teamID st
 		// Old values for the audit event only; a failed read must not block
 		// the delete.
 		existing, err := s.repo.GetByTeamID(ctx, teamID)
-		if err == nil && existing != nil {
+		switch {
+		case err != nil && !errors.Is(err, repositories.ErrTeamEmailProviderNotFound):
+			s.logger.WarnContext(ctx, "reading the team email provider for the audit log", "team_id", teamID, "error", err)
+		case existing != nil:
 			before = emailProviderAuditValues(existing)
 		}
 	}
@@ -329,24 +326,15 @@ func emailProviderAuditValues(provider *models.TeamEmailProvider) map[string]any
 		"from_name":     optionalAuditString(provider.FromName),
 		"reply_to":      optionalAuditString(provider.ReplyTo),
 	}
-	var settings struct {
-		Host          *string `json:"host"`
-		Port          *string `json:"port"`
-		Username      *string `json:"username"`
-		Domain        *string `json:"domain"`
-		BaseURL       *string `json:"base_url"`
-		MessageStream *string `json:"message_stream"`
-	}
-	if len(provider.Settings) == 0 || json.Unmarshal(provider.Settings, &settings) != nil {
-		return values
-	}
-	for field, value := range map[string]*string{
-		"host": settings.Host, "port": settings.Port, "username": settings.Username,
-		"domain": settings.Domain, "base_url": settings.BaseURL, "message_stream": settings.MessageStream,
-	} {
-		if value != nil {
-			values[field] = *value
-		}
+	union := settingsUnionFromStored(provider.ProviderType, provider.Settings)
+	switch {
+	case union == nil:
+	case union.SMTP != nil:
+		values["host"], values["port"], values["username"] = union.SMTP.Host, union.SMTP.Port, union.SMTP.Username
+	case union.Mailgun != nil:
+		values["domain"], values["base_url"] = union.Mailgun.Domain, union.Mailgun.BaseURL
+	case union.Postmark != nil:
+		values["message_stream"] = union.Postmark.MessageStream
 	}
 	return values
 }

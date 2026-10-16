@@ -51,7 +51,7 @@ type EmbeddingProviderService struct {
 	teamSettingsAuditor
 }
 
-// EmbeddingProviderServiceOption customizes a EmbeddingProviderService.
+// EmbeddingProviderServiceOption customizes an EmbeddingProviderService.
 type EmbeddingProviderServiceOption func(*EmbeddingProviderService)
 
 // WithEmbeddingProviderAuditRecorder records changes in the instance audit log (#1520).

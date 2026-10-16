@@ -608,17 +608,9 @@ func ProvideEmbeddingProcessor(
 // nil and the service refuses to store or read a credential rather than handling
 // one in plaintext.
 func ProvideTeamEmailProviderService(
-	repo repositories.TeamEmailProviderRepository,
-	instanceRepo repositories.InstanceEmailProviderRepository,
-	userRepo repositories.UserRepository,
-	enc services.EncryptionServiceInterface,
-	cfg *config.Config,
-	authzService services.AuthorizationServiceInterface,
-	logger *slog.Logger,
-	recorder audit.Recorder,
+	deps services.TeamEmailProviderServiceDeps,
 ) services.TeamEmailProviderServiceInterface {
-	return services.NewTeamEmailProviderService(repo, instanceRepo, userRepo, enc, cfg, authzService, logger,
-		services.WithTeamEmailProviderAuditRecorder(recorder))
+	return services.NewTeamEmailProviderService(deps)
 }
 
 // ProvideInstanceEmailProviderService creates the instance email provider
