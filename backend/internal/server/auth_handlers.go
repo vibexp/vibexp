@@ -511,9 +511,18 @@ func (s *Server) recordLogout(r *http.Request) {
 	}
 	NewActivityRecorder(s.container.ActivityService()).
 		RecordAuthActivity(r.Context(), sess.UserID, activities.ActivityTypeAuthLogout, nil, metadata, r)
-	s.recordAudit(r.Context(), audit.Event{
-		Operation: models.AuditOpAuthLogout, Actor: auditUserActor(user), Metadata: metadata,
-	})
+	s.auditLogout(r.Context(), user, sess)
+}
+
+// auditLogout records the sign-out with the same metadata keys a sign-in
+// uses. It builds its own map: the activity recorder adds the request's HTTP
+// method and path to the one it is given.
+func (s *Server) auditLogout(ctx context.Context, user *models.User, sess *sesslib.Session) {
+	metadata := map[string]any{auditMetaMethod: sess.AuthMethod}
+	if sess.Provider != "" {
+		metadata[auditMetaProvider] = sess.Provider
+	}
+	s.recordAudit(ctx, audit.Event{Operation: models.AuditOpAuthLogout, Actor: auditUserActor(user), Metadata: metadata})
 }
 
 // revokeOtherSessions ends every cookie session of userID except the one this

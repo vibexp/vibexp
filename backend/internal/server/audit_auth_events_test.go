@@ -323,7 +323,33 @@ func TestAuditLogout(t *testing.T) {
 	got := rec.only(t)
 	assert.Equal(t, models.AuditOpAuthLogout, got.event.Operation)
 	require.NotNil(t, got.event.Actor)
-	assert.Equal(t, sesslib.AuthMethodPassword, got.event.Metadata["auth_method"])
+	assert.Equal(t, map[string]any{auditMetaMethod: sesslib.AuthMethodPassword}, got.event.Metadata,
+		"the sign-in method, never the HTTP verb or the endpoint the activity recorder adds")
+}
+
+// A real activity recorder adds the request's method and endpoint to the map
+// it is given; the audit event must not share that map.
+func TestAuditLogout_DoesNotShareTheActivityMap(t *testing.T) {
+	c := newMockAuthContainer(t)
+	c.activityService.On("RecordAuthActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything,
+		mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			m := args.Get(4).(map[string]interface{})
+			m["method"], m["endpoint"] = http.MethodPost, "/api/v1/auth/logout"
+		}).Return(nil)
+	srv := createTestAuthServer(c)
+	rec := withAudit(srv)
+	sess := &sesslib.Session{UserID: "u-1", AuthMethod: sesslib.AuthMethodDev, Provider: "github"}
+	sess.StartSliding(time.Now())
+	cookie, err := srv.sessionManager.Cookie(sess)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
+	req.AddCookie(cookie)
+	srv.recordLogout(req)
+
+	assert.Equal(t, map[string]any{auditMetaMethod: sesslib.AuthMethodDev, auditMetaProvider: "github"},
+		rec.only(t).event.Metadata)
 }
 
 func TestAuditLogout_UnusableCookieRecordsNothing(t *testing.T) {
