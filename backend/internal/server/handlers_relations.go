@@ -72,7 +72,12 @@ func (s *Server) similarForResource(
 // triggers via a per-team in-flight guard so a repeated click never stacks
 // duplicate runs. userID (the authorized trigger caller) is recorded as the
 // created_by / confirmer of the seeded edges; every seeded edge is origin=ai.
-func (s *Server) enqueueTeamRelationSeed(teamID, userID string) {
+//
+// The run outlives the request, so it is detached from ctx's cancellation
+// with context.WithoutCancel, but it keeps ctx's values: an audit event inside
+// it (a denied relation create, say) is attributed to the trigger's channel,
+// client and request id, not to the system (#1548).
+func (s *Server) enqueueTeamRelationSeed(ctx context.Context, teamID, userID string) {
 	logger := s.logger.With(
 		"service", serverLogServiceName,
 		"component", "relation-seed",
@@ -84,9 +89,10 @@ func (s *Server) enqueueTeamRelationSeed(teamID, userID string) {
 		return
 	}
 
+	detached := context.WithoutCancel(ctx)
 	go func() {
 		defer s.relationSeedInFlight.Delete(teamID)
-		if _, err := s.container.RelationSeedService().Backfill(context.Background(), userID, teamID); err != nil {
+		if _, err := s.container.RelationSeedService().Backfill(detached, userID, teamID); err != nil {
 			logger.With("error", fmt.Sprintf("%+v", err)).Error("Background relation seed backfill failed")
 		}
 	}()
@@ -238,7 +244,7 @@ func (rs *relationsStrictServer) SeedRelations(
 		return nil, rs.relationError(ctx, "SeedRelations", teamID, authzErr)
 	}
 
-	rs.s.enqueueTeamRelationSeed(teamID, userID)
+	rs.s.enqueueTeamRelationSeed(ctx, teamID, userID)
 	return relationsgen.SeedRelations202Response{}, nil
 }
 
