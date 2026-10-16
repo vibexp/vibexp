@@ -56,7 +56,7 @@ export const AUDIT_OPERATIONS: Record<AuditOperation, AuditOperationInfo> = {
   'project.update': { label: 'Project updated', group: 'resources' },
   'project.delete': { label: 'Project deleted', group: 'resources' },
   'project.migrated': {
-    label: 'Project migrated to another team',
+    label: 'Project migrated',
     group: 'resources',
   },
   'auth.login': { label: 'Signed in', group: 'auth' },
@@ -144,13 +144,4 @@ export function isAuditOperation(value: string): value is AuditOperation {
  */
 export function operationLabel(operation: string): string {
   return KNOWN[operation]?.label ?? operation
-}
-
-/** The operations of one group, in the API's order. */
-export function operationsInGroup(
-  group: AuditOperationGroupId
-): AuditOperation[] {
-  return (Object.keys(AUDIT_OPERATIONS) as AuditOperation[]).filter(
-    operation => AUDIT_OPERATIONS[operation].group === group
-  )
 }

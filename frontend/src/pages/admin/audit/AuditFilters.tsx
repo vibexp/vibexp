@@ -44,6 +44,13 @@ const OUTCOME_CHOICES = AUDIT_OUTCOMES.map(value => ({
   label: outcomeLabel(value),
 }))
 
+/**
+ * At phone width every picker takes the full row and the operation filter and
+ * date range share one row in equal halves, so the bar has no ragged gutter.
+ */
+const PICKER_WIDTH = 'w-full sm:w-[200px]'
+const HALF_WIDTH = 'w-[calc(50%-0.25rem)] sm:w-[180px]'
+
 export interface AuditFiltersProps {
   /** Uncommitted free text; the page debounces it into the URL as `q`. */
   searchInput: string
@@ -185,6 +192,7 @@ export function AuditFilters(props: Readonly<AuditFiltersProps>) {
       created={props.range}
       onCreatedChange={props.onRangeChange}
       createdLabel="Filter by date"
+      createdClassName={HALF_WIDTH}
       onClear={props.onClear}
       hasActiveFilters={props.hasActiveFilters}
       advanced={advanced}
@@ -211,11 +219,13 @@ export function AuditFilters(props: Readonly<AuditFiltersProps>) {
         searchPlaceholder="Search name or email…"
         emptyText="No users found."
         aria-label="Filter by user"
+        className={PICKER_WIDTH}
       />
       <AdminTeamPicker
         value={props.teamId}
         onChange={props.onTeamIdChange}
         resolveName
+        className={PICKER_WIDTH}
       />
       <AdminSearchPicker
         value={props.projectId}
@@ -230,6 +240,7 @@ export function AuditFilters(props: Readonly<AuditFiltersProps>) {
         searchPlaceholder="Search projects…"
         emptyText="No projects found."
         aria-label="Filter by project"
+        className={PICKER_WIDTH}
       />
       <AuditChoiceFilter
         value={props.operations}
@@ -240,6 +251,7 @@ export function AuditFilters(props: Readonly<AuditFiltersProps>) {
         allLabel="All operations"
         noun="operations"
         searchable
+        className={HALF_WIDTH}
       />
     </AdminFilterBar>
   )

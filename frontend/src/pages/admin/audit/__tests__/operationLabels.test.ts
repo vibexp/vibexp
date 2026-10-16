@@ -8,7 +8,6 @@ import {
   AUDIT_OPERATIONS,
   isAuditOperation,
   operationLabel,
-  operationsInGroup,
 } from '../operationLabels'
 
 /**
@@ -47,13 +46,12 @@ describe('audit operation labels', () => {
   })
 
   it('puts every operation in exactly one listed group, and no group is empty', () => {
-    const grouped = AUDIT_OPERATION_GROUPS.flatMap(group =>
-      operationsInGroup(group.id)
+    const groupIds = AUDIT_OPERATION_GROUPS.map(group => group.id)
+    const used = new Set(
+      Object.values(AUDIT_OPERATIONS).map(info => info.group)
     )
-    expect(grouped.sort()).toEqual(Object.keys(AUDIT_OPERATIONS).sort())
-    for (const group of AUDIT_OPERATION_GROUPS) {
-      expect(operationsInGroup(group.id).length).toBeGreaterThan(0)
-    }
+    expect([...used].every(group => groupIds.includes(group))).toBe(true)
+    expect(groupIds.every(group => used.has(group))).toBe(true)
   })
 
   it('words the refinement examples as written', () => {

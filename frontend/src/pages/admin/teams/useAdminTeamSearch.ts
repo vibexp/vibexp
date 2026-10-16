@@ -32,19 +32,22 @@ export function useAdminTeamSearch(
   // A primitive, so the search does not re-run on every render.
   const sharedOnly = options.sharedOnly === true
   const fetchPage = useCallback(
-    async (search: string | undefined, page: number, limit: number) => {
-      const response = await adminService.listTeams({
-        page,
-        limit,
-        search,
-        // Personal workspaces run one per user and are all named alike; a
-        // picker that cannot use them asks the server to leave them out.
-        ...(sharedOnly ? { is_personal: false } : {}),
-        sort_by: 'name',
-        sort_order: 'asc',
-      })
-      return { items: response.teams, totalPages: response.total_pages }
-    },
+    (search: string | undefined, page: number, limit: number) =>
+      adminService
+        .listTeams({
+          page,
+          limit,
+          search,
+          // Personal workspaces run one per user and are all named alike; a
+          // picker that cannot use them asks the server to leave them out.
+          ...(sharedOnly ? { is_personal: false } : {}),
+          sort_by: 'name',
+          sort_order: 'asc',
+        })
+        .then(response => ({
+          items: response.teams,
+          totalPages: response.total_pages,
+        })),
     [sharedOnly]
   )
   const { items, ...rest } = useAdminPagedSearch(

@@ -51,7 +51,18 @@ export function AuditEventDrawer({
         if (!open) onClose()
       }}
     >
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
+      <SheetContent
+        className="w-full overflow-y-auto focus:outline-none sm:max-w-lg"
+        // Radix would focus the first control, the "Raw metadata" toggle, and
+        // draw a focus ring on it the moment the drawer opens. Focus the sheet
+        // itself instead; Tab still reaches every control.
+        onOpenAutoFocus={event => {
+          event.preventDefault()
+          if (event.currentTarget instanceof HTMLElement) {
+            event.currentTarget.focus()
+          }
+        }}
+      >
         {event && <AuditEventDetail event={event} />}
       </SheetContent>
     </Sheet>
@@ -202,7 +213,13 @@ function Field({
   return (
     <dl className="grid grid-cols-[7.5rem_1fr] gap-2 text-sm">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className={mono ? 'break-all font-mono text-xs' : 'break-words'}>
+      <dd
+        className={
+          mono
+            ? 'break-all font-mono text-xs'
+            : 'min-w-0 [overflow-wrap:anywhere]'
+        }
+      >
         {children}
       </dd>
     </dl>

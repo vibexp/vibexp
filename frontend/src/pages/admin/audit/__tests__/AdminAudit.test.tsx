@@ -157,7 +157,9 @@ it('renders an event row with its human operation label, actor, resource and cha
   expect(table.getByText('Prompt updated')).toBeInTheDocument()
   expect(table.getByText('Ada Lovelace')).toBeInTheDocument()
   expect(table.getByText('Release notes')).toBeInTheDocument()
-  expect(table.getByText('Platform / Core')).toBeInTheDocument()
+  // The scope stacks the team over its project.
+  expect(table.getByText('Platform')).toBeInTheDocument()
+  expect(table.getByText('Core')).toBeInTheDocument()
   expect(table.getByText('MCP · claude-code')).toBeInTheDocument()
   expect(table.getByText('Success')).toBeInTheDocument()
 })
@@ -360,6 +362,57 @@ it('exports the filter on screen, without the cursor or page size', async () => 
   expect(exported).not.toHaveProperty('cursor')
   expect(exported).not.toHaveProperty('limit')
   expect(exported.from).toBe(lastQuery().from)
+})
+
+it('applies a saved preset to the URL and the query', async () => {
+  mockAdmin.getSavedFilters.mockResolvedValue({
+    list: 'audit',
+    presets: [
+      {
+        id: '33333333-3333-4333-8333-333333333333',
+        name: 'Denials',
+        query: { outcome: 'denied', team_id: 't-1' },
+      },
+    ],
+    version: 1,
+  })
+  renderAudit()
+  await screen.findByRole('table')
+
+  await userEvent.click(screen.getByRole('button', { name: /Presets/ }))
+  await userEvent.click(
+    await screen.findByRole('menuitem', { name: 'Denials' })
+  )
+
+  await waitFor(() => {
+    expect(lastQuery()).toMatchObject({ outcome: ['denied'], team_id: 't-1' })
+  })
+  const url = new URLSearchParams(currentSearch)
+  expect(url.get('outcome')).toBe('denied')
+  expect(url.get('team_id')).toBe('t-1')
+})
+
+it('starts from the newest page again when a filter changes on a later page', async () => {
+  mockAudit.listEvents.mockResolvedValue(eventPage([auditEvent()], 'cursor-2'))
+  renderAudit()
+  await screen.findByRole('table')
+
+  await userEvent.click(screen.getByRole('button', { name: /Next/ }))
+  await waitFor(() => {
+    expect(lastQuery().cursor).toBe('cursor-2')
+  })
+  expect(await screen.findByText('Page 2')).toBeInTheDocument()
+
+  await userEvent.click(
+    screen.getByRole('combobox', { name: 'Filter by operation' })
+  )
+  await userEvent.click(await screen.findByText('Permission denied'))
+
+  await waitFor(() => {
+    expect(lastQuery().operation).toEqual(['authz.denied'])
+  })
+  expect(lastQuery()).not.toHaveProperty('cursor')
+  expect(screen.queryByText('Page 2')).not.toBeInTheDocument()
 })
 
 it('offers the saved filters of the audit list', async () => {

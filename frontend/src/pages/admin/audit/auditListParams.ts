@@ -1,7 +1,11 @@
-import type { components, operations } from '@vibexp/api-client'
+import type { components } from '@vibexp/api-client'
 
 import type { DateRangeValue } from '@/components/ui/date-range'
 import { rangeToInstants } from '@/components/ui/date-range'
+import type {
+  AdminAuditExportParams,
+  AdminAuditListParams,
+} from '@/services/adminAuditService'
 
 import { type AuditOperation, isAuditOperation } from './operationLabels'
 
@@ -14,12 +18,6 @@ import { type AuditOperation, isAuditOperation } from './operationLabels'
  * the page.
  */
 
-export type AuditListParams = NonNullable<
-  operations['listAdminAuditEvents']['parameters']['query']
->
-export type AuditExportParams = NonNullable<
-  operations['exportAdminAuditEvents']['parameters']['query']
->
 export type AuditSource = components['schemas']['AdminAuditSource']
 export type AuditOutcome = components['schemas']['AdminAuditOutcome']
 
@@ -93,7 +91,9 @@ export const AUDIT_ENUMS_EXHAUSTIVE: [MissingSources, MissingOutcomes] extends [
   : never = true
 
 /**
- * The resource types the audit log records today. `resource_type` is a free
+ * The resource types the audit log records today: the resource writes use the
+ * resource's own type, the auth and security events `user`, `api_key` and
+ * `oauth_client` (`models.AuditResourceType*`). `resource_type` is a free
  * string in the API, so this is the filter's menu, not a constraint.
  */
 export const AUDIT_RESOURCE_TYPES = [
@@ -104,9 +104,9 @@ export const AUDIT_RESOURCE_TYPES = [
   { value: 'feed', label: 'Feed' },
   { value: 'feed_item', label: 'Feed item' },
   { value: 'project', label: 'Project' },
-  { value: 'team', label: 'Team' },
   { value: 'user', label: 'User' },
   { value: 'api_key', label: 'API key' },
+  { value: 'oauth_client', label: 'OAuth client' },
 ] as const
 
 /** A comma-separated URL value as a list, dropping blanks. */
@@ -170,19 +170,17 @@ export function defaultAuditRange(now: Date): DateRangeValue {
 export function effectiveAuditRange(
   urlRange: DateRangeValue,
   now: Date
-): { range: DateRangeValue; isDefault: boolean } {
+): DateRangeValue {
   if (urlRange.from !== undefined || urlRange.to !== undefined) {
-    return { range: urlRange, isDefault: false }
+    return urlRange
   }
-  return { range: defaultAuditRange(now), isDefault: true }
+  return defaultAuditRange(now)
 }
 
 export interface AuditListContext {
   /** The range in effect (see `effectiveAuditRange`). */
   range: DateRangeValue
   limit: number
-  /** The keyset cursor of the page to load; undefined for the newest page. */
-  cursor?: string
 }
 
 /**
@@ -193,14 +191,13 @@ export interface AuditListContext {
 export function buildAuditListParams(
   filters: Readonly<Record<string, string | undefined>>,
   ctx: AuditListContext
-): AuditListParams {
+): AdminAuditListParams {
   const { from, to } = rangeToInstants(ctx.range)
   const operations = selectedOperations(filters.operation)
   const sources = selectedSources(filters.source)
   const outcomes = selectedOutcomes(filters.outcome)
   const search = filters.search?.trim() ?? ''
-  const params: AuditListParams = { limit: ctx.limit }
-  if (ctx.cursor) params.cursor = ctx.cursor
+  const params: AdminAuditListParams = { limit: ctx.limit }
   if (filters.actor_user_id) params.actor_user_id = filters.actor_user_id
   if (filters.team_id) params.team_id = filters.team_id
   if (filters.project_id) params.project_id = filters.project_id
@@ -218,7 +215,9 @@ export function buildAuditListParams(
  * The CSV export query for a list query: the same filters, without the cursor
  * and page size, so the export and the table on screen cannot disagree.
  */
-export function auditExportParams(params: AuditListParams): AuditExportParams {
+export function auditExportParams(
+  params: AdminAuditListParams
+): AdminAuditExportParams {
   const { limit: _limit, cursor: _cursor, ...rest } = params
   return rest
 }

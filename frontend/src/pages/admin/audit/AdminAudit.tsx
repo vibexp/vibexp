@@ -34,6 +34,7 @@ import {
   AuditActor,
   AuditOutcomeBadge,
   AuditResource,
+  AuditScope,
   auditScope,
   AuditSourceBadge,
   AuditTime,
@@ -88,10 +89,7 @@ export function AdminAudit() {
   // Pinned for the page's lifetime, so the default range does not drift (and
   // refetch) as the clock moves while the page is open.
   const [now] = useState(() => new Date())
-  const { range } = useMemo(
-    () => effectiveAuditRange(created, now),
-    [created, now]
-  )
+  const range = useMemo(() => effectiveAuditRange(created, now), [created, now])
 
   const baseParams = useMemo(
     () => buildAuditListParams(filters, { range, limit: AUDIT_PAGE_SIZE }),
@@ -168,13 +166,17 @@ export function AdminAudit() {
       {
         id: 'actor',
         header: 'Actor',
-        cell: ({ row }) => <AuditActor event={row.original} />,
+        cell: ({ row }) => (
+          <div className="max-w-[11rem]">
+            <AuditActor event={row.original} />
+          </div>
+        ),
       },
       {
         id: 'operation',
         header: 'Operation',
         cell: ({ row }) => (
-          <span className="text-sm">
+          <span className="block min-w-[7rem] text-sm">
             {operationLabel(row.original.operation)}
           </span>
         ),
@@ -182,21 +184,27 @@ export function AdminAudit() {
       {
         id: 'resource',
         header: 'Resource',
-        cell: ({ row }) => <AuditResource event={row.original} />,
+        cell: ({ row }) => (
+          <AuditResource event={row.original} className="max-w-[9rem]" />
+        ),
       },
       {
         id: 'scope',
-        header: 'Team / project',
+        header: 'Scope',
         cell: ({ row }) => (
-          <span className="text-muted-foreground text-sm">
-            {auditScope(row.original)}
-          </span>
+          <div className="max-w-[7rem]">
+            <AuditScope event={row.original} />
+          </div>
         ),
       },
       {
         id: 'source',
         header: 'Channel',
-        cell: ({ row }) => <AuditSourceBadge event={row.original} />,
+        cell: ({ row }) => (
+          <div className="max-w-[8rem]">
+            <AuditSourceBadge event={row.original} />
+          </div>
+        ),
       },
       {
         id: 'outcome',

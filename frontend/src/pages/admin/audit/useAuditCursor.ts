@@ -1,4 +1,4 @@
-import { useCallback, useReducer } from 'react'
+import { useCallback, useState } from 'react'
 
 /**
  * The audit log's keyset paging (#1517): Next follows the page's `next_cursor`;
@@ -21,16 +21,10 @@ export function auditCursorReducer(
   state: AuditCursorState,
   action: AuditCursorAction
 ): AuditCursorState {
-  switch (action.type) {
-    case 'next':
-      return { stack: [...state.stack, action.cursor] }
-    case 'previous':
-      return state.stack.length === 0
-        ? state
-        : { stack: state.stack.slice(0, -1) }
-    case 'reset':
-      return state.stack.length === 0 ? state : INITIAL_CURSOR_STATE
+  if (action.type === 'next') {
+    return { stack: [...state.stack, action.cursor] }
   }
+  return state.stack.length === 0 ? state : { stack: state.stack.slice(0, -1) }
 }
 
 export interface AuditCursor {
@@ -46,36 +40,37 @@ export interface AuditCursor {
 /**
  * The cursor stack for one filter set. `filterKey` identifies the filters: when
  * it changes the stack resets, because a cursor from one result set means
- * nothing in another.
+ * nothing in another — and stays reset, so returning to earlier filters starts
+ * from their newest page again.
  */
 export function useAuditCursor(filterKey: string): AuditCursor {
-  // The stack remembers the filters it was built for. Comparing during render,
-  // rather than resetting in an effect, means a filter change never issues one
-  // request with the previous result set's cursor first.
-  const [state, dispatch] = useReducer(
-    (
-      current: { key: string; cursors: AuditCursorState },
-      action: { key: string; move: AuditCursorAction }
-    ) => ({
-      key: action.key,
-      cursors: auditCursorReducer(
-        current.key === action.key ? current.cursors : INITIAL_CURSOR_STATE,
-        action.move
-      ),
-    }),
-    { key: filterKey, cursors: INITIAL_CURSOR_STATE }
-  )
-  const stack = state.key === filterKey ? state.cursors.stack : []
+  const [state, setState] = useState<{
+    key: string
+    cursors: AuditCursorState
+  }>({ key: filterKey, cursors: INITIAL_CURSOR_STATE })
 
-  const next = useCallback(
-    (cursor: string) => {
-      dispatch({ key: filterKey, move: { type: 'next', cursor } })
-    },
-    [filterKey]
-  )
+  // Reset during render ("adjusting state when a prop changes"), not in an
+  // effect: the reset render never issues a request with the previous result
+  // set's cursor first.
+  let current = state
+  if (state.key !== filterKey) {
+    current = { key: filterKey, cursors: INITIAL_CURSOR_STATE }
+    setState(current)
+  }
+  const { stack } = current.cursors
+
+  const next = useCallback((cursor: string) => {
+    setState(prev => ({
+      key: prev.key,
+      cursors: auditCursorReducer(prev.cursors, { type: 'next', cursor }),
+    }))
+  }, [])
   const previous = useCallback(() => {
-    dispatch({ key: filterKey, move: { type: 'previous' } })
-  }, [filterKey])
+    setState(prev => ({
+      key: prev.key,
+      cursors: auditCursorReducer(prev.cursors, { type: 'previous' }),
+    }))
+  }, [])
 
   return {
     cursor: stack.at(-1),

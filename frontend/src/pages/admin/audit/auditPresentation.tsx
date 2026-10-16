@@ -7,9 +7,9 @@ import {
   KeyRound,
   MessageSquare,
   Package,
+  Plug,
   Rss,
   User,
-  UsersRound,
 } from 'lucide-react'
 
 import { RelativeTime } from '@/components/RelativeTime'
@@ -125,27 +125,52 @@ export function AuditSourceBadge({
   )
 }
 
+/** Tinted, borderless tones of one badge family, per outcome. */
+const OUTCOME_TONES: Record<AdminAuditEvent['outcome'], string> = {
+  success: 'bg-muted text-muted-foreground',
+  denied: 'bg-warning/10 text-warning',
+  failure: 'bg-destructive/10 text-destructive',
+}
+
 /**
  * The outcome with its semantic tone: success stays neutral, a denial is a
- * warning and a failure is destructive. Design-system tokens only.
+ * warning and a failure is destructive. One style family — a subtle tint with
+ * the matching text — so no outcome shouts louder than the others.
+ * Design-system tokens only.
  */
 export function AuditOutcomeBadge({
   outcome,
 }: Readonly<{ outcome: AdminAuditEvent['outcome'] }>) {
-  if (outcome === 'failure') {
-    return <Badge variant="destructive">{outcomeLabel(outcome)}</Badge>
+  return (
+    <Badge
+      variant="outline"
+      className={cn('border-transparent', OUTCOME_TONES[outcome])}
+    >
+      {outcomeLabel(outcome)}
+    </Badge>
+  )
+}
+
+/**
+ * The team and project an event concerns, stacked: the team on top, the
+ * project below in muted small text. "—" when it names neither.
+ */
+export function AuditScope({ event }: Readonly<{ event: AdminAuditEvent }>) {
+  if (!event.team_name && !event.project_name) {
+    return <span className="text-muted-foreground text-sm">—</span>
   }
-  if (outcome === 'denied') {
-    return (
-      <Badge
-        variant="outline"
-        className="border-warning/30 bg-warning/10 text-warning"
-      >
-        {outcomeLabel(outcome)}
-      </Badge>
-    )
-  }
-  return <Badge variant="secondary">{outcomeLabel(outcome)}</Badge>
+  return (
+    <span className="flex min-w-0 flex-col">
+      {event.team_name && (
+        <span className="truncate text-sm">{event.team_name}</span>
+      )}
+      {event.project_name && (
+        <span className="text-muted-foreground truncate text-xs">
+          {event.project_name}
+        </span>
+      )}
+    </span>
+  )
 }
 
 const RESOURCE_ICONS: Record<string, LucideIcon> = {
@@ -156,9 +181,9 @@ const RESOURCE_ICONS: Record<string, LucideIcon> = {
   feed: Rss,
   feed_item: MessageSquare,
   project: FolderKanban,
-  team: UsersRound,
   user: User,
   api_key: KeyRound,
+  oauth_client: Plug,
 }
 
 const RESOURCE_LABELS: Record<string, string> = Object.fromEntries(
@@ -186,7 +211,10 @@ export function AuditResource({
         className="text-muted-foreground size-4 shrink-0"
         aria-label={type}
       />
-      <span className="truncate text-sm">
+      <span
+        className="truncate text-sm"
+        title={event.resource_name ?? event.resource_id ?? undefined}
+      >
         {event.resource_name ?? event.resource_id ?? type}
       </span>
     </span>

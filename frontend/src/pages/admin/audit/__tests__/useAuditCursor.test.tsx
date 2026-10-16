@@ -24,11 +24,6 @@ describe('auditCursorReducer', () => {
       INITIAL_CURSOR_STATE
     )
   })
-
-  it('resets to the first page', () => {
-    const state = auditCursorReducer({ stack: ['c1', 'c2'] }, { type: 'reset' })
-    expect(state).toEqual(INITIAL_CURSOR_STATE)
-  })
 })
 
 describe('useAuditCursor', () => {
@@ -72,6 +67,24 @@ describe('useAuditCursor', () => {
     expect(result.current.pageNumber).toBe(2)
 
     rerender({ key: 'filters-b' })
+
+    expect(result.current).toMatchObject({ cursor: undefined, pageNumber: 1 })
+  })
+
+  it('stays reset when the filters return to an earlier set', () => {
+    const { result, rerender } = renderHook(({ key }) => useAuditCursor(key), {
+      initialProps: { key: 'filters-a' },
+    })
+    act(() => {
+      result.current.next('c1')
+    })
+    act(() => {
+      result.current.next('c2')
+    })
+    expect(result.current.pageNumber).toBe(3)
+
+    rerender({ key: 'filters-b' })
+    rerender({ key: 'filters-a' })
 
     expect(result.current).toMatchObject({ cursor: undefined, pageNumber: 1 })
   })

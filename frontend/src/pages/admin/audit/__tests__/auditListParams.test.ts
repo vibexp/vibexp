@@ -22,23 +22,14 @@ describe('the default range', () => {
   })
 
   it('applies only when the URL carries no range', () => {
-    expect(effectiveAuditRange({}, NOW)).toEqual({
-      range: defaultAuditRange(NOW),
-      isDefault: true,
-    })
+    expect(effectiveAuditRange({}, NOW)).toEqual(defaultAuditRange(NOW))
     const explicit = { from: new Date(2026, 0, 1), to: new Date(2026, 0, 31) }
-    expect(effectiveAuditRange(explicit, NOW)).toEqual({
-      range: explicit,
-      isDefault: false,
-    })
+    expect(effectiveAuditRange(explicit, NOW)).toBe(explicit)
   })
 
   it('keeps a one-sided URL range one-sided', () => {
     const fromOnly = { from: new Date(2026, 0, 1) }
-    expect(effectiveAuditRange(fromOnly, NOW)).toEqual({
-      range: fromOnly,
-      isDefault: false,
-    })
+    expect(effectiveAuditRange(fromOnly, NOW)).toBe(fromOnly)
   })
 })
 
@@ -70,11 +61,10 @@ describe('buildAuditListParams', () => {
         source: 'mcp,cli',
         outcome: 'denied',
       },
-      { range, limit: 25, cursor: 'abc' }
+      { range, limit: 25 }
     )
     expect(params).toMatchObject({
       limit: 25,
-      cursor: 'abc',
       q: 'ada@example.com',
       actor_user_id: 'u-1',
       team_id: 't-1',
@@ -110,10 +100,13 @@ describe('buildAuditListParams', () => {
   })
 
   it('exports the same filters without the cursor or page size', () => {
-    const params = buildAuditListParams(
-      { ...AUDIT_FILTER_DEFAULTS, team_id: 't-1', outcome: 'failure' },
-      { range, limit: AUDIT_PAGE_SIZE, cursor: 'next' }
-    )
+    const params = {
+      ...buildAuditListParams(
+        { ...AUDIT_FILTER_DEFAULTS, team_id: 't-1', outcome: 'failure' },
+        { range, limit: AUDIT_PAGE_SIZE }
+      ),
+      cursor: 'next',
+    }
     const exported = auditExportParams(params)
     expect(exported).not.toHaveProperty('cursor')
     expect(exported).not.toHaveProperty('limit')

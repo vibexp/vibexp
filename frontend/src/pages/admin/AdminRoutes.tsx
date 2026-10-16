@@ -23,10 +23,10 @@ import { AdminSiteInfoSettings } from '@/pages/admin/settings/site-info/AdminSit
  * `/admin/users/:id`, `/admin/teams`, `/admin/teams/:id`.
  *
  * `/admin/projects` and `/admin/projects/:id` were added in #461, completing the
- * four sections the sidebar advertises. `/admin/audit` (#1517) follows them. `/admin/settings/email` (#1191) is
- * the first entry of the sidebar's "Settings" group; Search and AI Summary
- * (#1202) and Authentication (#1239) follow it; Site info (#1358) leads the
- * group.
+ * four sections the sidebar advertises; `/admin/audit` (#1517) follows them.
+ * `/admin/settings/email` (#1191) is the first entry of the sidebar's
+ * "Settings" group; Search and AI Summary (#1202) and Authentication (#1239)
+ * follow it; Site info (#1358) leads the group.
  */
 export function AdminRoutes() {
   return (
