@@ -9,7 +9,6 @@ import (
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
-	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 // ErrInvalidAuditSettings is returned when a submitted set of audit-log
@@ -49,13 +48,13 @@ type InstanceAuditSettingsServiceInterface interface {
 //
 // Get, Update and Reset read the row on every call. A successful Update or
 // Reset drops the cached capture switch, so the change applies to the very
-// next event recorded through this process, and records an
-// audit.settings.updated event with the values before and after.
+// next event recorded through this process. The change reaches the audit log
+// as audit.settings.updated through the instance settings observer (#1515),
+// once its instance_settings_audit entry commits.
 type InstanceAuditSettingsService struct {
-	repo     repositories.InstanceAuditSettingsRepository
-	capture  auditCaptureInvalidator
-	recorder audit.Recorder
-	logger   *slog.Logger
+	repo    repositories.InstanceAuditSettingsRepository
+	capture auditCaptureInvalidator
+	logger  *slog.Logger
 }
 
 // auditCaptureInvalidator drops a cached capture switch after a write;
@@ -67,15 +66,13 @@ type auditCaptureInvalidator interface {
 var _ InstanceAuditSettingsServiceInterface = (*InstanceAuditSettingsService)(nil)
 
 // NewInstanceAuditSettingsService creates a new InstanceAuditSettingsService.
-// capture is the switch the audit recorder consults; recorder records each
-// change in the audit log itself.
+// capture is the switch the audit recorder consults.
 func NewInstanceAuditSettingsService(
 	repo repositories.InstanceAuditSettingsRepository,
 	capture auditCaptureInvalidator,
-	recorder audit.Recorder,
 	logger *slog.Logger,
 ) *InstanceAuditSettingsService {
-	return &InstanceAuditSettingsService{repo: repo, capture: capture, recorder: recorder, logger: logger}
+	return &InstanceAuditSettingsService{repo: repo, capture: capture, logger: logger}
 }
 
 // Get implements InstanceAuditSettingsServiceInterface.
@@ -106,69 +103,30 @@ func (s *InstanceAuditSettingsService) Update(
 		CaptureIPUA:    values.CaptureIPUA,
 		UpdatedBy:      optionalActor(actorUserID),
 	}
-	change := &auditSettingsChange{}
 	err := s.repo.UpsertAudited(ctx, stored, expectedVersion,
-		change.observe(instanceAuditSettingsAuditFunc(models.InstanceSettingsAuditActionUpsert, actorUserID)))
+		instanceAuditSettingsAuditFunc(models.InstanceSettingsAuditActionUpsert, actorUserID))
 	if err != nil {
 		return nil, fmt.Errorf("InstanceAuditSettingsService.Update: %w", err)
 	}
-	s.applied(ctx, change)
+	// The instance settings observer has already dropped the cache when one is
+	// registered (#1515); this covers a process without one (tests, tools), so
+	// the next event follows the change either way.
+	s.capture.Invalidate()
 
 	return instanceAuditSettingsView(stored), nil
 }
 
 // Reset implements InstanceAuditSettingsServiceInterface.
 func (s *InstanceAuditSettingsService) Reset(ctx context.Context, actorUserID string) error {
-	change := &auditSettingsChange{}
 	deleted, err := s.repo.DeleteAudited(ctx,
-		change.observe(instanceAuditSettingsAuditFunc(models.InstanceSettingsAuditActionDelete, actorUserID)))
+		instanceAuditSettingsAuditFunc(models.InstanceSettingsAuditActionDelete, actorUserID))
 	if err != nil {
 		return fmt.Errorf("InstanceAuditSettingsService.Reset: %w", err)
 	}
 	if deleted {
-		s.applied(ctx, change)
+		s.capture.Invalidate()
 	}
 	return nil
-}
-
-// applied runs after a committed write: it drops the cached capture switch and
-// records the change in the audit log. The settings are in effect either way,
-// so nothing here can fail the write.
-func (s *InstanceAuditSettingsService) applied(ctx context.Context, change *auditSettingsChange) {
-	s.capture.Invalidate()
-	s.recorder.Record(ctx, audit.Event{
-		Operation: models.AuditOpAuditSettingsUpdated,
-		Metadata: map[string]any{
-			"before": auditSettingsEventValues(change.before),
-			"after":  auditSettingsEventValues(change.after),
-		},
-	})
-}
-
-// auditSettingsChange captures the rows the repository hands the audit
-// builder inside its transaction, so the audit event reports exactly the
-// before and after the settings audit entry stored.
-type auditSettingsChange struct {
-	before, after *models.InstanceAuditSettings
-}
-
-// observe wraps build so the rows it is called with are kept.
-func (c *auditSettingsChange) observe(
-	build repositories.InstanceAuditSettingsAuditFunc,
-) repositories.InstanceAuditSettingsAuditFunc {
-	return func(before, after *models.InstanceAuditSettings) (*models.InstanceSettingsAuditEntry, error) {
-		c.before, c.after = before, after
-		return build(before, after)
-	}
-}
-
-// auditSettingsEventValues renders a row as the event metadata's values: nil
-// (JSON null) for no row, meaning the built-in defaults applied.
-func auditSettingsEventValues(row *models.InstanceAuditSettings) any {
-	if row == nil {
-		return nil
-	}
-	return instanceAuditSettingsValues(row)
 }
 
 // instanceAuditSettingsAuditFunc builds the instance_settings_audit entry for

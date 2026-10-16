@@ -155,6 +155,8 @@ func TestIntegrationInstanceSettingsAudit_UnredactedSnapshotWritesNothing(t *tes
 	resetInstanceSettingsAuditTables(t)
 	ctx := context.Background()
 	repo := newInstanceSettingsAuditRepo()
+	observed := observeSettings(t)
+	t.Cleanup(func() { assert.Empty(t, observed.settings(), "a rejected entry never reaches the audit log") })
 
 	doc, err := json.Marshal(map[string]string{"secret_encrypted": instanceSettingsAuditLeakSentinel})
 	require.NoError(t, err)

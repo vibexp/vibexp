@@ -12,6 +12,7 @@ import (
 	"github.com/vibexp/vibexp/internal/auth/password"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 	"github.com/vibexp/vibexp/pkg/events"
 )
 
@@ -113,6 +114,9 @@ type InvitationRegistrationDeps struct {
 	// workspace and default project are provisioned.
 	Events events.EventPublisher
 	Logger *slog.Logger
+	// Audit records the invitation accepted by a registration (#1515); nil
+	// records nothing.
+	Audit audit.Recorder
 }
 
 // InvitationRegistrationService implements InvitationRegistrationServiceInterface.
@@ -261,6 +265,8 @@ func (s *InvitationRegistrationService) Register(
 	}
 	result.InvitationAccepted = true
 	log.Info("Account registered through an invitation and joined the team")
+	// The registration route is public: the new account is the actor.
+	audit.SafeRecord(ctx, s.deps.Audit, invitationEvent(user.ID, invitation, "", models.AuditOpTeamInviteAccepted))
 	return result, nil
 }
 

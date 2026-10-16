@@ -46,6 +46,12 @@ func insertSingletonIfAbsent(
 // with itself and every other write but not with plain reads, so requests
 // resolving the settings are never blocked.
 //
+// It is also the only place an instance settings audit entry may be appended
+// on a transaction (#1515): it opens the transaction's slot for those entries,
+// reports them to the database's InstanceSettingsAuditObserver after the
+// commit, and drops them on rollback. appendInstanceSettingsAudit refuses a
+// transaction it did not open.
+//
 // subject names the settings in errors and logs (e.g. "instance search
 // settings"); op names the change ("upsert", "delete").
 func runAuditedSingletonTx[T any](
@@ -57,7 +63,14 @@ func runAuditedSingletonTx[T any](
 	if err != nil {
 		return fmt.Errorf("failed to begin %s %s: %w", subject, op, err)
 	}
+	// Open the transaction's slot for the instance settings audit entries it
+	// appends (#1515): they are reported to the database's observer once the
+	// commit below succeeds, and dropped otherwise.
+	openPendingAudits(tx)
 	defer func() {
+		// Entries of a transaction that did not commit are never reported; a
+		// committed one's were taken below. Either way the slot is closed.
+		takeHeld(tx)
 		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
 			slog.Error("Failed to rollback singleton settings transaction",
 				"subject", subject, "op", op, "error", rollbackErr)
@@ -83,6 +96,9 @@ func runAuditedSingletonTx[T any](
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit %s %s: %w", subject, op, err)
+	}
+	for _, entry := range takeHeld(tx) {
+		notifyInstanceSettingsAudited(ctx, db, entry)
 	}
 	return nil
 }

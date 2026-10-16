@@ -294,3 +294,8 @@ func TestCopyableResourceTypes_CoversEveryCustomisableResource(t *testing.T) {
 	// result and writes the same audit detail — map iteration order would not.
 	assert.True(t, sort.StringsAreSorted(got), "got %v", got)
 }
+
+// Allows is the non-recording check; a test double answers it from Can.
+func (d denyTeamsAuthz) Allows(ctx context.Context, userID, teamID string, perm authz.Permission) (bool, error) {
+	return allowsFromCan(d.Can(ctx, userID, teamID, perm))
+}

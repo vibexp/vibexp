@@ -145,3 +145,8 @@ func TestGitHubAppConfigService_UsesTeamSettingsUpdate(t *testing.T) {
 	assert.Equal(t, authz.TeamSettingsUpdate, rec.got[0],
 		"an App registration is team configuration, not team identity")
 }
+
+// Allows is the non-recording check; a test double answers it from Can.
+func (r *recordingAuthz) Allows(ctx context.Context, userID, teamID string, perm authz.Permission) (bool, error) {
+	return allowsFromCan(r.Can(ctx, userID, teamID, perm))
+}

@@ -147,3 +147,19 @@ func TestAuditClientInfoCapture_CallerCancellationDoesNotPoisonCache(t *testing.
 	assert.True(t, h.capture.CaptureClientInfo(cancelled), "a cancelled caller still gets the real value")
 	assert.True(t, h.capture.CaptureClientInfo(context.Background()), "and the cache holds it, not a fallback")
 }
+
+// A committed audit-log settings change drops the cached switch through the
+// instance settings observer (#1515); any other setting leaves it.
+func TestAuditClientInfoCapture_ObservesAuditLogSettingsChanges(t *testing.T) {
+	h := newAuditSettingsHarness(t, nil)
+	ctx := context.Background()
+	h.repo.EXPECT().Get(mock.Anything).Return(nil, repositories.ErrInstanceAuditSettingsNotFound).Once()
+	require.True(t, h.capture.CaptureClientInfo(ctx))
+
+	h.capture.OnInstanceSettingsAudited(ctx, models.InstanceSettingsAuditEntry{Setting: models.InstanceSettingSearch})
+	assert.True(t, h.capture.CaptureClientInfo(ctx), "still cached: the mock allows one read only")
+
+	h.capture.OnInstanceSettingsAudited(ctx, models.InstanceSettingsAuditEntry{Setting: models.InstanceSettingAuditLog})
+	h.repo.EXPECT().Get(mock.Anything).Return(storedAuditSettingsRow(), nil).Once()
+	assert.False(t, h.capture.CaptureClientInfo(ctx), "the audit-log change dropped the cache")
+}

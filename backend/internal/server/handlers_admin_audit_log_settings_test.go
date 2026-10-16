@@ -22,7 +22,6 @@ import (
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	"github.com/vibexp/vibexp/internal/services"
-	"github.com/vibexp/vibexp/internal/services/audit"
 	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
 	"github.com/vibexp/vibexp/internal/specconformance"
 )
@@ -84,17 +83,7 @@ type auditLogSettingsFixture struct {
 	repo     *fakeAuditSettingsRepo
 	service  *services.InstanceAuditSettingsService
 	capture  *services.AuditClientInfoCapture
-	recorder *recordingRecorder
 	userRepo *repomocks.MockUserRepository
-}
-
-// recordingRecorder is an audit.Recorder that keeps every event.
-type recordingRecorder struct {
-	events []audit.Event
-}
-
-func (r *recordingRecorder) Record(_ context.Context, e audit.Event) {
-	r.events = append(r.events, e)
 }
 
 func newAuditLogSettingsFixture(t *testing.T) *auditLogSettingsFixture {
@@ -111,8 +100,7 @@ func newAuditLogSettingsFixture(t *testing.T) *auditLogSettingsFixture {
 		userRepo: repomocks.NewMockUserRepository(t),
 	}
 	f.capture = services.NewAuditClientInfoCapture(f.repo, slog.New(slog.DiscardHandler))
-	f.recorder = &recordingRecorder{}
-	f.service = services.NewInstanceAuditSettingsService(f.repo, f.capture, f.recorder, slog.New(slog.DiscardHandler))
+	f.service = services.NewInstanceAuditSettingsService(f.repo, f.capture, slog.New(slog.DiscardHandler))
 	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{
 		userRepo:                     f.userRepo,
 		instanceAuditRepo:            audit,
@@ -243,15 +231,9 @@ func TestAdminAuditLogSettings_RoundTrip(t *testing.T) {
 	assert.JSONEq(t, `{"retention_weeks":4,"capture_ip_ua":false}`, string(f.audit.entries[1].Before))
 	assert.JSONEq(t, `{"retention_weeks":52,"capture_ip_ua":true}`, string(f.audit.entries[1].After))
 	assert.Nil(t, f.audit.entries[2].After, "a reset removes the row")
-
-	require.Len(t, f.recorder.events, 3, "each real change is also an audit.settings.updated event")
-	for _, e := range f.recorder.events {
-		assert.Equal(t, models.AuditOpAuditSettingsUpdated, e.Operation)
-	}
-	assert.Equal(t, map[string]any{
-		"before": models.InstanceAuditSettingsValues{RetentionWeeks: 52, CaptureIPUA: true},
-		"after":  nil,
-	}, f.recorder.events[2].Metadata)
+	// Each of these entries reaches the audit log as one audit.settings.updated
+	// event through the instance settings observer once it commits (#1515);
+	// the repository integration tests cover that hook.
 }
 
 // A PUT through the API switches the capture the recorder consults at once,

@@ -61,6 +61,7 @@ func (a *adminStrictServer) CreateAdminUser(
 	}
 
 	a.recordUserMutationActivity(ctx, activities.ActivityTypeAdminUserCreated, detail.ID, detail.Email, nil)
+	a.s.auditAdminUserCreated(ctx, detail.ID, detail.Email, teams)
 
 	// The account exists from here on; how its owner gets in never fails the
 	// creation (an email that could not be sent is reported in setup).

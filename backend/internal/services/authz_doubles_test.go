@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 
 	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/models"
@@ -31,4 +32,18 @@ func (allowAllAuthz) Authorize(
 	_ context.Context, _, _ string, _ authz.Permission,
 ) (models.TeamMemberRole, error) {
 	panic("allowAllAuthz: unexpected Authorize call — give this test an explicit authz double")
+}
+
+// Allows is the non-recording check; a test double answers it from Can.
+func (x allowAllAuthz) Allows(ctx context.Context, userID, teamID string, perm authz.Permission) (bool, error) {
+	return allowsFromCan(x.Can(ctx, userID, teamID, perm))
+}
+
+// allowsFromCan turns a Can result into Allows's answer: a denial is false, a
+// database error stays an error.
+func allowsFromCan(err error) (bool, error) {
+	if errors.Is(err, ErrPermissionDenied) {
+		return false, nil
+	}
+	return err == nil, err
 }

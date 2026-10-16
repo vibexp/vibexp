@@ -200,3 +200,8 @@ func TestInstallationAuthorityErrorsAreSentinels(t *testing.T) {
 	assert.True(t, errors.Is(
 		errors.Join(errors.New("outer"), ErrGitHubUserAuthUnavailable), ErrGitHubUserAuthUnavailable))
 }
+
+// Allows is the non-recording check; a test double answers it from Can.
+func (x denyAllAuthz) Allows(ctx context.Context, userID, teamID string, perm authz.Permission) (bool, error) {
+	return allowsFromCan(x.Can(ctx, userID, teamID, perm))
+}

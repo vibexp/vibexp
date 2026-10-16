@@ -14,6 +14,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/audit"
 	"github.com/vibexp/vibexp/pkg/events"
@@ -57,7 +58,12 @@ func TestIntegrationAuditCapture_SettingDecidesClientInfo(t *testing.T) {
 		Drops:    drops,
 		Logger:   logger,
 	})
-	settings := services.NewInstanceAuditSettingsService(settingsRepo, capture, recorder, logger)
+	settings := services.NewInstanceAuditSettingsService(settingsRepo, capture, logger)
+	// As the container wires it (#1515): the capture switch, then the
+	// recorder, observe each committed instance settings change.
+	t.Cleanup(RegisterInstanceSettingsAuditObserver(integrationDB, repositories.InstanceSettingsAuditObservers{
+		capture, audit.NewInstanceSettingsObserver(recorder),
+	}))
 
 	// A request as the HTTP middleware leaves it: request id, client IP, UA.
 	reqCtx := context.WithValue(ctx, contextkeys.RequestID, "req-capture")

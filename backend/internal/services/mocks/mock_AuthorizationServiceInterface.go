@@ -25,6 +25,65 @@ func (_m *MockAuthorizationServiceInterface) EXPECT() *MockAuthorizationServiceI
 	return &MockAuthorizationServiceInterface_Expecter{mock: &_m.Mock}
 }
 
+// Allows provides a mock function with given fields: ctx, userID, teamID, perm
+func (_m *MockAuthorizationServiceInterface) Allows(ctx context.Context, userID string, teamID string, perm authz.Permission) (bool, error) {
+	ret := _m.Called(ctx, userID, teamID, perm)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Allows")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, authz.Permission) (bool, error)); ok {
+		return rf(ctx, userID, teamID, perm)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, authz.Permission) bool); ok {
+		r0 = rf(ctx, userID, teamID, perm)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, authz.Permission) error); ok {
+		r1 = rf(ctx, userID, teamID, perm)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAuthorizationServiceInterface_Allows_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Allows'
+type MockAuthorizationServiceInterface_Allows_Call struct {
+	*mock.Call
+}
+
+// Allows is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - teamID string
+//   - perm authz.Permission
+func (_e *MockAuthorizationServiceInterface_Expecter) Allows(ctx interface{}, userID interface{}, teamID interface{}, perm interface{}) *MockAuthorizationServiceInterface_Allows_Call {
+	return &MockAuthorizationServiceInterface_Allows_Call{Call: _e.mock.On("Allows", ctx, userID, teamID, perm)}
+}
+
+func (_c *MockAuthorizationServiceInterface_Allows_Call) Run(run func(ctx context.Context, userID string, teamID string, perm authz.Permission)) *MockAuthorizationServiceInterface_Allows_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(authz.Permission))
+	})
+	return _c
+}
+
+func (_c *MockAuthorizationServiceInterface_Allows_Call) Return(_a0 bool, _a1 error) *MockAuthorizationServiceInterface_Allows_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAuthorizationServiceInterface_Allows_Call) RunAndReturn(run func(context.Context, string, string, authz.Permission) (bool, error)) *MockAuthorizationServiceInterface_Allows_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Authorize provides a mock function with given fields: ctx, userID, teamID, perm
 func (_m *MockAuthorizationServiceInterface) Authorize(ctx context.Context, userID string, teamID string, perm authz.Permission) (models.TeamMemberRole, error) {
 	ret := _m.Called(ctx, userID, teamID, perm)
