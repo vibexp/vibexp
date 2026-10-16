@@ -471,6 +471,7 @@ func TestHandleUpdateMemory_Success(t *testing.T) {
 
 	mockContainer.memoryService.On(
 		"UpdateMemory",
+		mock.Anything,
 		"test-user-123",
 		mock.Anything,
 		memoriesTestMemoryID,
@@ -507,7 +508,7 @@ func TestHandleUpdateMemory_Success(t *testing.T) {
 func TestHandleUpdateMemory_NotFound(t *testing.T) {
 	mockContainer := newMockMemoryContainer(t)
 
-	mockContainer.memoryService.On("UpdateMemory", "test-user-123", mock.Anything, memoriesTestMissingID, mock.Anything).
+	mockContainer.memoryService.On("UpdateMemory", mock.Anything, "test-user-123", mock.Anything, memoriesTestMissingID, mock.Anything).
 		Return(nil, repositories.ErrMemoryNotFound)
 
 	srv := createMemoryTestServer(mockContainer)
@@ -762,6 +763,7 @@ func TestHandleUpdateMemory_OnlyProjectID(t *testing.T) {
 
 	mockContainer.memoryService.On(
 		"UpdateMemory",
+		mock.Anything,
 		"test-user-123",
 		mock.Anything,
 		memoriesTestMemoryID,

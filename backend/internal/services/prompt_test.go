@@ -590,7 +590,7 @@ func TestPromptService_DeletePrompt(t *testing.T) {
 			service := createTestPromptService(mockRepo, nil)
 			tt.setup(mockRepo)
 
-			err := service.DeletePrompt(tt.userID, "team-123", tt.promptID)
+			err := service.DeletePrompt(context.Background(), tt.userID, "team-123", tt.promptID)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -615,7 +615,7 @@ func TestPromptService_DeletePromptBySlug(t *testing.T) {
 		mockRepo.On("Delete", mock.AnythingOfType("context.backgroundCtx"), "user-123", mock.Anything, "prompt-123").
 			Return(nil)
 
-		err := service.DeletePromptBySlug("user-123", "team-123", "test-prompt")
+		err := service.DeletePromptBySlug(context.Background(), "user-123", "team-123", "test-prompt")
 
 		assert.NoError(t, err)
 	})
@@ -1608,7 +1608,7 @@ func TestPromptService_DeletePrompt_WithDependencies(t *testing.T) {
 		mockRefRepo.On("GetPromptsUsingPrompt", mock.Anything, userID, promptID).
 			Return(dependents, nil)
 
-		err := service.DeletePrompt(userID, "team-123", promptID)
+		err := service.DeletePrompt(context.Background(), userID, "team-123", promptID)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot delete prompt")
@@ -1645,7 +1645,7 @@ func TestPromptService_DeletePrompt_WithDependencies(t *testing.T) {
 		mockRefRepo.On("HasDependents", mock.Anything, promptID).Return(false, nil)
 		mockRepo.On("Delete", mock.Anything, userID, mock.Anything, promptID).Return(nil)
 
-		err := service.DeletePrompt(userID, "team-123", promptID)
+		err := service.DeletePrompt(context.Background(), userID, "team-123", promptID)
 
 		assert.NoError(t, err)
 		mockRefRepo.AssertExpectations(t)

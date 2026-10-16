@@ -636,7 +636,7 @@ func (s *PromptService) RestorePromptVersion(
 	)
 }
 
-func (s *PromptService) DeletePromptBySlug(userID, teamID, slug string) error {
+func (s *PromptService) DeletePromptBySlug(ctx context.Context, userID, teamID, slug string) error {
 	existingPrompt, err := s.GetPromptBySlug(userID, teamID, slug)
 	if err != nil {
 		return err
@@ -644,16 +644,17 @@ func (s *PromptService) DeletePromptBySlug(userID, teamID, slug string) error {
 
 	// Hand the already-loaded prompt straight through: the own-vs-any check needs
 	// its owner, and re-fetching it by ID would be a second identical read.
-	return s.deleteFetchedPrompt(context.Background(), userID, teamID, existingPrompt)
+	return s.deleteFetchedPrompt(ctx, userID, teamID, existingPrompt)
 }
 
-func (s *PromptService) DeletePrompt(userID, teamID, promptID string) error {
-	ctx := context.Background()
+func (s *PromptService) DeletePrompt(ctx context.Context, userID, teamID, promptID string) error {
+	// Only authorization takes the caller's ctx; the rest stays as before (#1541).
+	bgCtx := context.Background()
 
 	// Fetch first to learn who created the prompt: delete is own-vs-any (members
 	// delete only what they authored; Admin+ delete anyone's), and the
 	// repository no longer carries that decision in its SQL.
-	existingPrompt, err := s.repo.GetByID(ctx, userID, teamID, promptID)
+	existingPrompt, err := s.repo.GetByID(bgCtx, userID, teamID, promptID)
 	if err != nil {
 		return err
 	}
@@ -673,6 +674,9 @@ func (s *PromptService) deleteFetchedPrompt(
 		return authzErr
 	}
 
+	// Only authorization takes the caller's ctx; the rest stays as before (#1541).
+	bgCtx := context.Background()
+
 	// A locked prompt cannot be deleted by anyone, owners and admins included
 	// (#1289); it has to be unlocked first.
 	if lockErr := guardLockedDelete(models.RelationResourceTypePrompt, existingPrompt.Lock); lockErr != nil {
@@ -682,7 +686,7 @@ func (s *PromptService) deleteFetchedPrompt(
 	promptID := existingPrompt.ID
 
 	// Check if the prompt has dependents (is being used by other prompts)
-	hasDependents, err := s.refRepo.HasDependents(ctx, promptID)
+	hasDependents, err := s.refRepo.HasDependents(bgCtx, promptID)
 	if err != nil {
 		s.logger.With("error", err).Error("Failed to check prompt dependencies")
 		return fmt.Errorf("failed to check prompt dependencies: %w", err)
@@ -690,7 +694,7 @@ func (s *PromptService) deleteFetchedPrompt(
 
 	if hasDependents {
 		// Get the list of dependent prompts for the error message
-		dependents, depErr := s.refRepo.GetPromptsUsingPrompt(ctx, userID, promptID)
+		dependents, depErr := s.refRepo.GetPromptsUsingPrompt(bgCtx, userID, promptID)
 		if depErr != nil {
 			s.logger.With("error", depErr).Error("Failed to get dependent prompts")
 			return fmt.Errorf("cannot delete prompt: it is being used by other prompts")
@@ -708,15 +712,15 @@ func (s *PromptService) deleteFetchedPrompt(
 		)
 	}
 
-	err = s.repo.Delete(ctx, userID, teamID, promptID)
+	err = s.repo.Delete(bgCtx, userID, teamID, promptID)
 	if err != nil {
 		s.logger.With("error", err).Error("Failed to delete prompt")
 		return err
 	}
 
-	s.deletePromptComments(ctx, teamID, promptID)
-	s.deletePromptRelations(ctx, teamID, promptID)
-	s.deletePromptFreshness(ctx, teamID, promptID)
+	s.deletePromptComments(bgCtx, teamID, promptID)
+	s.deletePromptRelations(bgCtx, teamID, promptID)
+	s.deletePromptFreshness(bgCtx, teamID, promptID)
 
 	s.logger.With(
 		"prompt_id", promptID,

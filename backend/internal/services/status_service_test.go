@@ -180,7 +180,7 @@ func TestMemoryService_RejectsStatusOutsideCatalog(t *testing.T) {
 		svc := createTestMemoryService(repo)
 
 		status := models.PromptStatusPublished
-		_, err := svc.UpdateMemory(userID, teamID, memoryID,
+		_, err := svc.UpdateMemory(context.Background(), userID, teamID, memoryID,
 			&models.UpdateMemoryRequest{Status: &status})
 
 		require.ErrorIs(t, err, ErrInvalidStatus)
@@ -481,7 +481,7 @@ func TestMemoryService_CustomStatus(t *testing.T) {
 		})).Return(nil).Once()
 
 		status := "memory-review"
-		_, err := newSvc(repo).UpdateMemory(userID, statusTestTeam, memoryID,
+		_, err := newSvc(repo).UpdateMemory(context.Background(), userID, statusTestTeam, memoryID,
 			&models.UpdateMemoryRequest{Status: &status})
 
 		require.NoError(t, err)
@@ -502,7 +502,7 @@ func TestMemoryService_CustomStatus(t *testing.T) {
 			Return(&models.Memory{ID: memoryID, UserID: userID, TeamID: statusTestOtherTeam}, nil).Once()
 
 		status := "memory-review"
-		_, err := newSvc(repo).UpdateMemory(userID, statusTestTeam, memoryID,
+		_, err := newSvc(repo).UpdateMemory(context.Background(), userID, statusTestTeam, memoryID,
 			&models.UpdateMemoryRequest{Status: &status})
 
 		require.ErrorIs(t, err, ErrInvalidStatus)

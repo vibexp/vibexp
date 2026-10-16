@@ -324,7 +324,7 @@ func memoryStatusConfirmCase() statusConfirmCase {
 					Status: stored}, nil).Once()
 			repo.EXPECT().Update(mock.Anything, mock.Anything).Return(nil).Once()
 			text := statusConfirmText
-			memory, err := newSvc(repo, catalog).UpdateMemory(statusConfirmUser, statusTestTeam, statusConfirmID,
+			memory, err := newSvc(repo, catalog).UpdateMemory(context.Background(), statusConfirmUser, statusTestTeam, statusConfirmID,
 				&models.UpdateMemoryRequest{Text: &text, Status: status})
 			if err != nil {
 				return "", "", err

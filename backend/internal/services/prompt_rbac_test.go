@@ -178,7 +178,7 @@ func TestPromptService_DeletePrompt_OwnVsAny(t *testing.T) {
 			}
 
 			svc := promptServiceForRole(t, repo, refRepo, tc.role)
-			err := svc.DeletePrompt(promptRBACCaller, promptRBACTeamID, promptRBACPromptID)
+			err := svc.DeletePrompt(context.Background(), promptRBACCaller, promptRBACTeamID, promptRBACPromptID)
 
 			if tc.allowed {
 				require.NoError(t, err)

@@ -132,7 +132,7 @@ func TestMemoryService_UpdateMemory_AnyMemberMayUpdateAnothers(t *testing.T) {
 		Authz:  authzForRole(t, models.TeamMemberRoleMember),
 		Logger: logger,
 	})
-	_, err := svc.UpdateMemory(resRBACCaller, resRBACTeamID, memoryID, &models.UpdateMemoryRequest{Text: &text})
+	_, err := svc.UpdateMemory(context.Background(), resRBACCaller, resRBACTeamID, memoryID, &models.UpdateMemoryRequest{Text: &text})
 
 	assert.NoError(t, err)
 }

@@ -93,7 +93,7 @@ func TestDeleteResource_LockedSurfacesTheLockComment(t *testing.T) {
 			expect: func(m *deleteResourceMocks, refusal error) {
 				m.prompt.On("GetPromptBySlug", testMemberUserID, testTeamUUID, "p").
 					Return(&models.Prompt{ID: "prompt-1"}, nil)
-				m.prompt.On("DeletePromptBySlug", testMemberUserID, testTeamUUID, "p").Return(refusal)
+				m.prompt.On("DeletePromptBySlug", mock.Anything, testMemberUserID, testTeamUUID, "p").Return(refusal)
 			},
 		},
 		{

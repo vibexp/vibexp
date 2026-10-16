@@ -74,8 +74,8 @@ type PromptServiceInterface interface {
 	UpdatePrompt(
 		ctx context.Context, userID, teamID, promptID string, req *models.UpdatePromptRequest,
 	) (*models.Prompt, error)
-	DeletePromptBySlug(userID, teamID, slug string) error
-	DeletePrompt(userID, teamID, promptID string) error
+	DeletePromptBySlug(ctx context.Context, userID, teamID, slug string) error
+	DeletePrompt(ctx context.Context, userID, teamID, promptID string) error
 	RenderPrompt(
 		userID, teamID, slug string, placeholders map[string]string, opts RenderOptions,
 	) (*models.RenderPromptResponse, error)
@@ -578,7 +578,9 @@ type MemoryServiceInterface interface {
 	CreateMemory(ctx context.Context, userID, teamID string, req *models.CreateMemoryRequest) (*models.Memory, error)
 	GetMemory(userID, teamID, memoryID string) (*models.Memory, error)
 	ListMemories(userID string, filters MemoryFilters) (*models.MemoryListResponse, error)
-	UpdateMemory(userID, teamID, memoryID string, req *models.UpdateMemoryRequest) (*models.Memory, error)
+	UpdateMemory(
+		ctx context.Context, userID, teamID, memoryID string, req *models.UpdateMemoryRequest,
+	) (*models.Memory, error)
 	DeleteMemory(ctx context.Context, userID, teamID, memoryID string) error
 	// ListMemoryVersions returns the content-version history (newest-first) for a memory
 	// identified by id. The memory is loaded through the authorization-enforcing
@@ -592,7 +594,7 @@ type MemoryServiceInterface interface {
 	// updated memory. origin is how the restore request arrived (#1418); it is
 	// stamped on the snapshot of the pre-restore text. Nil for an internal caller.
 	RestoreMemoryVersion(
-		userID, teamID, memoryID string, versionNumber int, origin *models.WriteOrigin,
+		ctx context.Context, userID, teamID, memoryID string, versionNumber int, origin *models.WriteOrigin,
 	) (*models.Memory, error)
 }
 

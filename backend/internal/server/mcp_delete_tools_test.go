@@ -109,7 +109,7 @@ func TestDeleteResource_PromptSuccess(t *testing.T) {
 	srv, m := newDeleteResourceTestServer(t)
 	m.prompt.On("GetPromptBySlug", testMemberUserID, testTeamUUID, "my-prompt").
 		Return(&models.Prompt{ID: "prompt-1"}, nil)
-	m.prompt.On("DeletePromptBySlug", testMemberUserID, testTeamUUID, "my-prompt").Return(nil)
+	m.prompt.On("DeletePromptBySlug", mock.Anything, testMemberUserID, testTeamUUID, "my-prompt").Return(nil)
 	m.embedding.On("DeleteEmbeddingsByEntity", resourceTypePrompt, "prompt-1").Return(nil)
 
 	params := &DeleteResourceParams{TeamID: testTeamUUID, ResourceType: "prompt", Slug: "my-prompt"}
@@ -293,7 +293,7 @@ func TestDeleteResource_PromptNotFound(t *testing.T) {
 	result, structured, err := srv.deleteResource(context.Background(), nil, params, testMemberUserID)
 
 	assertDeleteIsError(t, result, structured, err)
-	m.prompt.AssertNotCalled(t, "DeletePromptBySlug")
+	m.prompt.AssertNotCalled(t, "DeletePromptBySlug", mock.Anything)
 }
 
 // TestDeleteResource_EmbeddingFailureNonFatal proves a best-effort embeddings

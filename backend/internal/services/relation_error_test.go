@@ -208,5 +208,5 @@ func TestPromptService_Delete_RelationCascadeErrorIsSwallowed(t *testing.T) {
 		Logger:       logger,
 		RelationRepo: relationRepo,
 	})
-	require.NoError(t, svc.DeletePrompt(resRBACCaller, resRBACTeamID, promptID))
+	require.NoError(t, svc.DeletePrompt(context.Background(), resRBACCaller, resRBACTeamID, promptID))
 }

@@ -510,7 +510,7 @@ func mcpWriteCases() []mcpWriteCase {
 		{
 			name: "update_memory", resourceType: "memory", action: models.WriteActionUpdate, resourceID: memory.ID,
 			arrange: func(f *mcpWriteFixture, fail bool) {
-				call := f.memories.On("UpdateMemory", testMemberUserID, testTeamUUID, memory.ID,
+				call := f.memories.On("UpdateMemory", mock.Anything, testMemberUserID, testTeamUUID, memory.ID,
 					mock.MatchedBy(func(req *models.UpdateMemoryRequest) bool { return isMCPOrigin(req.WriteOrigin) }))
 				returnOrFail(call, fail, memory, errWrite)
 			},
@@ -801,7 +801,7 @@ func restWriteCases() []restWriteCase {
 			body:       `{"text":"new"}`,
 			wantStatus: http.StatusOK, resourceType: "memory", action: models.WriteActionUpdate, resourceID: memory.ID,
 			arrange: func(f *restWriteFixture, fail bool) {
-				call := f.memories.On("UpdateMemory", writeTestUserID, writeTestTeamID, writeTestMemoryID,
+				call := f.memories.On("UpdateMemory", mock.Anything, writeTestUserID, writeTestTeamID, writeTestMemoryID,
 					mock.MatchedBy(func(req *models.UpdateMemoryRequest) bool { return isRESTOrigin(req.WriteOrigin) }))
 				returnOrFail(call, fail, memory, errWrite)
 			},
@@ -843,7 +843,7 @@ func restWriteCases() []restWriteCase {
 			path:       base + "/memories/" + writeTestMemoryID + "/versions/2/restore",
 			wantStatus: http.StatusOK, resourceType: "memory", action: models.WriteActionUpdate, resourceID: memory.ID,
 			arrange: func(f *restWriteFixture, fail bool) {
-				call := f.memories.On("RestoreMemoryVersion",
+				call := f.memories.On("RestoreMemoryVersion", mock.Anything,
 					writeTestUserID, writeTestTeamID, writeTestMemoryID, 2, mock.MatchedBy(isRESTOrigin))
 				returnOrFail(call, fail, memory, errWrite)
 			},

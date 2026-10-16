@@ -42,6 +42,7 @@ type denialFixture struct {
 	router      chi.Router
 	projectRepo *repomocks.MockProjectRepository
 	memoryRepo  *repomocks.MockMemoryRepository
+	promptRepo  *repomocks.MockPromptRepository
 
 	mu   sync.Mutex
 	rows []models.AuditEvent
@@ -52,6 +53,7 @@ func newDenialFixture(t *testing.T) *denialFixture {
 	f := &denialFixture{
 		projectRepo: repomocks.NewMockProjectRepository(t),
 		memoryRepo:  repomocks.NewMockMemoryRepository(t),
+		promptRepo:  repomocks.NewMockPromptRepository(t),
 	}
 	logger := slog.New(slog.DiscardHandler)
 
@@ -74,6 +76,9 @@ func newDenialFixture(t *testing.T) *denialFixture {
 			MemoryServiceMock: services.NewMemoryService(services.MemoryServiceDeps{
 				Repo: f.memoryRepo, TeamService: teams, Authz: authzSvc, Logger: logger,
 			}),
+			PromptServiceMock: services.NewPromptService(services.PromptServiceDeps{
+				Repo: f.promptRepo, TeamService: teams, Authz: authzSvc, Logger: logger,
+			}),
 			TeamServiceMock:    teams,
 			TeamRepositoryMock: stubTeamResolution(t, []models.Team{memberTeam()}),
 		},
@@ -86,6 +91,7 @@ func newDenialFixture(t *testing.T) *denialFixture {
 	f.router.Use(RequestIDMiddleware(logger), clientIPMiddleware(nil), userAgentMiddleware)
 	f.srv.setupProjectsRoutes(f.router)
 	f.srv.mountMemoriesHandlers(f.router)
+	f.srv.mountPromptsHandlers(f.router)
 	return f
 }
 
@@ -193,6 +199,23 @@ func TestAuditDenial_MemoryDeleteOverAPIKey(t *testing.T) {
 	assert.Equal(t, denialTestAPIKeyID, *row.APIKeyID)
 	require.NotNil(t, row.APIKeyName)
 	assert.Equal(t, "laptop key", *row.APIKeyName)
+	assertRequestFacts(t, row)
+}
+
+// A member deleting someone else's prompt from the web app: the prompt
+// delete reaches its check through a helper (deleteFetchedPrompt).
+func TestAuditDenial_PromptDeleteOverWeb(t *testing.T) {
+	f := newDenialFixture(t)
+	f.promptRepo.EXPECT().GetBySlug(mock.Anything, testMemberUserID, testTeamUUID, "p").
+		Return(&models.Prompt{ID: auditTestPromptID, TeamID: testTeamUUID, UserID: denialTestOwnerID, Slug: "p"}, nil)
+
+	w := httptest.NewRecorder()
+	f.router.ServeHTTP(w, denialRequest(http.MethodDelete,
+		"/api/v1/"+testTeamUUID+"/prompts/p", "cookie", ""))
+
+	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+	row := f.onlyDenial(t)
+	assert.Equal(t, models.AuditSourceWeb, row.Source)
 	assertRequestFacts(t, row)
 }
 

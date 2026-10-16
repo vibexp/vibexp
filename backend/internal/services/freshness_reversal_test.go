@@ -226,7 +226,7 @@ func TestMemoryService_UpdateClearsFreshness(t *testing.T) {
 	})
 
 	text := "updated"
-	_, err := svc.UpdateMemory(reversalUserID, reversalTeamID, "memory-123",
+	_, err := svc.UpdateMemory(context.Background(), reversalUserID, reversalTeamID, "memory-123",
 		&models.UpdateMemoryRequest{Text: &text})
 	require.NoError(t, err)
 	assertReversed(t, clearer, "memory", "memory-123")

@@ -120,7 +120,7 @@ func TestPromptService_Delete_CascadesComments(t *testing.T) {
 		ContentVersionSvc: nil,
 		CommentRepo:       commentRepo,
 	})
-	require.NoError(t, svc.DeletePrompt(commentCaller, commentTeamID, promptID))
+	require.NoError(t, svc.DeletePrompt(context.Background(), commentCaller, commentTeamID, promptID))
 }
 
 func TestTeamService_RemoveTeamMember_CascadesComments(t *testing.T) {

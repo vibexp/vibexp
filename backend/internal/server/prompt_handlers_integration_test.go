@@ -654,7 +654,7 @@ func TestHandleDeletePrompt_Success(t *testing.T) {
 	mockContainer.promptService.On("GetPromptBySlug", "user-123", mock.Anything, "test-slug").
 		Return(existingPrompt, nil)
 
-	mockContainer.promptService.On("DeletePromptBySlug", "user-123", mock.Anything, "test-slug").
+	mockContainer.promptService.On("DeletePromptBySlug", mock.Anything, "user-123", mock.Anything, "test-slug").
 		Return(nil)
 
 	mockContainer.embeddingService.On("DeleteEmbeddingsByEntity", "prompt", "prompt-1").

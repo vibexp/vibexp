@@ -256,7 +256,7 @@ func auditResourceRouteCases() []auditRouteCase {
 			arrange: func(f *auditRouteFixture) {
 				f.prompts.EXPECT().GetPromptBySlug(writeTestUserID, writeTestTeamID, "p").
 					Return(auditPrompt(writeTestProjectID, "active"), nil)
-				f.prompts.EXPECT().DeletePromptBySlug(writeTestUserID, writeTestTeamID, "p").Return(nil)
+				f.prompts.EXPECT().DeletePromptBySlug(mock.Anything, writeTestUserID, writeTestTeamID, "p").Return(nil)
 			},
 			op: models.AuditOpPromptDelete, resourceID: auditTestPromptID, resourceName: "Release checklist",
 			projectID: writeTestProjectID,
@@ -427,7 +427,7 @@ func auditResourceRouteCases() []auditRouteCase {
 			arrange: func(f *auditRouteFixture) {
 				f.memories.EXPECT().GetMemory(writeTestUserID, writeTestTeamID, writeTestMemoryID).
 					Return(auditMemory(writeTestProjectID), nil)
-				f.memories.EXPECT().UpdateMemory(writeTestUserID, writeTestTeamID, writeTestMemoryID, mock.Anything).
+				f.memories.EXPECT().UpdateMemory(mock.Anything, writeTestUserID, writeTestTeamID, writeTestMemoryID, mock.Anything).
 					Return(auditMemory(auditTestOtherProj), nil)
 				f.projects.EXPECT().GetProjectBySlugOrID(writeTestTeamID, writeTestUserID, auditTestOtherProj).
 					Return(nil, errors.New("gone"))
@@ -444,7 +444,7 @@ func auditResourceRouteCases() []auditRouteCase {
 			name: "restore memory", method: http.MethodPost, path: memoryPath + "/versions/2/restore",
 			wantStatus: http.StatusOK,
 			arrange: func(f *auditRouteFixture) {
-				f.memories.EXPECT().RestoreMemoryVersion(writeTestUserID, writeTestTeamID, writeTestMemoryID, 2, mock.Anything).
+				f.memories.EXPECT().RestoreMemoryVersion(mock.Anything, writeTestUserID, writeTestTeamID, writeTestMemoryID, 2, mock.Anything).
 					Return(auditMemory(writeTestProjectID), nil)
 			},
 			op: models.AuditOpMemoryUpdate, resourceID: writeTestMemoryID, resourceName: "Deploy notes",
@@ -890,7 +890,7 @@ func auditMCPCases() []auditMCPCase {
 			name: "update_memory",
 			arrange: func(f *auditRouteFixture) {
 				f.memories.EXPECT().GetMemory(user, mcpTeam, writeTestMemoryID).Return(auditMemory(writeTestProjectID), nil)
-				f.memories.EXPECT().UpdateMemory(user, mcpTeam, writeTestMemoryID, mock.Anything).
+				f.memories.EXPECT().UpdateMemory(mock.Anything, user, mcpTeam, writeTestMemoryID, mock.Anything).
 					Return(auditMemory(writeTestProjectID), nil)
 			},
 			call: func(f *auditRouteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
@@ -919,7 +919,7 @@ func auditMCPCases() []auditMCPCase {
 			name: "delete_resource prompt",
 			arrange: func(f *auditRouteFixture) {
 				f.prompts.EXPECT().GetPromptBySlug(user, mcpTeam, "p").Return(auditPrompt(writeTestProjectID, "active"), nil)
-				f.prompts.EXPECT().DeletePromptBySlug(user, mcpTeam, "p").Return(nil)
+				f.prompts.EXPECT().DeletePromptBySlug(mock.Anything, user, mcpTeam, "p").Return(nil)
 			},
 			call: func(f *auditRouteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
 				res, _, err := f.srv.deleteResource(ctx, nil, &DeleteResourceParams{

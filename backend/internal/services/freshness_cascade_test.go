@@ -132,7 +132,7 @@ func freshnessCascadeCases() []freshnessCascadeCase {
 					Logger:        logger,
 					FreshnessRepo: freshnessRepo,
 				})
-				return svc.DeletePrompt(resRBACCaller, resRBACTeamID, cascadePromptID)
+				return svc.DeletePrompt(context.Background(), resRBACCaller, resRBACTeamID, cascadePromptID)
 			},
 		},
 	}

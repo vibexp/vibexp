@@ -227,8 +227,8 @@ func TestPromptService_Delete_LockedRejectedForEveryRole(t *testing.T) {
 			existing := lockablePrompt(heldLock())
 			h := newPromptLockHarness(t, role, existing)
 
-			requireLockRefusal(t, h.svc.DeletePrompt(lockCaller, lockTeamID, existing.ID), "prompt", "")
-			requireLockRefusal(t, h.svc.DeletePromptBySlug(lockCaller, lockTeamID, lockSlug), "prompt", "")
+			requireLockRefusal(t, h.svc.DeletePrompt(context.Background(), lockCaller, lockTeamID, existing.ID), "prompt", "")
+			requireLockRefusal(t, h.svc.DeletePromptBySlug(context.Background(), lockCaller, lockTeamID, lockSlug), "prompt", "")
 		})
 	}
 }
@@ -238,7 +238,7 @@ func TestPromptService_Delete_LockedMemberDeletingAnothersGetsTheDenial(t *testi
 	existing.UserID = lockOther
 	h := newPromptLockHarness(t, models.TeamMemberRoleMember, existing)
 
-	assert.ErrorIs(t, h.svc.DeletePrompt(lockCaller, lockTeamID, existing.ID), services.ErrPermissionDenied)
+	assert.ErrorIs(t, h.svc.DeletePrompt(context.Background(), lockCaller, lockTeamID, existing.ID), services.ErrPermissionDenied)
 }
 
 func TestPromptService_Delete_WorksAgainAfterUnlock(t *testing.T) {
@@ -247,7 +247,7 @@ func TestPromptService_Delete_WorksAgainAfterUnlock(t *testing.T) {
 	h.refs.EXPECT().HasDependents(mock.Anything, existing.ID).Return(false, nil).Once()
 	h.repo.EXPECT().Delete(mock.Anything, lockCaller, lockTeamID, existing.ID).Return(nil).Once()
 
-	require.NoError(t, h.svc.DeletePrompt(lockCaller, lockTeamID, existing.ID))
+	require.NoError(t, h.svc.DeletePrompt(context.Background(), lockCaller, lockTeamID, existing.ID))
 }
 
 // ---- blueprints ----

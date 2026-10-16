@@ -563,7 +563,7 @@ func TestMemoryStatus_Update(t *testing.T) {
 	t.Run("custom status round-trips", func(t *testing.T) {
 		container := newMockMemoryContainer(t)
 		container.memoryService.
-			On("UpdateMemory", memoriesTestUserID, memoriesTestTeamID, memoriesTestMemoryID, withStatus(statusTestCustom)).
+			On("UpdateMemory", mock.Anything, memoriesTestUserID, memoriesTestTeamID, memoriesTestMemoryID, withStatus(statusTestCustom)).
 			Return(statusMemory(), nil).Once()
 
 		req, rr := update(container, statusTestCustom)
@@ -574,7 +574,7 @@ func TestMemoryStatus_Update(t *testing.T) {
 	t.Run("the service's rejection is a 400 listing the allowed values", func(t *testing.T) {
 		container := newMockMemoryContainer(t)
 		container.memoryService.
-			On("UpdateMemory", memoriesTestUserID, memoriesTestTeamID, memoriesTestMemoryID, withStatus("retired")).
+			On("UpdateMemory", mock.Anything, memoriesTestUserID, memoriesTestTeamID, memoriesTestMemoryID, withStatus("retired")).
 			Return(nil, errStatusTestRejected).Once()
 
 		req, rr := update(container, "retired")

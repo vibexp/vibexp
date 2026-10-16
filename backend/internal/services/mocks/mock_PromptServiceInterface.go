@@ -85,17 +85,17 @@ func (_c *MockPromptServiceInterface_CreatePrompt_Call) RunAndReturn(run func(co
 	return _c
 }
 
-// DeletePrompt provides a mock function with given fields: userID, teamID, promptID
-func (_m *MockPromptServiceInterface) DeletePrompt(userID string, teamID string, promptID string) error {
-	ret := _m.Called(userID, teamID, promptID)
+// DeletePrompt provides a mock function with given fields: ctx, userID, teamID, promptID
+func (_m *MockPromptServiceInterface) DeletePrompt(ctx context.Context, userID string, teamID string, promptID string) error {
+	ret := _m.Called(ctx, userID, teamID, promptID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeletePrompt")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, string, string) error); ok {
-		r0 = rf(userID, teamID, promptID)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) error); ok {
+		r0 = rf(ctx, userID, teamID, promptID)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -109,16 +109,17 @@ type MockPromptServiceInterface_DeletePrompt_Call struct {
 }
 
 // DeletePrompt is a helper method to define mock.On call
+//   - ctx context.Context
 //   - userID string
 //   - teamID string
 //   - promptID string
-func (_e *MockPromptServiceInterface_Expecter) DeletePrompt(userID interface{}, teamID interface{}, promptID interface{}) *MockPromptServiceInterface_DeletePrompt_Call {
-	return &MockPromptServiceInterface_DeletePrompt_Call{Call: _e.mock.On("DeletePrompt", userID, teamID, promptID)}
+func (_e *MockPromptServiceInterface_Expecter) DeletePrompt(ctx interface{}, userID interface{}, teamID interface{}, promptID interface{}) *MockPromptServiceInterface_DeletePrompt_Call {
+	return &MockPromptServiceInterface_DeletePrompt_Call{Call: _e.mock.On("DeletePrompt", ctx, userID, teamID, promptID)}
 }
 
-func (_c *MockPromptServiceInterface_DeletePrompt_Call) Run(run func(userID string, teamID string, promptID string)) *MockPromptServiceInterface_DeletePrompt_Call {
+func (_c *MockPromptServiceInterface_DeletePrompt_Call) Run(run func(ctx context.Context, userID string, teamID string, promptID string)) *MockPromptServiceInterface_DeletePrompt_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string))
 	})
 	return _c
 }
@@ -128,22 +129,22 @@ func (_c *MockPromptServiceInterface_DeletePrompt_Call) Return(_a0 error) *MockP
 	return _c
 }
 
-func (_c *MockPromptServiceInterface_DeletePrompt_Call) RunAndReturn(run func(string, string, string) error) *MockPromptServiceInterface_DeletePrompt_Call {
+func (_c *MockPromptServiceInterface_DeletePrompt_Call) RunAndReturn(run func(context.Context, string, string, string) error) *MockPromptServiceInterface_DeletePrompt_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// DeletePromptBySlug provides a mock function with given fields: userID, teamID, slug
-func (_m *MockPromptServiceInterface) DeletePromptBySlug(userID string, teamID string, slug string) error {
-	ret := _m.Called(userID, teamID, slug)
+// DeletePromptBySlug provides a mock function with given fields: ctx, userID, teamID, slug
+func (_m *MockPromptServiceInterface) DeletePromptBySlug(ctx context.Context, userID string, teamID string, slug string) error {
+	ret := _m.Called(ctx, userID, teamID, slug)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeletePromptBySlug")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, string, string) error); ok {
-		r0 = rf(userID, teamID, slug)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) error); ok {
+		r0 = rf(ctx, userID, teamID, slug)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -157,16 +158,17 @@ type MockPromptServiceInterface_DeletePromptBySlug_Call struct {
 }
 
 // DeletePromptBySlug is a helper method to define mock.On call
+//   - ctx context.Context
 //   - userID string
 //   - teamID string
 //   - slug string
-func (_e *MockPromptServiceInterface_Expecter) DeletePromptBySlug(userID interface{}, teamID interface{}, slug interface{}) *MockPromptServiceInterface_DeletePromptBySlug_Call {
-	return &MockPromptServiceInterface_DeletePromptBySlug_Call{Call: _e.mock.On("DeletePromptBySlug", userID, teamID, slug)}
+func (_e *MockPromptServiceInterface_Expecter) DeletePromptBySlug(ctx interface{}, userID interface{}, teamID interface{}, slug interface{}) *MockPromptServiceInterface_DeletePromptBySlug_Call {
+	return &MockPromptServiceInterface_DeletePromptBySlug_Call{Call: _e.mock.On("DeletePromptBySlug", ctx, userID, teamID, slug)}
 }
 
-func (_c *MockPromptServiceInterface_DeletePromptBySlug_Call) Run(run func(userID string, teamID string, slug string)) *MockPromptServiceInterface_DeletePromptBySlug_Call {
+func (_c *MockPromptServiceInterface_DeletePromptBySlug_Call) Run(run func(ctx context.Context, userID string, teamID string, slug string)) *MockPromptServiceInterface_DeletePromptBySlug_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string))
 	})
 	return _c
 }
@@ -176,7 +178,7 @@ func (_c *MockPromptServiceInterface_DeletePromptBySlug_Call) Return(_a0 error) 
 	return _c
 }
 
-func (_c *MockPromptServiceInterface_DeletePromptBySlug_Call) RunAndReturn(run func(string, string, string) error) *MockPromptServiceInterface_DeletePromptBySlug_Call {
+func (_c *MockPromptServiceInterface_DeletePromptBySlug_Call) RunAndReturn(run func(context.Context, string, string, string) error) *MockPromptServiceInterface_DeletePromptBySlug_Call {
 	_c.Call.Return(run)
 	return _c
 }

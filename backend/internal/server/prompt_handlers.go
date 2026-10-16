@@ -704,7 +704,7 @@ func (s *Server) deletePromptAndEmbeddings(
 	userID, teamID, promptSlug string,
 	prompt *models.Prompt,
 ) error {
-	err := s.container.PromptService().DeletePromptBySlug(userID, teamID, promptSlug)
+	err := s.container.PromptService().DeletePromptBySlug(r.Context(), userID, teamID, promptSlug)
 	if writeResourceWriteLocked(w, r, err) {
 		return err
 	}

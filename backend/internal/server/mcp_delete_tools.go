@@ -116,7 +116,7 @@ func (s *Server) deletePromptResource(
 		return s.mcpDeleteError(resourceTypePrompt, userID, teamID, err), nil, nil
 	}
 
-	if err := s.container.PromptService().DeletePromptBySlug(userID, teamID, slug); err != nil {
+	if err := s.container.PromptService().DeletePromptBySlug(ctx, userID, teamID, slug); err != nil {
 		return s.mcpDeleteError(resourceTypePrompt, userID, teamID, err), nil, nil
 	}
 

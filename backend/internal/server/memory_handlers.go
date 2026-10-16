@@ -164,7 +164,7 @@ func (s *Server) handleUpdateMemory(w http.ResponseWriter, r *http.Request) {
 
 	before := s.memoryAuditBefore(userID, teamID, memoryID)
 	req.WriteOrigin = resourceaccess.WriteOriginFromContext(r.Context())
-	memory, err := s.container.MemoryService().UpdateMemory(userID, teamID, memoryID, &req)
+	memory, err := s.container.MemoryService().UpdateMemory(r.Context(), userID, teamID, memoryID, &req)
 	if err != nil {
 		s.handleUpdateMemoryError(w, userID, memoryID, err)
 		return
@@ -418,7 +418,7 @@ func (s *Server) handleRestoreMemoryVersion(w http.ResponseWriter, r *http.Reque
 	).Info("Restore memory version request received")
 
 	memory, err := s.container.MemoryService().RestoreMemoryVersion(
-		userID, teamID, memoryID, versionNumber, resourceaccess.WriteOriginFromContext(r.Context()),
+		r.Context(), userID, teamID, memoryID, versionNumber, resourceaccess.WriteOriginFromContext(r.Context()),
 	)
 	if err != nil {
 		s.handleMemoryVersionError(w, userID, memoryID, err)

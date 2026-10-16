@@ -171,7 +171,7 @@ func promptLockFixture(t *testing.T) *lockFixture {
 			Return(nil, err).Once()
 	}
 	f.expectDelete = func(err error) {
-		c.promptService.On("DeletePromptBySlug", strictPrUserID, strictPrTeamID, strictPrSlug).Return(err).Once()
+		c.promptService.On("DeletePromptBySlug", mock.Anything, strictPrUserID, strictPrTeamID, strictPrSlug).Return(err).Once()
 	}
 	f.install(t)
 	return f
