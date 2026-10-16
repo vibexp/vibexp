@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMemo } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type UseFormSetError } from 'react-hook-form'
 import { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
@@ -82,6 +82,46 @@ function successMessage(hadPassword: boolean, revoked: boolean): string {
   return `${what} ${ended}`
 }
 
+/** The request body: the current password goes along only when there is one. */
+function passwordRequest(values: PasswordValues, hasPassword: boolean) {
+  return {
+    ...(hasPassword ? { current_password: values.current_password } : {}),
+    new_password: values.new_password,
+    revoke_api_access: values.revoke_api_access,
+  }
+}
+
+/**
+ * Put the server's field errors on their inputs, and say whether any landed.
+ * `onStale` runs when the server asks for a current password the page did not
+ * know about.
+ */
+function placeFieldErrors(
+  err: unknown,
+  hasPassword: boolean,
+  setError: UseFormSetError<PasswordValues>,
+  onStale: () => void
+): boolean {
+  if (!(err instanceof ApiError)) return false
+  let placed = false
+  for (const field of SERVER_FIELDS) {
+    const first = err.getFieldErrors(field).at(0)
+    if (!first) continue
+    placed = true
+    if (field === 'current_password' && !hasPassword) {
+      // The page thought there was no password and the server has one
+      // (set in another tab, or by a change that was half applied).
+      // That field is not on screen: say it on the form and read the
+      // account again, which brings the right form.
+      setError('root', { message: STALE_PASSWORD_MESSAGE })
+      onStale()
+      continue
+    }
+    setError(field, { message: first.message })
+  }
+  return placed
+}
+
 /**
  * Set a first password, or change the existing one (#1441). The server's
  * field errors land on their inputs; anything else lands on the form.
@@ -105,35 +145,15 @@ export function PasswordForm({
   const submit = async (values: PasswordValues) => {
     try {
       const sent = await state.change(() =>
-        accountService.setPassword({
-          ...(hasPassword ? { current_password: values.current_password } : {}),
-          new_password: values.new_password,
-          revoke_api_access: values.revoke_api_access,
-        })
+        accountService.setPassword(passwordRequest(values, hasPassword))
       )
       if (!sent) return
       form.reset(EMPTY)
       toast.success(successMessage(hasPassword, values.revoke_api_access))
     } catch (err) {
-      let placed = false
-      if (err instanceof ApiError) {
-        for (const field of SERVER_FIELDS) {
-          const first = err.getFieldErrors(field).at(0)
-          if (!first) continue
-          if (field === 'current_password' && !hasPassword) {
-            // The page thought there was no password and the server has one
-            // (set in another tab, or by a change that was half applied).
-            // That field is not on screen: say it on the form and read the
-            // account again, which brings the right form.
-            form.setError('root', { message: STALE_PASSWORD_MESSAGE })
-            placed = true
-            void state.reload()
-            continue
-          }
-          form.setError(field, { message: first.message })
-          placed = true
-        }
-      }
+      const placed = placeFieldErrors(err, hasPassword, form.setError, () => {
+        void state.reload()
+      })
       if (!placed) {
         form.setError('root', {
           message: accountErrorMessage(err, 'The password could not be saved'),
