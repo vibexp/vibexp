@@ -148,24 +148,32 @@ func backgroundGoroutines(files map[string]*ast.File) []string {
 	var out []string
 	for name, file := range files {
 		for _, decl := range file.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Body == nil {
-				continue
-			}
-			recv := receiverOf(fn)
-			locals := rootContextLocals(fn.Body)
-			ast.Inspect(fn.Body, func(n ast.Node) bool {
-				stmt, ok := n.(*ast.GoStmt)
-				if !ok {
-					return true
-				}
-				if usesRootContext(stmt, locals) || startsRootContextFunc(stmt.Call, recv, bodies) {
+			if fn, ok := decl.(*ast.FuncDecl); ok && fn.Body != nil {
+				for range detachedGoStmts(fn, bodies) {
 					out = append(out, name+":"+fn.Name.Name)
 				}
-				return false
-			})
+			}
 		}
 	}
+	return out
+}
+
+// detachedGoStmts returns fn's go statements that start on an empty root
+// context.
+func detachedGoStmts(fn *ast.FuncDecl, bodies map[string]*ast.BlockStmt) []*ast.GoStmt {
+	recv := receiverOf(fn)
+	locals := rootContextLocals(fn.Body)
+	var out []*ast.GoStmt
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		stmt, ok := n.(*ast.GoStmt)
+		if !ok {
+			return true
+		}
+		if usesRootContext(stmt, locals) || startsRootContextFunc(stmt.Call, recv, bodies) {
+			out = append(out, stmt)
+		}
+		return false
+	})
 	return out
 }
 
