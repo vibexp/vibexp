@@ -212,6 +212,40 @@ async function exportCsv(page: Page): Promise<{
   return { filename: download.suggestedFilename(), rows: parseCsv(text) }
 }
 
+const AUDIT_SETTINGS_PATH = '/api/v1/admin/settings/audit-log'
+
+interface AuditLogSettings {
+  source: 'instance' | 'default'
+  values: { retention_weeks: number; capture_ip_ua: boolean }
+}
+
+async function readAuditSettings(page: Page): Promise<AuditLogSettings> {
+  const response = await page.request.get(AUDIT_SETTINGS_PATH)
+  expect(response.status()).toBe(200)
+  return (await response.json()) as AuditLogSettings
+}
+
+/**
+ * Put the audit-log settings back to what `original` read: the stored values,
+ * or a reset when the built-in defaults applied. `capture_ip_ua` is written
+ * back exactly as found; this journey never changes it.
+ */
+async function restoreAuditSettings(
+  page: Page,
+  original: AuditLogSettings
+): Promise<void> {
+  const response =
+    original.source === 'default'
+      ? await page.request.delete(AUDIT_SETTINGS_PATH)
+      : await page.request.put(AUDIT_SETTINGS_PATH, { data: original.values })
+  expect(response.ok(), `restore failed: ${String(response.status())}`).toBe(
+    true
+  )
+  const after = await readAuditSettings(page)
+  expect(after.source).toBe(original.source)
+  expect(after.values).toEqual(original.values)
+}
+
 test.describe.serial('Admin → Audit', () => {
   let userContext: BrowserContext | undefined
   let adminContext: BrowserContext | undefined
@@ -250,7 +284,7 @@ test.describe.serial('Admin → Audit', () => {
     await page.goto('/admin')
     await page
       .getByRole('navigation', { name: 'Admin sections' })
-      .getByRole('link', { name: 'Audit' })
+      .getByRole('link', { name: 'Audit', exact: true })
       .click()
     await expect(page).toHaveURL(/\/admin\/audit$/)
     await expect(
@@ -342,6 +376,82 @@ test.describe.serial('Admin → Audit', () => {
       expect(record[col('resource_id')]).toBe(promptId)
       expect(record[col('team_id')]).toBe(team.id)
       if (projectId) expect(record[col('project_id')]).toBe(projectId)
+    }
+  })
+
+  test('a retention change is saved, in the change history and in the audit log', async ({
+    browser,
+  }) => {
+    test.setTimeout(120_000)
+
+    const admin = await signedInPage(browser, ADMIN_EMAIL, ADMIN_NAME)
+    adminContext = admin.context
+    const page = admin.page
+    const adminId = await userIdOf(page)
+    const original = await readAuditSettings(page)
+    const before = original.values.retention_weeks
+    // In 1..52 and never equal to the value found.
+    const retention = (before % 52) + 1
+    // Over built-in defaults the snapshot's "before" side is null, which the
+    // drawer names instead of printing a number.
+    const oldShown =
+      original.source === 'default' ? 'Built-in defaults' : String(before)
+
+    try {
+      // --- Audit tab → "Audit settings" → Settings → Audit log ---------------
+      await page.goto('/admin/audit')
+      await page.getByRole('link', { name: 'Audit settings' }).click()
+      await expect(page).toHaveURL(/\/admin\/settings\/audit-log$/)
+      const field = page.getByLabel('Retention', { exact: true })
+      await expect(field).toHaveValue(String(before), { timeout: UI_TIMEOUT })
+
+      await field.fill(String(retention))
+      await page.getByRole('button', { name: 'Save changes' }).click()
+      await expect(page.getByTestId('instance-settings-source')).toHaveText(
+        'Customized',
+        { timeout: UI_TIMEOUT }
+      )
+
+      // The change history shows this save, old → new.
+      await expect(
+        page
+          .getByTestId('instance-audit-log-audit-entry')
+          .filter({ hasText: 'Saved' })
+          .filter({
+            hasText: new RegExp(
+              `Retention \\(weeks\\).*\\b${String(before)}\\b.*→ ${String(retention)}\\b`
+            ),
+          })
+          .first()
+      ).toBeVisible({ timeout: UI_TIMEOUT })
+
+      // --- The change is itself an audit event ------------------------------
+      await page.goto(
+        `/admin/audit?actor_user_id=${adminId}&operation=audit.settings.updated`
+      )
+      const rows = auditRows(page).filter({ hasText: 'Audit settings updated' })
+      // Newest first; reopen until this save's event (old → new) is the one.
+      await expect(async () => {
+        await page.reload()
+        await expect(rows.first()).toBeVisible({ timeout: 5_000 })
+        await rows.first().click()
+        const drawer = page.getByRole('dialog')
+        await expect(drawer).toContainText('audit.settings.updated')
+        // The row also reads "changed to" for screen readers.
+        await expect(
+          drawer
+            .getByRole('list', { name: 'Changes' })
+            .getByRole('listitem')
+            .filter({ hasText: 'retention_weeks' })
+        ).toHaveText(
+          new RegExp(
+            `retention_weeks:\\s*${oldShown}\\s*→\\s*changed to\\s*${String(retention)}$`
+          )
+        )
+      }).toPass({ timeout: EVENT_TIMEOUT, intervals: [1_000, 2_000, 3_000] })
+    } finally {
+      // Pass or fail, put the shared singleton back and verify it.
+      await restoreAuditSettings(page, original)
     }
   })
 })

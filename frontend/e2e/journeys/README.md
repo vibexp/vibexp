@@ -89,6 +89,12 @@ filters, and a reload reproduces the list. The detail drawer shows the event.
 The CSV export of that filter matches the visible rows one-for-one, with the
 documented header order and the exact team, project and resource ids.
 
+The second test changes retention. From the Audit tab's "Audit settings" button
+it opens Admin → Settings → Audit log, saves retention as `(original % 52) + 1`
+(always in range and never the value found), and sees "Customized" and the
+change-history entry (old → new). Back on the Audit tab, the "Audit settings
+updated" row filtered to the admin shows the same change in its drawer.
+
 **Isolation.** Every spec in the run writes audit events in parallel, so this
 one never reads "the newest row". It filters by its own per-run actor
 (`e2e-audit-<run>@vibexp.test`), whose events no other spec can create.
@@ -96,6 +102,12 @@ one never reads "the newest row". It filters by its own per-run actor
 **Waiting.** Events are recorded asynchronously (a worker pool persists them
 after the request returns), so every "the row is there" assertion reloads the
 list and polls (`toPass`) until it holds.
+
+**Restore.** The audit settings are one instance-wide record. The test reads
+them first and, in a `finally`, writes the stored values back (or resets to
+defaults when none were stored), then reads them again to verify. It needs the
+journeys project's single worker: run with `--repeat-each` and more workers
+and the copies race on that record.
 
 **Not covered:** authorization denials and MCP-channel events (the backend
 tests of #1513 and #1515 cover them; the stack has no MCP client), sign-in
