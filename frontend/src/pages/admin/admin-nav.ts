@@ -125,6 +125,14 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     description:
       'Who can sign in to this instance: password sign-in and registration, identity providers, the access allowlist and instance admins.',
   },
+  {
+    label: 'Audit log',
+    href: '/admin/settings/audit-log',
+    icon: History,
+    group: 'settings',
+    description:
+      'How long audit events are kept, and whether new ones capture the client IP address and user agent.',
+  },
 ]
 
 /**

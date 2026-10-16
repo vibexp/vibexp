@@ -9,6 +9,7 @@ import { AdminUserDetail } from '@/pages/admin/AdminUserDetail'
 import { AdminUsers } from '@/pages/admin/AdminUsers'
 import { AdminAudit } from '@/pages/admin/audit/AdminAudit'
 import { AdminAISummarySettings } from '@/pages/admin/settings/ai-summary/AdminAISummarySettings'
+import { AdminAuditLogSettings } from '@/pages/admin/settings/audit-log/AdminAuditLogSettings'
 import { AdminAuthSettings } from '@/pages/admin/settings/auth/AdminAuthSettings'
 import { AdminEmailSettings } from '@/pages/admin/settings/email/AdminEmailSettings'
 import { AdminSearchSettings } from '@/pages/admin/settings/search/AdminSearchSettings'
@@ -26,7 +27,7 @@ import { AdminSiteInfoSettings } from '@/pages/admin/settings/site-info/AdminSit
  * four sections the sidebar advertises; `/admin/audit` (#1517) follows them.
  * `/admin/settings/email` (#1191) is the first entry of the sidebar's
  * "Settings" group; Search and AI Summary (#1202) and Authentication (#1239)
- * follow it; Site info (#1358) leads the group.
+ * follow it; Site info (#1358) leads the group; Audit log (#1518) closes it.
  */
 export function AdminRoutes() {
   return (
@@ -44,6 +45,7 @@ export function AdminRoutes() {
       <Route path="settings/search" element={<AdminSearchSettings />} />
       <Route path="settings/ai-summary" element={<AdminAISummarySettings />} />
       <Route path="settings/auth" element={<AdminAuthSettings />} />
+      <Route path="settings/audit-log" element={<AdminAuditLogSettings />} />
       <Route path="*" element={<AdminNotFound />} />
     </Routes>
   )
