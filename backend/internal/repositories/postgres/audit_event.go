@@ -158,6 +158,24 @@ func clampAuditEventLimit(limit int) int {
 	return min(limit, repositories.AuditEventListMaxLimit)
 }
 
+// Count returns how many events match f's filters, ignoring f.Limit and
+// f.After.
+func (r *AuditEventRepository) Count(ctx context.Context, f models.AuditEventFilter) (int, error) {
+	f.After = nil
+	query, args, err := psql.Select("count(*)").
+		From("audit_events").
+		Where(buildAuditEventWhere(f)).
+		ToSql()
+	if err != nil {
+		return 0, fmt.Errorf("failed to build audit event count query: %w", err)
+	}
+	var n int
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
+		return 0, fmt.Errorf("failed to count audit events: %w", err)
+	}
+	return n, nil
+}
+
 // buildAuditEventWhere turns a filter into the AND of its set fields.
 func buildAuditEventWhere(f models.AuditEventFilter) squirrel.And {
 	where := squirrel.And{}

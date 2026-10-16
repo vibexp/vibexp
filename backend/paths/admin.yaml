@@ -3126,6 +3126,320 @@ api-v1-admin-saved-filters-list:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
 
+api-v1-admin-audit-events:
+  get:
+    summary: List the instance audit log
+    description: |
+      Returns one page of the instance audit log, newest first: who did what,
+      when, through which channel, and how it ended. Filters combine with AND;
+      a repeated parameter matches any of its values. Pages are keyset-based:
+      pass the previous page's `next_cursor` as `cursor` to continue. There is
+      no total count.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: listAdminAuditEvents
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: limit
+        in: query
+        description: Page size.
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 50
+      - name: cursor
+        in: query
+        description: Opaque cursor from a previous page's `next_cursor`.
+        required: false
+        schema:
+          type: string
+      - name: actor_user_id
+        in: query
+        description: Only events by this user.
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: team_id
+        in: query
+        description: Only events concerning this team.
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: project_id
+        in: query
+        description: Only events concerning this project.
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: operation
+        in: query
+        description: Only these operations; repeat the parameter for several.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items:
+            $ref: '../openapi.yaml#/components/schemas/AdminAuditOperation'
+      - name: resource_type
+        in: query
+        description: Only events on this kind of resource (e.g. `prompt`).
+        required: false
+        schema:
+          type: string
+          maxLength: 64
+      - name: from
+        in: query
+        description: Only events at or after this instant (inclusive).
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        description: Only events before this instant (exclusive).
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: source
+        in: query
+        description: Only these sources; repeat the parameter for several.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items:
+            $ref: '../openapi.yaml#/components/schemas/AdminAuditSource'
+      - name: outcome
+        in: query
+        description: Only these outcomes; repeat the parameter for several.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items:
+            $ref: '../openapi.yaml#/components/schemas/AdminAuditOutcome'
+      - name: q
+        in: query
+        description: |
+          Case-insensitive substring of the resource name, the actor email or the
+          IP address. `%` and `_` match literally.
+        required: false
+        schema:
+          type: string
+          maxLength: 200
+    responses:
+      '200':
+        description: One page of audit events, newest first
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminAuditEventPage'
+      '400':
+        description: >-
+          Bad request — a malformed cursor, a `limit` out of range, a `q` over 200
+          characters, a value outside its enum, a malformed id or instant, or `from`
+          not before `to`
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin (surface not advertised)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-audit-events-export:
+  get:
+    summary: Export the instance audit log as CSV
+    description: |
+      Streams the filtered audit log as a CSV download, newest first.
+
+      Columns, in order: `created_at`, `operation`, `outcome`, `source`,
+      `actor_type`, `actor_email`, `actor_name`, `actor_user_id`, `team_name`,
+      `team_id`, `project_name`, `project_id`, `resource_type`,
+      `resource_name`, `resource_id`, `assistant_name`, `api_key_name`, `ip`,
+      `user_agent`, `request_id`, `metadata`. `metadata` is compact JSON.
+
+      The export accepts exactly the filter parameters of `listAdminAuditEvents`
+      (no `cursor`/`limit`) and streams every matching event as RFC 4180 CSV
+      (CRLF line endings, UTF-8, no BOM) with a header row.
+
+      Output is capped at 50,000 data rows. `X-Export-Total-Count` is the size
+      of the filtered set and `X-Export-Truncated` is `true` when it exceeds the
+      cap; both come from a count taken just before streaming, so events
+      recorded concurrently can make the streamed row count differ slightly.
+      When the export is truncated a final marker row is appended whose first
+      cell reads `# TRUNCATED: exported 50000 of <total> rows; narrow the
+      filters` and whose remaining cells are empty.
+
+      Recorded-value cells (`actor_email`, `actor_name`, `actor_user_id`,
+      `team_name`, `team_id`, `project_name`, `project_id`, `resource_type`,
+      `resource_name`, `resource_id`, `assistant_name`, `api_key_name`, `ip`,
+      `user_agent`, `request_id`, `metadata`) that begin with `=`, `+`, `-`,
+      `@`, a tab or a carriage return are prefixed with a single quote (`'`)
+      to defuse spreadsheet formula injection. Enum cells (`operation`,
+      `outcome`, `source`, `actor_type`) and the timestamp (RFC 3339, UTC) are
+      never altered.
+
+      A failure after streaming has started aborts the connection, so a client
+      never receives a well-formed but silently short file. Each completed
+      export is recorded as an `admin_audit_exported` activity and an
+      `audit.export` audit event of the acting admin.
+
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: exportAdminAuditEvents
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: actor_user_id
+        in: query
+        description: Only events by this user.
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: team_id
+        in: query
+        description: Only events concerning this team.
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: project_id
+        in: query
+        description: Only events concerning this project.
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: operation
+        in: query
+        description: Only these operations; repeat the parameter for several.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items:
+            $ref: '../openapi.yaml#/components/schemas/AdminAuditOperation'
+      - name: resource_type
+        in: query
+        description: Only events on this kind of resource (e.g. `prompt`).
+        required: false
+        schema:
+          type: string
+          maxLength: 64
+      - name: from
+        in: query
+        description: Only events at or after this instant (inclusive).
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        description: Only events before this instant (exclusive).
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: source
+        in: query
+        description: Only these sources; repeat the parameter for several.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items:
+            $ref: '../openapi.yaml#/components/schemas/AdminAuditSource'
+      - name: outcome
+        in: query
+        description: Only these outcomes; repeat the parameter for several.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items:
+            $ref: '../openapi.yaml#/components/schemas/AdminAuditOutcome'
+      - name: q
+        in: query
+        description: |
+          Case-insensitive substring of the resource name, the actor email or the
+          IP address. `%` and `_` match literally.
+        required: false
+        schema:
+          type: string
+          maxLength: 200
+    responses:
+      '200':
+        description: CSV of every matching event (capped at 50,000)
+        headers:
+          Content-Disposition:
+            description: '`attachment; filename="admin-audit-YYYYMMDD.csv"` (UTC date)'
+            required: true
+            schema:
+              type: string
+          X-Export-Total-Count:
+            description: Number of events in the filtered set, before the cap
+            required: true
+            schema:
+              type: integer
+              format: int64
+          X-Export-Truncated:
+            description: Whether the filtered set exceeded the 50,000-row cap
+            required: true
+            schema:
+              type: boolean
+        content:
+          text/csv:
+            schema:
+              type: string
+      '400':
+        description: >-
+          Bad request — a `q` over 200 characters, a value outside its enum, a
+          malformed id or instant, or `from` not before `to`. Nothing is streamed.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin (surface not advertised)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error (before streaming started)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
 api-v1-admin-users-export:
   get:
     summary: Export instance users as CSV
@@ -3155,7 +3469,8 @@ api-v1-admin-users-export:
 
       A failure after streaming has started aborts the connection, so a client
       never receives a well-formed but silently short file. Each completed
-      export is recorded as an `admin_users_exported` activity of the acting admin.
+      export is recorded as an `admin_users_exported` activity and an
+      `audit.export` audit event of the acting admin.
 
       Instance-admin only; non-admin and unauthenticated requests receive 404.
     operationId: exportAdminUsers
@@ -3529,7 +3844,8 @@ api-v1-admin-teams-export:
 
       A failure after streaming has started aborts the connection, so a client
       never receives a well-formed but silently short file. Each completed
-      export is recorded as an `admin_teams_exported` activity of the acting admin.
+      export is recorded as an `admin_teams_exported` activity and an
+      `audit.export` audit event of the acting admin.
 
       Instance-admin only; non-admin and unauthenticated requests receive 404.
     operationId: exportAdminTeams
@@ -3946,7 +4262,8 @@ api-v1-admin-projects-export:
 
       A failure after streaming has started aborts the connection, so a client
       never receives a well-formed but silently short file. Each completed
-      export is recorded as an `admin_projects_exported` activity of the acting admin.
+      export is recorded as an `admin_projects_exported` activity and an
+      `audit.export` audit event of the acting admin.
 
       Instance-admin only; non-admin and unauthenticated requests receive 404.
     operationId: exportAdminProjects

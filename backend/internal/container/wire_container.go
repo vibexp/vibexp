@@ -143,6 +143,8 @@ type WireContainer struct {
 	// Instance audit-log settings: retention and client-info capture (#1512)
 	instanceAuditSettingsService services.InstanceAuditSettingsServiceInterface
 	auditPurgeService            services.AuditPurger
+	// Instance audit log read side (#1516)
+	adminAuditService services.AdminAuditServiceInterface
 
 	// Legacy config.yaml search:/ai_summary: imports run at boot (#1201)
 	instanceSearchSettingsRepo    repositories.InstanceSearchSettingsRepository
@@ -534,6 +536,11 @@ func (c *WireContainer) InstanceAuditSettingsService() services.InstanceAuditSet
 // AuditPurgeService returns the audit retention purge service.
 func (c *WireContainer) AuditPurgeService() services.AuditPurger {
 	return c.auditPurgeService
+}
+
+// AdminAuditService returns the admin audit log service.
+func (c *WireContainer) AdminAuditService() services.AdminAuditServiceInterface {
+	return c.adminAuditService
 }
 
 // InstanceSearchSettingsService returns the instance search settings service.

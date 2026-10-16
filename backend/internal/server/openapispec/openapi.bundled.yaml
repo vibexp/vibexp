@@ -13774,6 +13774,313 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/admin/audit-events:
+    get:
+      summary: List the instance audit log
+      description: |
+        Returns one page of the instance audit log, newest first: who did what,
+        when, through which channel, and how it ended. Filters combine with AND;
+        a repeated parameter matches any of its values. Pages are keyset-based:
+        pass the previous page's `next_cursor` as `cursor` to continue. There is
+        no total count.
+        Instance-admin only; non-admin and unauthenticated requests receive 404.
+      operationId: listAdminAuditEvents
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: limit
+          in: query
+          description: Page size.
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: cursor
+          in: query
+          description: Opaque cursor from a previous page's `next_cursor`.
+          required: false
+          schema:
+            type: string
+        - name: actor_user_id
+          in: query
+          description: Only events by this user.
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: team_id
+          in: query
+          description: Only events concerning this team.
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: project_id
+          in: query
+          description: Only events concerning this project.
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: operation
+          in: query
+          description: Only these operations; repeat the parameter for several.
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/AdminAuditOperation'
+        - name: resource_type
+          in: query
+          description: Only events on this kind of resource (e.g. `prompt`).
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+        - name: from
+          in: query
+          description: Only events at or after this instant (inclusive).
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          description: Only events before this instant (exclusive).
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: source
+          in: query
+          description: Only these sources; repeat the parameter for several.
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/AdminAuditSource'
+        - name: outcome
+          in: query
+          description: Only these outcomes; repeat the parameter for several.
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/AdminAuditOutcome'
+        - name: q
+          in: query
+          description: |
+            Case-insensitive substring of the resource name, the actor email or the
+            IP address. `%` and `_` match literally.
+          required: false
+          schema:
+            type: string
+            maxLength: 200
+      responses:
+        '200':
+          description: One page of audit events, newest first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAuditEventPage'
+        '400':
+          description: Bad request — a malformed cursor, a `limit` out of range, a `q` over 200 characters, a value outside its enum, a malformed id or instant, or `from` not before `to`
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found — the caller is not an instance admin (surface not advertised)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/admin/audit-events/export:
+    get:
+      summary: Export the instance audit log as CSV
+      description: |
+        Streams the filtered audit log as a CSV download, newest first.
+
+        Columns, in order: `created_at`, `operation`, `outcome`, `source`,
+        `actor_type`, `actor_email`, `actor_name`, `actor_user_id`, `team_name`,
+        `team_id`, `project_name`, `project_id`, `resource_type`,
+        `resource_name`, `resource_id`, `assistant_name`, `api_key_name`, `ip`,
+        `user_agent`, `request_id`, `metadata`. `metadata` is compact JSON.
+
+        The export accepts exactly the filter parameters of `listAdminAuditEvents`
+        (no `cursor`/`limit`) and streams every matching event as RFC 4180 CSV
+        (CRLF line endings, UTF-8, no BOM) with a header row.
+
+        Output is capped at 50,000 data rows. `X-Export-Total-Count` is the size
+        of the filtered set and `X-Export-Truncated` is `true` when it exceeds the
+        cap; both come from a count taken just before streaming, so events
+        recorded concurrently can make the streamed row count differ slightly.
+        When the export is truncated a final marker row is appended whose first
+        cell reads `# TRUNCATED: exported 50000 of <total> rows; narrow the
+        filters` and whose remaining cells are empty.
+
+        Recorded-value cells (`actor_email`, `actor_name`, `actor_user_id`,
+        `team_name`, `team_id`, `project_name`, `project_id`, `resource_type`,
+        `resource_name`, `resource_id`, `assistant_name`, `api_key_name`, `ip`,
+        `user_agent`, `request_id`, `metadata`) that begin with `=`, `+`, `-`,
+        `@`, a tab or a carriage return are prefixed with a single quote (`'`)
+        to defuse spreadsheet formula injection. Enum cells (`operation`,
+        `outcome`, `source`, `actor_type`) and the timestamp (RFC 3339, UTC) are
+        never altered.
+
+        A failure after streaming has started aborts the connection, so a client
+        never receives a well-formed but silently short file. Each completed
+        export is recorded as an `admin_audit_exported` activity and an
+        `audit.export` audit event of the acting admin.
+
+        Instance-admin only; non-admin and unauthenticated requests receive 404.
+      operationId: exportAdminAuditEvents
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: actor_user_id
+          in: query
+          description: Only events by this user.
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: team_id
+          in: query
+          description: Only events concerning this team.
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: project_id
+          in: query
+          description: Only events concerning this project.
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: operation
+          in: query
+          description: Only these operations; repeat the parameter for several.
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/AdminAuditOperation'
+        - name: resource_type
+          in: query
+          description: Only events on this kind of resource (e.g. `prompt`).
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+        - name: from
+          in: query
+          description: Only events at or after this instant (inclusive).
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          description: Only events before this instant (exclusive).
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: source
+          in: query
+          description: Only these sources; repeat the parameter for several.
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/AdminAuditSource'
+        - name: outcome
+          in: query
+          description: Only these outcomes; repeat the parameter for several.
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/AdminAuditOutcome'
+        - name: q
+          in: query
+          description: |
+            Case-insensitive substring of the resource name, the actor email or the
+            IP address. `%` and `_` match literally.
+          required: false
+          schema:
+            type: string
+            maxLength: 200
+      responses:
+        '200':
+          description: CSV of every matching event (capped at 50,000)
+          headers:
+            Content-Disposition:
+              description: '`attachment; filename="admin-audit-YYYYMMDD.csv"` (UTC date)'
+              required: true
+              schema:
+                type: string
+            X-Export-Total-Count:
+              description: Number of events in the filtered set, before the cap
+              required: true
+              schema:
+                type: integer
+                format: int64
+            X-Export-Truncated:
+              description: Whether the filtered set exceeded the 50,000-row cap
+              required: true
+              schema:
+                type: boolean
+          content:
+            text/csv:
+              schema:
+                type: string
+        '400':
+          description: Bad request — a `q` over 200 characters, a value outside its enum, a malformed id or instant, or `from` not before `to`. Nothing is streamed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found — the caller is not an instance admin (surface not advertised)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error (before streaming started)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/admin/users/export:
     get:
       summary: Export instance users as CSV
@@ -13803,7 +14110,8 @@ paths:
 
         A failure after streaming has started aborts the connection, so a client
         never receives a well-formed but silently short file. Each completed
-        export is recorded as an `admin_users_exported` activity of the acting admin.
+        export is recorded as an `admin_users_exported` activity and an
+        `audit.export` audit event of the acting admin.
 
         Instance-admin only; non-admin and unauthenticated requests receive 404.
       operationId: exportAdminUsers
@@ -14174,7 +14482,8 @@ paths:
 
         A failure after streaming has started aborts the connection, so a client
         never receives a well-formed but silently short file. Each completed
-        export is recorded as an `admin_teams_exported` activity of the acting admin.
+        export is recorded as an `admin_teams_exported` activity and an
+        `audit.export` audit event of the acting admin.
 
         Instance-admin only; non-admin and unauthenticated requests receive 404.
       operationId: exportAdminTeams
@@ -14588,7 +14897,8 @@ paths:
 
         A failure after streaming has started aborts the connection, so a client
         never receives a well-formed but silently short file. Each completed
-        export is recorded as an `admin_projects_exported` activity of the acting admin.
+        export is recorded as an `admin_projects_exported` activity and an
+        `audit.export` audit event of the acting admin.
 
         Instance-admin only; non-admin and unauthenticated requests receive 404.
       operationId: exportAdminProjects
@@ -33359,6 +33669,335 @@ components:
           description: Rules with no project scope, which apply to every project of the team. `[]` when there are none.
           items:
             $ref: '#/components/schemas/AdminFreshnessRule'
+    AdminAuditOperation:
+      type: string
+      description: |
+        An audited operation, as a dotted `<domain>.<verb>`. The set is closed and
+        equals the server's operation vocabulary.
+      enum:
+        - prompt.create
+        - prompt.update
+        - prompt.move
+        - prompt.delete
+        - prompt.lock
+        - prompt.unlock
+        - blueprint.create
+        - blueprint.update
+        - blueprint.move
+        - blueprint.delete
+        - blueprint.lock
+        - blueprint.unlock
+        - artifact.create
+        - artifact.update
+        - artifact.move
+        - artifact.delete
+        - artifact.lock
+        - artifact.unlock
+        - memory.create
+        - memory.update
+        - memory.move
+        - memory.delete
+        - feed.create
+        - feed.update
+        - feed.delete
+        - feed_item.create
+        - feed_item.delete
+        - feed_item.archive
+        - feed_item.unarchive
+        - project.create
+        - project.update
+        - project.delete
+        - project.migrated
+        - auth.login
+        - auth.login_failed
+        - auth.logout
+        - auth.setup_session.started
+        - auth.sessions.revoked
+        - auth.api_key.created
+        - auth.api_key.revoked
+        - auth.api_access.revoked
+        - auth.password.set
+        - auth.password.changed
+        - auth.password.removed
+        - auth.password.reset_requested
+        - auth.password.reset_link_issued
+        - auth.identity.linked
+        - auth.identity.unlinked
+        - auth.mcp_client.registered
+        - auth.mcp_consent.granted
+        - auth.mcp_consent.denied
+        - auth.mcp_grant.revoked
+        - team.created
+        - team.updated
+        - team.deleted
+        - team.invite.sent
+        - team.invite.accepted
+        - team.invite.rejected
+        - team.invite.revoked
+        - team.member.added
+        - team.member.role_changed
+        - team.member.removed
+        - team.ownership.transferred
+        - instance.settings.updated
+        - admin.user.created
+        - admin.user.updated
+        - admin.user.suspended
+        - admin.user.unsuspended
+        - admin.user.deleted
+        - authz.denied
+        - audit.export
+        - audit.settings.updated
+      x-enum-varnames:
+        - AdminAuditOperationPromptCreate
+        - AdminAuditOperationPromptUpdate
+        - AdminAuditOperationPromptMove
+        - AdminAuditOperationPromptDelete
+        - AdminAuditOperationPromptLock
+        - AdminAuditOperationPromptUnlock
+        - AdminAuditOperationBlueprintCreate
+        - AdminAuditOperationBlueprintUpdate
+        - AdminAuditOperationBlueprintMove
+        - AdminAuditOperationBlueprintDelete
+        - AdminAuditOperationBlueprintLock
+        - AdminAuditOperationBlueprintUnlock
+        - AdminAuditOperationArtifactCreate
+        - AdminAuditOperationArtifactUpdate
+        - AdminAuditOperationArtifactMove
+        - AdminAuditOperationArtifactDelete
+        - AdminAuditOperationArtifactLock
+        - AdminAuditOperationArtifactUnlock
+        - AdminAuditOperationMemoryCreate
+        - AdminAuditOperationMemoryUpdate
+        - AdminAuditOperationMemoryMove
+        - AdminAuditOperationMemoryDelete
+        - AdminAuditOperationFeedCreate
+        - AdminAuditOperationFeedUpdate
+        - AdminAuditOperationFeedDelete
+        - AdminAuditOperationFeedItemCreate
+        - AdminAuditOperationFeedItemDelete
+        - AdminAuditOperationFeedItemArchive
+        - AdminAuditOperationFeedItemUnarchive
+        - AdminAuditOperationProjectCreate
+        - AdminAuditOperationProjectUpdate
+        - AdminAuditOperationProjectDelete
+        - AdminAuditOperationProjectMigrated
+        - AdminAuditOperationAuthLogin
+        - AdminAuditOperationAuthLoginFailed
+        - AdminAuditOperationAuthLogout
+        - AdminAuditOperationAuthSetupSessionStarted
+        - AdminAuditOperationAuthSessionsRevoked
+        - AdminAuditOperationAuthAPIKeyCreated
+        - AdminAuditOperationAuthAPIKeyRevoked
+        - AdminAuditOperationAuthAPIAccessRevoked
+        - AdminAuditOperationAuthLocalCredentialSet
+        - AdminAuditOperationAuthLocalCredentialChanged
+        - AdminAuditOperationAuthLocalCredentialRemoved
+        - AdminAuditOperationAuthLocalCredentialResetRequested
+        - AdminAuditOperationAuthLocalCredentialResetLinkIssued
+        - AdminAuditOperationAuthIdentityLinked
+        - AdminAuditOperationAuthIdentityUnlinked
+        - AdminAuditOperationAuthMCPClientRegistered
+        - AdminAuditOperationAuthMCPConsentGranted
+        - AdminAuditOperationAuthMCPConsentDenied
+        - AdminAuditOperationAuthMCPGrantRevoked
+        - AdminAuditOperationTeamCreated
+        - AdminAuditOperationTeamUpdated
+        - AdminAuditOperationTeamDeleted
+        - AdminAuditOperationTeamInviteSent
+        - AdminAuditOperationTeamInviteAccepted
+        - AdminAuditOperationTeamInviteRejected
+        - AdminAuditOperationTeamInviteRevoked
+        - AdminAuditOperationTeamMemberAdded
+        - AdminAuditOperationTeamMemberRoleChanged
+        - AdminAuditOperationTeamMemberRemoved
+        - AdminAuditOperationTeamOwnershipTransferred
+        - AdminAuditOperationInstanceSettingsUpdated
+        - AdminAuditOperationAdminUserCreated
+        - AdminAuditOperationAdminUserUpdated
+        - AdminAuditOperationAdminUserSuspended
+        - AdminAuditOperationAdminUserUnsuspended
+        - AdminAuditOperationAdminUserDeleted
+        - AdminAuditOperationAuthzDenied
+        - AdminAuditOperationAuditExport
+        - AdminAuditOperationAuditSettingsUpdated
+      example: prompt.update
+    AdminAuditSource:
+      type: string
+      description: |
+        The channel an audited operation arrived through.
+      enum:
+        - web
+        - cli
+        - mcp
+        - api
+        - system
+      x-enum-varnames:
+        - AdminAuditSourceWeb
+        - AdminAuditSourceCli
+        - AdminAuditSourceMcp
+        - AdminAuditSourceApi
+        - AdminAuditSourceSystem
+      example: web
+    AdminAuditOutcome:
+      type: string
+      description: |
+        How an audited operation ended: `denied` is an authorization denial, `failure`
+        any other failed attempt (e.g. a wrong password).
+      enum:
+        - success
+        - denied
+        - failure
+      x-enum-varnames:
+        - AdminAuditOutcomeSuccess
+        - AdminAuditOutcomeDenied
+        - AdminAuditOutcomeFailure
+      example: success
+    AdminAuditActorType:
+      type: string
+      description: |
+        Who performed the operation: a signed-in `user` (including an AI tool acting
+        for them), the server itself (`system`), or an unauthenticated request
+        (`anonymous`).
+      enum:
+        - user
+        - system
+        - anonymous
+      x-enum-varnames:
+        - AdminAuditActorTypeUser
+        - AdminAuditActorTypeSystem
+        - AdminAuditActorTypeAnonymous
+      example: user
+    AdminAuditEvent:
+      type: object
+      description: |
+        One entry of the instance audit log. Ids are kept as recorded and carry no
+        reference guarantee; the names are snapshots taken when the event was
+        recorded, so an entry stays readable after what it names is deleted.
+      additionalProperties: false
+      required:
+        - id
+        - created_at
+        - actor_user_id
+        - actor_email
+        - actor_name
+        - actor_type
+        - team_id
+        - team_name
+        - project_id
+        - project_name
+        - operation
+        - resource_type
+        - resource_id
+        - resource_name
+        - source
+        - assistant_name
+        - api_key_id
+        - api_key_name
+        - outcome
+        - ip
+        - user_agent
+        - request_id
+        - metadata
+      properties:
+        id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        actor_user_id:
+          type: string
+          nullable: true
+          description: The acting user; null for a system or anonymous actor.
+        actor_email:
+          type: string
+          description: |
+            The actor's email at the time, or the attempted address of a failed
+            sign-in. Empty for a system actor.
+        actor_name:
+          type: string
+          description: The actor's display name at the time; may be empty.
+        actor_type:
+          $ref: '#/components/schemas/AdminAuditActorType'
+        team_id:
+          type: string
+          nullable: true
+          description: The team the operation concerned, if any.
+        team_name:
+          type: string
+          nullable: true
+          description: The team name at the time.
+        project_id:
+          type: string
+          nullable: true
+          description: The project the operation concerned, if any.
+        project_name:
+          type: string
+          nullable: true
+          description: The project name at the time.
+        operation:
+          $ref: '#/components/schemas/AdminAuditOperation'
+        resource_type:
+          type: string
+          nullable: true
+          description: The kind of resource acted on (e.g. `prompt`), if any.
+        resource_id:
+          type: string
+          nullable: true
+          description: The resource acted on, if any.
+        resource_name:
+          type: string
+          nullable: true
+          description: The resource name at the time.
+        source:
+          $ref: '#/components/schemas/AdminAuditSource'
+        assistant_name:
+          type: string
+          nullable: true
+          description: The AI assistant that made the request, when known.
+        api_key_id:
+          type: string
+          nullable: true
+          description: The API key the request authenticated with, if any.
+        api_key_name:
+          type: string
+          nullable: true
+          description: That API key's name at the time.
+        outcome:
+          $ref: '#/components/schemas/AdminAuditOutcome'
+        ip:
+          type: string
+          nullable: true
+          description: The client IP address; null when the instance does not capture client info.
+        user_agent:
+          type: string
+          nullable: true
+          description: The client user agent; null when the instance does not capture client info.
+        request_id:
+          type: string
+          nullable: true
+          description: The request id, for correlating with server logs.
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Operation-specific details (e.g. the changed fields); `{}` when there are none.
+    AdminAuditEventPage:
+      type: object
+      description: One page of the audit log, newest first.
+      additionalProperties: false
+      required:
+        - items
+        - next_cursor
+      properties:
+        items:
+          type: array
+          description: The events on this page, newest first. `[]` when there are none.
+          items:
+            $ref: '#/components/schemas/AdminAuditEvent'
+        next_cursor:
+          type: string
+          nullable: true
+          description: Pass as `cursor` to get the next page; null on the last page.
     AdminSavedFilterListName:
       type: string
       description: The admin list a set of saved filter presets belongs to.
@@ -33366,6 +34005,7 @@ components:
         - users
         - teams
         - projects
+        - audit
     AdminSavedFilterQuery:
       type: object
       description: |

@@ -27,6 +27,7 @@ packages:
       AuthPolicyResolver:
       ActiveEmbeddingProviderResolver:
       AdminServiceInterface:
+      AdminAuditServiceInterface:
       AgentInvocationServiceInterface:
       AgentServiceInterface:
       APIKeyServiceInterface:

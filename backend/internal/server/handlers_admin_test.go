@@ -23,6 +23,7 @@ import (
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
+	"github.com/vibexp/vibexp/internal/services/audit"
 	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
 	"github.com/vibexp/vibexp/internal/specconformance"
 )
@@ -70,6 +71,11 @@ type adminMockContainer struct {
 	instanceAuthSettingsService services.InstanceAuthSettingsServiceInterface
 	// Instance audit-log settings (#1512). Nil unless a suite installs it.
 	instanceAuditSettingsService services.InstanceAuditSettingsServiceInterface
+	// Instance audit log read side (#1516). Nil unless a suite installs it.
+	adminAuditService services.AdminAuditServiceInterface
+	// auditRecorder receives the audit.export events (#1516). Nil unless a
+	// suite installs it.
+	auditRecorder audit.Recorder
 	// apiKeyService lets a full-router test authenticate a caller by API key.
 	apiKeyService services.APIKeyServiceInterface
 	// instanceAdminResolver gates the admin surface (#1233). newAdminTestServer
@@ -184,6 +190,14 @@ func (c *adminMockContainer) InstanceSiteInfoService() services.InstanceSiteInfo
 
 func (c *adminMockContainer) InstanceAuditSettingsService() services.InstanceAuditSettingsServiceInterface {
 	return c.instanceAuditSettingsService
+}
+
+func (c *adminMockContainer) AdminAuditService() services.AdminAuditServiceInterface {
+	return c.adminAuditService
+}
+
+func (c *adminMockContainer) AuditRecorder() audit.Recorder {
+	return c.auditRecorder
 }
 func (c *adminMockContainer) InstanceAuthSettingsService() services.InstanceAuthSettingsServiceInterface {
 	return c.instanceAuthSettingsService

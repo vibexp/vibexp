@@ -103,6 +103,8 @@ const (
 	AdminSavedFilterListUsers    = "users"
 	AdminSavedFilterListTeams    = "teams"
 	AdminSavedFilterListProjects = "projects"
+	// AdminSavedFilterListAudit is the instance audit log (#1516).
+	AdminSavedFilterListAudit = "audit"
 
 	// MaxAdminSavedFilterPresets caps the presets one admin may keep per list.
 	MaxAdminSavedFilterPresets = 20

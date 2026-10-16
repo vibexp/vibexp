@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/config"
+	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	"github.com/vibexp/vibexp/internal/server/openapispec"
@@ -94,8 +95,9 @@ func TestExportAdmin_StreamsCSVWithHeadersAndRecordsActivity(t *testing.T) {
 				}),
 			).Return(nil).Once()
 
+			spy := &auditCapture{}
 			srv := newAdminTestServer(&config.Config{}, &adminMockContainer{
-				adminService: mockAdmin, activityService: activitySvc,
+				adminService: mockAdmin, activityService: activitySvc, auditRecorder: spy,
 			})
 			req := httptest.NewRequest("GET", "/api/v1/admin/"+tc.list+"/export?"+tc.query, nil)
 			req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, actingID))
@@ -111,10 +113,24 @@ func TestExportAdmin_StreamsCSVWithHeadersAndRecordsActivity(t *testing.T) {
 			assert.Equal(t, "true", rr.Header().Get("X-Export-Truncated"))
 			assert.Equal(t, body, rr.Body.String())
 			activitySvc.AssertExpectations(t)
+			assertOneExport(t, spy, tc.list, 2, 7, true)
 
 			specconformance.AssertConformsToSpec(t, req, rr)
 		})
 	}
+}
+
+// assertOneExport asserts the capture holds exactly one audit.export event for
+// list, carrying the export's numbers and its filter summary.
+func assertOneExport(t *testing.T, c *auditCapture, list string, rows, total int, truncated bool) {
+	t.Helper()
+	e := c.only(t).event
+	assert.Equal(t, models.AuditOpAuditExport, e.Operation)
+	assert.Equal(t, list, e.Metadata["list"])
+	assert.Equal(t, rows, e.Metadata["row_count"])
+	assert.Equal(t, total, e.Metadata["total_count"])
+	assert.Equal(t, truncated, e.Metadata["truncated"])
+	assert.NotEmpty(t, e.Metadata["filters"], "the filter the export applied is recorded")
 }
 
 func TestExportAdmin_InvalidParamsReturn400WithoutStreaming(t *testing.T) {
@@ -281,8 +297,9 @@ func TestExportAdmin_ClientGoneRecordsNoActivity(t *testing.T) {
 	mockAdmin.On("ExportTeams", mock.Anything, mock.Anything).
 		Return(fakeAdminExport(1, false, "id\r\nt-1\r\n", 1, nil), nil).Once()
 	activitySvc := &MockActivityService{}
+	spy := &auditCapture{}
 	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{
-		adminService: mockAdmin, activityService: activitySvc,
+		adminService: mockAdmin, activityService: activitySvc, auditRecorder: spy,
 	})
 
 	req := httptest.NewRequest("GET", "/api/v1/admin/teams/export", nil)
@@ -290,6 +307,7 @@ func TestExportAdmin_ClientGoneRecordsNoActivity(t *testing.T) {
 		mountAdminStrictRouter(srv).ServeHTTP(failingWriteRecorder{httptest.NewRecorder()}, req)
 	})
 	activitySvc.AssertNotCalled(t, "RecordResourceActivity")
+	assert.Empty(t, spy.events(), "an export the client never received is not audited")
 }
 
 // setEveryField fills every field of a generated params struct with a non-zero
@@ -311,6 +329,9 @@ func setEveryField(t *testing.T, v reflect.Value) {
 			e.Set(reflect.ValueOf(time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)))
 		case reflect.Array: // uuid.UUID
 			e.Set(reflect.ValueOf(uuid.New()))
+		case reflect.Slice: // a repeatable enum param
+			e.Set(reflect.MakeSlice(e.Type(), 1, 1))
+			e.Index(0).SetString("x")
 		default:
 			t.Fatalf("unhandled field kind %s on %s", e.Kind(), v.Type().Field(i).Name)
 		}
@@ -318,13 +339,13 @@ func setEveryField(t *testing.T, v reflect.Value) {
 	}
 }
 
-// assertEveryListFieldSet asserts every list param except page/limit came
-// through the converter.
+// assertEveryListFieldSet asserts every list param except page/limit/cursor
+// came through the converter.
 func assertEveryListFieldSet(t *testing.T, v reflect.Value) {
 	t.Helper()
 	for i := range v.NumField() {
 		name := v.Type().Field(i).Name
-		if name == "Page" || name == "Limit" {
+		if name == "Page" || name == "Limit" || name == "Cursor" {
 			assert.True(t, v.Field(i).IsNil(), "%s must not be set by an export", name)
 			continue
 		}
@@ -396,7 +417,7 @@ func TestAdminExportSpecParity(t *testing.T) {
 				Schema   json.RawMessage `json:"schema"`
 			}
 			require.NoError(t, json.Unmarshal(raw, &p))
-			if p.Name == "page" || p.Name == "limit" {
+			if p.Name == "page" || p.Name == "limit" || p.Name == "cursor" {
 				continue
 			}
 			out[p.Name] = fmt.Sprintf("%s|%t|%s", p.In, p.Required, p.Schema)
@@ -404,7 +425,7 @@ func TestAdminExportSpecParity(t *testing.T) {
 		return out
 	}
 
-	for _, list := range []string{"users", "teams", "projects"} {
+	for _, list := range []string{"users", "teams", "projects", "audit-events"} {
 		t.Run(list, func(t *testing.T) {
 			listParams := params("/api/v1/admin/" + list)
 			exportParams := params("/api/v1/admin/" + list + "/export")
@@ -413,6 +434,7 @@ func TestAdminExportSpecParity(t *testing.T) {
 			for _, raw := range spec.Paths["/api/v1/admin/"+list+"/export"].Get.Parameters {
 				assert.NotContains(t, string(raw), `"name":"page"`)
 				assert.NotContains(t, string(raw), `"name":"limit"`)
+				assert.NotContains(t, string(raw), `"name":"cursor"`)
 			}
 		})
 	}

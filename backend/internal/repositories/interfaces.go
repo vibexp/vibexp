@@ -1075,6 +1075,9 @@ type AuditEventRepository interface {
 	// when no rows follow. f.Limit is clamped to 1..AuditEventListMaxLimit,
 	// with a non-positive Limit meaning AuditEventListDefaultLimit.
 	List(ctx context.Context, f models.AuditEventFilter) (events []models.AuditEvent, next *models.AuditCursor, err error)
+	// Count returns how many events match f's filters; f.Limit and f.After
+	// are ignored. It sizes the admin CSV export (#1516).
+	Count(ctx context.Context, f models.AuditEventFilter) (int, error)
 	// PurgeOlderThan deletes every event with created_at < cutoff, in batches
 	// of batchSize rows until none remain, and returns how many it deleted. A
 	// non-positive batchSize is an error.

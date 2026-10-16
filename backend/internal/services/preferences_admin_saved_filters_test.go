@@ -190,3 +190,14 @@ func TestReplaceAdminSavedFilters_RepoErrorPassesThrough(t *testing.T) {
 
 	require.EqualError(t, err, "db down")
 }
+
+// Every admin list, including the audit log (#1516), is a valid saved-filter
+// list.
+func TestValidateAdminSavedFilterList_AcceptsEveryAdminList(t *testing.T) {
+	for _, list := range []string{
+		models.AdminSavedFilterListUsers, models.AdminSavedFilterListTeams,
+		models.AdminSavedFilterListProjects, models.AdminSavedFilterListAudit,
+	} {
+		assert.NoError(t, validateAdminSavedFilterList(list), list)
+	}
+}

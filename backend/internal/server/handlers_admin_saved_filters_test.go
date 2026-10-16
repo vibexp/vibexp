@@ -336,3 +336,45 @@ func TestAdminSavedFilterRoutes_NonAdminGets404(t *testing.T) {
 		})
 	}
 }
+
+// The audit log (#1516) has its own saved filters: a PUT stores them under the
+// audit list and a GET reads them back.
+func TestAdminSavedFilters_AuditListRoundTrips(t *testing.T) {
+	router, repo := newSavedFiltersRouter(t)
+	var stored []models.AdminSavedFilterPreset
+	repo.On("ReplaceAdminSavedFilters", mock.Anything, savedFiltersActingAdmin, models.AdminSavedFilterListAudit,
+		mock.Anything, models.DefaultPreferences(), int64(0)).
+		Run(func(args mock.Arguments) { stored = args.Get(3).([]models.AdminSavedFilterPreset) }).
+		Return(int64(1), nil).Once()
+
+	body := map[string]any{
+		"version": 0,
+		"presets": []map[string]any{{
+			"name":  "Denied this week",
+			"query": map[string]string{"outcome": "denied", "from": "2026-10-08T00:00:00Z"},
+		}},
+	}
+	req := savedFiltersRequest(t, http.MethodPut, "audit", savedFiltersActingAdmin, body)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	specconformance.AssertConformsToSpec(t, req, rr)
+	require.Len(t, stored, 1)
+	assert.Equal(t, "Denied this week", stored[0].Name)
+
+	repo.On("GetAdminSavedFilters", mock.Anything, savedFiltersActingAdmin, models.AdminSavedFilterListAudit).
+		Return(stored, int64(1), nil).Once()
+	req = savedFiltersRequest(t, http.MethodGet, "audit", savedFiltersActingAdmin, nil)
+	rr = httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	specconformance.AssertConformsToSpec(t, req, rr)
+	var resp admingen.AdminSavedFilters
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Equal(t, admingen.AdminSavedFilterListName(models.AdminSavedFilterListAudit), resp.List)
+	require.Len(t, resp.Presets, 1)
+	assert.Equal(t, admingen.AdminSavedFilterQuery{"outcome": "denied", "from": "2026-10-08T00:00:00Z"},
+		resp.Presets[0].Query)
+}

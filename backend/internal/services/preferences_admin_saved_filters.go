@@ -39,10 +39,11 @@ func invalidAdminSavedFilters(format string, args ...any) error {
 
 func validateAdminSavedFilterList(list string) error {
 	switch list {
-	case models.AdminSavedFilterListUsers, models.AdminSavedFilterListTeams, models.AdminSavedFilterListProjects:
+	case models.AdminSavedFilterListUsers, models.AdminSavedFilterListTeams, models.AdminSavedFilterListProjects,
+		models.AdminSavedFilterListAudit:
 		return nil
 	}
-	return invalidAdminSavedFilters("unknown saved-filter list %q: must be users, teams or projects", list)
+	return invalidAdminSavedFilters("unknown saved-filter list %q: must be users, teams, projects or audit", list)
 }
 
 // GetAdminSavedFilters returns the caller's presets for one admin list.

@@ -407,6 +407,12 @@ func ProvideAuditPurgeService(
 	return services.NewAuditPurgeService(settings, events, logger)
 }
 
+// ProvideAdminAuditService creates the instance admin's read side of the audit
+// log (#1516): the paged listing and the CSV export.
+func ProvideAdminAuditService(events repositories.AuditEventRepository) services.AdminAuditServiceInterface {
+	return services.NewAdminAuditService(events)
+}
+
 // ProvideAuditRecorder creates the instance audit log recorder. It shares the
 // resource-access worker pool: every audit write is off the request path.
 func ProvideAuditRecorder(deps audit.RecorderDeps) audit.Recorder {

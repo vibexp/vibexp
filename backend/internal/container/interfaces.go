@@ -150,6 +150,9 @@ type Container interface {
 	InstanceAuditSettingsService() services.InstanceAuditSettingsServiceInterface
 	// AuditPurgeService enforces the audit-log retention (#1512).
 	AuditPurgeService() services.AuditPurger
+	// AdminAuditService serves the instance audit log to instance admins
+	// (#1516).
+	AdminAuditService() services.AdminAuditServiceInterface
 	EmailSenderResolver() services.EmailSenderResolver
 	TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface
 	// TeamAISummarySettingsService serves the team AI summary settings API

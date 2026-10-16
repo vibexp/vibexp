@@ -1,6 +1,10 @@
 package services
 
-import "time"
+import (
+	"time"
+
+	"github.com/vibexp/vibexp/internal/models"
+)
 
 // SetClockForTest overrides the reference clock used for recency decay so tests
 // can assert deterministic ordering. Test-only.
@@ -26,4 +30,20 @@ const AuditCaptureCacheTTL = auditCaptureCacheTTL
 // Test-only.
 func (s *AuditPurgeService) SetClockForTest(now func() time.Time) {
 	s.now = now
+}
+
+// SetExportCapForTest overrides the audit export row cap. Test-only.
+func (s *AdminAuditService) SetExportCapForTest(rowCap int) {
+	s.exportCap = rowCap
+}
+
+// ExportedAuditExportCell renders one named column of an audit export row.
+// Test-only.
+func ExportedAuditExportCell(e models.AuditEvent, header string) string {
+	for _, c := range adminAuditExportColumns() {
+		if c.header == header {
+			return c.value(e)
+		}
+	}
+	return ""
 }
