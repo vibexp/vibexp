@@ -6,18 +6,23 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/config"
+	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/models"
+	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	relationsgen "github.com/vibexp/vibexp/internal/server/gen/relations"
 	"github.com/vibexp/vibexp/internal/services"
+	"github.com/vibexp/vibexp/internal/services/audit"
 	"github.com/vibexp/vibexp/internal/specconformance"
 )
 
@@ -25,11 +30,16 @@ import (
 // scripted callback (used to synchronize with the fire-and-forget goroutine).
 type stubSeedService struct {
 	backfill func()
+	// backfillCtx, when set, receives the context the run was started with.
+	backfillCtx func(ctx context.Context)
 }
 
-func (s stubSeedService) Backfill(_ context.Context, _, _ string) (models.RelationSeedSummary, error) {
+func (s stubSeedService) Backfill(ctx context.Context, _, _ string) (models.RelationSeedSummary, error) {
 	if s.backfill != nil {
 		s.backfill()
+	}
+	if s.backfillCtx != nil {
+		s.backfillCtx(ctx)
 	}
 	return models.RelationSeedSummary{}, nil
 }
@@ -115,12 +125,81 @@ func TestEnqueueTeamRelationSeed_Coalesces(t *testing.T) {
 	}}
 	srv := createSeedRelationsServer(seed, stubAuthz{})
 
-	srv.enqueueTeamRelationSeed("team-x", "user-1")
+	srv.enqueueTeamRelationSeed(context.Background(), "team-x", "user-1")
 	<-started // the first run is in flight
 
-	srv.enqueueTeamRelationSeed("team-x", "user-1") // coalesced (guard held)
+	srv.enqueueTeamRelationSeed(context.Background(), "team-x", "user-1") // coalesced (guard held)
 	close(release)
 	time.Sleep(50 * time.Millisecond) // let the first run finish + release the guard
 
 	require.Equal(t, int32(1), atomic.LoadInt32(&calls))
+}
+
+// The backfill outlives the request but keeps its attribution (#1548): an
+// audit event recorded inside the run, after the request has ended, carries
+// the trigger's channel, client IP, user agent and request id. The router
+// runs the real request-id, client-IP and user-agent middleware, and the
+// event goes through the real recorder.
+func TestSeedRelations_BackfillKeepsRequestAttribution(t *testing.T) {
+	var (
+		mu   sync.Mutex
+		rows []models.AuditEvent
+	)
+	repo := repomocks.NewMockAuditEventRepository(t)
+	repo.EXPECT().Insert(mock.Anything, mock.Anything).
+		RunAndReturn(func(_ context.Context, e *models.AuditEvent) error {
+			mu.Lock()
+			defer mu.Unlock()
+			rows = append(rows, *e)
+			return nil
+		})
+	users := repomocks.NewMockUserRepository(t)
+	users.EXPECT().GetByID(mock.Anything, testRelationsUserID).
+		Return(&models.User{ID: testRelationsUserID, Email: "u@example.com", Name: "U"}, nil).Maybe()
+	recorder := audit.NewSyncRecorder(audit.RecorderDeps{
+		Repo: repo, Users: users, Logger: slog.New(slog.DiscardHandler),
+	})
+
+	requestDone := make(chan struct{})
+	ran := make(chan error, 1)
+	seed := stubSeedService{backfillCtx: func(ctx context.Context) {
+		<-requestDone // the request is over (and cancelled) before the run records anything
+		userID := testRelationsUserID
+		recorder.Record(ctx, audit.Event{
+			Operation: models.AuditOpAuthzDenied, Outcome: models.AuditOutcomeDenied,
+			Actor: &audit.Actor{UserID: &userID}, TeamID: testRelationsTeamID, TeamName: "Relations Team",
+		})
+		ran <- ctx.Err()
+	}}
+	srv := createSeedRelationsServer(seed, stubAuthz{})
+	handler := RequestIDMiddleware(srv.logger)(clientIPMiddleware(nil)(userAgentMiddleware(srv)))
+
+	req := makeRelationsRequest("POST", "/api/v1/"+testRelationsTeamID+"/relations/seed", "")
+	req.RemoteAddr = "203.0.113.9:4242"
+	req.Header.Set("User-Agent", "Mozilla/5.0 (seed test)")
+	req.Header.Set("X-Request-ID", "req-seed-1548")
+	reqCtx, cancel := context.WithCancel(context.WithValue(req.Context(), contextkeys.AuthType, "cookie"))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req.WithContext(reqCtx))
+	require.Equal(t, http.StatusAccepted, w.Code)
+	cancel()
+	close(requestDone)
+
+	select {
+	case err := <-ran:
+		require.NoError(t, err, "the run is not cancelled with the request")
+	case <-time.After(2 * time.Second):
+		t.Fatal("seed backfill goroutine did not run")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, rows, 1)
+	row := rows[0]
+	require.Equal(t, models.AuditSourceWeb, row.Source)
+	require.NotNil(t, row.RequestID)
+	require.Equal(t, "req-seed-1548", *row.RequestID)
+	require.NotNil(t, row.IP)
+	require.Equal(t, "203.0.113.9", *row.IP)
+	require.NotNil(t, row.UserAgent)
+	require.Equal(t, "Mozilla/5.0 (seed test)", *row.UserAgent)
 }
