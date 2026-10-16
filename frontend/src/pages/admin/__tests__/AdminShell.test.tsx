@@ -94,6 +94,7 @@ it('includes a Projects entry even before #461 adds the pages', () => {
     '/admin/users',
     '/admin/teams',
     '/admin/projects',
+    '/admin/audit',
     '/admin/settings/site-info',
     '/admin/settings/email',
     '/admin/settings/search',

@@ -6,6 +6,11 @@ interface RelativeTimeProps {
   value: Date | string | null | undefined
   /** Extra classes applied to the visible compact label. */
   className?: string
+  /**
+   * Formats the full value shown on hover. Defaults to the local
+   * `formatDateTime`; the audit log passes a UTC formatter (#1517).
+   */
+  formatTitle?: (date: Date) => string
 }
 
 /**
@@ -26,6 +31,7 @@ interface RelativeTimeProps {
 export function RelativeTime({
   value,
   className,
+  formatTitle = formatDateTime,
 }: Readonly<RelativeTimeProps>) {
   const date = value ? new Date(value) : null
   // No usable value means both formatters return a word ("Never"), not a time.
@@ -42,7 +48,7 @@ export function RelativeTime({
     <time
       dateTime={date.toISOString()}
       className={cn('cursor-default', className)}
-      title={formatDateTime(value)}
+      title={formatTitle(date)}
     >
       {formatRelativeTime(value)}
     </time>

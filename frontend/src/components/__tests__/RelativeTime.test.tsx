@@ -77,4 +77,18 @@ describe('RelativeTime', () => {
     const label = screen.getByText(/Jan 15, 2024/)
     expect(label).toHaveClass('text-muted-foreground', 'text-sm')
   })
+
+  it('formats the hover title with formatTitle when given', () => {
+    render(
+      <RelativeTime
+        value="2024-01-15T12:00:00Z"
+        formatTitle={date => `UTC ${date.toISOString()}`}
+      />
+    )
+
+    expect(screen.getByText(/Jan 15, 2024/)).toHaveAttribute(
+      'title',
+      'UTC 2024-01-15T12:00:00.000Z'
+    )
+  })
 })
