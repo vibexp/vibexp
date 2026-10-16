@@ -15,6 +15,7 @@ import (
 	"github.com/vibexp/vibexp/internal/logging"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 // fallbackInviterName is used in the invitation email when the inviter has no
@@ -37,6 +38,7 @@ type TeamInvitationService struct {
 	allowlist      AccessAllowlistResolver
 	cfg            *config.Config
 	logger         *slog.Logger
+	audit          audit.Recorder
 }
 
 // TeamInvitationServiceDeps groups the dependencies injected into TeamInvitationService.
@@ -52,6 +54,9 @@ type TeamInvitationServiceDeps struct {
 	Allowlist AccessAllowlistResolver
 	Cfg       *config.Config
 	Logger    *slog.Logger
+	// Audit records invitations sent, accepted, rejected and revoked (#1515);
+	// nil records nothing.
+	Audit audit.Recorder
 }
 
 // NewTeamInvitationService creates a new TeamInvitationService
@@ -70,6 +75,7 @@ func NewTeamInvitationService(deps TeamInvitationServiceDeps) *TeamInvitationSer
 		allowlist:      deps.Allowlist,
 		cfg:            deps.Cfg,
 		logger:         logger,
+		audit:          deps.Audit,
 	}
 }
 
@@ -380,6 +386,8 @@ func (s *TeamInvitationService) createAndSendInvitation(
 		// Continue with other invitations even if email fails
 	}
 
+	s.recordInvitationEvent(ctx, inviterID, invitation, team.Name, models.AuditOpTeamInviteSent)
+
 	return invitation, nil
 }
 
@@ -549,6 +557,7 @@ func (s *TeamInvitationService) AcceptInvitation(
 		"user_id", userID,
 		"invitation_id", invitation.ID,
 	).Info("Team invitation accepted successfully")
+	s.recordInvitationEvent(ctx, userID, invitation, "", models.AuditOpTeamInviteAccepted)
 
 	return invitation.TeamID, nil
 }
@@ -595,6 +604,7 @@ func (s *TeamInvitationService) RejectInvitation(ctx context.Context, token stri
 		"invitation_id", invitation.ID,
 	).
 		Info("Team invitation rejected")
+	s.recordInvitationEvent(ctx, userID, invitation, "", models.AuditOpTeamInviteRejected)
 
 	return nil
 }
@@ -628,6 +638,7 @@ func (s *TeamInvitationService) RevokeInvitation(
 		"user_id", userID,
 		"invitation_id", invitationID,
 	).Info("Team invitation revoked")
+	s.recordInvitationEvent(ctx, userID, invitation, "", models.AuditOpTeamInviteRevoked)
 
 	return nil
 }
@@ -711,4 +722,25 @@ func (s *TeamInvitationService) generateInvitationToken() (string, error) {
 	// '=' that clients percent-encode to %3D (#251). Existing padded tokens still
 	// resolve — the handlers decode the path parameter before lookup.
 	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+// recordInvitationEvent records op on an invitation. The invitee's address and
+// role are recorded; the token never is. teamName may be empty, in which case
+// the recorder looks it up.
+func (s *TeamInvitationService) recordInvitationEvent(
+	ctx context.Context, actorID string, invitation *models.TeamInvitation, teamName string, op models.AuditOperation,
+) {
+	audit.SafeRecord(ctx, s.audit, invitationEvent(actorID, invitation, teamName, op))
+}
+
+// invitationEvent builds the audit event of op on an invitation.
+func invitationEvent(
+	actorID string, invitation *models.TeamInvitation, teamName string, op models.AuditOperation,
+) audit.Event {
+	return audit.Event{
+		Operation: op, Actor: auditActorID(actorID), TeamID: invitation.TeamID, TeamName: teamName,
+		ResourceType: models.AuditResourceTypeInvitation, ResourceID: invitation.ID,
+		ResourceName: invitation.InviteeEmail,
+		Metadata:     map[string]any{"invitee_email": invitation.InviteeEmail, "role": string(invitation.Role)},
+	}
 }

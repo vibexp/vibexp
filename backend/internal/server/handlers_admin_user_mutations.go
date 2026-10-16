@@ -24,6 +24,7 @@ func (a *adminStrictServer) UpdateAdminUser(
 		return nil, apierrors.NewBadRequestError("Request body is required")
 	}
 	targetID := request.Id.String()
+	oldName := a.s.adminUserNameForAudit(ctx, targetID)
 
 	detail, err := a.s.container.AdminService().UpdateUserName(ctx, targetID, request.Body.Name)
 	if err != nil {
@@ -38,6 +39,8 @@ func (a *adminStrictServer) UpdateAdminUser(
 
 	a.recordUserMutationActivity(ctx, activities.ActivityTypeAdminUserUpdated, targetID, detail.Email,
 		map[string]interface{}{"new_name": detail.Name})
+	a.s.auditAdminUserEvent(ctx, models.AuditOpAdminUserUpdated, targetID, detail.Email,
+		map[string]any{"name": map[string]any{"old": oldName, "new": detail.Name}})
 
 	genDetail, convErr := toGenAdminUserDetail(detail)
 	if convErr != nil {
@@ -66,6 +69,7 @@ func (a *adminStrictServer) DeleteAdminUser(
 	}
 
 	a.recordUserMutationActivity(ctx, activities.ActivityTypeAdminUserDeleted, targetID, targetEmail, nil)
+	a.s.auditAdminUserEvent(ctx, models.AuditOpAdminUserDeleted, targetID, targetEmail, nil)
 
 	return admingen.DeleteAdminUser204Response{}, nil
 }

@@ -246,6 +246,9 @@ const (
 	AuditResourceTypeUser        = "user"
 	AuditResourceTypeAPIKey      = "api_key"
 	AuditResourceTypeOAuthClient = "oauth_client"
+	AuditResourceTypeTeam        = "team"
+	AuditResourceTypeTeamMember  = "team_member"
+	AuditResourceTypeInvitation  = "team_invitation"
 )
 
 // AuditEvent is one row of the instance audit log (audit_events).

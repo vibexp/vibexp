@@ -12,6 +12,7 @@ import (
 	"github.com/vibexp/vibexp/internal/logging"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 // Structured-logging field values. logServiceVibeXPAPI names this API in log
@@ -29,6 +30,8 @@ type TeamService struct {
 	authz          AuthorizationServiceInterface
 	commentRepo    repositories.CommentRepository
 	logger         *slog.Logger
+	// audit records team changes (#1515); nil records nothing.
+	audit audit.Recorder
 }
 
 // NewTeamService creates a new TeamService
@@ -39,11 +42,12 @@ func NewTeamService(
 	authz AuthorizationServiceInterface,
 	logger *slog.Logger,
 	commentRepo repositories.CommentRepository,
+	opts ...TeamServiceOption,
 ) *TeamService {
 	if logger == nil {
 		logger = logging.New(logging.Config{})
 	}
-	return &TeamService{
+	s := &TeamService{
 		teamRepo:       teamRepo,
 		teamMemberRepo: teamMemberRepo,
 		userRepo:       userRepo,
@@ -51,6 +55,10 @@ func NewTeamService(
 		commentRepo:    commentRepo,
 		logger:         logger,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // CreateDefaultTeam creates a default team for a user
@@ -195,6 +203,7 @@ func (s *TeamService) CreateTeam(
 	// just created would read as "you may do nothing here" (#224); this response
 	// previously left role blank for want of a reason to populate it.
 	setCallerRole(team, models.TeamMemberRoleOwner)
+	s.recordTeamEvent(ctx, userID, team, models.AuditOpTeamCreated, nil)
 
 	return team, nil
 }
@@ -269,6 +278,7 @@ func (s *TeamService) UpdateTeam(
 	if err != nil {
 		return nil, err
 	}
+	before := *team // the request below overwrites the loaded team in place
 
 	// Update fields if provided
 	if req.Name != nil && *req.Name != "" {
@@ -313,6 +323,7 @@ func (s *TeamService) UpdateTeam(
 		"team_id", teamID,
 	).
 		Info("Team updated successfully")
+	s.recordTeamEvent(ctx, userID, team, models.AuditOpTeamUpdated, teamChanges(&before, team))
 
 	return team, nil
 }
@@ -403,6 +414,7 @@ func (s *TeamService) DeleteTeam(ctx context.Context, userID, teamID string) err
 		"team_id", teamID,
 	).
 		Info("Team deleted successfully")
+	s.recordTeamEvent(ctx, userID, team, models.AuditOpTeamDeleted, nil)
 
 	return nil
 }
@@ -534,6 +546,7 @@ func (s *TeamService) UpdateMemberRole(
 	if team.OwnerID == targetUserID {
 		return nil, ErrCannotChangeOwnerRole
 	}
+	oldRole := s.memberRoleForAudit(ctx, teamID, targetUserID)
 
 	if updateErr := s.teamMemberRepo.UpdateRole(ctx, teamID, targetUserID, newRole); updateErr != nil {
 		if errors.Is(updateErr, repositories.ErrTeamMemberNotFound) {
@@ -568,6 +581,8 @@ func (s *TeamService) UpdateMemberRole(
 		"member_id", targetUserID,
 		"new_role", string(newRole),
 	).Info("Team member role updated successfully")
+	s.recordMemberEvent(ctx, userID, team, models.AuditOpTeamMemberRoleChanged,
+		roleChange(targetUserID, user.Email, oldRole, member.Role))
 
 	return &models.TeamMemberDetail{
 		UserID:   member.UserID,
@@ -632,6 +647,10 @@ func (s *TeamService) TransferOwnership(
 		"new_owner_id", newOwnerID,
 	).Info("Team ownership transferred successfully")
 
+	s.recordTeamEvent(ctx, userID, team, models.AuditOpTeamOwnershipTransferred, map[string]any{
+		"from_user_id": team.OwnerID, "to_user_id": newOwnerID,
+	})
+
 	// Reflect the post-transfer state: the caller is now an admin.
 	team.OwnerID = newOwnerID
 	setCallerRole(team, models.TeamMemberRoleAdmin)
@@ -652,6 +671,7 @@ func (s *TeamService) RemoveTeamMember(ctx context.Context, userID, teamID, memb
 	if team.OwnerID == memberUserID {
 		return ErrCannotRemoveTeamOwner
 	}
+	removed := s.memberForAudit(ctx, teamID, memberUserID) // gone after the delete
 
 	// Remove the member
 	if err := s.teamMemberRepo.Delete(ctx, teamID, memberUserID); err != nil {
@@ -688,6 +708,7 @@ func (s *TeamService) RemoveTeamMember(ctx context.Context, userID, teamID, memb
 		"team_id", teamID,
 		"member_id", memberUserID,
 	).Info("Team member removed successfully")
+	s.recordMemberEvent(ctx, userID, team, models.AuditOpTeamMemberRemoved, removed)
 
 	return nil
 }

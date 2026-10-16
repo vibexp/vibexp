@@ -428,3 +428,8 @@ func TestModelProviderService_CopyFromTeam_NilAuthzFailsClosed(t *testing.T) {
 	require.Error(t, copyErr)
 	assert.True(t, errors.Is(copyErr, ErrPermissionDenied), "got: %v", copyErr)
 }
+
+// Allows is the non-recording check; a test double answers it from Can.
+func (d denyProviderTeamsAuthz) Allows(ctx context.Context, userID, teamID string, perm authz.Permission) (bool, error) {
+	return allowsFromCan(d.Can(ctx, userID, teamID, perm))
+}

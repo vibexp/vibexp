@@ -1053,6 +1053,28 @@ type ResourceAccessRepository interface {
 	DeleteOlderThan(ctx context.Context, before time.Time) (int64, error)
 }
 
+// InstanceSettingsAuditObserver is told about each instance settings change
+// once it is durable (#1515): after the transaction that wrote the change and
+// its instance_settings_audit entry commits, or straight after a standalone
+// Append. A rolled-back change is never reported. The entry's snapshots are
+// already redacted.
+type InstanceSettingsAuditObserver interface {
+	OnInstanceSettingsAudited(ctx context.Context, entry models.InstanceSettingsAuditEntry)
+}
+
+// InstanceSettingsAuditObservers reports each change to every observer, in
+// order.
+type InstanceSettingsAuditObservers []InstanceSettingsAuditObserver
+
+// OnInstanceSettingsAudited implements InstanceSettingsAuditObserver.
+func (o InstanceSettingsAuditObservers) OnInstanceSettingsAudited(
+	ctx context.Context, entry models.InstanceSettingsAuditEntry,
+) {
+	for _, observer := range o {
+		observer.OnInstanceSettingsAudited(ctx, entry)
+	}
+}
+
 // Page-size bounds of AuditEventRepository.List.
 const (
 	// AuditEventListDefaultLimit is the page size of a filter with no Limit.

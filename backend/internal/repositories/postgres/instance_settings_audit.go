@@ -70,10 +70,17 @@ func NewInstanceSettingsAuditRepository(db *database.DB) repositories.InstanceSe
 // The redaction guard runs first, so a snapshot carrying a credential never
 // reaches the database. Building the redacted snapshot is the service's job
 // (#1188); this is a defensive backstop, not the redaction itself.
+//
+// The insert commits on its own, so the change is reported to the database's
+// InstanceSettingsAuditObserver straight away.
 func (r *InstanceSettingsAuditRepository) Append(
 	ctx context.Context, entry *models.InstanceSettingsAuditEntry,
 ) error {
-	return appendInstanceSettingsAudit(ctx, r.db, entry)
+	if err := appendInstanceSettingsAudit(ctx, r.db, entry); err != nil {
+		return err
+	}
+	notifyInstanceSettingsAudited(ctx, r.db, *entry)
+	return nil
 }
 
 // rowQuerier is the QueryRowContext half shared by *sql.DB and *sql.Tx, so an
@@ -102,6 +109,10 @@ func appendInstanceSettingsAudit(ctx context.Context, q rowQuerier, entry *model
 		nullableJSON(entry.Before), nullableJSON(entry.After),
 	).Scan(scanInstanceSettingsAuditDest(entry)...); err != nil {
 		return fmt.Errorf("failed to append instance settings audit entry: %w", err)
+	}
+	if tx, ok := q.(*sql.Tx); ok {
+		// Reported once the transaction commits (runAuditedSingletonTx).
+		holdUntilCommit(tx, *entry)
 	}
 	return nil
 }

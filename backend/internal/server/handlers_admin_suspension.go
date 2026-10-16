@@ -31,6 +31,7 @@ func (a *adminStrictServer) SuspendAdminUser(
 	}
 
 	a.recordSuspensionActivity(ctx, activities.ActivityTypeAdminUserSuspended, targetID, detail.Email)
+	a.s.auditAdminUserEvent(ctx, models.AuditOpAdminUserSuspended, targetID, detail.Email, nil)
 
 	genDetail, convErr := toGenAdminUserDetail(detail)
 	if convErr != nil {
@@ -54,6 +55,7 @@ func (a *adminStrictServer) ReactivateAdminUser(
 	}
 
 	a.recordSuspensionActivity(ctx, activities.ActivityTypeAdminUserReactivated, targetID, detail.Email)
+	a.s.auditAdminUserEvent(ctx, models.AuditOpAdminUserUnsuspended, targetID, detail.Email, nil)
 
 	genDetail, convErr := toGenAdminUserDetail(detail)
 	if convErr != nil {

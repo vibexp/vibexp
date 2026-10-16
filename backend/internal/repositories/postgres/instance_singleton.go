@@ -58,6 +58,9 @@ func runAuditedSingletonTx[T any](
 		return fmt.Errorf("failed to begin %s %s: %w", subject, op, err)
 	}
 	defer func() {
+		// Entries of a transaction that did not commit are never reported; a
+		// committed one's were taken below.
+		takeHeld(tx)
 		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
 			slog.Error("Failed to rollback singleton settings transaction",
 				"subject", subject, "op", op, "error", rollbackErr)
@@ -83,6 +86,9 @@ func runAuditedSingletonTx[T any](
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit %s %s: %w", subject, op, err)
+	}
+	for _, entry := range takeHeld(tx) {
+		notifyInstanceSettingsAudited(ctx, db, entry)
 	}
 	return nil
 }

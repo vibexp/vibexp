@@ -16,36 +16,24 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	"github.com/vibexp/vibexp/internal/services"
-	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 // auditSettingsHarness is the REAL settings service and the REAL capture switch
-// over one repository mock, with a recorder that keeps what it is given.
+// over one repository mock. The change reaches the audit log through the
+// instance settings observer once its entry commits (#1515), which the
+// repository integration tests cover; the service records nothing itself.
 type auditSettingsHarness struct {
-	svc      *services.InstanceAuditSettingsService
-	repo     *repomocks.MockInstanceAuditSettingsRepository
-	capture  *services.AuditClientInfoCapture
-	recorder *recordingAuditRecorder
+	svc     *services.InstanceAuditSettingsService
+	repo    *repomocks.MockInstanceAuditSettingsRepository
+	capture *services.AuditClientInfoCapture
 }
 
 func newAuditSettingsHarness(t *testing.T, logs *bytes.Buffer) *auditSettingsHarness {
 	t.Helper()
-	h := &auditSettingsHarness{
-		repo:     repomocks.NewMockInstanceAuditSettingsRepository(t),
-		recorder: &recordingAuditRecorder{},
-	}
+	h := &auditSettingsHarness{repo: repomocks.NewMockInstanceAuditSettingsRepository(t)}
 	h.capture = services.NewAuditClientInfoCapture(h.repo, testLogger(logs))
-	h.svc = services.NewInstanceAuditSettingsService(h.repo, h.capture, h.recorder, testLogger(logs))
+	h.svc = services.NewInstanceAuditSettingsService(h.repo, h.capture, testLogger(logs))
 	return h
-}
-
-// recordingAuditRecorder is an audit.Recorder that keeps every event.
-type recordingAuditRecorder struct {
-	events []audit.Event
-}
-
-func (r *recordingAuditRecorder) Record(_ context.Context, e audit.Event) {
-	r.events = append(r.events, e)
 }
 
 func storedAuditSettingsRow() *models.InstanceAuditSettings {
@@ -185,14 +173,6 @@ func TestInstanceAuditSettingsService_Update_StoresAndAudits(t *testing.T) {
 	assert.Equal(t, testInstanceAdminID, *entry.ActorUserID)
 	assert.JSONEq(t, `{"retention_weeks":6,"capture_ip_ua":false}`, string(entry.Before))
 	assert.JSONEq(t, `{"retention_weeks":12,"capture_ip_ua":true}`, string(entry.After))
-
-	require.Len(t, h.recorder.events, 1, "the change is recorded in the audit log itself")
-	event := h.recorder.events[0]
-	assert.Equal(t, models.AuditOpAuditSettingsUpdated, event.Operation)
-	assert.Equal(t, map[string]any{
-		"before": models.InstanceAuditSettingsValues{RetentionWeeks: 6, CaptureIPUA: false},
-		"after":  models.InstanceAuditSettingsValues{RetentionWeeks: 12, CaptureIPUA: true},
-	}, event.Metadata, "the event reports the rows the settings audit entry stored")
 }
 
 func TestInstanceAuditSettingsService_Update_ConflictIsPassedThrough(t *testing.T) {
@@ -225,13 +205,6 @@ func TestInstanceAuditSettingsService_Reset_AuditsTheDelete(t *testing.T) {
 	assert.Equal(t, models.InstanceSettingsAuditActionDelete, entry.Action)
 	assert.JSONEq(t, `{"retention_weeks":6,"capture_ip_ua":false}`, string(entry.Before))
 	assert.Nil(t, entry.After)
-
-	require.Len(t, h.recorder.events, 1)
-	assert.Equal(t, models.AuditOpAuditSettingsUpdated, h.recorder.events[0].Operation)
-	assert.Equal(t, map[string]any{
-		"before": models.InstanceAuditSettingsValues{RetentionWeeks: 6, CaptureIPUA: false},
-		"after":  nil,
-	}, h.recorder.events[0].Metadata, "after a reset the built-in defaults apply: after is null")
 }
 
 func TestInstanceAuditSettingsService_Reset_Error(t *testing.T) {
@@ -249,28 +222,4 @@ func TestInstanceAuditSettingsValues_SnapshotShape(t *testing.T) {
 	raw, err := json.Marshal(models.DefaultInstanceAuditSettingsValues())
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"retention_weeks":2,"capture_ip_ua":true}`, string(raw))
-}
-
-// A write that did not happen is not an event: a rejected value, a version
-// conflict, a failed reset and a reset with nothing stored record nothing.
-func TestInstanceAuditSettingsService_RecordsOnlyCommittedChanges(t *testing.T) {
-	h := newAuditSettingsHarness(t, nil)
-	ctx := context.Background()
-
-	_, err := h.svc.Update(ctx, testInstanceAdminID, models.InstanceAuditSettingsValues{RetentionWeeks: 0}, nil)
-	require.Error(t, err)
-
-	h.repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-		Return(repositories.ErrInstanceSettingsVersionConflict).Once()
-	_, err = h.svc.Update(ctx, testInstanceAdminID,
-		models.InstanceAuditSettingsValues{RetentionWeeks: 2, CaptureIPUA: true}, nil)
-	require.Error(t, err)
-
-	h.repo.EXPECT().DeleteAudited(mock.Anything, mock.Anything).Return(false, errors.New("db down")).Once()
-	require.Error(t, h.svc.Reset(ctx, testInstanceAdminID))
-
-	h.repo.EXPECT().DeleteAudited(mock.Anything, mock.Anything).Return(false, nil).Once()
-	require.NoError(t, h.svc.Reset(ctx, testInstanceAdminID))
-
-	assert.Empty(t, h.recorder.events)
 }

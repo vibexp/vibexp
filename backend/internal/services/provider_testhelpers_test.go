@@ -103,3 +103,13 @@ func embeddingHandlerReturningDimension(t *testing.T, dim int) http.HandlerFunc 
 		}
 	}
 }
+
+// Allows is the non-recording check; a test double answers it from Can.
+func (x permissiveProviderAuthz) Allows(ctx context.Context, userID, teamID string, perm authz.Permission) (bool, error) {
+	return allowsFromCan(x.Can(ctx, userID, teamID, perm))
+}
+
+// Allows is the non-recording check; a test double answers it from Can.
+func (x denyingProviderAuthz) Allows(ctx context.Context, userID, teamID string, perm authz.Permission) (bool, error) {
+	return allowsFromCan(x.Can(ctx, userID, teamID, perm))
+}

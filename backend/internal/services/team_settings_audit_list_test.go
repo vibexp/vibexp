@@ -254,3 +254,8 @@ func TestTeamSettingsAuditService_ListAudit_RepositoryErrorIsWrapped(t *testing.
 	assert.Contains(t, err.Error(), "TeamSettingsAuditService.ListAudit")
 	assert.Contains(t, err.Error(), "connection reset")
 }
+
+// Allows is the non-recording check; a test double answers it from Can.
+func (g *gateAuthz) Allows(ctx context.Context, userID, teamID string, perm authz.Permission) (bool, error) {
+	return allowsFromCan(g.Can(ctx, userID, teamID, perm))
+}

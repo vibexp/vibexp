@@ -99,6 +99,16 @@ func (c *AuditClientInfoCapture) Invalidate() {
 	c.generation++
 }
 
+// OnInstanceSettingsAudited drops the cached switch when the audit-log
+// settings change (#1515). It is registered ahead of the audit recorder's
+// observer, so the audit.settings.updated event of a change that switches
+// capture off is itself recorded with capture off, like every later event.
+func (c *AuditClientInfoCapture) OnInstanceSettingsAudited(_ context.Context, entry models.InstanceSettingsAuditEntry) {
+	if entry.Setting == models.InstanceSettingAuditLog {
+		c.Invalidate()
+	}
+}
+
 // readCapture reads the capture switch from the database.
 //
 // The read is detached from the caller's cancellation, as AuthPolicyResolver's

@@ -10,6 +10,7 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/observability/metrics"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/repositories/postgres"
 	"github.com/vibexp/vibexp/internal/scheduler"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
@@ -416,6 +417,21 @@ func ProvideAdminAuditService(events repositories.AuditEventRepository) services
 	return services.NewAdminAuditService(events)
 }
 
+// ProvideInstanceSettingsAuditObserver records every durable instance
+// settings change in the audit log (#1515) and registers itself with the
+// database handle the instance settings repositories write through, which
+// reports each change after it commits.
+//
+// The capture switch observes first, so the event of a change that switches
+// client-info capture off is already recorded with capture off.
+func ProvideInstanceSettingsAuditObserver(
+	db *database.DB, capture *services.AuditClientInfoCapture, recorder audit.Recorder,
+) repositories.InstanceSettingsAuditObserver {
+	observer := repositories.InstanceSettingsAuditObservers{capture, audit.NewInstanceSettingsObserver(recorder)}
+	postgres.RegisterInstanceSettingsAuditObserver(db, observer)
+	return observer
+}
+
 // ProvideAuditRecorder creates the instance audit log recorder. It shares the
 // resource-access worker pool: every audit write is off the request path.
 func ProvideAuditRecorder(deps audit.RecorderDeps) audit.Recorder {
@@ -804,14 +820,14 @@ func ProvideInstanceSiteInfoService(
 // ProvideInstanceAuditSettingsService creates the instance audit-log settings
 // service (#1512): the surface an instance admin edits the retention and the
 // client-info capture switch through. It drops capture's cache after every
-// write and records each change through recorder.
+// write; the change reaches the audit log through the instance settings
+// observer (#1515), like every other instance setting.
 func ProvideInstanceAuditSettingsService(
 	repo repositories.InstanceAuditSettingsRepository,
 	capture *services.AuditClientInfoCapture,
-	recorder audit.Recorder,
 	logger *slog.Logger,
 ) *services.InstanceAuditSettingsService {
-	return services.NewInstanceAuditSettingsService(repo, capture, recorder, logger)
+	return services.NewInstanceAuditSettingsService(repo, capture, logger)
 }
 
 // ProvideTeamSearchSettingsService creates the team search settings service.
@@ -1112,6 +1128,7 @@ type InvitationRegistrationDeps struct {
 	Admins      services.InstanceAdminResolver
 	Events      events.EventPublisher
 	Logger      *slog.Logger
+	Audit       audit.Recorder
 }
 
 // ProvideInvitationRegistrationService creates the public side of invitations
@@ -1132,6 +1149,7 @@ func ProvideInvitationRegistrationService(
 		IsRootAdmin: deps.Admins.IsRootAdmin,
 		Events:      deps.Events,
 		Logger:      deps.Logger,
+		Audit:       deps.Audit,
 	})
 }
 
@@ -1281,8 +1299,9 @@ func ProvideUserPreferencesService(
 func ProvideAuthorizationService(
 	teamMemberRepo repositories.TeamMemberRepository,
 	logger *slog.Logger,
+	recorder audit.Recorder,
 ) services.AuthorizationServiceInterface {
-	return services.NewAuthorizationService(teamMemberRepo, logger)
+	return services.NewAuthorizationService(teamMemberRepo, logger, services.WithAuthorizationAuditRecorder(recorder))
 }
 
 // ProvideTeamService creates a new TeamService
@@ -1293,8 +1312,10 @@ func ProvideTeamService(
 	authzService services.AuthorizationServiceInterface,
 	logger *slog.Logger,
 	commentRepo repositories.CommentRepository,
+	recorder audit.Recorder,
 ) services.TeamServiceInterface {
-	return services.NewTeamService(teamRepo, teamMemberRepo, userRepo, authzService, logger, commentRepo)
+	return services.NewTeamService(teamRepo, teamMemberRepo, userRepo, authzService, logger, commentRepo,
+		services.WithTeamAuditRecorder(recorder))
 }
 
 // ProvideTeamInvitationService creates a new TeamInvitationService. Wire fills

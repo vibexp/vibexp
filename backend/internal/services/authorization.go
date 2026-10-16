@@ -10,6 +10,7 @@ import (
 	"github.com/vibexp/vibexp/internal/logging"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 // AuthorizationServiceInterface is the single enforcement point for team
@@ -47,6 +48,14 @@ type AuthorizationServiceInterface interface {
 		userID, teamID, resourceOwnerID string,
 		ownPerm, anyPerm authz.Permission,
 	) error
+
+	// Allows reports whether the user may perform perm, WITHOUT recording a
+	// denial in the audit log. Use it only where the answer picks a branch and
+	// a "no" is not a refused request: UI gating, filtering, "can I show this
+	// button". Can, Authorize and CanActOnResource record every denial
+	// (authz.denied, #1515), so a probe made through them would fill the log
+	// with denials nobody asked for. A database failure is still an error.
+	Allows(ctx context.Context, userID, teamID string, perm authz.Permission) (bool, error)
 }
 
 // AuthorizationService implements AuthorizationServiceInterface against the
@@ -54,20 +63,37 @@ type AuthorizationServiceInterface interface {
 type AuthorizationService struct {
 	teamMemberRepo repositories.TeamMemberRepository
 	logger         *slog.Logger
+	// audit records denials (#1515); nil records nothing.
+	audit audit.Recorder
+}
+
+// AuthorizationServiceOption customizes an AuthorizationService at
+// construction.
+type AuthorizationServiceOption func(*AuthorizationService)
+
+// WithAuthorizationAuditRecorder makes the service record every denial of Can,
+// Authorize and CanActOnResource as authz.denied.
+func WithAuthorizationAuditRecorder(recorder audit.Recorder) AuthorizationServiceOption {
+	return func(s *AuthorizationService) { s.audit = recorder }
 }
 
 // NewAuthorizationService creates a new AuthorizationService
 func NewAuthorizationService(
 	teamMemberRepo repositories.TeamMemberRepository,
 	logger *slog.Logger,
+	opts ...AuthorizationServiceOption,
 ) *AuthorizationService {
 	if logger == nil {
 		logger = logging.New(logging.Config{})
 	}
-	return &AuthorizationService{
+	s := &AuthorizationService{
 		teamMemberRepo: teamMemberRepo,
 		logger:         logger,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // Can returns nil when the user's role in the team grants perm, and an error
@@ -80,9 +106,35 @@ func (s *AuthorizationService) Can(ctx context.Context, userID, teamID string, p
 	return err
 }
 
-// Authorize checks perm and returns the caller's role. It carries the actual
-// logic; Can is the common case that discards the role.
+// Authorize checks perm and returns the caller's role, recording a denial.
 func (s *AuthorizationService) Authorize(
+	ctx context.Context, userID, teamID string, perm authz.Permission,
+) (models.TeamMemberRole, error) {
+	role, err := s.decide(ctx, userID, teamID, perm)
+	if err != nil {
+		if errors.Is(err, ErrPermissionDenied) {
+			s.recordDenial(ctx, denial{userID: userID, teamID: teamID, perm: perm, role: role})
+		}
+		return "", err
+	}
+	return role, nil
+}
+
+// Allows implements AuthorizationServiceInterface: decide, with no recording.
+func (s *AuthorizationService) Allows(
+	ctx context.Context, userID, teamID string, perm authz.Permission,
+) (bool, error) {
+	_, err := s.decide(ctx, userID, teamID, perm)
+	if errors.Is(err, ErrPermissionDenied) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// decide carries the logic every check shares and records nothing. On a
+// denial it still returns the role that was refused ("" for a non-member), so
+// the denial can name it; on success it returns the role.
+func (s *AuthorizationService) decide(
 	ctx context.Context, userID, teamID string, perm authz.Permission,
 ) (models.TeamMemberRole, error) {
 	role, err := s.roleOf(ctx, userID, teamID)
@@ -91,10 +143,44 @@ func (s *AuthorizationService) Authorize(
 	}
 
 	if !authz.Allowed(role, perm) {
-		return "", fmt.Errorf("%w: role %q may not perform %q", ErrPermissionDenied, role, perm)
+		return role, fmt.Errorf("%w: role %q may not perform %q", ErrPermissionDenied, role, perm)
 	}
 
 	return role, nil
+}
+
+// denial is one refused check, as authz.denied records it.
+type denial struct {
+	userID, teamID string
+	perm           authz.Permission
+	// role is the caller's role, "" when they are not a member of the team.
+	role models.TeamMemberRole
+	// resourceOwnerID is set for an own-vs-any check (CanActOnResource).
+	resourceOwnerID string
+}
+
+// auditRoleNonMember is the role a denial names for a caller who is not a
+// member of the team.
+const auditRoleNonMember = "non_member"
+
+// recordDenial records one denial: a single SafeRecord call on the hot path.
+// It does no I/O of its own; the recorder resolves the actor's and the team's
+// names off the request path. A database error is never a denial and never
+// reaches here.
+func (s *AuthorizationService) recordDenial(ctx context.Context, d denial) {
+	role := string(d.role)
+	if role == "" {
+		role = auditRoleNonMember
+	}
+	metadata := map[string]any{"permission": string(d.perm), "role": role}
+	if d.resourceOwnerID != "" {
+		metadata["resource_owner_id"] = d.resourceOwnerID
+	}
+	userID := d.userID
+	audit.SafeRecord(ctx, s.audit, audit.Event{
+		Operation: models.AuditOpAuthzDenied, Outcome: models.AuditOutcomeDenied,
+		Actor: &audit.Actor{UserID: &userID}, TeamID: d.teamID, Metadata: metadata,
+	})
 }
 
 // IsMember resolves the user's role purely to establish that they have one.
@@ -107,15 +193,25 @@ func (s *AuthorizationService) IsMember(ctx context.Context, userID, teamID stri
 
 // CanActOnResource checks ownPerm when userID created the resource and anyPerm
 // otherwise. resourceOwnerID is the resource's creator/owner user ID.
+//
+// It checks exactly one permission, so a denial records one authz.denied,
+// naming the resource's owner.
 func (s *AuthorizationService) CanActOnResource(
 	ctx context.Context,
 	userID, teamID, resourceOwnerID string,
 	ownPerm, anyPerm authz.Permission,
 ) error {
+	perm := anyPerm
 	if userID == resourceOwnerID {
-		return s.Can(ctx, userID, teamID, ownPerm)
+		perm = ownPerm
 	}
-	return s.Can(ctx, userID, teamID, anyPerm)
+	role, err := s.decide(ctx, userID, teamID, perm)
+	if errors.Is(err, ErrPermissionDenied) {
+		s.recordDenial(ctx, denial{
+			userID: userID, teamID: teamID, perm: perm, role: role, resourceOwnerID: resourceOwnerID,
+		})
+	}
+	return err
 }
 
 // roleOf resolves the user's role within the team.
