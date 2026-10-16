@@ -5,11 +5,14 @@ import {
   FolderKanban,
   HardDrive,
   KeyRound,
+  Mail,
   MessageSquare,
   Package,
   Plug,
   Rss,
   User,
+  UserCog,
+  UsersRound,
 } from 'lucide-react'
 
 import { RelativeTime } from '@/components/RelativeTime'
@@ -184,6 +187,9 @@ const RESOURCE_ICONS: Record<string, LucideIcon> = {
   user: User,
   api_key: KeyRound,
   oauth_client: Plug,
+  team: UsersRound,
+  team_member: UserCog,
+  team_invitation: Mail,
 }
 
 const RESOURCE_LABELS: Record<string, string> = Object.fromEntries(

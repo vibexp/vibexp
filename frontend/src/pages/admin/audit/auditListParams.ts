@@ -92,9 +92,10 @@ export const AUDIT_ENUMS_EXHAUSTIVE: [MissingSources, MissingOutcomes] extends [
 
 /**
  * The resource types the audit log records today: the resource writes use the
- * resource's own type, the auth and security events `user`, `api_key` and
- * `oauth_client` (`models.AuditResourceType*`). `resource_type` is a free
- * string in the API, so this is the filter's menu, not a constraint.
+ * resource's own type; the auth, security and team events use `user`,
+ * `api_key`, `oauth_client`, `team`, `team_member` and `team_invitation`
+ * (`models.AuditResourceType*`). `resource_type` is a free string in the API,
+ * so this is the filter's menu, not a constraint.
  */
 export const AUDIT_RESOURCE_TYPES = [
   { value: 'prompt', label: 'Prompt' },
@@ -107,6 +108,9 @@ export const AUDIT_RESOURCE_TYPES = [
   { value: 'user', label: 'User' },
   { value: 'api_key', label: 'API key' },
   { value: 'oauth_client', label: 'OAuth client' },
+  { value: 'team', label: 'Team' },
+  { value: 'team_member', label: 'Team member' },
+  { value: 'team_invitation', label: 'Team invitation' },
 ] as const
 
 /** A comma-separated URL value as a list, dropping blanks. */
