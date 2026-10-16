@@ -236,11 +236,20 @@ it('waits for typing to pause, then searches once from page 1', async () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
+    // The first page must have settled before loadMore can take the second:
+    // wait for it rather than assume one flush is enough, which is what made
+    // this test fail under full-suite load.
+    await vi.waitFor(() => {
+      expect(hook.loading).toBe(false)
+    })
     act(() => {
       hook.loadMore()
     })
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
+    })
+    await vi.waitFor(() => {
+      expect(hook.loadingMore).toBe(false)
     })
     expect(mockAdminService.listTeams).toHaveBeenCalledTimes(2)
 

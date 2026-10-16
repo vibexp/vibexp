@@ -1,6 +1,7 @@
 import {
   Building2,
   FolderKanban,
+  History,
   KeyRound,
   LayoutDashboard,
   type LucideIcon,
@@ -76,6 +77,13 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     href: '/admin/projects',
     icon: FolderKanban,
     description: 'Every project on this instance.',
+  },
+  {
+    label: 'Audit',
+    href: '/admin/audit',
+    icon: History,
+    description:
+      'Who did what on this instance, when, through which channel, and how it ended.',
   },
   {
     label: 'Site info',

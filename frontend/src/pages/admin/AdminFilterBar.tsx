@@ -23,6 +23,8 @@ export interface AdminFilterBarProps {
   created: DateRangeValue
   onCreatedChange: (value: DateRangeValue) => void
   createdLabel?: string
+  /** Classes for the date-range trigger, e.g. a width at phone size. */
+  createdClassName?: string
   onClear?: () => void
   hasActiveFilters: boolean
   /** The page's own domain filters, rendered between search and the date range. */
@@ -64,6 +66,7 @@ export function AdminFilterBar({
   created,
   onCreatedChange,
   createdLabel = 'Filter by creation date',
+  createdClassName,
   onClear,
   hasActiveFilters,
   children,
@@ -99,6 +102,7 @@ export function AdminFilterBar({
         onChange={onCreatedChange}
         placeholder="Created any time"
         ariaLabel={createdLabel}
+        className={createdClassName}
       />
 
       {hasActiveFilters && (

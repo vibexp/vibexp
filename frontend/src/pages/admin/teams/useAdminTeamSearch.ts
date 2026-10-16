@@ -1,11 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback } from 'react'
 
+import { useAdminPagedSearch } from '@/pages/admin/filters/useAdminPagedSearch'
 import type { AdminTeamListItem } from '@/services/adminService'
 import { adminService } from '@/services/adminService'
-import { getErrorMessage } from '@/utils/errorHandling'
-
-const LIMIT = 25
-const DEBOUNCE_MS = 300
 
 export interface AdminTeamSearchResult {
   teams: AdminTeamListItem[]
@@ -25,95 +22,37 @@ export interface AdminTeamSearchResult {
  *
  * The admin equivalent of `useProjectSearch`, which cannot be reused here: it
  * depends on `useTeam`, and the admin shell mounts no `TeamProvider` (#456).
- *
- * Paginates rather than loading every team: on an instance where personal
- * workspaces run one per user, "fetch all teams to fill a dropdown" is a request
- * that grows without bound. Each query change resets to page 1 and accumulated
- * pages are appended, so the picker can scroll past the first page.
+ * The paging, debouncing and stale-response guard live in
+ * `useAdminPagedSearch`, shared with the audit log's user and project pickers
+ * (#1517).
  */
 export function useAdminTeamSearch(
   options: Readonly<{ sharedOnly?: boolean }> = {}
 ): AdminTeamSearchResult {
-  // A primitive, so the effect below does not re-run on every render.
+  // A primitive, so the search does not re-run on every render.
   const sharedOnly = options.sharedOnly === true
-  const [teams, setTeams] = useState<AdminTeamListItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [query, setQuery] = useState('')
-  const [debouncedQuery, setDebouncedQuery] = useState('')
-  const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(0)
-  // Sequence guard: a slow page-1 response for an old query must not overwrite a
-  // newer query's results.
-  const seqRef = useRef(0)
-
-  // Armed only when the typed query differs from the one searched. A timer armed
-  // at mount (or after typing back to the searched text) would reset `page` to 1
-  // for an unchanged query, throwing away the pages already scrolled in (#1448).
-  useEffect(() => {
-    if (query === debouncedQuery) return
-    const timer = setTimeout(() => {
-      setDebouncedQuery(query)
-      setPage(1)
-    }, DEBOUNCE_MS)
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [query, debouncedQuery])
-
-  useEffect(() => {
-    const seq = ++seqRef.current
-    const firstPage = page === 1
-    if (firstPage) setLoading(true)
-    else setLoadingMore(true)
-    setError(null)
-
-    adminService
-      .listTeams({
-        page,
-        limit: LIMIT,
-        search: debouncedQuery || undefined,
-        // Personal workspaces run one per user and are all named alike; a
-        // picker that cannot use them asks the server to leave them out.
-        ...(sharedOnly ? { is_personal: false } : {}),
-        sort_by: 'name',
-        sort_order: 'asc',
-      })
-      .then(response => {
-        if (seq !== seqRef.current) return
-        setTeams(prev =>
-          firstPage ? response.teams : [...prev, ...response.teams]
-        )
-        setTotalPages(response.total_pages)
-      })
-      .catch((err: unknown) => {
-        if (seq !== seqRef.current) return
-        setError(getErrorMessage(err, 'Failed to load teams'))
-      })
-      .finally(() => {
-        if (seq !== seqRef.current) return
-        setLoading(false)
-        setLoadingMore(false)
-      })
-  }, [debouncedQuery, page, sharedOnly])
-
-  const hasMore = page < totalPages
-
-  const loadMore = useCallback(() => {
-    // Guarded internally so a scroll handler can call it freely.
-    if (loading || loadingMore || !hasMore) return
-    setPage(prev => prev + 1)
-  }, [loading, loadingMore, hasMore])
-
-  return {
-    teams,
-    loading,
-    loadingMore,
-    error,
-    hasMore,
-    loadMore,
-    setQuery,
-    query,
-  }
+  const fetchPage = useCallback(
+    (search: string | undefined, page: number, limit: number) =>
+      adminService
+        .listTeams({
+          page,
+          limit,
+          search,
+          // Personal workspaces run one per user and are all named alike; a
+          // picker that cannot use them asks the server to leave them out.
+          ...(sharedOnly ? { is_personal: false } : {}),
+          sort_by: 'name',
+          sort_order: 'asc',
+        })
+        .then(response => ({
+          items: response.teams,
+          totalPages: response.total_pages,
+        })),
+    [sharedOnly]
+  )
+  const { items, ...rest } = useAdminPagedSearch(
+    fetchPage,
+    'Failed to load teams'
+  )
+  return { teams: items, ...rest }
 }

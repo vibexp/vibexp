@@ -223,7 +223,7 @@ export type AdminProjectExportParams = NonNullable<
   operations['exportAdminProjects']['parameters']['query']
 >
 
-type MutuallyAssignable<A, B> = [A] extends [B]
+export type MutuallyAssignable<A, B> = [A] extends [B]
   ? [B] extends [A]
     ? true
     : false
@@ -233,7 +233,7 @@ type MutuallyAssignable<A, B> = [A] extends [B]
  * optional param present on one side only as equal, so the key sets are
  * compared too.
  */
-type SameShape<A, B> =
+export type SameShape<A, B> =
   MutuallyAssignable<A, B> extends true
     ? MutuallyAssignable<keyof A, keyof B>
     : false
@@ -269,7 +269,7 @@ export interface AdminCsvExport {
   truncated: boolean
 }
 
-type AdminExportList = 'users' | 'teams' | 'projects'
+type AdminExportList = 'users' | 'teams' | 'projects' | 'audit'
 
 function yyyymmdd(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -282,7 +282,7 @@ function dispositionFilename(header: string | null): string | undefined {
   return match?.[1]
 }
 
-function toCsvExport(
+export function toCsvExport(
   blob: Blob,
   response: Response,
   list: AdminExportList
