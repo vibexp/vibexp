@@ -102,46 +102,71 @@ const MOVE_KEYS = new Set([
   'to_project_name',
 ])
 
-export function describeAuditMetadata(
-  metadata: Readonly<JsonObject> | null | undefined
+/** Whether the metadata is a settings change: `before`/`after` snapshots. */
+function hasSnapshots(metadata: Readonly<JsonObject>): boolean {
+  return 'before' in metadata || 'after' in metadata
+}
+
+/** Whether `key` is consumed by a change row rather than listed as a detail. */
+function isChangeKey(key: string, snapshots: boolean): boolean {
+  if (MOVE_KEYS.has(key)) return true
+  if (snapshots && (key === 'before' || key === 'after')) return true
+  // `changed_fields` names the fields; the pairs spell out the values.
+  return key === 'changed_fields'
+}
+
+/** The `{old, new}` pairs as change rows and every other key as a detail. */
+function pairsAndDetails(
+  metadata: Readonly<JsonObject>,
+  snapshots: boolean
 ): DescribedMetadata {
   const changes: AuditChange[] = []
   const details: AuditDetail[] = []
-  if (!metadata) return { changes, details }
-
-  const move = moveChange(metadata)
-  if (move) changes.push(move)
-
-  const hasSnapshots = 'before' in metadata || 'after' in metadata
-  if (hasSnapshots) {
-    changes.push(...snapshotChanges(metadata.before, metadata.after))
-  }
-
   for (const [key, value] of Object.entries(metadata)) {
-    if (MOVE_KEYS.has(key)) continue
-    if (hasSnapshots && (key === 'before' || key === 'after')) continue
-    // `changed_fields` names the fields; the pairs spell out the values.
-    if (key === 'changed_fields') continue
+    if (isChangeKey(key, snapshots)) continue
     if (isOldNewPair(value)) {
       changes.push({
         field: key,
         old: 'old' in value ? formatAuditValue(value.old) : undefined,
         new: 'new' in value ? formatAuditValue(value.new) : undefined,
       })
-      continue
+    } else {
+      details.push({ key, value: formatAuditValue(value) })
     }
-    details.push({ key, value: formatAuditValue(value) })
-  }
-
-  // A changed field the recorder named but gave no values for (content).
-  const changedFields = Array.isArray(metadata.changed_fields)
-    ? metadata.changed_fields.filter(
-        (field): field is string => typeof field === 'string'
-      )
-    : []
-  for (const field of changedFields) {
-    if (changes.some(change => change.field === field)) continue
-    changes.push({ field, valuesWithheld: true })
   }
   return { changes, details }
+}
+
+/**
+ * Changed fields the recorder named without values (content), as rows marked
+ * `valuesWithheld`. `known` are the fields already shown with values.
+ */
+function withheldChanges(
+  changedFields: unknown,
+  known: readonly AuditChange[]
+): AuditChange[] {
+  if (!Array.isArray(changedFields)) return []
+  const shown = new Set(known.map(change => change.field))
+  return changedFields
+    .filter((field): field is string => typeof field === 'string')
+    .filter(field => !shown.has(field))
+    .map(field => ({ field, valuesWithheld: true }))
+}
+
+export function describeAuditMetadata(
+  metadata: Readonly<JsonObject> | null | undefined
+): DescribedMetadata {
+  if (!metadata) return { changes: [], details: [] }
+
+  const snapshots = hasSnapshots(metadata)
+  const move = moveChange(metadata)
+  const fromSnapshots = snapshots
+    ? snapshotChanges(metadata.before, metadata.after)
+    : []
+  const { changes: pairs, details } = pairsAndDetails(metadata, snapshots)
+  const changes = [...(move ? [move] : []), ...fromSnapshots, ...pairs]
+  return {
+    changes: [...changes, ...withheldChanges(metadata.changed_fields, changes)],
+    details,
+  }
 }

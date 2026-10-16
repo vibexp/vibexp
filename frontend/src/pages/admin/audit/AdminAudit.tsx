@@ -1,4 +1,4 @@
-import type { ColumnDef } from '@tanstack/react-table'
+import type { CellContext, ColumnDef } from '@tanstack/react-table'
 import { ChevronLeft, ChevronRight, History } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -58,6 +58,68 @@ const INITIAL: State = {
   loading: true,
   error: null,
 }
+
+type AuditCell = CellContext<AdminAuditEvent, unknown>
+
+/*
+ * The table's cells, defined at module level (not inside the page) so React
+ * keeps their identity across renders. Widths keep a row at most two lines at
+ * 1280: the operation never squeezes below a readable minimum, and actor,
+ * resource, scope and channel truncate instead of widening the table.
+ */
+function TimeCell({ row }: AuditCell) {
+  return <AuditTime at={row.original.created_at} />
+}
+
+function ActorCell({ row }: AuditCell) {
+  return (
+    <div className="max-w-[11rem]">
+      <AuditActor event={row.original} />
+    </div>
+  )
+}
+
+function OperationCell({ row }: AuditCell) {
+  return (
+    <span className="block min-w-[7rem] text-sm">
+      {operationLabel(row.original.operation)}
+    </span>
+  )
+}
+
+function ResourceCell({ row }: AuditCell) {
+  return <AuditResource event={row.original} className="max-w-[9rem]" />
+}
+
+function ScopeCell({ row }: AuditCell) {
+  return (
+    <div className="max-w-[7rem]">
+      <AuditScope event={row.original} />
+    </div>
+  )
+}
+
+function ChannelCell({ row }: AuditCell) {
+  return (
+    <div className="max-w-[8rem]">
+      <AuditSourceBadge event={row.original} />
+    </div>
+  )
+}
+
+function OutcomeCell({ row }: AuditCell) {
+  return <AuditOutcomeBadge outcome={row.original.outcome} />
+}
+
+const AUDIT_COLUMNS: ColumnDef<AdminAuditEvent>[] = [
+  { accessorKey: 'created_at', header: 'Time', cell: TimeCell },
+  { id: 'actor', header: 'Actor', cell: ActorCell },
+  { id: 'operation', header: 'Operation', cell: OperationCell },
+  { id: 'resource', header: 'Resource', cell: ResourceCell },
+  { id: 'scope', header: 'Scope', cell: ScopeCell },
+  { id: 'source', header: 'Channel', cell: ChannelCell },
+  { id: 'outcome', header: 'Outcome', cell: OutcomeCell },
+]
 
 /**
  * The instance audit log (#1517): who did what, when, through which channel,
@@ -156,65 +218,6 @@ export function AdminAudit() {
     [setCreated]
   )
 
-  const columns = useMemo<ColumnDef<AdminAuditEvent>[]>(
-    () => [
-      {
-        accessorKey: 'created_at',
-        header: 'Time',
-        cell: ({ row }) => <AuditTime at={row.original.created_at} />,
-      },
-      {
-        id: 'actor',
-        header: 'Actor',
-        cell: ({ row }) => (
-          <div className="max-w-[11rem]">
-            <AuditActor event={row.original} />
-          </div>
-        ),
-      },
-      {
-        id: 'operation',
-        header: 'Operation',
-        cell: ({ row }) => (
-          <span className="block min-w-[7rem] text-sm">
-            {operationLabel(row.original.operation)}
-          </span>
-        ),
-      },
-      {
-        id: 'resource',
-        header: 'Resource',
-        cell: ({ row }) => (
-          <AuditResource event={row.original} className="max-w-[9rem]" />
-        ),
-      },
-      {
-        id: 'scope',
-        header: 'Scope',
-        cell: ({ row }) => (
-          <div className="max-w-[7rem]">
-            <AuditScope event={row.original} />
-          </div>
-        ),
-      },
-      {
-        id: 'source',
-        header: 'Channel',
-        cell: ({ row }) => (
-          <div className="max-w-[8rem]">
-            <AuditSourceBadge event={row.original} />
-          </div>
-        ),
-      },
-      {
-        id: 'outcome',
-        header: 'Outcome',
-        cell: ({ row }) => <AuditOutcomeBadge outcome={row.original.outcome} />,
-      },
-    ],
-    []
-  )
-
   const status = listPageStatus(
     state.loading,
     state.error,
@@ -282,7 +285,7 @@ export function AdminAudit() {
           <div className="hidden md:block">
             <ListTable
               rows={state.events}
-              columns={columns}
+              columns={AUDIT_COLUMNS}
               onRowClick={setSelected}
             />
           </div>
