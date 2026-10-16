@@ -30,8 +30,8 @@ func NewInstanceSettingsObserver(recorder Recorder) *InstanceSettingsObserver {
 // or audit.settings.updated for the audit-log settings. The snapshots are
 // already redacted by the services that built them. An entry with no actor (a
 // startup import, a setup token) is recorded as the system. The recovery CLI
-// (vibexp admin auth) runs on its own database handle with no observer, so its
-// changes do not reach the audit log yet; that is tracked separately.
+// (vibexp admin auth) registers its own observer on its database handle, over a
+// synchronous recorder wrapped in its Attribution (#1535).
 func (o *InstanceSettingsObserver) OnInstanceSettingsAudited(
 	ctx context.Context, entry models.InstanceSettingsAuditEntry,
 ) {

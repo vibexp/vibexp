@@ -8,6 +8,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 // authRecoveryToggleAttempts bounds how often SetProviderEnabled re-reads a
@@ -28,6 +29,10 @@ type AuthRecoveryDeps struct {
 	RootPasswords *RootAdminPasswordService
 	// BaseURL is frontend.base_url, the origin the setup URL is built on.
 	BaseURL string
+	// Recorder records the root-admin password change in the instance audit
+	// log (#1535). The settings changes reach it through the instance settings
+	// observer instead. Nil records nothing.
+	Recorder audit.Recorder
 }
 
 // AuthRecoveryService is the break-glass path out of an authentication
@@ -47,6 +52,7 @@ type AuthRecoveryService struct {
 	rootPw    *RootAdminPasswordService
 	wayIn     AuthWayIn
 	baseURL   string
+	recorder  audit.Recorder
 
 	// Injectable for tests.
 	now func() time.Time
@@ -62,6 +68,7 @@ func NewAuthRecoveryService(deps AuthRecoveryDeps) *AuthRecoveryService {
 		rootPw:    deps.RootPasswords,
 		wayIn:     deps.WayIn,
 		baseURL:   deps.BaseURL,
+		recorder:  deps.Recorder,
 		now:       time.Now,
 	}
 }
@@ -179,8 +186,25 @@ func (s *AuthRecoveryService) RearmSetup(ctx context.Context) (string, error) {
 // way back into a password-only instance nobody can sign in to (#1438). The
 // account must exist: see RootAdminPasswordService.Set for what it checks and
 // leaves behind.
+//
+// A successful change is recorded as auth.password.set, or auth.password.changed
+// when it replaced a password, on the account it changed. Switching password
+// login on is a settings change of its own, recorded by the observer.
 func (s *AuthRecoveryService) SetRootAdminPassword(
 	ctx context.Context, email, plaintext string, enableLogin bool,
 ) (*RootAdminPasswordResult, error) {
-	return s.rootPw.Set(s.audited(ctx), email, plaintext, enableLogin)
+	result, err := s.rootPw.Set(s.audited(ctx), email, plaintext, enableLogin)
+	if err != nil {
+		return nil, err
+	}
+	op := models.AuditOpAuthLocalCredentialSet
+	if result.PasswordReplaced {
+		op = models.AuditOpAuthLocalCredentialChanged
+	}
+	audit.SafeRecord(ctx, s.recorder, audit.Event{
+		Operation:    op,
+		ResourceType: models.AuditResourceTypeUser, ResourceID: result.UserID, ResourceName: result.Email,
+		Metadata: map[string]any{"by": repositories.AuditSourceCLI, "login_switched_on": result.LoginSwitchedOn},
+	})
+	return result, nil
 }

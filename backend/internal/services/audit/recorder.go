@@ -166,7 +166,29 @@ func NewRecorder(deps RecorderDeps) *AsyncRecorder {
 	return newRecorder(deps, deps.Pool)
 }
 
-// newRecorder lets tests run the persistence task synchronously.
+// NewSyncRecorder creates a recorder that persists each event on the caller's
+// goroutine, before Record returns (#1535).
+//
+// It is for the recovery CLI (vibexp admin auth) ONLY: a short-lived process
+// that exits right after its one change would lose an event still queued on a
+// worker pool. It breaks the Recorder contract on purpose (Record does I/O and
+// blocks for up to persistTimeout), so it must never be wired into the server,
+// where Record runs on request paths; the server's recorder is NewRecorder
+// (pinned by TestProvideAuditRecorder_IsAsynchronous in the container
+// providers). Failures are still logged and counted, never returned or
+// panicked, and a missing Logger falls back to slog.Default.
+func NewSyncRecorder(deps RecorderDeps) *AsyncRecorder {
+	return newRecorder(deps, inlineSubmitter{})
+}
+
+// inlineSubmitter runs each task on the caller's goroutine.
+type inlineSubmitter struct{}
+
+// Submit runs task now.
+func (inlineSubmitter) Submit(task func()) { task() }
+
+// newRecorder builds a recorder over submitter: the worker pool for the
+// server, inlineSubmitter for the CLI and the tests.
 func newRecorder(deps RecorderDeps, submitter taskSubmitter) *AsyncRecorder {
 	capture := deps.Capture
 	if capture == nil {
