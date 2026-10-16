@@ -213,6 +213,7 @@ var ProviderSet = wire.NewSet(
 	wire.Struct(new(providers.AdminAccountServiceDeps), "*"),
 	providers.ProvideAdminAccountService,
 	providers.ProvideAuthWayIn,
+	wire.Struct(new(providers.RootAdminPasswordServiceDeps), "*"),
 	providers.ProvideRootAdminPasswordService,
 	wire.Struct(new(providers.InvitationRegistrationDeps), "*"),
 	providers.ProvideInvitationRegistrationService,

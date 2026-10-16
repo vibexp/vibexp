@@ -674,28 +674,33 @@ func ProvideAuthWayIn(
 	})
 }
 
+// RootAdminPasswordServiceDeps groups the dependencies of
+// ProvideRootAdminPasswordService. Wire fills it via wire.Struct (see the
+// container ProviderSet).
+type RootAdminPasswordServiceDeps struct {
+	Users        repositories.UserRepository
+	Credentials  repositories.UserCredentialRepository
+	Policies     repositories.InstanceAuthPolicyRepository
+	Passwords    services.PasswordAuthServiceInterface
+	Admins       services.InstanceAdminResolver
+	Caches       *services.AuthSettingsInvalidator
+	EventManager events.EventPublisher
+	Logger       *slog.Logger
+}
+
 // ProvideRootAdminPasswordService creates the service behind the setup
 // session's password bootstrap (#1438). It publishes user.created for an
 // account it creates, so the account gets its workspace like any other.
-func ProvideRootAdminPasswordService(
-	users repositories.UserRepository,
-	credentials repositories.UserCredentialRepository,
-	policies repositories.InstanceAuthPolicyRepository,
-	passwords services.PasswordAuthServiceInterface,
-	admins services.InstanceAdminResolver,
-	caches *services.AuthSettingsInvalidator,
-	eventManager events.EventPublisher,
-	logger *slog.Logger,
-) *services.RootAdminPasswordService {
+func ProvideRootAdminPasswordService(deps RootAdminPasswordServiceDeps) *services.RootAdminPasswordService {
 	return services.NewRootAdminPasswordService(services.RootAdminPasswordDeps{
-		Users:       users,
-		Credentials: credentials,
-		Policies:    policies,
-		Passwords:   passwords,
-		IsRootAdmin: admins.IsRootAdmin,
-		Caches:      caches,
-		Events:      eventManager,
-		Logger:      logger,
+		Users:       deps.Users,
+		Credentials: deps.Credentials,
+		Policies:    deps.Policies,
+		Passwords:   deps.Passwords,
+		IsRootAdmin: deps.Admins.IsRootAdmin,
+		Caches:      deps.Caches,
+		Events:      deps.EventManager,
+		Logger:      deps.Logger,
 	})
 }
 

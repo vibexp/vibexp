@@ -438,7 +438,17 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	if err != nil {
 		return nil, err
 	}
-	rootAdminPasswordService := providers.ProvideRootAdminPasswordService(userRepository, userCredentialRepository, instanceAuthPolicyRepository, passwordAuthServiceInterface, instanceAdminResolver, authSettingsInvalidator, eventManager, logger)
+	rootAdminPasswordServiceDeps := providers.RootAdminPasswordServiceDeps{
+		Users:        userRepository,
+		Credentials:  userCredentialRepository,
+		Policies:     instanceAuthPolicyRepository,
+		Passwords:    passwordAuthServiceInterface,
+		Admins:       instanceAdminResolver,
+		Caches:       authSettingsInvalidator,
+		EventManager: eventManager,
+		Logger:       logger,
+	}
+	rootAdminPasswordService := providers.ProvideRootAdminPasswordService(rootAdminPasswordServiceDeps)
 	instanceAuthSettingsServiceDeps := providers.InstanceAuthSettingsServiceDeps{
 		ProviderRepo:      instanceAuthProviderRepository,
 		Allowlists:        instanceAuthAllowlistRepository,
@@ -615,7 +625,7 @@ var ProviderSet = wire.NewSet(providers.ProvideMetrics, providers.ProvideEmailSe
 	new(*services.InstanceAuditSettingsService)), providers.ProvideInstanceSearchSettingsService, wire.Bind(new(services.InstanceSearchSettingsResolver),
 	new(*services.InstanceSearchSettingsService)), wire.Bind(new(services.InstanceSearchSettingsReader),
 	new(*services.InstanceSearchSettingsService)), wire.Bind(new(services.InstanceSearchSettingsServiceInterface),
-	new(*services.InstanceSearchSettingsService)), providers.ProvideSearchSettingsResolver, providers.ProvideTeamEmailProviderService, providers.ProvideEmailSenderResolver, providers.ProvideInstanceEmailProviderService, providers.ProvideInstanceAdminResolver, providers.ProvideAccessAllowlistResolver, providers.ProvideAuthPolicyResolver, providers.ProvideAuthSettingsInvalidator, providers.ProvidePasswordAuthService, wire.Struct(new(providers.AccountServiceDeps), "*"), providers.ProvideAccountService, wire.Struct(new(providers.AccountTokenServiceDeps), "*"), providers.ProvideAccountTokenService, providers.ProvideAccountEmailRunners, providers.ProvideAccountEmailSender, providers.ProvideAccountNotifier, wire.Struct(new(providers.AccountLinkMailerDeps), "*"), providers.ProvideAccountLinkMailer, wire.Struct(new(providers.AdminAccountServiceDeps), "*"), providers.ProvideAdminAccountService, providers.ProvideAuthWayIn, providers.ProvideRootAdminPasswordService, wire.Struct(new(providers.InvitationRegistrationDeps), "*"), providers.ProvideInvitationRegistrationService, providers.ProvideSetupModeService, providers.ProvideIdentityProviderResolver, providers.ProvideInstanceAuthSettingsService, providers.ProvideTeamSearchSettingsService, providers.ProvideInstanceAISummarySettingsService, wire.Bind(new(services.InstanceAISummarySettingsResolver),
+	new(*services.InstanceSearchSettingsService)), providers.ProvideSearchSettingsResolver, providers.ProvideTeamEmailProviderService, providers.ProvideEmailSenderResolver, providers.ProvideInstanceEmailProviderService, providers.ProvideInstanceAdminResolver, providers.ProvideAccessAllowlistResolver, providers.ProvideAuthPolicyResolver, providers.ProvideAuthSettingsInvalidator, providers.ProvidePasswordAuthService, wire.Struct(new(providers.AccountServiceDeps), "*"), providers.ProvideAccountService, wire.Struct(new(providers.AccountTokenServiceDeps), "*"), providers.ProvideAccountTokenService, providers.ProvideAccountEmailRunners, providers.ProvideAccountEmailSender, providers.ProvideAccountNotifier, wire.Struct(new(providers.AccountLinkMailerDeps), "*"), providers.ProvideAccountLinkMailer, wire.Struct(new(providers.AdminAccountServiceDeps), "*"), providers.ProvideAdminAccountService, providers.ProvideAuthWayIn, wire.Struct(new(providers.RootAdminPasswordServiceDeps), "*"), providers.ProvideRootAdminPasswordService, wire.Struct(new(providers.InvitationRegistrationDeps), "*"), providers.ProvideInvitationRegistrationService, providers.ProvideSetupModeService, providers.ProvideIdentityProviderResolver, providers.ProvideInstanceAuthSettingsService, providers.ProvideTeamSearchSettingsService, providers.ProvideInstanceAISummarySettingsService, wire.Bind(new(services.InstanceAISummarySettingsResolver),
 	new(*services.InstanceAISummarySettingsService)), wire.Bind(new(services.InstanceAISummarySettingsReader),
 	new(*services.InstanceAISummarySettingsService)), wire.Bind(new(services.InstanceAISummarySettingsServiceInterface),
 	new(*services.InstanceAISummarySettingsService)), providers.ProvideTeamAISummarySettingsService, wire.Bind(new(services.TeamAISummarySettingsServiceInterface),
