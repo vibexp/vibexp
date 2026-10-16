@@ -138,9 +138,11 @@ func (s *Server) runWith(ctx context.Context) {
 // files that starts a goroutine on an empty root context (context.Background
 // or its placeholder counterpart): directly, through a local of the function
 // assigned one, or inside the body of the package function or same-receiver
-// method the statement starts. Goroutines started some other way (errgroup,
-// time.AfterFunc, a runner's Go method) are not go statements and are not
-// seen; none is used in this package.
+// method the statement starts (one call level deep, and through the
+// receiver identifier itself: go s.helper(), not go rs.s.helper()).
+// Goroutines started some other way (errgroup, time.AfterFunc, a runner's Go
+// method) are not go statements and are not seen; none is used in this
+// package.
 func backgroundGoroutines(files map[string]*ast.File) []string {
 	bodies := funcBodies(files)
 	var out []string
