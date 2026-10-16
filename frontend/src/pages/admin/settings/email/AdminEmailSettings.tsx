@@ -370,29 +370,27 @@ export function AdminEmailSettings() {
   )
 }
 
-/** The two fields only the instance has, rendered inside the sender card. */
+/** The one field only the instance has (contact form recipient), rendered in the sender card. */
 function InstanceOnlyFields({
   form,
 }: Readonly<{ form: UseFormReturn<InstanceEmailFormValues> }>) {
   return (
-    <>
-      <FormField
-        control={form.control}
-        name="contact_recipient_address"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Contact form recipient</FormLabel>
-            <FormControl>
-              <Input {...field} placeholder="hello@acme.test" />
-            </FormControl>
-            <FormDescription>
-              Optional — where contact-form messages go. Blank uses the from
-              address.
-            </FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-    </>
+    <FormField
+      control={form.control}
+      name="contact_recipient_address"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Contact form recipient</FormLabel>
+          <FormControl>
+            <Input {...field} placeholder="hello@acme.test" />
+          </FormControl>
+          <FormDescription>
+            Optional — where contact-form messages go. Blank uses the from
+            address.
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
   )
 }
