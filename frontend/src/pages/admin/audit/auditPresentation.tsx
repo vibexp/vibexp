@@ -10,6 +10,7 @@ import {
   Package,
   Plug,
   Rss,
+  SlidersHorizontal,
   User,
   UserCog,
   UsersRound,
@@ -190,6 +191,7 @@ const RESOURCE_ICONS: Record<string, LucideIcon> = {
   team: UsersRound,
   team_member: UserCog,
   team_invitation: Mail,
+  team_settings: SlidersHorizontal,
 }
 
 const RESOURCE_LABELS: Record<string, string> = Object.fromEntries(

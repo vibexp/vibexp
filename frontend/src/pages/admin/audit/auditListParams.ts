@@ -111,6 +111,7 @@ export const AUDIT_RESOURCE_TYPES = [
   { value: 'team', label: 'Team' },
   { value: 'team_member', label: 'Team member' },
   { value: 'team_invitation', label: 'Team invitation' },
+  { value: 'team_settings', label: 'Team settings' },
 ] as const
 
 /** A comma-separated URL value as a list, dropping blanks. */

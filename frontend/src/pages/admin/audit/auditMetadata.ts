@@ -8,7 +8,10 @@
  *   for the small scalar fields (a content field is named, without values);
  * - a move: `from_project_*` / `to_project_*`;
  * - a settings change (#1512): `before` / `after` snapshots, where `null` means
- *   the built-in defaults applied.
+ *   the built-in defaults applied;
+ * - a team settings change (#1520): `surface` and `action`, then the same
+ *   `changed_fields` plus `{old, new}` pairs as a resource update, where a
+ *   secret, a free-form blob or a list is named without values.
  *
  * Every other key is listed as a detail. Kept pure so each shape is tested
  * without rendering.
@@ -25,6 +28,8 @@ export interface AuditChange {
    * names it without an old/new pair.
    */
   valuesWithheld?: boolean
+  /** Why no values are shown, when `valuesWithheld`. */
+  withheldNote?: string
 }
 
 export interface AuditDetail {
@@ -36,6 +41,77 @@ export interface DescribedMetadata {
   changes: AuditChange[]
   details: AuditDetail[]
 }
+
+/** A changed resource field whose content is never recorded (#1513). */
+export const CONTENT_WITHHELD = 'changed (content is not recorded)'
+
+/**
+ * A changed team setting recorded without its value (#1520): a secret, the
+ * free-form provider configuration, or any value that is not a single scalar.
+ */
+export const VALUE_WITHHELD = 'changed (value not recorded)'
+
+/** The team settings surfaces (#1520), as `surface` names them. */
+export const TEAM_SETTINGS_SURFACE_LABELS: Readonly<Record<string, string>> = {
+  search: 'Search',
+  ai_summary: 'AI summary',
+  email_provider: 'Email provider',
+  model_provider: 'Model provider',
+  embedding_provider: 'Embedding provider',
+  freshness: 'Freshness',
+  github_app: 'GitHub App',
+  custom_types: 'Custom types',
+  custom_statuses: 'Custom statuses',
+}
+
+/**
+ * The team settings actions (#1520). Custom statuses keep their own history's
+ * past-tense names (created / renamed / deleted).
+ */
+export const TEAM_SETTINGS_ACTION_LABELS: Readonly<Record<string, string>> = {
+  create: 'Created',
+  update: 'Updated',
+  delete: 'Deleted',
+  reset: 'Reset to defaults',
+  copy: 'Copied from another team',
+  connect: 'Connected',
+  disconnect: 'Disconnected',
+  rotate: 'Rotated',
+  created: 'Created',
+  renamed: 'Renamed',
+  deleted: 'Deleted',
+}
+
+/** Labels for the detail keys a team settings event carries. */
+const TEAM_SETTINGS_DETAIL_LABELS: Readonly<Record<string, string>> = {
+  surface: 'Settings',
+  action: 'Action',
+  source_team_id: 'Source team',
+  source_provider_id: 'Source provider',
+  provider_id: 'Provider',
+  rule_id: 'Rule',
+  type_id: 'Type',
+  type_slug: 'Type slug',
+  status_id: 'Status',
+  app_config_id: 'App config',
+  reassigned_count: 'Reassigned',
+  reassigned_to: 'Reassigned to',
+  added_slugs: 'Added',
+  skipped_slugs: 'Skipped',
+  becomes_active: 'Becomes active',
+  reconnected: 'Reconnected',
+}
+
+/** Detail keys whose values are names with a label of their own. */
+const TEAM_SETTINGS_VALUE_LABELS: Readonly<
+  Record<string, Readonly<Record<string, string>> | undefined>
+> = {
+  surface: TEAM_SETTINGS_SURFACE_LABELS,
+  action: TEAM_SETTINGS_ACTION_LABELS,
+}
+
+/** The details a team settings change lists first, in order. */
+const TEAM_SETTINGS_LEADING_KEYS: readonly string[] = ['surface', 'action']
 
 /** Shown for a settings snapshot side that was "nothing stored". */
 export const DEFAULTS_LABEL = 'Built-in defaults'
@@ -143,14 +219,42 @@ function pairsAndDetails(
  */
 function withheldChanges(
   changedFields: unknown,
-  known: readonly AuditChange[]
+  known: readonly AuditChange[],
+  note: string
 ): AuditChange[] {
   if (!Array.isArray(changedFields)) return []
   const shown = new Set(known.map(change => change.field))
   return changedFields
     .filter((field): field is string => typeof field === 'string')
     .filter(field => !shown.has(field))
-    .map(field => ({ field, valuesWithheld: true }))
+    .map(field => ({ field, valuesWithheld: true, withheldNote: note }))
+}
+
+/** Whether the metadata is a team settings change (#1520). */
+function isTeamSettingsChange(metadata: Readonly<JsonObject>): boolean {
+  return (
+    typeof metadata.surface === 'string' && typeof metadata.action === 'string'
+  )
+}
+
+/**
+ * A team settings change's details: the surface and action first, by their
+ * human labels, then the rest under readable keys.
+ */
+function teamSettingsDetails(details: readonly AuditDetail[]): AuditDetail[] {
+  const rank = (key: string) => {
+    const index = TEAM_SETTINGS_LEADING_KEYS.indexOf(key)
+    return index === -1 ? TEAM_SETTINGS_LEADING_KEYS.length : index
+  }
+  return [...details]
+    .sort((a, b) => rank(a.key) - rank(b.key))
+    .map(detail => ({
+      key: TEAM_SETTINGS_DETAIL_LABELS[detail.key] ?? detail.key,
+      // An empty value (a copy that skipped nothing) reads as none.
+      value:
+        TEAM_SETTINGS_VALUE_LABELS[detail.key]?.[detail.value] ??
+        (detail.value === '' ? '—' : detail.value),
+    }))
 }
 
 export function describeAuditMetadata(
@@ -165,8 +269,13 @@ export function describeAuditMetadata(
     : []
   const { changes: pairs, details } = pairsAndDetails(metadata, snapshots)
   const changes = [...(move ? [move] : []), ...fromSnapshots, ...pairs]
+  const teamSettings = isTeamSettingsChange(metadata)
+  const note = teamSettings ? VALUE_WITHHELD : CONTENT_WITHHELD
   return {
-    changes: [...changes, ...withheldChanges(metadata.changed_fields, changes)],
-    details,
+    changes: [
+      ...changes,
+      ...withheldChanges(metadata.changed_fields, changes, note),
+    ],
+    details: teamSettings ? teamSettingsDetails(details) : details,
   }
 }
