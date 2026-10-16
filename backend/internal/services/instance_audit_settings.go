@@ -108,6 +108,9 @@ func (s *InstanceAuditSettingsService) Update(
 	if err != nil {
 		return nil, fmt.Errorf("InstanceAuditSettingsService.Update: %w", err)
 	}
+	// The instance settings observer has already dropped the cache when one is
+	// registered (#1515); this covers a process without one (tests, tools), so
+	// the next event follows the change either way.
 	s.capture.Invalidate()
 
 	return instanceAuditSettingsView(stored), nil

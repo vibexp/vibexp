@@ -92,7 +92,11 @@ type rowQuerier interface {
 
 // appendInstanceSettingsAudit inserts one entry through q and populates it from
 // the persisted row. The redaction guard runs first, so a snapshot carrying a
-// credential never reaches the database.
+// credential never reaches the database, nor the audit log.
+//
+// Invariant (#1515): when q is a transaction it must be one runAuditedSingletonTx
+// runs. The entry is then held until that commit and reported to the database's
+// InstanceSettingsAuditObserver; on any other transaction the append fails.
 func appendInstanceSettingsAudit(ctx context.Context, q rowQuerier, entry *models.InstanceSettingsAuditEntry) error {
 	if err := assertInstanceSettingsAuditRedacted(entry.Before, entry.After); err != nil {
 		return err
@@ -111,8 +115,9 @@ func appendInstanceSettingsAudit(ctx context.Context, q rowQuerier, entry *model
 		return fmt.Errorf("failed to append instance settings audit entry: %w", err)
 	}
 	if tx, ok := q.(*sql.Tx); ok {
-		// Reported once the transaction commits (runAuditedSingletonTx).
-		holdUntilCommit(tx, *entry)
+		// Reported once the transaction commits (runAuditedSingletonTx); an
+		// append outside it fails the write, see errAppendOutsideAuditedTx.
+		return holdUntilCommit(tx, *entry)
 	}
 	return nil
 }

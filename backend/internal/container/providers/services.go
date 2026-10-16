@@ -422,12 +422,18 @@ func ProvideAdminAuditService(events repositories.AuditEventRepository) services
 // database handle the instance settings repositories write through, which
 // reports each change after it commits.
 //
-// The capture switch observes first, so the event of a change that switches
-// client-info capture off is already recorded with capture off.
+// The ORDER IS LOAD-BEARING: the capture switch must observe before the
+// recorder, so the audit.settings.updated event of a change that switches
+// client-info capture off is already recorded with capture off (the recorder
+// reads the switch). Swapping them would store the IP and user agent of that
+// one event.
 func ProvideInstanceSettingsAuditObserver(
 	db *database.DB, capture *services.AuditClientInfoCapture, recorder audit.Recorder,
 ) repositories.InstanceSettingsAuditObserver {
-	observer := repositories.InstanceSettingsAuditObservers{capture, audit.NewInstanceSettingsObserver(recorder)}
+	observer := repositories.InstanceSettingsAuditObservers{
+		capture, // first: drops the cached switch
+		audit.NewInstanceSettingsObserver(recorder), // then: records the change
+	}
 	postgres.RegisterInstanceSettingsAuditObserver(db, observer)
 	return observer
 }

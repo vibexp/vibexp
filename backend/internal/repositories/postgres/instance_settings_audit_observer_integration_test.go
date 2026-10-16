@@ -4,7 +4,9 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -180,4 +182,116 @@ func TestIntegrationInstanceSettingsObserver_UnregisteredReportsNothing(t *testi
 		Append(context.Background(), settingsAuditEntry(models.InstanceSettingEmailProvider)))
 
 	assert.Empty(t, o.settings())
+}
+
+// The redaction guard runs before an entry is held: an unredacted snapshot in
+// a settings transaction fails the write and never reaches the observer.
+func TestIntegrationInstanceSettingsObserver_UnredactedEntryInATransactionIsNeverReported(t *testing.T) {
+	resetInstanceSettingsAuditTables(t)
+	resetInstanceSettingsTable(t, "instance_search_settings")
+	observed := observeSettings(t)
+	leak := func(_, _ *models.InstanceSearchSettings) (*models.InstanceSettingsAuditEntry, error) {
+		e := settingsAuditEntry(models.InstanceSettingSearch)
+		e.After = []byte(`{"secret_encrypted":"` + instanceSettingsAuditLeakSentinel + `"}`)
+		return e, nil
+	}
+
+	err := NewInstanceSearchSettingsRepository(integrationDB).
+		UpsertAudited(context.Background(), searchSettingsRow(), nil, leak)
+
+	require.ErrorIs(t, err, repositories.ErrInstanceSettingsAuditUnredacted)
+	assert.Empty(t, observed.settings())
+}
+
+// The invariant guard: an entry appended on a transaction that
+// runAuditedSingletonTx did not open fails the write instead of being lost.
+func TestIntegrationInstanceSettingsObserver_AppendOutsideAuditedTxFailsLoudly(t *testing.T) {
+	resetInstanceSettingsAuditTables(t)
+	ctx := context.Background()
+	tx, err := integrationDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx.Rollback() })
+
+	err = appendInstanceSettingsAudit(ctx, tx, settingsAuditEntry(models.InstanceSettingSearch))
+
+	require.ErrorIs(t, err, errAppendOutsideAuditedTx)
+	_, held := pendingSettingsAudits.Load(tx)
+	assert.False(t, held, "nothing is kept for the stray transaction")
+}
+
+// Concurrent audited writes on one database (#1515, run under -race): every
+// committed change is reported exactly once, carrying its own entry, whatever
+// else commits around it.
+func TestIntegrationInstanceSettingsObserver_ConcurrentTransactionsReportTheirOwnEntries(t *testing.T) {
+	resetInstanceSettingsAuditTables(t)
+	resetInstanceSettingsTable(t, "instance_search_settings")
+	resetInstanceSettingsTable(t, "instance_site_info")
+	resetInstanceSettingsTable(t, instanceAuditSettingsTable)
+	observed := observeSettings(t)
+	ctx := context.Background()
+
+	marked := func(setting, marker string) *models.InstanceSettingsAuditEntry {
+		e := settingsAuditEntry(setting)
+		e.After = []byte(`{"marker":"` + marker + `"}`)
+		return e
+	}
+	writers := map[string]func(marker string) error{
+		models.InstanceSettingSearch: func(marker string) error {
+			return NewInstanceSearchSettingsRepository(integrationDB).UpsertAudited(ctx, searchSettingsRow(), nil,
+				func(_, _ *models.InstanceSearchSettings) (*models.InstanceSettingsAuditEntry, error) {
+					return marked(models.InstanceSettingSearch, marker), nil
+				})
+		},
+		models.InstanceSettingSiteInfo: func(marker string) error {
+			return NewInstanceSiteInfoRepository(integrationDB).UpsertAudited(ctx,
+				&models.InstanceSiteInfo{SupportURL: siteInfoPtr("https://acme.test/" + marker)}, nil,
+				func(_, _ *models.InstanceSiteInfo) (*models.InstanceSettingsAuditEntry, error) {
+					return marked(models.InstanceSettingSiteInfo, marker), nil
+				})
+		},
+		models.InstanceSettingAuditLog: func(marker string) error {
+			return NewInstanceAuditSettingsRepository(integrationDB).UpsertAudited(ctx,
+				&models.InstanceAuditSettings{RetentionWeeks: 4, CaptureIPUA: true}, nil,
+				func(_, _ *models.InstanceAuditSettings) (*models.InstanceSettingsAuditEntry, error) {
+					return marked(models.InstanceSettingAuditLog, marker), nil
+				})
+		},
+	}
+
+	const perWriter = 3
+	want := map[string]string{} // marker -> setting
+	var wg sync.WaitGroup
+	errs := make(chan error, len(writers)*2*perWriter)
+	for setting, write := range writers {
+		for g := range 2 {
+			for i := range perWriter {
+				marker := fmt.Sprintf("%s-%d-%d", setting, g, i)
+				want[marker] = setting
+			}
+			wg.Add(1)
+			go func(setting string, g int, write func(string) error) {
+				defer wg.Done()
+				for i := range perWriter {
+					errs <- write(fmt.Sprintf("%s-%d-%d", setting, g, i))
+				}
+			}(setting, g, write)
+		}
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+
+	observed.mu.Lock()
+	defer observed.mu.Unlock()
+	got := map[string]string{}
+	for _, e := range observed.entries {
+		var after struct{ Marker string }
+		require.NoError(t, json.Unmarshal(e.After, &after))
+		_, dup := got[after.Marker]
+		require.False(t, dup, "marker %q reported twice", after.Marker)
+		got[after.Marker] = e.Setting
+	}
+	assert.Equal(t, want, got, "each transaction reported exactly its own entry")
 }

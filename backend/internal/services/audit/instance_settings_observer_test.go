@@ -39,7 +39,7 @@ func TestInstanceSettingsObserver(t *testing.T) {
 			op: models.AuditOpAuditSettingsUpdated, before: json.RawMessage(`{"retention_weeks":4}`), after: nil,
 		},
 		{
-			name: "no actor is the system (an import, the recovery CLI)",
+			name: "no actor is the system (a startup import, a setup token)",
 			entry: models.InstanceSettingsAuditEntry{
 				Setting: "auth_providers", Action: models.InstanceSettingsAuditActionImport,
 				After: json.RawMessage(`{"slug":"google"}`),
