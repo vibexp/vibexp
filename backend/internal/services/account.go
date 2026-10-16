@@ -87,9 +87,15 @@ const (
 
 type noopAccountNotifier struct{}
 
-func (noopAccountNotifier) PasswordChanged(context.Context, string, AccountChangeKind) {}
+func (noopAccountNotifier) PasswordChanged(context.Context, string, AccountChangeKind) {
+	// No-op: the default when no account notifier is configured, so a
+	// password change sends no email.
+}
 
-func (noopAccountNotifier) PasswordRemovedByClaim(context.Context, string, string) {}
+func (noopAccountNotifier) PasswordRemovedByClaim(context.Context, string, string) {
+	// No-op: the default when no account notifier is configured, so a
+	// password removed by an account claim sends no email.
+}
 
 // AccountView is an account as its owner sees it.
 type AccountView struct {
