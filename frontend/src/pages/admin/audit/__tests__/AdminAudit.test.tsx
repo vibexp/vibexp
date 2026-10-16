@@ -164,6 +164,16 @@ it('renders an event row with its human operation label, actor, resource and cha
   expect(table.getByText('Success')).toBeInTheDocument()
 })
 
+it('links to the audit log settings from the header (#1518)', async () => {
+  renderAudit()
+
+  await screen.findByRole('table')
+  expect(screen.getByRole('link', { name: 'Audit settings' })).toHaveAttribute(
+    'href',
+    '/admin/settings/audit-log'
+  )
+})
+
 it('shows the absolute UTC instant on hover of a row time', async () => {
   mockAudit.listEvents.mockResolvedValue(
     eventPage([auditEvent({ created_at: '2026-01-02T03:04:05Z' })])

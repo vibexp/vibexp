@@ -64,7 +64,7 @@ vi.mock('@/services/adminService', () => ({
   },
 }))
 
-// Settings → Search / AI Summary (#1202) load their settings and history on
+// Settings → Search / AI Summary (#1202) and Audit log (#1518) load their settings and history on
 // mount; left pending, since routing is all this suite asserts.
 vi.mock('@/services/adminSettingsService', () => ({
   adminSettingsService: {
@@ -72,6 +72,8 @@ vi.mock('@/services/adminSettingsService', () => ({
     listSearchSettingsAudit: vi.fn(() => new Promise(() => {})),
     getAISummarySettings: vi.fn(() => new Promise(() => {})),
     listAISummarySettingsAudit: vi.fn(() => new Promise(() => {})),
+    getAuditLogSettings: vi.fn(() => new Promise(() => {})),
+    listAuditLogSettingsAudit: vi.fn(() => new Promise(() => {})),
   },
 }))
 
@@ -282,6 +284,7 @@ it.each([
   ['/admin/settings/search', 'Search'],
   ['/admin/settings/ai-summary', 'AI Summary'],
   ['/admin/settings/auth', 'Authentication'],
+  ['/admin/settings/audit-log', 'Audit log'],
 ])('renders %s inside the admin shell', async (path, heading) => {
   asAdmin()
   renderAt(path)

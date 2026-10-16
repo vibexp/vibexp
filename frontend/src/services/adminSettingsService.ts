@@ -3,7 +3,8 @@ import type { components, operations } from '@vibexp/api-client'
 import { generatedClient, unwrap } from '../lib/apiClientGenerated'
 import type { AdminInstanceSettingsAuditPage } from './adminService'
 
-// Instance search ranking + AI summary settings (#1200, pages #1202). Kept out
+// Instance search ranking + AI summary settings (#1200, pages #1202), site
+// info (#1358) and audit-log settings (#1512, page #1518). Kept out
 // of `adminService.ts`, which is at the max-lines limit. Every call is
 // authorized server-side (404 for non-admins).
 export type AdminInstanceSearchSettings =
@@ -14,6 +15,10 @@ export type AdminInstanceAISummarySettings =
   components['schemas']['AdminInstanceAISummarySettings']
 export type AdminInstanceAISummarySettingsUpdate =
   components['schemas']['AdminInstanceAISummarySettingsUpdate']
+export type AdminAuditLogSettings =
+  components['schemas']['AdminAuditLogSettings']
+export type AdminAuditLogSettingsUpdate =
+  components['schemas']['AdminAuditLogSettingsUpdate']
 export type AdminSiteInfo = components['schemas']['AdminSiteInfo']
 export type AdminSiteInfoUpdate = components['schemas']['AdminSiteInfoUpdate']
 export type AdminInstanceSettingsAuditParams = NonNullable<
@@ -83,6 +88,36 @@ class AdminSettingsService {
   ): Promise<AdminInstanceSettingsAuditPage> {
     return unwrap(
       generatedClient.GET('/api/v1/admin/settings/ai-summary/audit', {
+        params: { query: params },
+      })
+    )
+  }
+
+  /** The instance audit-log retention and IP/UA capture settings (#1512). */
+  async getAuditLogSettings(): Promise<AdminAuditLogSettings> {
+    return unwrap(generatedClient.GET('/api/v1/admin/settings/audit-log'))
+  }
+
+  /** Replace the instance audit-log settings; 409 as for search. */
+  async updateAuditLogSettings(
+    body: AdminAuditLogSettingsUpdate
+  ): Promise<AdminAuditLogSettings> {
+    return unwrap(
+      generatedClient.PUT('/api/v1/admin/settings/audit-log', { body })
+    )
+  }
+
+  /** Drop the stored audit-log settings, so the built-in defaults apply. */
+  async resetAuditLogSettings(): Promise<void> {
+    await unwrap(generatedClient.DELETE('/api/v1/admin/settings/audit-log'))
+  }
+
+  /** One page of the audit-log settings' own change history, newest first. */
+  async listAuditLogSettingsAudit(
+    params: AdminInstanceSettingsAuditParams = {}
+  ): Promise<AdminInstanceSettingsAuditPage> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/settings/audit-log/audit', {
         params: { query: params },
       })
     )
