@@ -126,7 +126,7 @@ func (s *Server) createArtifact(
 		Labels:      params.Labels,
 	}
 
-	artifact, err := s.container.ArtifactService().CreateArtifact(userID, teamID, createReq)
+	artifact, err := s.container.ArtifactService().CreateArtifact(ctx, userID, teamID, createReq)
 	if err != nil {
 		slog.Error(
 			"Failed to create artifact via MCP",
@@ -245,7 +245,7 @@ func (s *Server) updateArtifact(
 	before := s.artifactAuditBefore(userID, teamID, params.ProjectID, params.Slug)
 	updateReq.WriteOrigin = resourceaccess.WriteOriginFromContext(ctx)
 	artifact, err := s.container.ArtifactService().UpdateArtifactByProjectIDAndSlugInTeam(
-		userID, teamID, params.ProjectID, params.Slug, updateReq,
+		ctx, userID, teamID, params.ProjectID, params.Slug, updateReq,
 	)
 	if err != nil {
 		slog.Error(

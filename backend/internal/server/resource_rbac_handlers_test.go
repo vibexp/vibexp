@@ -117,7 +117,7 @@ func assertResForbidden(t *testing.T, w *httptest.ResponseRecorder) {
 
 func TestMemoryHandler_DeletePermissionDeniedIsForbidden(t *testing.T) {
 	mem := svcmocks.NewMockMemoryServiceInterface(t)
-	mem.EXPECT().DeleteMemory(resHUser, resHTeam, "memory-1").
+	mem.EXPECT().DeleteMemory(mock.Anything, resHUser, resHTeam, "memory-1").
 		Return(services.ErrPermissionDenied).Once()
 
 	srv := createTestResourceRBACServer(t, &MockResourceRBACContainer{memoryService: mem})
@@ -134,7 +134,7 @@ func TestArtifactHandler_DeletePermissionDeniedIsForbidden(t *testing.T) {
 	art := svcmocks.NewMockArtifactServiceInterface(t)
 	art.EXPECT().GetArtifactByProjectIDAndSlugInTeam(resHUser, resHTeam, resHProject, "a").
 		Return(&models.Artifact{ID: "artifact-1", Slug: "a"}, nil).Once()
-	art.EXPECT().DeleteArtifactByProjectIDAndSlug(resHUser, resHTeam, resHProject, "a").
+	art.EXPECT().DeleteArtifactByProjectIDAndSlug(mock.Anything, resHUser, resHTeam, resHProject, "a").
 		Return(services.ErrPermissionDenied).Once()
 
 	srv := createTestResourceRBACServer(t, &MockResourceRBACContainer{artifactService: art})
@@ -150,7 +150,7 @@ func TestBlueprintHandler_DeletePermissionDeniedIsForbidden(t *testing.T) {
 	bp := svcmocks.NewMockBlueprintServiceInterface(t)
 	bp.EXPECT().GetBlueprintByProjectIDAndSlugInTeam(resHUser, resHTeam, resHProject, "b").
 		Return(&models.Blueprint{ID: "blueprint-1", Slug: "b"}, nil).Once()
-	bp.EXPECT().DeleteBlueprintByProjectIDAndSlug(resHUser, resHTeam, resHProject, "b").
+	bp.EXPECT().DeleteBlueprintByProjectIDAndSlug(mock.Anything, resHUser, resHTeam, resHProject, "b").
 		Return(services.ErrPermissionDenied).Once()
 
 	srv := createTestResourceRBACServer(t, &MockResourceRBACContainer{blueprintService: bp})
@@ -166,7 +166,7 @@ func TestBlueprintHandler_DeletePermissionDeniedIsForbidden(t *testing.T) {
 func TestResourceHandlers_CreatePermissionDeniedIsForbidden(t *testing.T) {
 	t.Run("memory", func(t *testing.T) {
 		mem := svcmocks.NewMockMemoryServiceInterface(t)
-		mem.EXPECT().CreateMemory(resHUser, resHTeam, mock.Anything).
+		mem.EXPECT().CreateMemory(mock.Anything, resHUser, resHTeam, mock.Anything).
 			Return(nil, services.ErrPermissionDenied).Once()
 
 		srv := createTestResourceRBACServer(t, &MockResourceRBACContainer{memoryService: mem})
@@ -179,7 +179,7 @@ func TestResourceHandlers_CreatePermissionDeniedIsForbidden(t *testing.T) {
 
 	t.Run("artifact", func(t *testing.T) {
 		art := svcmocks.NewMockArtifactServiceInterface(t)
-		art.EXPECT().CreateArtifact(resHUser, resHTeam, mock.Anything).
+		art.EXPECT().CreateArtifact(mock.Anything, resHUser, resHTeam, mock.Anything).
 			Return(nil, services.ErrPermissionDenied).Once()
 
 		srv := createTestResourceRBACServer(t, &MockResourceRBACContainer{artifactService: art})
@@ -193,7 +193,7 @@ func TestResourceHandlers_CreatePermissionDeniedIsForbidden(t *testing.T) {
 
 	t.Run("blueprint", func(t *testing.T) {
 		bp := svcmocks.NewMockBlueprintServiceInterface(t)
-		bp.EXPECT().CreateBlueprint(resHUser, resHTeam, mock.Anything).
+		bp.EXPECT().CreateBlueprint(mock.Anything, resHUser, resHTeam, mock.Anything).
 			Return(nil, services.ErrPermissionDenied).Once()
 
 		srv := createTestResourceRBACServer(t, &MockResourceRBACContainer{blueprintService: bp})

@@ -64,7 +64,7 @@ type recordingProjectCreator struct {
 }
 
 func (r *recordingProjectCreator) CreateProject(
-	userID, teamID string, _ *models.CreateProjectRequest,
+	_ context.Context, userID, teamID string, _ *models.CreateProjectRequest,
 ) (*models.Project, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

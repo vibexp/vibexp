@@ -247,7 +247,7 @@ func TestArtifactService_CreateArtifact(t *testing.T) {
 				ContentVersionSvc: nil,
 				CommentRepo:       nil,
 			})
-			artifact, err := service.CreateArtifact(tt.userID, "team-123", tt.request)
+			artifact, err := service.CreateArtifact(context.Background(), tt.userID, "team-123", tt.request)
 
 			tt.expected(t, artifact, err)
 			repo.AssertExpectations(t)
@@ -435,6 +435,7 @@ func TestArtifactService_UpdateArtifactByProjectIDAndSlugInTeam(t *testing.T) {
 			CommentRepo:       nil,
 		})
 		artifact, err := service.UpdateArtifactByProjectIDAndSlugInTeam(
+			context.Background(),
 			userID, teamID, projectID, slug, &models.UpdateArtifactRequest{Title: stringPtr("Updated Title")},
 		)
 
@@ -461,6 +462,7 @@ func TestArtifactService_UpdateArtifactByProjectIDAndSlugInTeam(t *testing.T) {
 			CommentRepo:       nil,
 		})
 		artifact, err := service.UpdateArtifactByProjectIDAndSlugInTeam(
+			context.Background(),
 			userID, teamID, projectID, slug, &models.UpdateArtifactRequest{Title: stringPtr("Hijacked")},
 		)
 
@@ -754,7 +756,7 @@ func TestArtifactService_UpdateArtifactByProjectIDAndSlug(t *testing.T) {
 				ContentVersionSvc: nil,
 				CommentRepo:       nil,
 			})
-			artifact, err := service.UpdateArtifactByProjectIDAndSlug(tt.userID, tt.projectName, tt.slug, tt.request)
+			artifact, err := service.UpdateArtifactByProjectIDAndSlug(context.Background(), tt.userID, tt.projectName, tt.slug, tt.request)
 
 			tt.expected(t, artifact, err)
 			repo.AssertExpectations(t)
@@ -865,7 +867,7 @@ func TestArtifactService_DeleteArtifactByProjectIDAndSlug(t *testing.T) {
 				ContentVersionSvc: nil,
 				CommentRepo:       nil,
 			})
-			err := service.DeleteArtifactByProjectIDAndSlug(tt.userID, tt.teamID, tt.projectName, tt.slug)
+			err := service.DeleteArtifactByProjectIDAndSlug(context.Background(), tt.userID, tt.teamID, tt.projectName, tt.slug)
 
 			tt.expected(t, err)
 			repo.AssertExpectations(t)
@@ -1119,7 +1121,7 @@ func TestArtifactService_PublishesArtifactEvents(t *testing.T) {
 					Type:        "general",
 					Status:      "active",
 				}
-				_, err := service.CreateArtifact("user-123", "team-123", req)
+				_, err := service.CreateArtifact(context.Background(), "user-123", "team-123", req)
 				return err
 			},
 			expectEventCalls: 1,
@@ -1158,6 +1160,7 @@ func TestArtifactService_PublishesArtifactEvents(t *testing.T) {
 					Title: &title,
 				}
 				_, err := service.UpdateArtifactByProjectIDAndSlug(
+					context.Background(),
 					"user-123",
 					"550e8400-e29b-41d4-a716-446655440000",
 					"test-artifact",
@@ -1250,7 +1253,7 @@ func TestArtifactService_UpdateArtifact_PreservesTeamID(t *testing.T) {
 		Title: &title,
 	}
 
-	artifact, err := service.UpdateArtifactByProjectIDAndSlug("user-123", "project-456", "test-artifact", request)
+	artifact, err := service.UpdateArtifactByProjectIDAndSlug(context.Background(), "user-123", "project-456", "test-artifact", request)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, artifact)
@@ -1299,6 +1302,7 @@ func TestArtifactService_UpdateArtifact_MetadataNilVsEmpty(t *testing.T) {
 				Return(nil)
 
 			artifact, err := service.UpdateArtifactByProjectIDAndSlug(
+				context.Background(),
 				"user-123", "project-456", "test-artifact",
 				&models.UpdateArtifactRequest{Metadata: tt.reqMetadata},
 			)

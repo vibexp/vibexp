@@ -3,6 +3,8 @@
 package mocks
 
 import (
+	context "context"
+
 	mock "github.com/stretchr/testify/mock"
 	models "github.com/vibexp/vibexp/internal/models"
 
@@ -22,9 +24,9 @@ func (_m *MockMemoryServiceInterface) EXPECT() *MockMemoryServiceInterface_Expec
 	return &MockMemoryServiceInterface_Expecter{mock: &_m.Mock}
 }
 
-// CreateMemory provides a mock function with given fields: userID, teamID, req
-func (_m *MockMemoryServiceInterface) CreateMemory(userID string, teamID string, req *models.CreateMemoryRequest) (*models.Memory, error) {
-	ret := _m.Called(userID, teamID, req)
+// CreateMemory provides a mock function with given fields: ctx, userID, teamID, req
+func (_m *MockMemoryServiceInterface) CreateMemory(ctx context.Context, userID string, teamID string, req *models.CreateMemoryRequest) (*models.Memory, error) {
+	ret := _m.Called(ctx, userID, teamID, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateMemory")
@@ -32,19 +34,19 @@ func (_m *MockMemoryServiceInterface) CreateMemory(userID string, teamID string,
 
 	var r0 *models.Memory
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, *models.CreateMemoryRequest) (*models.Memory, error)); ok {
-		return rf(userID, teamID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, *models.CreateMemoryRequest) (*models.Memory, error)); ok {
+		return rf(ctx, userID, teamID, req)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, *models.CreateMemoryRequest) *models.Memory); ok {
-		r0 = rf(userID, teamID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, *models.CreateMemoryRequest) *models.Memory); ok {
+		r0 = rf(ctx, userID, teamID, req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Memory)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, *models.CreateMemoryRequest) error); ok {
-		r1 = rf(userID, teamID, req)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, *models.CreateMemoryRequest) error); ok {
+		r1 = rf(ctx, userID, teamID, req)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -58,16 +60,17 @@ type MockMemoryServiceInterface_CreateMemory_Call struct {
 }
 
 // CreateMemory is a helper method to define mock.On call
+//   - ctx context.Context
 //   - userID string
 //   - teamID string
 //   - req *models.CreateMemoryRequest
-func (_e *MockMemoryServiceInterface_Expecter) CreateMemory(userID interface{}, teamID interface{}, req interface{}) *MockMemoryServiceInterface_CreateMemory_Call {
-	return &MockMemoryServiceInterface_CreateMemory_Call{Call: _e.mock.On("CreateMemory", userID, teamID, req)}
+func (_e *MockMemoryServiceInterface_Expecter) CreateMemory(ctx interface{}, userID interface{}, teamID interface{}, req interface{}) *MockMemoryServiceInterface_CreateMemory_Call {
+	return &MockMemoryServiceInterface_CreateMemory_Call{Call: _e.mock.On("CreateMemory", ctx, userID, teamID, req)}
 }
 
-func (_c *MockMemoryServiceInterface_CreateMemory_Call) Run(run func(userID string, teamID string, req *models.CreateMemoryRequest)) *MockMemoryServiceInterface_CreateMemory_Call {
+func (_c *MockMemoryServiceInterface_CreateMemory_Call) Run(run func(ctx context.Context, userID string, teamID string, req *models.CreateMemoryRequest)) *MockMemoryServiceInterface_CreateMemory_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(*models.CreateMemoryRequest))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(*models.CreateMemoryRequest))
 	})
 	return _c
 }
@@ -77,22 +80,22 @@ func (_c *MockMemoryServiceInterface_CreateMemory_Call) Return(_a0 *models.Memor
 	return _c
 }
 
-func (_c *MockMemoryServiceInterface_CreateMemory_Call) RunAndReturn(run func(string, string, *models.CreateMemoryRequest) (*models.Memory, error)) *MockMemoryServiceInterface_CreateMemory_Call {
+func (_c *MockMemoryServiceInterface_CreateMemory_Call) RunAndReturn(run func(context.Context, string, string, *models.CreateMemoryRequest) (*models.Memory, error)) *MockMemoryServiceInterface_CreateMemory_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// DeleteMemory provides a mock function with given fields: userID, teamID, memoryID
-func (_m *MockMemoryServiceInterface) DeleteMemory(userID string, teamID string, memoryID string) error {
-	ret := _m.Called(userID, teamID, memoryID)
+// DeleteMemory provides a mock function with given fields: ctx, userID, teamID, memoryID
+func (_m *MockMemoryServiceInterface) DeleteMemory(ctx context.Context, userID string, teamID string, memoryID string) error {
+	ret := _m.Called(ctx, userID, teamID, memoryID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteMemory")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, string, string) error); ok {
-		r0 = rf(userID, teamID, memoryID)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) error); ok {
+		r0 = rf(ctx, userID, teamID, memoryID)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -106,16 +109,17 @@ type MockMemoryServiceInterface_DeleteMemory_Call struct {
 }
 
 // DeleteMemory is a helper method to define mock.On call
+//   - ctx context.Context
 //   - userID string
 //   - teamID string
 //   - memoryID string
-func (_e *MockMemoryServiceInterface_Expecter) DeleteMemory(userID interface{}, teamID interface{}, memoryID interface{}) *MockMemoryServiceInterface_DeleteMemory_Call {
-	return &MockMemoryServiceInterface_DeleteMemory_Call{Call: _e.mock.On("DeleteMemory", userID, teamID, memoryID)}
+func (_e *MockMemoryServiceInterface_Expecter) DeleteMemory(ctx interface{}, userID interface{}, teamID interface{}, memoryID interface{}) *MockMemoryServiceInterface_DeleteMemory_Call {
+	return &MockMemoryServiceInterface_DeleteMemory_Call{Call: _e.mock.On("DeleteMemory", ctx, userID, teamID, memoryID)}
 }
 
-func (_c *MockMemoryServiceInterface_DeleteMemory_Call) Run(run func(userID string, teamID string, memoryID string)) *MockMemoryServiceInterface_DeleteMemory_Call {
+func (_c *MockMemoryServiceInterface_DeleteMemory_Call) Run(run func(ctx context.Context, userID string, teamID string, memoryID string)) *MockMemoryServiceInterface_DeleteMemory_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string))
 	})
 	return _c
 }
@@ -125,7 +129,7 @@ func (_c *MockMemoryServiceInterface_DeleteMemory_Call) Return(_a0 error) *MockM
 	return _c
 }
 
-func (_c *MockMemoryServiceInterface_DeleteMemory_Call) RunAndReturn(run func(string, string, string) error) *MockMemoryServiceInterface_DeleteMemory_Call {
+func (_c *MockMemoryServiceInterface_DeleteMemory_Call) RunAndReturn(run func(context.Context, string, string, string) error) *MockMemoryServiceInterface_DeleteMemory_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -370,9 +374,9 @@ func (_c *MockMemoryServiceInterface_ListMemoryVersions_Call) RunAndReturn(run f
 	return _c
 }
 
-// RestoreMemoryVersion provides a mock function with given fields: userID, teamID, memoryID, versionNumber, origin
-func (_m *MockMemoryServiceInterface) RestoreMemoryVersion(userID string, teamID string, memoryID string, versionNumber int, origin *models.WriteOrigin) (*models.Memory, error) {
-	ret := _m.Called(userID, teamID, memoryID, versionNumber, origin)
+// RestoreMemoryVersion provides a mock function with given fields: ctx, userID, teamID, memoryID, versionNumber, origin
+func (_m *MockMemoryServiceInterface) RestoreMemoryVersion(ctx context.Context, userID string, teamID string, memoryID string, versionNumber int, origin *models.WriteOrigin) (*models.Memory, error) {
+	ret := _m.Called(ctx, userID, teamID, memoryID, versionNumber, origin)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RestoreMemoryVersion")
@@ -380,19 +384,19 @@ func (_m *MockMemoryServiceInterface) RestoreMemoryVersion(userID string, teamID
 
 	var r0 *models.Memory
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, string, int, *models.WriteOrigin) (*models.Memory, error)); ok {
-		return rf(userID, teamID, memoryID, versionNumber, origin)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, int, *models.WriteOrigin) (*models.Memory, error)); ok {
+		return rf(ctx, userID, teamID, memoryID, versionNumber, origin)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, string, int, *models.WriteOrigin) *models.Memory); ok {
-		r0 = rf(userID, teamID, memoryID, versionNumber, origin)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, int, *models.WriteOrigin) *models.Memory); ok {
+		r0 = rf(ctx, userID, teamID, memoryID, versionNumber, origin)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Memory)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, string, int, *models.WriteOrigin) error); ok {
-		r1 = rf(userID, teamID, memoryID, versionNumber, origin)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, int, *models.WriteOrigin) error); ok {
+		r1 = rf(ctx, userID, teamID, memoryID, versionNumber, origin)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -406,18 +410,19 @@ type MockMemoryServiceInterface_RestoreMemoryVersion_Call struct {
 }
 
 // RestoreMemoryVersion is a helper method to define mock.On call
+//   - ctx context.Context
 //   - userID string
 //   - teamID string
 //   - memoryID string
 //   - versionNumber int
 //   - origin *models.WriteOrigin
-func (_e *MockMemoryServiceInterface_Expecter) RestoreMemoryVersion(userID interface{}, teamID interface{}, memoryID interface{}, versionNumber interface{}, origin interface{}) *MockMemoryServiceInterface_RestoreMemoryVersion_Call {
-	return &MockMemoryServiceInterface_RestoreMemoryVersion_Call{Call: _e.mock.On("RestoreMemoryVersion", userID, teamID, memoryID, versionNumber, origin)}
+func (_e *MockMemoryServiceInterface_Expecter) RestoreMemoryVersion(ctx interface{}, userID interface{}, teamID interface{}, memoryID interface{}, versionNumber interface{}, origin interface{}) *MockMemoryServiceInterface_RestoreMemoryVersion_Call {
+	return &MockMemoryServiceInterface_RestoreMemoryVersion_Call{Call: _e.mock.On("RestoreMemoryVersion", ctx, userID, teamID, memoryID, versionNumber, origin)}
 }
 
-func (_c *MockMemoryServiceInterface_RestoreMemoryVersion_Call) Run(run func(userID string, teamID string, memoryID string, versionNumber int, origin *models.WriteOrigin)) *MockMemoryServiceInterface_RestoreMemoryVersion_Call {
+func (_c *MockMemoryServiceInterface_RestoreMemoryVersion_Call) Run(run func(ctx context.Context, userID string, teamID string, memoryID string, versionNumber int, origin *models.WriteOrigin)) *MockMemoryServiceInterface_RestoreMemoryVersion_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string), args[3].(int), args[4].(*models.WriteOrigin))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(int), args[5].(*models.WriteOrigin))
 	})
 	return _c
 }
@@ -427,14 +432,14 @@ func (_c *MockMemoryServiceInterface_RestoreMemoryVersion_Call) Return(_a0 *mode
 	return _c
 }
 
-func (_c *MockMemoryServiceInterface_RestoreMemoryVersion_Call) RunAndReturn(run func(string, string, string, int, *models.WriteOrigin) (*models.Memory, error)) *MockMemoryServiceInterface_RestoreMemoryVersion_Call {
+func (_c *MockMemoryServiceInterface_RestoreMemoryVersion_Call) RunAndReturn(run func(context.Context, string, string, string, int, *models.WriteOrigin) (*models.Memory, error)) *MockMemoryServiceInterface_RestoreMemoryVersion_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// UpdateMemory provides a mock function with given fields: userID, teamID, memoryID, req
-func (_m *MockMemoryServiceInterface) UpdateMemory(userID string, teamID string, memoryID string, req *models.UpdateMemoryRequest) (*models.Memory, error) {
-	ret := _m.Called(userID, teamID, memoryID, req)
+// UpdateMemory provides a mock function with given fields: ctx, userID, teamID, memoryID, req
+func (_m *MockMemoryServiceInterface) UpdateMemory(ctx context.Context, userID string, teamID string, memoryID string, req *models.UpdateMemoryRequest) (*models.Memory, error) {
+	ret := _m.Called(ctx, userID, teamID, memoryID, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateMemory")
@@ -442,19 +447,19 @@ func (_m *MockMemoryServiceInterface) UpdateMemory(userID string, teamID string,
 
 	var r0 *models.Memory
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, string, *models.UpdateMemoryRequest) (*models.Memory, error)); ok {
-		return rf(userID, teamID, memoryID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, *models.UpdateMemoryRequest) (*models.Memory, error)); ok {
+		return rf(ctx, userID, teamID, memoryID, req)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, string, *models.UpdateMemoryRequest) *models.Memory); ok {
-		r0 = rf(userID, teamID, memoryID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, *models.UpdateMemoryRequest) *models.Memory); ok {
+		r0 = rf(ctx, userID, teamID, memoryID, req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Memory)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, string, *models.UpdateMemoryRequest) error); ok {
-		r1 = rf(userID, teamID, memoryID, req)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, *models.UpdateMemoryRequest) error); ok {
+		r1 = rf(ctx, userID, teamID, memoryID, req)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -468,17 +473,18 @@ type MockMemoryServiceInterface_UpdateMemory_Call struct {
 }
 
 // UpdateMemory is a helper method to define mock.On call
+//   - ctx context.Context
 //   - userID string
 //   - teamID string
 //   - memoryID string
 //   - req *models.UpdateMemoryRequest
-func (_e *MockMemoryServiceInterface_Expecter) UpdateMemory(userID interface{}, teamID interface{}, memoryID interface{}, req interface{}) *MockMemoryServiceInterface_UpdateMemory_Call {
-	return &MockMemoryServiceInterface_UpdateMemory_Call{Call: _e.mock.On("UpdateMemory", userID, teamID, memoryID, req)}
+func (_e *MockMemoryServiceInterface_Expecter) UpdateMemory(ctx interface{}, userID interface{}, teamID interface{}, memoryID interface{}, req interface{}) *MockMemoryServiceInterface_UpdateMemory_Call {
+	return &MockMemoryServiceInterface_UpdateMemory_Call{Call: _e.mock.On("UpdateMemory", ctx, userID, teamID, memoryID, req)}
 }
 
-func (_c *MockMemoryServiceInterface_UpdateMemory_Call) Run(run func(userID string, teamID string, memoryID string, req *models.UpdateMemoryRequest)) *MockMemoryServiceInterface_UpdateMemory_Call {
+func (_c *MockMemoryServiceInterface_UpdateMemory_Call) Run(run func(ctx context.Context, userID string, teamID string, memoryID string, req *models.UpdateMemoryRequest)) *MockMemoryServiceInterface_UpdateMemory_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string), args[3].(*models.UpdateMemoryRequest))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(*models.UpdateMemoryRequest))
 	})
 	return _c
 }
@@ -488,7 +494,7 @@ func (_c *MockMemoryServiceInterface_UpdateMemory_Call) Return(_a0 *models.Memor
 	return _c
 }
 
-func (_c *MockMemoryServiceInterface_UpdateMemory_Call) RunAndReturn(run func(string, string, string, *models.UpdateMemoryRequest) (*models.Memory, error)) *MockMemoryServiceInterface_UpdateMemory_Call {
+func (_c *MockMemoryServiceInterface_UpdateMemory_Call) RunAndReturn(run func(context.Context, string, string, string, *models.UpdateMemoryRequest) (*models.Memory, error)) *MockMemoryServiceInterface_UpdateMemory_Call {
 	_c.Call.Return(run)
 	return _c
 }

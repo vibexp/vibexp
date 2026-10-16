@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
@@ -97,11 +98,12 @@ func validateCreatePromptRequest(req *models.CreatePromptRequest, w http.Respons
 }
 
 func (s *Server) createPromptWithErrorHandling(
+	ctx context.Context,
 	w http.ResponseWriter,
 	userID, teamID string,
 	req *models.CreatePromptRequest,
 ) (*models.Prompt, bool) {
-	prompt, err := s.container.PromptService().CreatePrompt(userID, teamID, req)
+	prompt, err := s.container.PromptService().CreatePrompt(ctx, userID, teamID, req)
 	if err != nil {
 		// Denials are benign client errors: handled before the ERROR log and
 		// before the string-matching below, which ErrPermissionDenied's text
@@ -186,7 +188,7 @@ func (s *Server) handleCreatePrompt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	prompt, ok := s.createPromptWithErrorHandling(w, userID, teamID, &req)
+	prompt, ok := s.createPromptWithErrorHandling(r.Context(), w, userID, teamID, &req)
 	if !ok {
 		return
 	}
@@ -374,7 +376,7 @@ func (s *Server) handleUpdatePrompt(w http.ResponseWriter, r *http.Request) {
 
 	before := s.promptAuditBefore(userID, teamID, promptSlug)
 	req.WriteOrigin = resourceaccess.WriteOriginFromContext(r.Context())
-	prompt, err := s.container.PromptService().UpdatePromptBySlug(userID, teamID, promptSlug, &req)
+	prompt, err := s.container.PromptService().UpdatePromptBySlug(r.Context(), userID, teamID, promptSlug, &req)
 	if writeResourceWriteLocked(w, r, err) {
 		return
 	}
@@ -477,7 +479,7 @@ func (s *Server) handleRestorePromptVersion(w http.ResponseWriter, r *http.Reque
 	).Info("Restore prompt version request received")
 
 	prompt, err := s.container.PromptService().RestorePromptVersion(
-		userID, teamID, promptSlug, versionNumber, resourceaccess.WriteOriginFromContext(r.Context()),
+		r.Context(), userID, teamID, promptSlug, versionNumber, resourceaccess.WriteOriginFromContext(r.Context()),
 	)
 	if err != nil {
 		s.handlePromptVersionError(w, userID, promptSlug, err)
@@ -702,7 +704,7 @@ func (s *Server) deletePromptAndEmbeddings(
 	userID, teamID, promptSlug string,
 	prompt *models.Prompt,
 ) error {
-	err := s.container.PromptService().DeletePromptBySlug(userID, teamID, promptSlug)
+	err := s.container.PromptService().DeletePromptBySlug(r.Context(), userID, teamID, promptSlug)
 	if writeResourceWriteLocked(w, r, err) {
 		return err
 	}

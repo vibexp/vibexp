@@ -3,6 +3,8 @@
 package mocks
 
 import (
+	context "context"
+
 	mock "github.com/stretchr/testify/mock"
 	models "github.com/vibexp/vibexp/internal/models"
 
@@ -24,9 +26,9 @@ func (_m *MockProjectServiceInterface) EXPECT() *MockProjectServiceInterface_Exp
 	return &MockProjectServiceInterface_Expecter{mock: &_m.Mock}
 }
 
-// CreateProject provides a mock function with given fields: userID, teamID, req
-func (_m *MockProjectServiceInterface) CreateProject(userID string, teamID string, req *models.CreateProjectRequest) (*models.Project, error) {
-	ret := _m.Called(userID, teamID, req)
+// CreateProject provides a mock function with given fields: ctx, userID, teamID, req
+func (_m *MockProjectServiceInterface) CreateProject(ctx context.Context, userID string, teamID string, req *models.CreateProjectRequest) (*models.Project, error) {
+	ret := _m.Called(ctx, userID, teamID, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateProject")
@@ -34,19 +36,19 @@ func (_m *MockProjectServiceInterface) CreateProject(userID string, teamID strin
 
 	var r0 *models.Project
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, *models.CreateProjectRequest) (*models.Project, error)); ok {
-		return rf(userID, teamID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, *models.CreateProjectRequest) (*models.Project, error)); ok {
+		return rf(ctx, userID, teamID, req)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, *models.CreateProjectRequest) *models.Project); ok {
-		r0 = rf(userID, teamID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, *models.CreateProjectRequest) *models.Project); ok {
+		r0 = rf(ctx, userID, teamID, req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Project)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, *models.CreateProjectRequest) error); ok {
-		r1 = rf(userID, teamID, req)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, *models.CreateProjectRequest) error); ok {
+		r1 = rf(ctx, userID, teamID, req)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -60,16 +62,17 @@ type MockProjectServiceInterface_CreateProject_Call struct {
 }
 
 // CreateProject is a helper method to define mock.On call
+//   - ctx context.Context
 //   - userID string
 //   - teamID string
 //   - req *models.CreateProjectRequest
-func (_e *MockProjectServiceInterface_Expecter) CreateProject(userID interface{}, teamID interface{}, req interface{}) *MockProjectServiceInterface_CreateProject_Call {
-	return &MockProjectServiceInterface_CreateProject_Call{Call: _e.mock.On("CreateProject", userID, teamID, req)}
+func (_e *MockProjectServiceInterface_Expecter) CreateProject(ctx interface{}, userID interface{}, teamID interface{}, req interface{}) *MockProjectServiceInterface_CreateProject_Call {
+	return &MockProjectServiceInterface_CreateProject_Call{Call: _e.mock.On("CreateProject", ctx, userID, teamID, req)}
 }
 
-func (_c *MockProjectServiceInterface_CreateProject_Call) Run(run func(userID string, teamID string, req *models.CreateProjectRequest)) *MockProjectServiceInterface_CreateProject_Call {
+func (_c *MockProjectServiceInterface_CreateProject_Call) Run(run func(ctx context.Context, userID string, teamID string, req *models.CreateProjectRequest)) *MockProjectServiceInterface_CreateProject_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(*models.CreateProjectRequest))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(*models.CreateProjectRequest))
 	})
 	return _c
 }
@@ -79,22 +82,22 @@ func (_c *MockProjectServiceInterface_CreateProject_Call) Return(_a0 *models.Pro
 	return _c
 }
 
-func (_c *MockProjectServiceInterface_CreateProject_Call) RunAndReturn(run func(string, string, *models.CreateProjectRequest) (*models.Project, error)) *MockProjectServiceInterface_CreateProject_Call {
+func (_c *MockProjectServiceInterface_CreateProject_Call) RunAndReturn(run func(context.Context, string, string, *models.CreateProjectRequest) (*models.Project, error)) *MockProjectServiceInterface_CreateProject_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// DeleteProject provides a mock function with given fields: teamID, userID, slug
-func (_m *MockProjectServiceInterface) DeleteProject(teamID string, userID string, slug string) error {
-	ret := _m.Called(teamID, userID, slug)
+// DeleteProject provides a mock function with given fields: ctx, teamID, userID, slug
+func (_m *MockProjectServiceInterface) DeleteProject(ctx context.Context, teamID string, userID string, slug string) error {
+	ret := _m.Called(ctx, teamID, userID, slug)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteProject")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, string, string) error); ok {
-		r0 = rf(teamID, userID, slug)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) error); ok {
+		r0 = rf(ctx, teamID, userID, slug)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -108,16 +111,17 @@ type MockProjectServiceInterface_DeleteProject_Call struct {
 }
 
 // DeleteProject is a helper method to define mock.On call
+//   - ctx context.Context
 //   - teamID string
 //   - userID string
 //   - slug string
-func (_e *MockProjectServiceInterface_Expecter) DeleteProject(teamID interface{}, userID interface{}, slug interface{}) *MockProjectServiceInterface_DeleteProject_Call {
-	return &MockProjectServiceInterface_DeleteProject_Call{Call: _e.mock.On("DeleteProject", teamID, userID, slug)}
+func (_e *MockProjectServiceInterface_Expecter) DeleteProject(ctx interface{}, teamID interface{}, userID interface{}, slug interface{}) *MockProjectServiceInterface_DeleteProject_Call {
+	return &MockProjectServiceInterface_DeleteProject_Call{Call: _e.mock.On("DeleteProject", ctx, teamID, userID, slug)}
 }
 
-func (_c *MockProjectServiceInterface_DeleteProject_Call) Run(run func(teamID string, userID string, slug string)) *MockProjectServiceInterface_DeleteProject_Call {
+func (_c *MockProjectServiceInterface_DeleteProject_Call) Run(run func(ctx context.Context, teamID string, userID string, slug string)) *MockProjectServiceInterface_DeleteProject_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string))
 	})
 	return _c
 }
@@ -127,7 +131,7 @@ func (_c *MockProjectServiceInterface_DeleteProject_Call) Return(_a0 error) *Moc
 	return _c
 }
 
-func (_c *MockProjectServiceInterface_DeleteProject_Call) RunAndReturn(run func(string, string, string) error) *MockProjectServiceInterface_DeleteProject_Call {
+func (_c *MockProjectServiceInterface_DeleteProject_Call) RunAndReturn(run func(context.Context, string, string, string) error) *MockProjectServiceInterface_DeleteProject_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -432,9 +436,9 @@ func (_c *MockProjectServiceInterface_ListProjects_Call) RunAndReturn(run func(s
 	return _c
 }
 
-// UpdateProject provides a mock function with given fields: teamID, userID, slug, req
-func (_m *MockProjectServiceInterface) UpdateProject(teamID string, userID string, slug string, req *models.UpdateProjectRequest) (*models.Project, error) {
-	ret := _m.Called(teamID, userID, slug, req)
+// UpdateProject provides a mock function with given fields: ctx, teamID, userID, slug, req
+func (_m *MockProjectServiceInterface) UpdateProject(ctx context.Context, teamID string, userID string, slug string, req *models.UpdateProjectRequest) (*models.Project, error) {
+	ret := _m.Called(ctx, teamID, userID, slug, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateProject")
@@ -442,19 +446,19 @@ func (_m *MockProjectServiceInterface) UpdateProject(teamID string, userID strin
 
 	var r0 *models.Project
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, string, *models.UpdateProjectRequest) (*models.Project, error)); ok {
-		return rf(teamID, userID, slug, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, *models.UpdateProjectRequest) (*models.Project, error)); ok {
+		return rf(ctx, teamID, userID, slug, req)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, string, *models.UpdateProjectRequest) *models.Project); ok {
-		r0 = rf(teamID, userID, slug, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, *models.UpdateProjectRequest) *models.Project); ok {
+		r0 = rf(ctx, teamID, userID, slug, req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Project)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, string, *models.UpdateProjectRequest) error); ok {
-		r1 = rf(teamID, userID, slug, req)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, *models.UpdateProjectRequest) error); ok {
+		r1 = rf(ctx, teamID, userID, slug, req)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -468,17 +472,18 @@ type MockProjectServiceInterface_UpdateProject_Call struct {
 }
 
 // UpdateProject is a helper method to define mock.On call
+//   - ctx context.Context
 //   - teamID string
 //   - userID string
 //   - slug string
 //   - req *models.UpdateProjectRequest
-func (_e *MockProjectServiceInterface_Expecter) UpdateProject(teamID interface{}, userID interface{}, slug interface{}, req interface{}) *MockProjectServiceInterface_UpdateProject_Call {
-	return &MockProjectServiceInterface_UpdateProject_Call{Call: _e.mock.On("UpdateProject", teamID, userID, slug, req)}
+func (_e *MockProjectServiceInterface_Expecter) UpdateProject(ctx interface{}, teamID interface{}, userID interface{}, slug interface{}, req interface{}) *MockProjectServiceInterface_UpdateProject_Call {
+	return &MockProjectServiceInterface_UpdateProject_Call{Call: _e.mock.On("UpdateProject", ctx, teamID, userID, slug, req)}
 }
 
-func (_c *MockProjectServiceInterface_UpdateProject_Call) Run(run func(teamID string, userID string, slug string, req *models.UpdateProjectRequest)) *MockProjectServiceInterface_UpdateProject_Call {
+func (_c *MockProjectServiceInterface_UpdateProject_Call) Run(run func(ctx context.Context, teamID string, userID string, slug string, req *models.UpdateProjectRequest)) *MockProjectServiceInterface_UpdateProject_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string), args[3].(*models.UpdateProjectRequest))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(*models.UpdateProjectRequest))
 	})
 	return _c
 }
@@ -488,7 +493,7 @@ func (_c *MockProjectServiceInterface_UpdateProject_Call) Return(_a0 *models.Pro
 	return _c
 }
 
-func (_c *MockProjectServiceInterface_UpdateProject_Call) RunAndReturn(run func(string, string, string, *models.UpdateProjectRequest) (*models.Project, error)) *MockProjectServiceInterface_UpdateProject_Call {
+func (_c *MockProjectServiceInterface_UpdateProject_Call) RunAndReturn(run func(context.Context, string, string, string, *models.UpdateProjectRequest) (*models.Project, error)) *MockProjectServiceInterface_UpdateProject_Call {
 	_c.Call.Return(run)
 	return _c
 }

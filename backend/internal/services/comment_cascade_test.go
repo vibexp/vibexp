@@ -42,7 +42,7 @@ func TestArtifactService_Delete_CascadesComments(t *testing.T) {
 		ContentVersionSvc: nil,
 		CommentRepo:       commentRepo,
 	})
-	require.NoError(t, svc.DeleteArtifactByProjectIDAndSlug(commentCaller, commentTeamID, projectID, slug))
+	require.NoError(t, svc.DeleteArtifactByProjectIDAndSlug(context.Background(), commentCaller, commentTeamID, projectID, slug))
 }
 
 func TestBlueprintService_Delete_CascadesComments(t *testing.T) {
@@ -70,7 +70,7 @@ func TestBlueprintService_Delete_CascadesComments(t *testing.T) {
 		ContentVersionSvc: nil,
 		CommentRepo:       commentRepo,
 	})
-	require.NoError(t, svc.DeleteBlueprintByProjectIDAndSlug(commentCaller, commentTeamID, projectID, slug))
+	require.NoError(t, svc.DeleteBlueprintByProjectIDAndSlug(context.Background(), commentCaller, commentTeamID, projectID, slug))
 }
 
 func TestMemoryService_Delete_CascadesComments(t *testing.T) {
@@ -91,7 +91,7 @@ func TestMemoryService_Delete_CascadesComments(t *testing.T) {
 		Logger:      logger,
 		CommentRepo: commentRepo,
 	})
-	require.NoError(t, svc.DeleteMemory(commentCaller, commentTeamID, memoryID))
+	require.NoError(t, svc.DeleteMemory(context.Background(), commentCaller, commentTeamID, memoryID))
 }
 
 func TestPromptService_Delete_CascadesComments(t *testing.T) {
@@ -120,7 +120,7 @@ func TestPromptService_Delete_CascadesComments(t *testing.T) {
 		ContentVersionSvc: nil,
 		CommentRepo:       commentRepo,
 	})
-	require.NoError(t, svc.DeletePrompt(commentCaller, commentTeamID, promptID))
+	require.NoError(t, svc.DeletePrompt(context.Background(), commentCaller, commentTeamID, promptID))
 }
 
 func TestTeamService_RemoveTeamMember_CascadesComments(t *testing.T) {

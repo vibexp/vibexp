@@ -128,7 +128,7 @@ func TestPromptService_UpdateClearsFreshness(t *testing.T) {
 	})
 
 	body := "updated body"
-	_, err := svc.UpdatePrompt(reversalUserID, reversalTeamID, "prompt-123",
+	_, err := svc.UpdatePrompt(context.Background(), reversalUserID, reversalTeamID, "prompt-123",
 		&models.UpdatePromptRequest{Body: &body})
 	require.NoError(t, err)
 	assertReversed(t, clearer, "prompt", "prompt-123")
@@ -148,7 +148,7 @@ func TestPromptService_NoOpUpdateDoesNotClearFreshness(t *testing.T) {
 		Repo: repo, Authz: allowAllAuthz{}, Logger: discardLogger(), FreshnessClearer: clearer,
 	})
 
-	_, err := svc.UpdatePrompt(reversalUserID, reversalTeamID, "prompt-123", &models.UpdatePromptRequest{})
+	_, err := svc.UpdatePrompt(context.Background(), reversalUserID, reversalTeamID, "prompt-123", &models.UpdatePromptRequest{})
 	require.NoError(t, err)
 	assert.Empty(t, clearer.calls, "a request that writes nothing is not an edit")
 }
@@ -172,6 +172,7 @@ func TestArtifactService_UpdateClearsFreshness(t *testing.T) {
 
 	title := "Updated"
 	_, err := svc.UpdateArtifactByProjectIDAndSlugInTeam(
+		context.Background(),
 		reversalUserID, reversalTeamID, "project-123", "test-artifact",
 		&models.UpdateArtifactRequest{Title: &title})
 	require.NoError(t, err)
@@ -198,6 +199,7 @@ func TestBlueprintService_UpdateClearsFreshness(t *testing.T) {
 
 	title := "Updated"
 	_, err := svc.UpdateBlueprintByProjectIDAndSlugInTeam(
+		context.Background(),
 		reversalUserID, reversalTeamID, "project-123", "test-blueprint",
 		&models.UpdateBlueprintRequest{Title: &title})
 	require.NoError(t, err)
@@ -224,7 +226,7 @@ func TestMemoryService_UpdateClearsFreshness(t *testing.T) {
 	})
 
 	text := "updated"
-	_, err := svc.UpdateMemory(reversalUserID, reversalTeamID, "memory-123",
+	_, err := svc.UpdateMemory(context.Background(), reversalUserID, reversalTeamID, "memory-123",
 		&models.UpdateMemoryRequest{Text: &text})
 	require.NoError(t, err)
 	assertReversed(t, clearer, "memory", "memory-123")

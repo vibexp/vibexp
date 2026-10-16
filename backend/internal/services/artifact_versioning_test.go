@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -81,6 +82,7 @@ func TestArtifactService_UpdateSnapshotsOldContent(t *testing.T) {
 
 			content := tt.newContent
 			_, err := svc.UpdateArtifactByProjectIDAndSlugInTeam(
+				context.Background(),
 				userID, teamID, projectID, slug, &models.UpdateArtifactRequest{Content: &content, WriteOrigin: testWriteOrigin()},
 			)
 			require.NoError(t, err)
@@ -141,6 +143,6 @@ func TestArtifactService_RestoreSnapshotsAsSystem(t *testing.T) {
 		ContentVersionSvc: cvs,
 		CommentRepo:       nil,
 	})
-	_, err := svc.RestoreArtifactVersionInTeam(userID, teamID, projectID, slug, 2, &models.WriteOrigin{Source: "web"})
+	_, err := svc.RestoreArtifactVersionInTeam(context.Background(), userID, teamID, projectID, slug, 2, &models.WriteOrigin{Source: "web"})
 	require.NoError(t, err)
 }

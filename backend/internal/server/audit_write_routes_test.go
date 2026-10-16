@@ -194,7 +194,7 @@ func auditResourceRouteCases() []auditRouteCase {
 			name: "create prompt", method: http.MethodPost, path: base + "/prompts", wantStatus: http.StatusCreated,
 			body: `{"name":"Release checklist","slug":"p","body":"x","project_id":"` + writeTestProjectID + `"}`,
 			arrange: func(f *auditRouteFixture) {
-				f.prompts.EXPECT().CreatePrompt(writeTestUserID, writeTestTeamID, mock.Anything).
+				f.prompts.EXPECT().CreatePrompt(mock.Anything, writeTestUserID, writeTestTeamID, mock.Anything).
 					Return(auditPrompt(writeTestProjectID, "active"), nil)
 			},
 			op: models.AuditOpPromptCreate, resourceID: auditTestPromptID, resourceName: "Release checklist",
@@ -206,7 +206,7 @@ func auditResourceRouteCases() []auditRouteCase {
 			arrange: func(f *auditRouteFixture) {
 				f.prompts.EXPECT().GetPromptBySlug(writeTestUserID, writeTestTeamID, "p").
 					Return(auditPrompt(writeTestProjectID, "active"), nil)
-				f.prompts.EXPECT().UpdatePromptBySlug(writeTestUserID, writeTestTeamID, "p", mock.Anything).
+				f.prompts.EXPECT().UpdatePromptBySlug(mock.Anything, writeTestUserID, writeTestTeamID, "p", mock.Anything).
 					Return(auditPrompt(writeTestProjectID, "archived"), nil)
 			},
 			op: models.AuditOpPromptUpdate, resourceID: auditTestPromptID, resourceName: "Release checklist",
@@ -224,7 +224,7 @@ func auditResourceRouteCases() []auditRouteCase {
 					Return(auditPrompt(writeTestProjectID, "active"), nil)
 				moved := auditPrompt(auditTestOtherProj, "active")
 				moved.Project = nil // the service clears the stale summary on a move
-				f.prompts.EXPECT().UpdatePromptBySlug(writeTestUserID, writeTestTeamID, "p", mock.Anything).
+				f.prompts.EXPECT().UpdatePromptBySlug(mock.Anything, writeTestUserID, writeTestTeamID, "p", mock.Anything).
 					Return(moved, nil)
 				f.projects.EXPECT().GetProjectBySlugOrID(writeTestTeamID, writeTestUserID, auditTestOtherProj).
 					Return(&models.Project{ID: auditTestOtherProj, Name: "Beta"}, nil)
@@ -242,7 +242,7 @@ func auditResourceRouteCases() []auditRouteCase {
 			name: "restore prompt", method: http.MethodPost, path: base + "/prompts/p/versions/2/restore",
 			wantStatus: http.StatusOK,
 			arrange: func(f *auditRouteFixture) {
-				f.prompts.EXPECT().RestorePromptVersion(writeTestUserID, writeTestTeamID, "p", 2, mock.Anything).
+				f.prompts.EXPECT().RestorePromptVersion(mock.Anything, writeTestUserID, writeTestTeamID, "p", 2, mock.Anything).
 					Return(auditPrompt(writeTestProjectID, "active"), nil)
 			},
 			op: models.AuditOpPromptUpdate, resourceID: auditTestPromptID, resourceName: "Release checklist",
@@ -256,7 +256,7 @@ func auditResourceRouteCases() []auditRouteCase {
 			arrange: func(f *auditRouteFixture) {
 				f.prompts.EXPECT().GetPromptBySlug(writeTestUserID, writeTestTeamID, "p").
 					Return(auditPrompt(writeTestProjectID, "active"), nil)
-				f.prompts.EXPECT().DeletePromptBySlug(writeTestUserID, writeTestTeamID, "p").Return(nil)
+				f.prompts.EXPECT().DeletePromptBySlug(mock.Anything, writeTestUserID, writeTestTeamID, "p").Return(nil)
 			},
 			op: models.AuditOpPromptDelete, resourceID: auditTestPromptID, resourceName: "Release checklist",
 			projectID: writeTestProjectID,
@@ -289,7 +289,7 @@ func auditResourceRouteCases() []auditRouteCase {
 			body: `{"project_id":"` + writeTestProjectID +
 				`","slug":"a","title":"Design doc","content":"c","type":"general","status":"active"}`,
 			arrange: func(f *auditRouteFixture) {
-				f.artifacts.EXPECT().CreateArtifact(writeTestUserID, writeTestTeamID, mock.Anything).
+				f.artifacts.EXPECT().CreateArtifact(mock.Anything, writeTestUserID, writeTestTeamID, mock.Anything).
 					Return(auditArtifact(), nil)
 			},
 			op: models.AuditOpArtifactCreate, resourceID: "art-1", resourceName: "Design doc",
@@ -304,6 +304,7 @@ func auditResourceRouteCases() []auditRouteCase {
 				updated := auditArtifact()
 				updated.Content = "SECRET-NEW-CONTENT"
 				f.artifacts.EXPECT().UpdateArtifactByProjectIDAndSlugInTeam(
+					mock.Anything,
 					writeTestUserID, writeTestTeamID, writeTestProjectID, "a", mock.Anything).Return(updated, nil)
 			},
 			op: models.AuditOpArtifactUpdate, resourceID: "art-1", resourceName: "Design doc",
@@ -317,6 +318,7 @@ func auditResourceRouteCases() []auditRouteCase {
 			wantStatus: http.StatusOK,
 			arrange: func(f *auditRouteFixture) {
 				f.artifacts.EXPECT().RestoreArtifactVersionInTeam(
+					mock.Anything,
 					writeTestUserID, writeTestTeamID, writeTestProjectID, "a", 2, mock.Anything).Return(auditArtifact(), nil)
 			},
 			op: models.AuditOpArtifactUpdate, resourceID: "art-1", resourceName: "Design doc",
@@ -328,6 +330,7 @@ func auditResourceRouteCases() []auditRouteCase {
 				f.artifacts.EXPECT().GetArtifactByProjectIDAndSlugInTeam(
 					writeTestUserID, writeTestTeamID, writeTestProjectID, "a").Return(auditArtifact(), nil)
 				f.artifacts.EXPECT().DeleteArtifactByProjectIDAndSlug(
+					mock.Anything,
 					writeTestUserID, writeTestTeamID, writeTestProjectID, "a").Return(nil)
 			},
 			op: models.AuditOpArtifactDelete, resourceID: "art-1", resourceName: "Design doc",
@@ -350,7 +353,7 @@ func auditResourceRouteCases() []auditRouteCase {
 			body: `{"project_id":"` + writeTestProjectID +
 				`","slug":"b","title":"CLAUDE.md","content":"c","type":"general","status":"active"}`,
 			arrange: func(f *auditRouteFixture) {
-				f.blueprints.EXPECT().CreateBlueprint(writeTestUserID, writeTestTeamID, mock.Anything).
+				f.blueprints.EXPECT().CreateBlueprint(mock.Anything, writeTestUserID, writeTestTeamID, mock.Anything).
 					Return(auditBlueprint(), nil)
 			},
 			op: models.AuditOpBlueprintCreate, resourceID: "bp-1", resourceName: "CLAUDE.md",
@@ -365,6 +368,7 @@ func auditResourceRouteCases() []auditRouteCase {
 				updated := auditBlueprint()
 				updated.Title = "AGENTS.md"
 				f.blueprints.EXPECT().UpdateBlueprintByProjectIDAndSlugInTeam(
+					mock.Anything,
 					writeTestUserID, writeTestTeamID, writeTestProjectID, "b", mock.Anything).Return(updated, nil)
 			},
 			op: models.AuditOpBlueprintUpdate, resourceID: "bp-1", resourceName: "AGENTS.md",
@@ -378,6 +382,7 @@ func auditResourceRouteCases() []auditRouteCase {
 			wantStatus: http.StatusOK,
 			arrange: func(f *auditRouteFixture) {
 				f.blueprints.EXPECT().RestoreBlueprintVersionInTeam(
+					mock.Anything,
 					writeTestUserID, writeTestTeamID, writeTestProjectID, "b", 2, mock.Anything).Return(auditBlueprint(), nil)
 			},
 			op: models.AuditOpBlueprintUpdate, resourceID: "bp-1", resourceName: "CLAUDE.md",
@@ -389,6 +394,7 @@ func auditResourceRouteCases() []auditRouteCase {
 				f.blueprints.EXPECT().GetBlueprintByProjectIDAndSlugInTeam(
 					writeTestUserID, writeTestTeamID, writeTestProjectID, "b").Return(auditBlueprint(), nil)
 				f.blueprints.EXPECT().DeleteBlueprintByProjectIDAndSlug(
+					mock.Anything,
 					writeTestUserID, writeTestTeamID, writeTestProjectID, "b").Return(nil)
 			},
 			op: models.AuditOpBlueprintDelete, resourceID: "bp-1", resourceName: "CLAUDE.md",
@@ -409,7 +415,7 @@ func auditResourceRouteCases() []auditRouteCase {
 			name: "create memory", method: http.MethodPost, path: base + "/memories", wantStatus: http.StatusCreated,
 			body: `{"project_id":"` + writeTestProjectID + `","text":"remember"}`,
 			arrange: func(f *auditRouteFixture) {
-				f.memories.EXPECT().CreateMemory(writeTestUserID, writeTestTeamID, mock.Anything).
+				f.memories.EXPECT().CreateMemory(mock.Anything, writeTestUserID, writeTestTeamID, mock.Anything).
 					Return(auditMemory(writeTestProjectID), nil)
 			},
 			op: models.AuditOpMemoryCreate, resourceID: writeTestMemoryID, resourceName: "Deploy notes",
@@ -421,7 +427,7 @@ func auditResourceRouteCases() []auditRouteCase {
 			arrange: func(f *auditRouteFixture) {
 				f.memories.EXPECT().GetMemory(writeTestUserID, writeTestTeamID, writeTestMemoryID).
 					Return(auditMemory(writeTestProjectID), nil)
-				f.memories.EXPECT().UpdateMemory(writeTestUserID, writeTestTeamID, writeTestMemoryID, mock.Anything).
+				f.memories.EXPECT().UpdateMemory(mock.Anything, writeTestUserID, writeTestTeamID, writeTestMemoryID, mock.Anything).
 					Return(auditMemory(auditTestOtherProj), nil)
 				f.projects.EXPECT().GetProjectBySlugOrID(writeTestTeamID, writeTestUserID, auditTestOtherProj).
 					Return(nil, errors.New("gone"))
@@ -438,7 +444,7 @@ func auditResourceRouteCases() []auditRouteCase {
 			name: "restore memory", method: http.MethodPost, path: memoryPath + "/versions/2/restore",
 			wantStatus: http.StatusOK,
 			arrange: func(f *auditRouteFixture) {
-				f.memories.EXPECT().RestoreMemoryVersion(writeTestUserID, writeTestTeamID, writeTestMemoryID, 2, mock.Anything).
+				f.memories.EXPECT().RestoreMemoryVersion(mock.Anything, writeTestUserID, writeTestTeamID, writeTestMemoryID, 2, mock.Anything).
 					Return(auditMemory(writeTestProjectID), nil)
 			},
 			op: models.AuditOpMemoryUpdate, resourceID: writeTestMemoryID, resourceName: "Deploy notes",
@@ -449,7 +455,7 @@ func auditResourceRouteCases() []auditRouteCase {
 			arrange: func(f *auditRouteFixture) {
 				f.memories.EXPECT().GetMemory(writeTestUserID, writeTestTeamID, writeTestMemoryID).
 					Return(auditMemory(writeTestProjectID), nil)
-				f.memories.EXPECT().DeleteMemory(writeTestUserID, writeTestTeamID, writeTestMemoryID).Return(nil)
+				f.memories.EXPECT().DeleteMemory(mock.Anything, writeTestUserID, writeTestTeamID, writeTestMemoryID).Return(nil)
 			},
 			op: models.AuditOpMemoryDelete, resourceID: writeTestMemoryID, resourceName: "Deploy notes",
 			projectID: writeTestProjectID,
@@ -557,7 +563,7 @@ func auditFeedProjectRouteCases() []auditRouteCase {
 			name: "create project", method: http.MethodPost, path: base + "/projects/", wantStatus: http.StatusCreated,
 			body: `{"name":"Alpha","slug":"alpha"}`,
 			arrange: func(f *auditRouteFixture) {
-				f.projects.EXPECT().CreateProject(writeTestUserID, writeTestTeamID, mock.Anything).Return(project, nil)
+				f.projects.EXPECT().CreateProject(mock.Anything, writeTestUserID, writeTestTeamID, mock.Anything).Return(project, nil)
 			},
 			op: models.AuditOpProjectCreate, resourceID: writeTestProjectID, resourceName: "Alpha",
 			projectID: writeTestProjectID,
@@ -569,7 +575,7 @@ func auditFeedProjectRouteCases() []auditRouteCase {
 				f.projects.EXPECT().GetProjectBySlugOrID(writeTestTeamID, writeTestUserID, "alpha").Return(project, nil)
 				renamed := *project
 				renamed.Name = "Alpha 2"
-				f.projects.EXPECT().UpdateProject(writeTestTeamID, writeTestUserID, "alpha", mock.Anything).
+				f.projects.EXPECT().UpdateProject(mock.Anything, writeTestTeamID, writeTestUserID, "alpha", mock.Anything).
 					Return(&renamed, nil)
 			},
 			op: models.AuditOpProjectUpdate, resourceID: writeTestProjectID, resourceName: "Alpha 2",
@@ -583,7 +589,7 @@ func auditFeedProjectRouteCases() []auditRouteCase {
 			wantStatus: http.StatusNoContent,
 			arrange: func(f *auditRouteFixture) {
 				f.projects.EXPECT().GetProjectBySlugOrID(writeTestTeamID, writeTestUserID, "alpha").Return(project, nil)
-				f.projects.EXPECT().DeleteProject(writeTestTeamID, writeTestUserID, "alpha").Return(nil)
+				f.projects.EXPECT().DeleteProject(mock.Anything, writeTestTeamID, writeTestUserID, "alpha").Return(nil)
 			},
 			op: models.AuditOpProjectDelete, resourceID: writeTestProjectID, resourceName: "Alpha",
 			projectID: writeTestProjectID,
@@ -664,7 +670,7 @@ func TestAuditRESTRoutes_ChannelFollowsAuthentication(t *testing.T) {
 			f := newAuditRouteFixture(t)
 			f.memories.EXPECT().GetMemory(writeTestUserID, writeTestTeamID, writeTestMemoryID).
 				Return(auditMemory(writeTestProjectID), nil)
-			f.memories.EXPECT().DeleteMemory(writeTestUserID, writeTestTeamID, writeTestMemoryID).Return(nil)
+			f.memories.EXPECT().DeleteMemory(mock.Anything, writeTestUserID, writeTestTeamID, writeTestMemoryID).Return(nil)
 
 			req := httptest.NewRequest(http.MethodDelete, "/api/v1/"+writeTestTeamID+"/memories/"+writeTestMemoryID, nil)
 			ctx := context.WithValue(req.Context(), contextKeyUserID, writeTestUserID)
@@ -692,13 +698,13 @@ func TestAuditRESTRoutes_FailedWriteRecordsNothing(t *testing.T) {
 		{"update prompt", http.MethodPut, base + "/prompts/p", `{"status":"archived"}`, func(f *auditRouteFixture) {
 			f.prompts.EXPECT().GetPromptBySlug(writeTestUserID, writeTestTeamID, "p").
 				Return(auditPrompt(writeTestProjectID, "active"), nil)
-			f.prompts.EXPECT().UpdatePromptBySlug(writeTestUserID, writeTestTeamID, "p", mock.Anything).
+			f.prompts.EXPECT().UpdatePromptBySlug(mock.Anything, writeTestUserID, writeTestTeamID, "p", mock.Anything).
 				Return(nil, errRefused)
 		}},
 		{"delete memory", http.MethodDelete, base + "/memories/" + writeTestMemoryID, "", func(f *auditRouteFixture) {
 			f.memories.EXPECT().GetMemory(writeTestUserID, writeTestTeamID, writeTestMemoryID).
 				Return(auditMemory(writeTestProjectID), nil)
-			f.memories.EXPECT().DeleteMemory(writeTestUserID, writeTestTeamID, writeTestMemoryID).
+			f.memories.EXPECT().DeleteMemory(mock.Anything, writeTestUserID, writeTestTeamID, writeTestMemoryID).
 				Return(services.ErrPermissionDenied)
 		}},
 		{"delete feed", http.MethodDelete, base + "/feeds/" + auditTestFeedID, "", func(f *auditRouteFixture) {
@@ -708,7 +714,7 @@ func TestAuditRESTRoutes_FailedWriteRecordsNothing(t *testing.T) {
 				Return(errRefused)
 		}},
 		{"create project", http.MethodPost, base + "/projects/", `{"name":"A","slug":"a"}`, func(f *auditRouteFixture) {
-			f.projects.EXPECT().CreateProject(writeTestUserID, writeTestTeamID, mock.Anything).Return(nil, errRefused)
+			f.projects.EXPECT().CreateProject(mock.Anything, writeTestUserID, writeTestTeamID, mock.Anything).Return(nil, errRefused)
 		}},
 	}
 	for _, tc := range cases {
@@ -730,7 +736,7 @@ func TestAuditRESTRoutes_FailedWriteRecordsNothing(t *testing.T) {
 func TestAuditRESTRoutes_UpdateWithoutBeforeReadRecordsBareUpdate(t *testing.T) {
 	f := newAuditRouteFixture(t)
 	f.prompts.EXPECT().GetPromptBySlug(writeTestUserID, writeTestTeamID, "p").Return(nil, errors.New("transient"))
-	f.prompts.EXPECT().UpdatePromptBySlug(writeTestUserID, writeTestTeamID, "p", mock.Anything).
+	f.prompts.EXPECT().UpdatePromptBySlug(mock.Anything, writeTestUserID, writeTestTeamID, "p", mock.Anything).
 		Return(auditPrompt(writeTestProjectID, "active"), nil)
 
 	w := httptest.NewRecorder()
@@ -783,7 +789,7 @@ func auditMCPCases() []auditMCPCase {
 		{
 			name: "create_prompt",
 			arrange: func(f *auditRouteFixture) {
-				f.prompts.EXPECT().CreatePrompt(user, mcpTeam, mock.Anything).
+				f.prompts.EXPECT().CreatePrompt(mock.Anything, user, mcpTeam, mock.Anything).
 					Return(auditPrompt(writeTestProjectID, "active"), nil)
 			},
 			call: func(f *auditRouteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
@@ -798,7 +804,7 @@ func auditMCPCases() []auditMCPCase {
 			name: "update_prompt",
 			arrange: func(f *auditRouteFixture) {
 				f.prompts.EXPECT().GetPromptBySlug(user, mcpTeam, "p").Return(auditPrompt(writeTestProjectID, "active"), nil)
-				f.prompts.EXPECT().UpdatePromptBySlug(user, mcpTeam, "p", mock.Anything).
+				f.prompts.EXPECT().UpdatePromptBySlug(mock.Anything, user, mcpTeam, "p", mock.Anything).
 					Return(auditPrompt(writeTestProjectID, "archived"), nil)
 			},
 			call: func(f *auditRouteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
@@ -812,7 +818,7 @@ func auditMCPCases() []auditMCPCase {
 		{
 			name: "create_artifact",
 			arrange: func(f *auditRouteFixture) {
-				f.artifacts.EXPECT().CreateArtifact(user, mcpTeam, mock.Anything).Return(auditArtifact(), nil)
+				f.artifacts.EXPECT().CreateArtifact(mock.Anything, user, mcpTeam, mock.Anything).Return(auditArtifact(), nil)
 			},
 			call: func(f *auditRouteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
 				res, _, err := f.srv.createArtifact(ctx, nil, &CreateArtifactParams{
@@ -827,7 +833,7 @@ func auditMCPCases() []auditMCPCase {
 			arrange: func(f *auditRouteFixture) {
 				f.artifacts.EXPECT().GetArtifactByProjectIDAndSlugInTeam(user, mcpTeam, writeTestProjectID, "a").
 					Return(auditArtifact(), nil)
-				f.artifacts.EXPECT().UpdateArtifactByProjectIDAndSlugInTeam(user, mcpTeam, writeTestProjectID, "a",
+				f.artifacts.EXPECT().UpdateArtifactByProjectIDAndSlugInTeam(mock.Anything, user, mcpTeam, writeTestProjectID, "a",
 					mock.Anything).Return(auditArtifact(), nil)
 			},
 			call: func(f *auditRouteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
@@ -841,7 +847,7 @@ func auditMCPCases() []auditMCPCase {
 		{
 			name: "create_blueprint",
 			arrange: func(f *auditRouteFixture) {
-				f.blueprints.EXPECT().CreateBlueprint(user, mcpTeam, mock.Anything).Return(auditBlueprint(), nil)
+				f.blueprints.EXPECT().CreateBlueprint(mock.Anything, user, mcpTeam, mock.Anything).Return(auditBlueprint(), nil)
 			},
 			call: func(f *auditRouteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
 				res, _, err := f.srv.createBlueprint(ctx, nil, &CreateBlueprintParams{
@@ -856,7 +862,7 @@ func auditMCPCases() []auditMCPCase {
 			arrange: func(f *auditRouteFixture) {
 				f.blueprints.EXPECT().GetBlueprintByProjectIDAndSlugInTeam(user, mcpTeam, writeTestProjectID, "b").
 					Return(auditBlueprint(), nil)
-				f.blueprints.EXPECT().UpdateBlueprintByProjectIDAndSlugInTeam(user, mcpTeam, writeTestProjectID, "b",
+				f.blueprints.EXPECT().UpdateBlueprintByProjectIDAndSlugInTeam(mock.Anything, user, mcpTeam, writeTestProjectID, "b",
 					mock.Anything).Return(auditBlueprint(), nil)
 			},
 			call: func(f *auditRouteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
@@ -870,7 +876,7 @@ func auditMCPCases() []auditMCPCase {
 		{
 			name: "create_memory",
 			arrange: func(f *auditRouteFixture) {
-				f.memories.EXPECT().CreateMemory(user, mcpTeam, mock.Anything).Return(auditMemory(writeTestProjectID), nil)
+				f.memories.EXPECT().CreateMemory(mock.Anything, user, mcpTeam, mock.Anything).Return(auditMemory(writeTestProjectID), nil)
 			},
 			call: func(f *auditRouteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
 				res, _, err := f.srv.storeMemory(ctx, nil, &StoreMemoryParams{
@@ -884,7 +890,7 @@ func auditMCPCases() []auditMCPCase {
 			name: "update_memory",
 			arrange: func(f *auditRouteFixture) {
 				f.memories.EXPECT().GetMemory(user, mcpTeam, writeTestMemoryID).Return(auditMemory(writeTestProjectID), nil)
-				f.memories.EXPECT().UpdateMemory(user, mcpTeam, writeTestMemoryID, mock.Anything).
+				f.memories.EXPECT().UpdateMemory(mock.Anything, user, mcpTeam, writeTestMemoryID, mock.Anything).
 					Return(auditMemory(writeTestProjectID), nil)
 			},
 			call: func(f *auditRouteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
@@ -899,7 +905,7 @@ func auditMCPCases() []auditMCPCase {
 			name: "delete_resource memory",
 			arrange: func(f *auditRouteFixture) {
 				f.memories.EXPECT().GetMemory(user, mcpTeam, writeTestMemoryID).Return(auditMemory(writeTestProjectID), nil)
-				f.memories.EXPECT().DeleteMemory(user, mcpTeam, writeTestMemoryID).Return(nil)
+				f.memories.EXPECT().DeleteMemory(mock.Anything, user, mcpTeam, writeTestMemoryID).Return(nil)
 			},
 			call: func(f *auditRouteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
 				res, _, err := f.srv.deleteResource(ctx, nil, &DeleteResourceParams{
@@ -913,7 +919,7 @@ func auditMCPCases() []auditMCPCase {
 			name: "delete_resource prompt",
 			arrange: func(f *auditRouteFixture) {
 				f.prompts.EXPECT().GetPromptBySlug(user, mcpTeam, "p").Return(auditPrompt(writeTestProjectID, "active"), nil)
-				f.prompts.EXPECT().DeletePromptBySlug(user, mcpTeam, "p").Return(nil)
+				f.prompts.EXPECT().DeletePromptBySlug(mock.Anything, user, mcpTeam, "p").Return(nil)
 			},
 			call: func(f *auditRouteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
 				res, _, err := f.srv.deleteResource(ctx, nil, &DeleteResourceParams{
@@ -928,7 +934,7 @@ func auditMCPCases() []auditMCPCase {
 			arrange: func(f *auditRouteFixture) {
 				f.artifacts.EXPECT().GetArtifactByProjectIDAndSlugInTeam(user, mcpTeam, writeTestProjectID, "a").
 					Return(auditArtifact(), nil)
-				f.artifacts.EXPECT().DeleteArtifactByProjectIDAndSlug(user, mcpTeam, writeTestProjectID, "a").Return(nil)
+				f.artifacts.EXPECT().DeleteArtifactByProjectIDAndSlug(mock.Anything, user, mcpTeam, writeTestProjectID, "a").Return(nil)
 			},
 			call: func(f *auditRouteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
 				res, _, err := f.srv.deleteResource(ctx, nil, &DeleteResourceParams{
@@ -943,7 +949,7 @@ func auditMCPCases() []auditMCPCase {
 			arrange: func(f *auditRouteFixture) {
 				f.blueprints.EXPECT().GetBlueprintByProjectIDAndSlugInTeam(user, mcpTeam, writeTestProjectID, "b").
 					Return(auditBlueprint(), nil)
-				f.blueprints.EXPECT().DeleteBlueprintByProjectIDAndSlug(user, mcpTeam, writeTestProjectID, "b").Return(nil)
+				f.blueprints.EXPECT().DeleteBlueprintByProjectIDAndSlug(mock.Anything, user, mcpTeam, writeTestProjectID, "b").Return(nil)
 			},
 			call: func(f *auditRouteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
 				res, _, err := f.srv.deleteResource(ctx, nil, &DeleteResourceParams{
@@ -1025,7 +1031,7 @@ func TestAuditMCPTools_RecordClientNameFromSession(t *testing.T) {
 		}, func(f *auditRouteFixture) {
 			f.memories.EXPECT().GetMemory(testMemberUserID, testTeamUUID, writeTestMemoryID).
 				Return(auditMemory(writeTestProjectID), nil)
-			f.memories.EXPECT().DeleteMemory(testMemberUserID, testTeamUUID, writeTestMemoryID).Return(nil)
+			f.memories.EXPECT().DeleteMemory(mock.Anything, testMemberUserID, testTeamUUID, writeTestMemoryID).Return(nil)
 		}},
 		{"vibexp_io_lock_resource", map[string]any{
 			"team_id": testTeamUUID, "resource_type": resourceTypePrompt, "slug": "p", "comment": "frozen",

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -87,7 +88,7 @@ func TestMemoryService_DeleteMemory_OwnVsAny(t *testing.T) {
 				Authz:  authzForRole(t, tc.role),
 				Logger: logger,
 			})
-			err := svc.DeleteMemory(resRBACCaller, resRBACTeamID, memoryID)
+			err := svc.DeleteMemory(context.Background(), resRBACCaller, resRBACTeamID, memoryID)
 
 			if tc.allowed {
 				require.NoError(t, err)
@@ -108,7 +109,7 @@ func TestMemoryService_CreateMemory_NonMemberDenied(t *testing.T) {
 		Authz:  authzForRole(t, ""),
 		Logger: logger,
 	})
-	_, err := svc.CreateMemory(resRBACCaller, resRBACTeamID, &models.CreateMemoryRequest{Text: "t"})
+	_, err := svc.CreateMemory(context.Background(), resRBACCaller, resRBACTeamID, &models.CreateMemoryRequest{Text: "t"})
 
 	assert.ErrorIs(t, err, ErrPermissionDenied)
 	repo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
@@ -131,7 +132,7 @@ func TestMemoryService_UpdateMemory_AnyMemberMayUpdateAnothers(t *testing.T) {
 		Authz:  authzForRole(t, models.TeamMemberRoleMember),
 		Logger: logger,
 	})
-	_, err := svc.UpdateMemory(resRBACCaller, resRBACTeamID, memoryID, &models.UpdateMemoryRequest{Text: &text})
+	_, err := svc.UpdateMemory(context.Background(), resRBACCaller, resRBACTeamID, memoryID, &models.UpdateMemoryRequest{Text: &text})
 
 	assert.NoError(t, err)
 }
@@ -167,7 +168,7 @@ func TestArtifactService_Delete_OwnVsAny(t *testing.T) {
 				ContentVersionSvc: nil,
 				CommentRepo:       nil,
 			})
-			err := svc.DeleteArtifactByProjectIDAndSlug(resRBACCaller, resRBACTeamID, projectID, slug)
+			err := svc.DeleteArtifactByProjectIDAndSlug(context.Background(), resRBACCaller, resRBACTeamID, projectID, slug)
 
 			if tc.allowed {
 				require.NoError(t, err)
@@ -210,7 +211,7 @@ func TestBlueprintService_Delete_OwnVsAny(t *testing.T) {
 				ContentVersionSvc: nil,
 				CommentRepo:       nil,
 			})
-			err := svc.DeleteBlueprintByProjectIDAndSlug(resRBACCaller, resRBACTeamID, projectID, slug)
+			err := svc.DeleteBlueprintByProjectIDAndSlug(context.Background(), resRBACCaller, resRBACTeamID, projectID, slug)
 
 			if tc.allowed {
 				require.NoError(t, err)

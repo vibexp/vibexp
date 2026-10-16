@@ -82,7 +82,7 @@ func TestCreateArtifact_Success(t *testing.T) {
 		Content:   "Test content",
 	}
 	mockArtifactService.On(
-		"CreateArtifact", testMemberUserID, testTeamUUID,
+		"CreateArtifact", mock.Anything, testMemberUserID, testTeamUUID,
 		mock.MatchedBy(func(req *models.CreateArtifactRequest) bool {
 			return req.ProjectID == testArtifactProjectID && req.Slug == "test-slug"
 		}),
@@ -111,7 +111,7 @@ func TestCreateArtifact_ServiceError(t *testing.T) {
 	srv, mockArtifactService := newArtifactTestServer(t)
 
 	mockArtifactService.On(
-		"CreateArtifact", testMemberUserID, testTeamUUID, mock.AnythingOfType("*models.CreateArtifactRequest"),
+		"CreateArtifact", mock.Anything, testMemberUserID, testTeamUUID, mock.AnythingOfType("*models.CreateArtifactRequest"),
 	).Return(nil, errors.New("service error"))
 
 	params := &CreateArtifactParams{
@@ -156,7 +156,7 @@ func TestCreateArtifact_NonMemberTeamDenied(t *testing.T) {
 		t.Error("expected nil structured result on access denied")
 	}
 	assertGenericAccessDenied(t, result)
-	mockArtifactService.AssertNotCalled(t, "CreateArtifact")
+	mockArtifactService.AssertNotCalled(t, "CreateArtifact", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 // TestCreateArtifact_MissingTeamID verifies missing team_id yields a model-actionable error.
@@ -176,7 +176,7 @@ func TestCreateArtifact_MissingTeamID(t *testing.T) {
 	if !strings.Contains(text, "team_id is required") || !strings.Contains(text, "vibexp_io_list_teams") {
 		t.Errorf("expected model-actionable missing team_id error, got %q", text)
 	}
-	mockArtifactService.AssertNotCalled(t, "CreateArtifact")
+	mockArtifactService.AssertNotCalled(t, "CreateArtifact", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestGetArtifact_Success(t *testing.T) {
@@ -449,6 +449,7 @@ func setupUpdateArtifactMock(
 ) {
 	mockArtifactService.On(
 		"UpdateArtifactByProjectIDAndSlugInTeam",
+		mock.Anything,
 		testMemberUserID,
 		testTeamUUID,
 		testArtifactProjectID,
@@ -494,7 +495,7 @@ func TestUpdateArtifact_NonMemberTeamDenied(t *testing.T) {
 		t.Error("expected nil structured result")
 	}
 	assertGenericAccessDenied(t, result)
-	mockArtifactService.AssertNotCalled(t, "UpdateArtifactByProjectIDAndSlugInTeam")
+	mockArtifactService.AssertNotCalled(t, "UpdateArtifactByProjectIDAndSlugInTeam", mock.Anything)
 }
 
 // TestUpdateArtifact_CrossTeamArtifactNotMutated verifies that when the caller IS a
@@ -507,6 +508,7 @@ func TestUpdateArtifact_CrossTeamArtifactNotMutated(t *testing.T) {
 
 	mockArtifactService.On(
 		"UpdateArtifactByProjectIDAndSlugInTeam",
+		mock.Anything,
 		testMemberUserID, testTeamUUID, testArtifactProjectID, "in-other-team",
 		mock.AnythingOfType("*models.UpdateArtifactRequest"),
 	).Return(nil, errors.New("artifact not found"))
@@ -528,7 +530,7 @@ func TestUpdateArtifact_CrossTeamArtifactNotMutated(t *testing.T) {
 		t.Error("expected nil structured result on not-found")
 	}
 	// The cross-team mutating method must never be used by this handler.
-	mockArtifactService.AssertNotCalled(t, "UpdateArtifactByProjectIDAndSlug")
+	mockArtifactService.AssertNotCalled(t, "UpdateArtifactByProjectIDAndSlug", mock.Anything)
 }
 
 // nonExistentProjectUUID is well-formed but matches no row in the DB.
@@ -555,7 +557,7 @@ func TestCreateArtifact_InvalidProjectID(t *testing.T) {
 				t.Error("expected nil structured result on validation rejection")
 			}
 			assertValidationFailure(t, result, tc.substrMust)
-			mockArtifactService.AssertNotCalled(t, "CreateArtifact")
+			mockArtifactService.AssertNotCalled(t, "CreateArtifact", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 		})
 	}
 }
@@ -565,7 +567,7 @@ func TestCreateArtifact_NonExistentProjectUUID(t *testing.T) {
 	srv, mockArtifactService := newArtifactTestServer(t)
 
 	mockArtifactService.On(
-		"CreateArtifact", testMemberUserID, testTeamUUID, mock.AnythingOfType("*models.CreateArtifactRequest"),
+		"CreateArtifact", mock.Anything, testMemberUserID, testTeamUUID, mock.AnythingOfType("*models.CreateArtifactRequest"),
 	).Return(nil, errors.New("project not found"))
 
 	params := &CreateArtifactParams{
@@ -643,7 +645,7 @@ func TestUpdateArtifact_InvalidProjectID(t *testing.T) {
 				t.Error("expected nil structured result on rejection")
 			}
 			assertValidationFailure(t, result, tc.substrMust)
-			mockArtifactService.AssertNotCalled(t, "UpdateArtifactByProjectIDAndSlugInTeam")
+			mockArtifactService.AssertNotCalled(t, "UpdateArtifactByProjectIDAndSlugInTeam", mock.Anything)
 		})
 	}
 }

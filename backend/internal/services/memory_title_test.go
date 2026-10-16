@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -70,7 +71,7 @@ func TestMemoryService_CreateMemory_Title(t *testing.T) {
 				Authz:  permissiveAuthz(t),
 				Logger: logger,
 			})
-			memory, err := service.CreateMemory("user-123", "team-123", &models.CreateMemoryRequest{
+			memory, err := service.CreateMemory(context.Background(), "user-123", "team-123", &models.CreateMemoryRequest{
 				ProjectID: memoryTitleTestProjectID,
 				Title:     tt.title,
 				Text:      "some memory",
@@ -152,7 +153,7 @@ func TestMemoryService_UpdateMemory_TitleThreeStates(t *testing.T) {
 				Authz:  permissiveAuthz(t),
 				Logger: logger,
 			})
-			memory, err := service.UpdateMemory("user-123", "team-123", "memory-123",
+			memory, err := service.UpdateMemory(context.Background(), "user-123", "team-123", "memory-123",
 				&models.UpdateMemoryRequest{Title: tt.title})
 
 			if tt.wantErr {
@@ -193,7 +194,7 @@ func TestMemoryService_TitleOnlyEditCreatesNoContentVersion(t *testing.T) {
 		ContentVersionSvc: versionSvc,
 	})
 
-	_, err := service.UpdateMemory("user-123", "team-123", "memory-123",
+	_, err := service.UpdateMemory(context.Background(), "user-123", "team-123", "memory-123",
 		&models.UpdateMemoryRequest{Title: models.NewOptionalString("Just a title")})
 
 	require.NoError(t, err)

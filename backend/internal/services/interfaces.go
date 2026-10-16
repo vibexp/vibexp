@@ -64,14 +64,18 @@ type APIKeyServiceInterface interface {
 
 // PromptServiceInterface defines the interface for prompt operations
 type PromptServiceInterface interface {
-	CreatePrompt(userID, teamID string, req *models.CreatePromptRequest) (*models.Prompt, error)
+	CreatePrompt(ctx context.Context, userID, teamID string, req *models.CreatePromptRequest) (*models.Prompt, error)
 	GetPrompt(userID, teamID, promptID string) (*models.Prompt, error)
 	GetPromptBySlug(userID, teamID, slug string) (*models.Prompt, error)
 	ListPrompts(userID string, filters PromptFilters) (*models.PromptListResponse, error)
-	UpdatePromptBySlug(userID, teamID, slug string, req *models.UpdatePromptRequest) (*models.Prompt, error)
-	UpdatePrompt(userID, teamID, promptID string, req *models.UpdatePromptRequest) (*models.Prompt, error)
-	DeletePromptBySlug(userID, teamID, slug string) error
-	DeletePrompt(userID, teamID, promptID string) error
+	UpdatePromptBySlug(
+		ctx context.Context, userID, teamID, slug string, req *models.UpdatePromptRequest,
+	) (*models.Prompt, error)
+	UpdatePrompt(
+		ctx context.Context, userID, teamID, promptID string, req *models.UpdatePromptRequest,
+	) (*models.Prompt, error)
+	DeletePromptBySlug(ctx context.Context, userID, teamID, slug string) error
+	DeletePrompt(ctx context.Context, userID, teamID, promptID string) error
 	RenderPrompt(
 		userID, teamID, slug string, placeholders map[string]string, opts RenderOptions,
 	) (*models.RenderPromptResponse, error)
@@ -94,7 +98,7 @@ type PromptServiceInterface interface {
 	// (#1418); it is stamped on the snapshot of the pre-restore body. Nil for
 	// an internal caller.
 	RestorePromptVersion(
-		userID, teamID, slug string, versionNumber int, origin *models.WriteOrigin,
+		ctx context.Context, userID, teamID, slug string, versionNumber int, origin *models.WriteOrigin,
 	) (*models.Prompt, error)
 }
 
@@ -108,7 +112,7 @@ type PromptShareServiceInterface interface {
 
 // ArtifactServiceInterface defines the interface for artifact operations
 type ArtifactServiceInterface interface {
-	CreateArtifact(userID, teamID string, req *models.CreateArtifactRequest) (*models.Artifact, error)
+	CreateArtifact(ctx context.Context, userID, teamID string, req *models.CreateArtifactRequest) (*models.Artifact, error)
 	GetArtifactByProjectIDAndSlug(userID, projectID, slug string) (*models.Artifact, error)
 	// GetArtifactByProjectIDAndSlugInTeam retrieves an artifact scoped to a single team the user
 	// belongs to, so a caller cannot reach an artifact in another of their teams via team_id.
@@ -123,16 +127,17 @@ type ArtifactServiceInterface interface {
 	// No TeamID is required — uses user_id ownership (mirrors GetArtifactByProjectIDAndSlug semantics).
 	ListArtifactsByProjectCrossTeam(userID, projectID string, filters ArtifactFilters,
 	) (*models.ArtifactListResponse, error)
-	UpdateArtifactByProjectIDAndSlug(userID, projectID, slug string, req *models.UpdateArtifactRequest,
+	UpdateArtifactByProjectIDAndSlug(
+		ctx context.Context, userID, projectID, slug string, req *models.UpdateArtifactRequest,
 	) (*models.Artifact, error)
 	// UpdateArtifactByProjectIDAndSlugInTeam updates an artifact scoped to a single team the user
 	// belongs to, enforcing the artifact lives in teamID before applying the update.
-	UpdateArtifactByProjectIDAndSlugInTeam(userID, teamID, projectID, slug string,
+	UpdateArtifactByProjectIDAndSlugInTeam(ctx context.Context, userID, teamID, projectID, slug string,
 		req *models.UpdateArtifactRequest) (*models.Artifact, error)
 	// DeleteArtifactByProjectIDAndSlug resolves the artifact by team membership (not creator
 	// user_id) before the delete.own/delete.any authorization check, so an Admin/Owner can
 	// delete another member's artifact (#258).
-	DeleteArtifactByProjectIDAndSlug(userID, teamID, projectID, slug string) error
+	DeleteArtifactByProjectIDAndSlug(ctx context.Context, userID, teamID, projectID, slug string) error
 	GetArtifactStats(userID, teamID string) (*models.ArtifactStatsResponse, error)
 	// ListArtifactVersionsInTeam returns the content-version history (newest-first) for a
 	// team-scoped artifact identified by project and slug.
@@ -146,7 +151,7 @@ type ArtifactServiceInterface interface {
 	// arrived (#1418); it is stamped on the snapshot of the pre-restore content.
 	// Nil for an internal caller.
 	RestoreArtifactVersionInTeam(
-		userID, teamID, projectID, slug string, versionNumber int, origin *models.WriteOrigin,
+		ctx context.Context, userID, teamID, projectID, slug string, versionNumber int, origin *models.WriteOrigin,
 	) (*models.Artifact, error)
 }
 
@@ -570,11 +575,13 @@ type EncryptionServiceInterface interface {
 
 // MemoryServiceInterface defines the interface for memory operations
 type MemoryServiceInterface interface {
-	CreateMemory(userID, teamID string, req *models.CreateMemoryRequest) (*models.Memory, error)
+	CreateMemory(ctx context.Context, userID, teamID string, req *models.CreateMemoryRequest) (*models.Memory, error)
 	GetMemory(userID, teamID, memoryID string) (*models.Memory, error)
 	ListMemories(userID string, filters MemoryFilters) (*models.MemoryListResponse, error)
-	UpdateMemory(userID, teamID, memoryID string, req *models.UpdateMemoryRequest) (*models.Memory, error)
-	DeleteMemory(userID, teamID, memoryID string) error
+	UpdateMemory(
+		ctx context.Context, userID, teamID, memoryID string, req *models.UpdateMemoryRequest,
+	) (*models.Memory, error)
+	DeleteMemory(ctx context.Context, userID, teamID, memoryID string) error
 	// ListMemoryVersions returns the content-version history (newest-first) for a memory
 	// identified by id. The memory is loaded through the authorization-enforcing
 	// team-scoped lookup before its versions are read.
@@ -587,7 +594,7 @@ type MemoryServiceInterface interface {
 	// updated memory. origin is how the restore request arrived (#1418); it is
 	// stamped on the snapshot of the pre-restore text. Nil for an internal caller.
 	RestoreMemoryVersion(
-		userID, teamID, memoryID string, versionNumber int, origin *models.WriteOrigin,
+		ctx context.Context, userID, teamID, memoryID string, versionNumber int, origin *models.WriteOrigin,
 	) (*models.Memory, error)
 }
 
@@ -606,7 +613,9 @@ type UsageAndGrowthGetter interface {
 
 // BlueprintServiceInterface defines the interface for blueprint operations
 type BlueprintServiceInterface interface {
-	CreateBlueprint(userID, teamID string, req *models.CreateBlueprintRequest) (*models.Blueprint, error)
+	CreateBlueprint(
+		ctx context.Context, userID, teamID string, req *models.CreateBlueprintRequest,
+	) (*models.Blueprint, error)
 	// GetBlueprintByProjectIDAndSlugInTeam retrieves a blueprint scoped to a single team the user
 	// belongs to (by membership, not creator user_id), so any member can open it (#258).
 	GetBlueprintByProjectIDAndSlugInTeam(userID, teamID, projectID, slug string) (*models.Blueprint, error)
@@ -616,12 +625,12 @@ type BlueprintServiceInterface interface {
 	) (*models.BlueprintListResponse, error)
 	// UpdateBlueprintByProjectIDAndSlugInTeam updates a blueprint scoped to a single team the user
 	// belongs to, so resource.update.any (D1) reaches the update path for a non-creator member (#258).
-	UpdateBlueprintByProjectIDAndSlugInTeam(userID, teamID, projectID, slug string,
+	UpdateBlueprintByProjectIDAndSlugInTeam(ctx context.Context, userID, teamID, projectID, slug string,
 		req *models.UpdateBlueprintRequest) (*models.Blueprint, error)
 	// DeleteBlueprintByProjectIDAndSlug resolves the blueprint by team membership (not creator
 	// user_id) before the delete.own/delete.any authorization check, so an Admin/Owner can
 	// delete another member's blueprint (#258).
-	DeleteBlueprintByProjectIDAndSlug(userID, teamID, projectID, slug string) error
+	DeleteBlueprintByProjectIDAndSlug(ctx context.Context, userID, teamID, projectID, slug string) error
 	GetBlueprintStats(userID string) (*models.BlueprintStatsResponse, error)
 	// ListBlueprintVersionsInTeam returns the content-version history (newest-first) for a
 	// team-scoped blueprint identified by project and slug. The blueprint is loaded through the
@@ -636,7 +645,7 @@ type BlueprintServiceInterface interface {
 	// arrived (#1418); it is stamped on the snapshot of the pre-restore content.
 	// Nil for an internal caller.
 	RestoreBlueprintVersionInTeam(
-		userID, teamID, projectID, slug string, versionNumber int, origin *models.WriteOrigin,
+		ctx context.Context, userID, teamID, projectID, slug string, versionNumber int, origin *models.WriteOrigin,
 	) (*models.Blueprint, error)
 }
 
@@ -702,17 +711,19 @@ type TeamServiceInterface interface {
 
 // ProjectServiceInterface defines the interface for project operations
 type ProjectServiceInterface interface {
-	CreateProject(userID, teamID string, req *models.CreateProjectRequest) (*models.Project, error)
+	CreateProject(ctx context.Context, userID, teamID string, req *models.CreateProjectRequest) (*models.Project, error)
 	GetProjectBySlug(teamID, userID, slug string) (*models.Project, error)
 	// GetProjectBySlugOrID resolves ref as a slug, falling back to a project ID
 	// within teamID when no slug matches and ref is a UUID.
 	GetProjectBySlugOrID(teamID, userID, ref string) (*models.Project, error)
 	ListProjects(userID string, filters ProjectFilters) (*models.ProjectListResponse, error)
-	UpdateProject(teamID, userID, slug string, req *models.UpdateProjectRequest) (*models.Project, error)
+	UpdateProject(
+		ctx context.Context, teamID, userID, slug string, req *models.UpdateProjectRequest,
+	) (*models.Project, error)
 	// DeleteProject deletes the project and, by cascade, every resource in it.
 	// It returns a *repositories.LockedResourcesError, deleting nothing, while
 	// the project holds a locked prompt, blueprint or artifact.
-	DeleteProject(teamID, userID, slug string) error
+	DeleteProject(ctx context.Context, teamID, userID, slug string) error
 	// GetProjectStats returns resource counts for the project identified by teamID + slug.
 	GetProjectStats(teamID, userID, slug string) (*models.ProjectStatsResponse, error)
 	// GetProjectResourceCreationMetrics returns sparse per-day creation counts per

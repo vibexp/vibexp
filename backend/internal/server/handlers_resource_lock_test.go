@@ -167,11 +167,11 @@ func promptLockFixture(t *testing.T) *lockFixture {
 		return &got
 	}
 	f.expectUpdate = func(err error) {
-		c.promptService.On("UpdatePromptBySlug", strictPrUserID, strictPrTeamID, strictPrSlug, mock.Anything).
+		c.promptService.On("UpdatePromptBySlug", mock.Anything, strictPrUserID, strictPrTeamID, strictPrSlug, mock.Anything).
 			Return(nil, err).Once()
 	}
 	f.expectDelete = func(err error) {
-		c.promptService.On("DeletePromptBySlug", strictPrUserID, strictPrTeamID, strictPrSlug).Return(err).Once()
+		c.promptService.On("DeletePromptBySlug", mock.Anything, strictPrUserID, strictPrTeamID, strictPrSlug).Return(err).Once()
 	}
 	f.install(t)
 	return f
@@ -212,11 +212,11 @@ func blueprintLockFixture(t *testing.T) *lockFixture {
 		return &got
 	}
 	f.expectUpdate = func(err error) {
-		svc.On("UpdateBlueprintByProjectIDAndSlugInTeam",
+		svc.On("UpdateBlueprintByProjectIDAndSlugInTeam", mock.Anything,
 			strictBpUserID, strictBpTeamID, strictBpProject, strictBpSlug, mock.Anything).Return(nil, err).Once()
 	}
 	f.expectDelete = func(err error) {
-		svc.On("DeleteBlueprintByProjectIDAndSlug",
+		svc.On("DeleteBlueprintByProjectIDAndSlug", mock.Anything,
 			strictBpUserID, strictBpTeamID, strictBpProject, strictBpSlug).Return(err).Once()
 	}
 	f.install(t)
@@ -258,11 +258,11 @@ func artifactLockFixture(t *testing.T) *lockFixture {
 		return &got
 	}
 	f.expectUpdate = func(err error) {
-		svc.On("UpdateArtifactByProjectIDAndSlugInTeam",
+		svc.On("UpdateArtifactByProjectIDAndSlugInTeam", mock.Anything,
 			strictArtUserID, strictArtTeamID, strictArtProject, strictArtSlug, mock.Anything).Return(nil, err).Once()
 	}
 	f.expectDelete = func(err error) {
-		svc.On("DeleteArtifactByProjectIDAndSlug",
+		svc.On("DeleteArtifactByProjectIDAndSlug", mock.Anything,
 			strictArtUserID, strictArtTeamID, strictArtProject, strictArtSlug).Return(err).Once()
 	}
 	f.install(t)

@@ -144,7 +144,7 @@ func TestPromptStatus_Create(t *testing.T) {
 
 	t.Run("custom status round-trips", func(t *testing.T) {
 		srv, container := statusPromptServer(t)
-		container.promptService.On("CreatePrompt", "user-123", statusTestTeamID, withStatus(statusTestCustom)).
+		container.promptService.On("CreatePrompt", mock.Anything, "user-123", statusTestTeamID, withStatus(statusTestCustom)).
 			Return(statusPrompt(), nil).Once()
 
 		req, rr := createPromptWithStatus(srv, statusTestCustom)
@@ -154,7 +154,7 @@ func TestPromptStatus_Create(t *testing.T) {
 
 	t.Run("the service's rejection is a 400 listing the allowed values", func(t *testing.T) {
 		srv, container := statusPromptServer(t)
-		container.promptService.On("CreatePrompt", "user-123", statusTestTeamID, withStatus("retired")).
+		container.promptService.On("CreatePrompt", mock.Anything, "user-123", statusTestTeamID, withStatus("retired")).
 			Return(nil, errStatusTestRejected).Once()
 
 		req, rr := createPromptWithStatus(srv, "retired")
@@ -173,7 +173,7 @@ func TestPromptStatus_Update(t *testing.T) {
 	t.Run("custom status round-trips", func(t *testing.T) {
 		srv, container := statusPromptServer(t)
 		container.promptService.
-			On("UpdatePromptBySlug", "user-123", statusTestTeamID, "test-slug", withStatus(statusTestCustom)).
+			On("UpdatePromptBySlug", mock.Anything, "user-123", statusTestTeamID, "test-slug", withStatus(statusTestCustom)).
 			Return(statusPrompt(), nil).Once()
 
 		req, rr := updatePromptWithStatus(srv, statusTestCustom)
@@ -184,7 +184,7 @@ func TestPromptStatus_Update(t *testing.T) {
 	t.Run("the service's rejection is a 400 listing the allowed values", func(t *testing.T) {
 		srv, container := statusPromptServer(t)
 		container.promptService.
-			On("UpdatePromptBySlug", "user-123", statusTestTeamID, "test-slug", withStatus("retired")).
+			On("UpdatePromptBySlug", mock.Anything, "user-123", statusTestTeamID, "test-slug", withStatus("retired")).
 			Return(nil, errStatusTestRejected).Once()
 
 		req, rr := updatePromptWithStatus(srv, "retired")
@@ -278,7 +278,7 @@ func TestArtifactStatus_Create(t *testing.T) {
 
 	t.Run("custom status round-trips", func(t *testing.T) {
 		srv, svc := statusArtifactServer(t)
-		svc.On("CreateArtifact", "user-123", statusTestTeamID, withStatus(statusTestCustom)).
+		svc.On("CreateArtifact", mock.Anything, "user-123", statusTestTeamID, withStatus(statusTestCustom)).
 			Return(statusArtifact(), nil).Once()
 
 		req, rr := createArtifactWithStatus(srv, statusTestCustom)
@@ -288,7 +288,7 @@ func TestArtifactStatus_Create(t *testing.T) {
 
 	t.Run("the service's rejection is a 400 listing the allowed values", func(t *testing.T) {
 		srv, svc := statusArtifactServer(t)
-		svc.On("CreateArtifact", "user-123", statusTestTeamID, withStatus("retired")).
+		svc.On("CreateArtifact", mock.Anything, "user-123", statusTestTeamID, withStatus("retired")).
 			Return(nil, errStatusTestRejected).Once()
 
 		req, rr := createArtifactWithStatus(srv, "retired")
@@ -306,7 +306,7 @@ func TestArtifactStatus_Update(t *testing.T) {
 
 	t.Run("custom status round-trips", func(t *testing.T) {
 		srv, svc := statusArtifactServer(t)
-		svc.On("UpdateArtifactByProjectIDAndSlugInTeam",
+		svc.On("UpdateArtifactByProjectIDAndSlugInTeam", mock.Anything,
 			"user-123", statusTestTeamID, statusTestTeamID, "test-slug", withStatus(statusTestCustom)).
 			Return(statusArtifact(), nil).Once()
 
@@ -317,7 +317,7 @@ func TestArtifactStatus_Update(t *testing.T) {
 
 	t.Run("the service's rejection is a 400 listing the allowed values", func(t *testing.T) {
 		srv, svc := statusArtifactServer(t)
-		svc.On("UpdateArtifactByProjectIDAndSlugInTeam",
+		svc.On("UpdateArtifactByProjectIDAndSlugInTeam", mock.Anything,
 			"user-123", statusTestTeamID, statusTestTeamID, "test-slug", withStatus("retired")).
 			Return(nil, errStatusTestRejected).Once()
 
@@ -391,7 +391,7 @@ func TestBlueprintStatus_Create(t *testing.T) {
 
 	t.Run("custom status round-trips", func(t *testing.T) {
 		srv, svc := setupTestServerForBlueprint(t, nil)
-		svc.On("CreateBlueprint", "user-123", statusTestTeamID, withStatus(statusTestCustom)).
+		svc.On("CreateBlueprint", mock.Anything, "user-123", statusTestTeamID, withStatus(statusTestCustom)).
 			Return(statusBlueprint(), nil).Once()
 
 		req, rr := create(srv, statusTestCustom)
@@ -401,7 +401,7 @@ func TestBlueprintStatus_Create(t *testing.T) {
 
 	t.Run("the service's rejection is a 400 listing the allowed values", func(t *testing.T) {
 		srv, svc := setupTestServerForBlueprint(t, nil)
-		svc.On("CreateBlueprint", "user-123", statusTestTeamID, withStatus("retired")).
+		svc.On("CreateBlueprint", mock.Anything, "user-123", statusTestTeamID, withStatus("retired")).
 			Return(nil, errStatusTestRejected).Once()
 
 		req, rr := create(srv, "retired")
@@ -426,7 +426,7 @@ func TestBlueprintStatus_Update(t *testing.T) {
 
 	t.Run("custom status round-trips", func(t *testing.T) {
 		srv, svc := setupTestServerForBlueprint(t, nil)
-		svc.On("UpdateBlueprintByProjectIDAndSlugInTeam",
+		svc.On("UpdateBlueprintByProjectIDAndSlugInTeam", mock.Anything,
 			"user-123", statusTestTeamID, statusTestTeamID, "test-spec", withStatus(statusTestCustom)).
 			Return(statusBlueprint(), nil).Once()
 
@@ -437,7 +437,7 @@ func TestBlueprintStatus_Update(t *testing.T) {
 
 	t.Run("the service's rejection is a 400 listing the allowed values", func(t *testing.T) {
 		srv, svc := setupTestServerForBlueprint(t, nil)
-		svc.On("UpdateBlueprintByProjectIDAndSlugInTeam",
+		svc.On("UpdateBlueprintByProjectIDAndSlugInTeam", mock.Anything,
 			"user-123", statusTestTeamID, statusTestTeamID, "test-spec", withStatus("retired")).
 			Return(nil, errStatusTestRejected).Once()
 
@@ -525,7 +525,7 @@ func TestMemoryStatus_Create(t *testing.T) {
 
 	t.Run("custom status round-trips", func(t *testing.T) {
 		container := newMockMemoryContainer(t)
-		container.memoryService.On("CreateMemory", memoriesTestUserID, memoriesTestTeamID, withStatus(statusTestCustom)).
+		container.memoryService.On("CreateMemory", mock.Anything, memoriesTestUserID, memoriesTestTeamID, withStatus(statusTestCustom)).
 			Return(statusMemory(), nil).Once()
 
 		req, rr := create(t, container, statusTestCustom)
@@ -535,7 +535,7 @@ func TestMemoryStatus_Create(t *testing.T) {
 
 	t.Run("the service's rejection is a 400 listing the allowed values", func(t *testing.T) {
 		container := newMockMemoryContainer(t)
-		container.memoryService.On("CreateMemory", memoriesTestUserID, memoriesTestTeamID, withStatus("retired")).
+		container.memoryService.On("CreateMemory", mock.Anything, memoriesTestUserID, memoriesTestTeamID, withStatus("retired")).
 			Return(nil, errStatusTestRejected).Once()
 
 		req, rr := create(t, container, "retired")
@@ -563,7 +563,7 @@ func TestMemoryStatus_Update(t *testing.T) {
 	t.Run("custom status round-trips", func(t *testing.T) {
 		container := newMockMemoryContainer(t)
 		container.memoryService.
-			On("UpdateMemory", memoriesTestUserID, memoriesTestTeamID, memoriesTestMemoryID, withStatus(statusTestCustom)).
+			On("UpdateMemory", mock.Anything, memoriesTestUserID, memoriesTestTeamID, memoriesTestMemoryID, withStatus(statusTestCustom)).
 			Return(statusMemory(), nil).Once()
 
 		req, rr := update(container, statusTestCustom)
@@ -574,7 +574,7 @@ func TestMemoryStatus_Update(t *testing.T) {
 	t.Run("the service's rejection is a 400 listing the allowed values", func(t *testing.T) {
 		container := newMockMemoryContainer(t)
 		container.memoryService.
-			On("UpdateMemory", memoriesTestUserID, memoriesTestTeamID, memoriesTestMemoryID, withStatus("retired")).
+			On("UpdateMemory", mock.Anything, memoriesTestUserID, memoriesTestTeamID, memoriesTestMemoryID, withStatus("retired")).
 			Return(nil, errStatusTestRejected).Once()
 
 		req, rr := update(container, "retired")

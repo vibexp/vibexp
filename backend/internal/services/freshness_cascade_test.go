@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -66,7 +67,7 @@ func freshnessCascadeCases() []freshnessCascadeCase {
 					Logger:        logger,
 					FreshnessRepo: freshnessRepo,
 				})
-				return svc.DeleteArtifactByProjectIDAndSlug(resRBACCaller, resRBACTeamID, cascadeProjectID, cascadeSlug)
+				return svc.DeleteArtifactByProjectIDAndSlug(context.Background(), resRBACCaller, resRBACTeamID, cascadeProjectID, cascadeSlug)
 			},
 		},
 		{
@@ -88,7 +89,7 @@ func freshnessCascadeCases() []freshnessCascadeCase {
 					Logger:        logger,
 					FreshnessRepo: freshnessRepo,
 				})
-				return svc.DeleteBlueprintByProjectIDAndSlug(resRBACCaller, resRBACTeamID, cascadeProjectID, cascadeSlug)
+				return svc.DeleteBlueprintByProjectIDAndSlug(context.Background(), resRBACCaller, resRBACTeamID, cascadeProjectID, cascadeSlug)
 			},
 		},
 		{
@@ -108,7 +109,7 @@ func freshnessCascadeCases() []freshnessCascadeCase {
 					Logger:        logger,
 					FreshnessRepo: freshnessRepo,
 				})
-				return svc.DeleteMemory(resRBACCaller, resRBACTeamID, cascadeMemoryID)
+				return svc.DeleteMemory(context.Background(), resRBACCaller, resRBACTeamID, cascadeMemoryID)
 			},
 		},
 		{
@@ -131,7 +132,7 @@ func freshnessCascadeCases() []freshnessCascadeCase {
 					Logger:        logger,
 					FreshnessRepo: freshnessRepo,
 				})
-				return svc.DeletePrompt(resRBACCaller, resRBACTeamID, cascadePromptID)
+				return svc.DeletePrompt(context.Background(), resRBACCaller, resRBACTeamID, cascadePromptID)
 			},
 		},
 	}

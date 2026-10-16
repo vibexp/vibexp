@@ -118,7 +118,7 @@ func makeDeleteProjectRequest() *http.Request {
 func TestHandleDeleteProject_LockedResources_Returns423(t *testing.T) {
 	container := newProjectGitHubTestContainer(t)
 	container.projectSvc.EXPECT().
-		DeleteProject(lockedProjTeamID, lockedProjUserID, lockedProjSlug).
+		DeleteProject(mock.Anything, lockedProjTeamID, lockedProjUserID, lockedProjSlug).
 		Return(lockedTestError(repositories.ErrProjectHasLockedResources)).Once()
 
 	req := makeDeleteProjectRequest()
@@ -133,7 +133,7 @@ func TestHandleDeleteProject_LockedResources_Returns423(t *testing.T) {
 func TestHandleDeleteProject_Unlocked_Returns204(t *testing.T) {
 	container := newProjectGitHubTestContainer(t)
 	container.projectSvc.EXPECT().
-		DeleteProject(lockedProjTeamID, lockedProjUserID, lockedProjSlug).Return(nil).Once()
+		DeleteProject(mock.Anything, lockedProjTeamID, lockedProjUserID, lockedProjSlug).Return(nil).Once()
 
 	req := makeDeleteProjectRequest()
 	w := httptest.NewRecorder()

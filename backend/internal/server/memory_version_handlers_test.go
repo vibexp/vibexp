@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/models"
@@ -181,7 +182,7 @@ func TestHandleRestoreMemoryVersion_Success(t *testing.T) {
 	}
 
 	mockContainer.memoryService.On(
-		"RestoreMemoryVersion", "user-123", versionTeamID, versionMemoryID, 1, (*models.WriteOrigin)(nil),
+		"RestoreMemoryVersion", mock.Anything, "user-123", versionTeamID, versionMemoryID, 1, (*models.WriteOrigin)(nil),
 	).Return(restored, nil)
 
 	srv := createMemoryTestServer(mockContainer)

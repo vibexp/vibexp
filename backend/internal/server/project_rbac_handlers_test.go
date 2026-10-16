@@ -91,7 +91,7 @@ func TestProjectHandlers_PermissionDeniedIsForbidden(t *testing.T) {
 			path:   base,
 			body:   `{"name":"P","slug":"p"}`,
 			stub: func(m *svcmocks.MockProjectServiceInterface) {
-				m.EXPECT().CreateProject(projRBACHandlerUser, projRBACHandlerTeam, mock.Anything).
+				m.EXPECT().CreateProject(mock.Anything, projRBACHandlerUser, projRBACHandlerTeam, mock.Anything).
 					Return(nil, services.ErrPermissionDenied).Once()
 			},
 			detail: "Only team owners and admins can create projects",
@@ -102,7 +102,7 @@ func TestProjectHandlers_PermissionDeniedIsForbidden(t *testing.T) {
 			path:   base + "/my-project",
 			body:   `{"name":"Renamed"}`,
 			stub: func(m *svcmocks.MockProjectServiceInterface) {
-				m.EXPECT().UpdateProject(projRBACHandlerTeam, projRBACHandlerUser, "my-project", mock.Anything).
+				m.EXPECT().UpdateProject(mock.Anything, projRBACHandlerTeam, projRBACHandlerUser, "my-project", mock.Anything).
 					Return(nil, services.ErrPermissionDenied).Once()
 			},
 			detail: "Only team owners and admins can update projects",
@@ -112,7 +112,7 @@ func TestProjectHandlers_PermissionDeniedIsForbidden(t *testing.T) {
 			method: http.MethodDelete,
 			path:   base + "/my-project",
 			stub: func(m *svcmocks.MockProjectServiceInterface) {
-				m.EXPECT().DeleteProject(projRBACHandlerTeam, projRBACHandlerUser, "my-project").
+				m.EXPECT().DeleteProject(mock.Anything, projRBACHandlerTeam, projRBACHandlerUser, "my-project").
 					Return(services.ErrPermissionDenied).Once()
 			},
 			detail: "Only team owners and admins can delete projects",
@@ -146,7 +146,7 @@ func TestProjectHandlers_NonMemberDenialIsForbidden(t *testing.T) {
 	nonMemberErr := services.ErrPermissionDenied
 
 	svc := svcmocks.NewMockProjectServiceInterface(t)
-	svc.EXPECT().DeleteProject(projRBACHandlerTeam, projRBACHandlerUser, "my-project").
+	svc.EXPECT().DeleteProject(mock.Anything, projRBACHandlerTeam, projRBACHandlerUser, "my-project").
 		Return(nonMemberErr).Once()
 
 	srv := createTestProjectRBACServer(svc)

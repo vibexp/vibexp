@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
@@ -26,7 +27,7 @@ func TestDeleteResource_PromptPermissionDenied(t *testing.T) {
 	srv, m := newDeleteResourceTestServer(t)
 	m.prompt.On("GetPromptBySlug", testMemberUserID, testTeamUUID, "victim").
 		Return(&models.Prompt{ID: "prompt-1", UserID: "user-other"}, nil)
-	m.prompt.On("DeletePromptBySlug", testMemberUserID, testTeamUUID, "victim").
+	m.prompt.On("DeletePromptBySlug", mock.Anything, testMemberUserID, testTeamUUID, "victim").
 		Return(services.ErrPermissionDenied)
 
 	params := &DeleteResourceParams{TeamID: testTeamUUID, ResourceType: "prompt", Slug: "victim"}

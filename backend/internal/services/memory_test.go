@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -128,7 +129,7 @@ func TestMemoryService_CreateMemory(t *testing.T) {
 			tt.setupMock(mockRepo)
 
 			service := createTestMemoryService(mockRepo)
-			result, err := service.CreateMemory(tt.userID, "team-123", tt.request)
+			result, err := service.CreateMemory(context.Background(), tt.userID, "team-123", tt.request)
 
 			if tt.expectErr {
 				assert.Error(t, err)
@@ -367,7 +368,7 @@ func TestMemoryService_UpdateMemory(t *testing.T) {
 			tt.setupMock(mockRepo)
 
 			service := createTestMemoryService(mockRepo)
-			result, err := service.UpdateMemory(tt.userID, "team-123", tt.memoryID, tt.request)
+			result, err := service.UpdateMemory(context.Background(), tt.userID, "team-123", tt.memoryID, tt.request)
 
 			if tt.expectErr {
 				assert.Error(t, err)
@@ -427,7 +428,7 @@ func TestMemoryService_DeleteMemory(t *testing.T) {
 			tt.setupMock(mockRepo)
 
 			service := createTestMemoryService(mockRepo)
-			err := service.DeleteMemory(tt.userID, "team-123", tt.memoryID)
+			err := service.DeleteMemory(context.Background(), tt.userID, "team-123", tt.memoryID)
 
 			if tt.expectErr {
 				assert.Error(t, err)
@@ -473,7 +474,7 @@ func TestMemoryService_PublishesMemoryEvents(t *testing.T) {
 					ProjectID: testServiceProjectID,
 					Text:      "Test Memory",
 				}
-				_, err := service.CreateMemory("user-123", "team-123", req)
+				_, err := service.CreateMemory(context.Background(), "user-123", "team-123", req)
 				return err
 			},
 			expectEventCalls: 1,
@@ -507,7 +508,7 @@ func TestMemoryService_PublishesMemoryEvents(t *testing.T) {
 				req := &models.UpdateMemoryRequest{
 					Text: &text,
 				}
-				_, err := service.UpdateMemory("user-123", "team-123", "memory-123", req)
+				_, err := service.UpdateMemory(context.Background(), "user-123", "team-123", "memory-123", req)
 				return err
 			},
 			expectEventCalls: 1,
@@ -571,7 +572,7 @@ func TestMemoryService_UpdateMemory_PreservesTeamID(t *testing.T) {
 		Text: &text,
 	}
 
-	memory, err := service.UpdateMemory("user-123", "team-123", "memory-123", request)
+	memory, err := service.UpdateMemory(context.Background(), "user-123", "team-123", "memory-123", request)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, memory)
@@ -613,7 +614,7 @@ func TestMemoryService_UpdateMemory_MetadataNilVsEmpty(t *testing.T) {
 				Return(nil)
 
 			svc := createTestMemoryService(mockRepo)
-			memory, err := svc.UpdateMemory("user-123", "team-123", "memory-123",
+			memory, err := svc.UpdateMemory(context.Background(), "user-123", "team-123", "memory-123",
 				&models.UpdateMemoryRequest{Metadata: tt.reqMetadata})
 
 			assert.NoError(t, err)
@@ -659,7 +660,7 @@ func TestMemoryService_CreateMemory_StatusDefaulting(t *testing.T) {
 				Status:    tt.reqStatus,
 			}
 
-			memory, err := svc.CreateMemory("user-123", "team-123", req)
+			memory, err := svc.CreateMemory(context.Background(), "user-123", "team-123", req)
 
 			assert.NoError(t, err)
 			assert.NotNil(t, memory)
@@ -703,7 +704,7 @@ func TestMemoryService_UpdateMemory_ChangesStatus(t *testing.T) {
 			newText := "still here"
 			req := &models.UpdateMemoryRequest{Text: &newText, Status: tt.reqStatus}
 
-			memory, err := svc.UpdateMemory("user-123", "team-123", "memory-123", req)
+			memory, err := svc.UpdateMemory(context.Background(), "user-123", "team-123", "memory-123", req)
 
 			assert.NoError(t, err)
 			assert.NotNil(t, memory)

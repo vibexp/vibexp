@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"log/slog"
 	"testing"
 
@@ -43,7 +44,7 @@ func TestPromptService_RejectsStatusOutsideCatalog(t *testing.T) {
 			Logger: statusTestLogger(),
 		})
 
-		_, err := svc.CreatePrompt(userID, teamID, &models.CreatePromptRequest{
+		_, err := svc.CreatePrompt(context.Background(), userID, teamID, &models.CreatePromptRequest{
 			Name: "n", Slug: "s", Body: "b", ProjectID: testServiceProjectID,
 			Status: models.ArtifactStatusActive, // valid for artifacts, not for prompts
 		})
@@ -63,7 +64,7 @@ func TestPromptService_RejectsStatusOutsideCatalog(t *testing.T) {
 		})
 
 		status := models.BlueprintStatusExpired
-		_, err := svc.UpdatePrompt(userID, teamID, "prompt-1", &models.UpdatePromptRequest{Status: &status})
+		_, err := svc.UpdatePrompt(context.Background(), userID, teamID, "prompt-1", &models.UpdatePromptRequest{Status: &status})
 
 		require.ErrorIs(t, err, ErrInvalidStatus)
 	})
@@ -84,7 +85,7 @@ func TestArtifactService_RejectsStatusOutsideCatalog(t *testing.T) {
 			Logger: statusTestLogger(),
 		})
 
-		_, err := svc.CreateArtifact(userID, teamID, &models.CreateArtifactRequest{
+		_, err := svc.CreateArtifact(context.Background(), userID, teamID, &models.CreateArtifactRequest{
 			ProjectID: projectID, Slug: slug, Title: "t", Content: "c",
 			Status: models.PromptStatusPublished, // valid for prompts, not for artifacts
 		})
@@ -104,7 +105,7 @@ func TestArtifactService_RejectsStatusOutsideCatalog(t *testing.T) {
 		})
 
 		status := models.BlueprintStatusExpired
-		_, err := svc.UpdateArtifactByProjectIDAndSlugInTeam(userID, teamID, projectID, slug,
+		_, err := svc.UpdateArtifactByProjectIDAndSlugInTeam(context.Background(), userID, teamID, projectID, slug,
 			&models.UpdateArtifactRequest{Status: &status})
 
 		require.ErrorIs(t, err, ErrInvalidStatus)
@@ -126,7 +127,7 @@ func TestBlueprintService_RejectsStatusOutsideCatalog(t *testing.T) {
 			Logger: statusTestLogger(),
 		})
 
-		_, err := svc.CreateBlueprint(userID, teamID, &models.CreateBlueprintRequest{
+		_, err := svc.CreateBlueprint(context.Background(), userID, teamID, &models.CreateBlueprintRequest{
 			ProjectID: projectID, Slug: slug, Title: "t", Content: "c",
 			Status: models.ArtifactStatusArchived, // valid for artifacts, not for blueprints
 		})
@@ -146,7 +147,7 @@ func TestBlueprintService_RejectsStatusOutsideCatalog(t *testing.T) {
 		})
 
 		status := models.MemoryStatusDraft
-		_, err := svc.UpdateBlueprintByProjectIDAndSlugInTeam(userID, teamID, projectID, slug,
+		_, err := svc.UpdateBlueprintByProjectIDAndSlugInTeam(context.Background(), userID, teamID, projectID, slug,
 			&models.UpdateBlueprintRequest{Status: &status})
 
 		require.ErrorIs(t, err, ErrInvalidStatus)
@@ -164,7 +165,7 @@ func TestMemoryService_RejectsStatusOutsideCatalog(t *testing.T) {
 		svc := createTestMemoryService(mocks.NewMockMemoryRepository(t))
 
 		status := models.BlueprintStatusExpired // valid for blueprints, not for memories
-		_, err := svc.CreateMemory(userID, teamID, &models.CreateMemoryRequest{
+		_, err := svc.CreateMemory(context.Background(), userID, teamID, &models.CreateMemoryRequest{
 			ProjectID: testServiceProjectID, Text: "t", Status: &status,
 		})
 
@@ -179,7 +180,7 @@ func TestMemoryService_RejectsStatusOutsideCatalog(t *testing.T) {
 		svc := createTestMemoryService(repo)
 
 		status := models.PromptStatusPublished
-		_, err := svc.UpdateMemory(userID, teamID, memoryID,
+		_, err := svc.UpdateMemory(context.Background(), userID, teamID, memoryID,
 			&models.UpdateMemoryRequest{Status: &status})
 
 		require.ErrorIs(t, err, ErrInvalidStatus)
@@ -213,7 +214,7 @@ func TestServicesTreatEmptyStatusAsUnchanged(t *testing.T) {
 			Repo: repo, Authz: allowAllAuthz{}, Logger: statusTestLogger(),
 		})
 
-		_, err := svc.UpdatePrompt(userID, teamID, "prompt-1",
+		_, err := svc.UpdatePrompt(context.Background(), userID, teamID, "prompt-1",
 			&models.UpdatePromptRequest{Status: &empty})
 		require.NoError(t, err)
 	})
@@ -261,7 +262,7 @@ func TestPromptService_CustomStatus(t *testing.T) {
 			return p.Status == "prompt-review" && p.TeamID == statusTestTeam
 		})).Return(nil).Once()
 
-		prompt, err := newSvc(repo).CreatePrompt(userID, statusTestTeam, &models.CreatePromptRequest{
+		prompt, err := newSvc(repo).CreatePrompt(context.Background(), userID, statusTestTeam, &models.CreatePromptRequest{
 			Name: "n", Slug: "s", Body: "b", ProjectID: "project-123", Status: "prompt-review",
 		})
 
@@ -279,14 +280,14 @@ func TestPromptService_CustomStatus(t *testing.T) {
 		})).Return(nil).Once()
 
 		status := "prompt-review"
-		_, err := newSvc(repo).UpdatePrompt(userID, statusTestTeam, "prompt-1",
+		_, err := newSvc(repo).UpdatePrompt(context.Background(), userID, statusTestTeam, "prompt-1",
 			&models.UpdatePromptRequest{Status: &status})
 
 		require.NoError(t, err)
 	})
 
 	t.Run("create rejects another resource type's custom status", func(t *testing.T) {
-		_, err := newSvc(mocks.NewMockPromptRepository(t)).CreatePrompt(userID, statusTestTeam,
+		_, err := newSvc(mocks.NewMockPromptRepository(t)).CreatePrompt(context.Background(), userID, statusTestTeam,
 			&models.CreatePromptRequest{
 				Name: "n", Slug: "s", Body: "b", ProjectID: "project-123", Status: "in-review",
 			})
@@ -303,7 +304,7 @@ func TestPromptService_CustomStatus(t *testing.T) {
 			Return(&models.Prompt{ID: "prompt-1", UserID: userID, TeamID: statusTestOtherTeam}, nil).Once()
 
 		status := "prompt-review"
-		_, err := newSvc(repo).UpdatePrompt(userID, statusTestTeam, "prompt-1",
+		_, err := newSvc(repo).UpdatePrompt(context.Background(), userID, statusTestTeam, "prompt-1",
 			&models.UpdatePromptRequest{Status: &status})
 
 		require.ErrorIs(t, err, ErrInvalidStatus)
@@ -329,7 +330,7 @@ func TestArtifactService_CustomStatus(t *testing.T) {
 			return a.Status == "in-review" && a.TeamID == statusTestTeam
 		})).Return(nil).Once()
 
-		artifact, err := newSvc(repo).CreateArtifact(userID, statusTestTeam, &models.CreateArtifactRequest{
+		artifact, err := newSvc(repo).CreateArtifact(context.Background(), userID, statusTestTeam, &models.CreateArtifactRequest{
 			ProjectID: projectID, Slug: slug, Title: "t", Content: "c", Status: "in-review",
 		})
 
@@ -347,14 +348,14 @@ func TestArtifactService_CustomStatus(t *testing.T) {
 		})).Return(nil).Once()
 
 		status := "approved"
-		_, err := newSvc(repo).UpdateArtifactByProjectIDAndSlugInTeam(userID, statusTestTeam, projectID, slug,
+		_, err := newSvc(repo).UpdateArtifactByProjectIDAndSlugInTeam(context.Background(), userID, statusTestTeam, projectID, slug,
 			&models.UpdateArtifactRequest{Status: &status})
 
 		require.NoError(t, err)
 	})
 
 	t.Run("create rejects another team's custom status", func(t *testing.T) {
-		_, err := newSvc(mocks.NewMockArtifactRepository(t)).CreateArtifact(userID, statusTestTeam,
+		_, err := newSvc(mocks.NewMockArtifactRepository(t)).CreateArtifact(context.Background(), userID, statusTestTeam,
 			&models.CreateArtifactRequest{
 				ProjectID: projectID, Slug: slug, Title: "t", Content: "c", Status: "other-team-only",
 			})
@@ -370,7 +371,7 @@ func TestArtifactService_CustomStatus(t *testing.T) {
 			Return(&models.Artifact{ID: "artifact-1", UserID: userID, TeamID: statusTestOtherTeam}, nil).Once()
 
 		status := "in-review" // statusTestTeam's, but the artifact is statusTestOtherTeam's
-		_, err := newSvc(repo).UpdateArtifactByProjectIDAndSlugInTeam(userID, statusTestTeam, projectID, slug,
+		_, err := newSvc(repo).UpdateArtifactByProjectIDAndSlugInTeam(context.Background(), userID, statusTestTeam, projectID, slug,
 			&models.UpdateArtifactRequest{Status: &status})
 
 		require.ErrorIs(t, err, ErrInvalidStatus)
@@ -396,7 +397,7 @@ func TestBlueprintService_CustomStatus(t *testing.T) {
 			return b.Status == "blueprint-review" && b.TeamID == statusTestTeam
 		})).Return(nil).Once()
 
-		blueprint, err := newSvc(repo).CreateBlueprint(userID, statusTestTeam, &models.CreateBlueprintRequest{
+		blueprint, err := newSvc(repo).CreateBlueprint(context.Background(), userID, statusTestTeam, &models.CreateBlueprintRequest{
 			ProjectID: projectID, Slug: slug, Title: "t", Content: "c", Status: "blueprint-review",
 		})
 
@@ -414,14 +415,14 @@ func TestBlueprintService_CustomStatus(t *testing.T) {
 		})).Return(nil).Once()
 
 		status := "blueprint-review"
-		_, err := newSvc(repo).UpdateBlueprintByProjectIDAndSlugInTeam(userID, statusTestTeam, projectID, slug,
+		_, err := newSvc(repo).UpdateBlueprintByProjectIDAndSlugInTeam(context.Background(), userID, statusTestTeam, projectID, slug,
 			&models.UpdateBlueprintRequest{Status: &status})
 
 		require.NoError(t, err)
 	})
 
 	t.Run("create rejects another resource type's custom status", func(t *testing.T) {
-		_, err := newSvc(mocks.NewMockBlueprintRepository(t)).CreateBlueprint(userID, statusTestTeam,
+		_, err := newSvc(mocks.NewMockBlueprintRepository(t)).CreateBlueprint(context.Background(), userID, statusTestTeam,
 			&models.CreateBlueprintRequest{
 				ProjectID: projectID, Slug: slug, Title: "t", Content: "c", Status: "in-review",
 			})
@@ -436,7 +437,7 @@ func TestBlueprintService_CustomStatus(t *testing.T) {
 			Return(&models.Blueprint{ID: "blueprint-1", UserID: userID, TeamID: statusTestOtherTeam}, nil).Once()
 
 		status := "blueprint-review"
-		_, err := newSvc(repo).UpdateBlueprintByProjectIDAndSlugInTeam(userID, statusTestTeam, projectID, slug,
+		_, err := newSvc(repo).UpdateBlueprintByProjectIDAndSlugInTeam(context.Background(), userID, statusTestTeam, projectID, slug,
 			&models.UpdateBlueprintRequest{Status: &status})
 
 		require.ErrorIs(t, err, ErrInvalidStatus)
@@ -462,7 +463,7 @@ func TestMemoryService_CustomStatus(t *testing.T) {
 		})).Return(nil).Once()
 
 		status := "memory-review"
-		memory, err := newSvc(repo).CreateMemory(userID, statusTestTeam, &models.CreateMemoryRequest{
+		memory, err := newSvc(repo).CreateMemory(context.Background(), userID, statusTestTeam, &models.CreateMemoryRequest{
 			ProjectID: testServiceProjectID, Text: "t", Status: &status,
 		})
 
@@ -480,7 +481,7 @@ func TestMemoryService_CustomStatus(t *testing.T) {
 		})).Return(nil).Once()
 
 		status := "memory-review"
-		_, err := newSvc(repo).UpdateMemory(userID, statusTestTeam, memoryID,
+		_, err := newSvc(repo).UpdateMemory(context.Background(), userID, statusTestTeam, memoryID,
 			&models.UpdateMemoryRequest{Status: &status})
 
 		require.NoError(t, err)
@@ -488,7 +489,7 @@ func TestMemoryService_CustomStatus(t *testing.T) {
 
 	t.Run("create rejects another resource type's custom status", func(t *testing.T) {
 		status := "in-review"
-		_, err := newSvc(mocks.NewMockMemoryRepository(t)).CreateMemory(userID, statusTestTeam,
+		_, err := newSvc(mocks.NewMockMemoryRepository(t)).CreateMemory(context.Background(), userID, statusTestTeam,
 			&models.CreateMemoryRequest{ProjectID: testServiceProjectID, Text: "t", Status: &status})
 
 		require.ErrorIs(t, err, ErrInvalidStatus)
@@ -501,7 +502,7 @@ func TestMemoryService_CustomStatus(t *testing.T) {
 			Return(&models.Memory{ID: memoryID, UserID: userID, TeamID: statusTestOtherTeam}, nil).Once()
 
 		status := "memory-review"
-		_, err := newSvc(repo).UpdateMemory(userID, statusTestTeam, memoryID,
+		_, err := newSvc(repo).UpdateMemory(context.Background(), userID, statusTestTeam, memoryID,
 			&models.UpdateMemoryRequest{Status: &status})
 
 		require.ErrorIs(t, err, ErrInvalidStatus)

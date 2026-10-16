@@ -49,7 +49,7 @@ func TestStoreMemory_Success(t *testing.T) {
 
 	expectedMemory := buildTestMemory()
 	mockMemoryService.On(
-		"CreateMemory", testMemberUserID, testTeamUUID,
+		"CreateMemory", mock.Anything, testMemberUserID, testTeamUUID,
 		mock.MatchedBy(func(req *models.CreateMemoryRequest) bool {
 			return req.Text == "Test memory content" && req.ProjectID == testProjectID
 		}),
@@ -103,7 +103,7 @@ func TestStoreMemory_ServiceError(t *testing.T) {
 	srv, mockMemoryService := newMemoryTestServer(t)
 
 	mockMemoryService.On(
-		"CreateMemory", testMemberUserID, testTeamUUID, mock.AnythingOfType("*models.CreateMemoryRequest"),
+		"CreateMemory", mock.Anything, testMemberUserID, testTeamUUID, mock.AnythingOfType("*models.CreateMemoryRequest"),
 	).Return(nil, errors.New("service error"))
 
 	params := &StoreMemoryParams{TeamID: testTeamUUID, ProjectID: testProjectID, Text: "Test memory content"}
@@ -131,7 +131,7 @@ func TestStoreMemory_NonMemberTeamDenied(t *testing.T) {
 		t.Error("expected nil structured result")
 	}
 	assertGenericAccessDenied(t, result)
-	mockMemoryService.AssertNotCalled(t, "CreateMemory")
+	mockMemoryService.AssertNotCalled(t, "CreateMemory", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestStoreMemory_MissingTeamID(t *testing.T) {
@@ -149,7 +149,7 @@ func TestStoreMemory_MissingTeamID(t *testing.T) {
 	if !strings.Contains(text, "team_id is required") || !strings.Contains(text, "vibexp_io_list_teams") {
 		t.Errorf("expected model-actionable missing team_id error, got %q", text)
 	}
-	mockMemoryService.AssertNotCalled(t, "CreateMemory")
+	mockMemoryService.AssertNotCalled(t, "CreateMemory", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestListMemoriesByProject_Success(t *testing.T) {
@@ -300,7 +300,7 @@ func TestUpdateMemory_Success(t *testing.T) {
 
 	expectedMemory := &models.Memory{ID: "test-memory-id", Text: "Updated memory content"}
 	mockMemoryService.On(
-		"UpdateMemory", testMemberUserID, testTeamUUID, "test-memory-id",
+		"UpdateMemory", mock.Anything, testMemberUserID, testTeamUUID, "test-memory-id",
 		mock.MatchedBy(func(req *models.UpdateMemoryRequest) bool {
 			return req.Text != nil && *req.Text == "Updated memory content" && req.Metadata["updated"] == true
 		}),
@@ -337,7 +337,7 @@ func TestUpdateMemory_NonMemberTeamDenied(t *testing.T) {
 		t.Error("expected nil structured result")
 	}
 	assertGenericAccessDenied(t, result)
-	mockMemoryService.AssertNotCalled(t, "UpdateMemory")
+	mockMemoryService.AssertNotCalled(t, "UpdateMemory", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestStoreMemory_InvalidProjectID(t *testing.T) {
@@ -354,7 +354,7 @@ func TestStoreMemory_InvalidProjectID(t *testing.T) {
 				t.Error("expected nil structured result on rejection")
 			}
 			assertValidationFailure(t, result, tc.substrMust)
-			mockMemoryService.AssertNotCalled(t, "CreateMemory")
+			mockMemoryService.AssertNotCalled(t, "CreateMemory", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 		})
 	}
 }
@@ -363,7 +363,7 @@ func TestStoreMemory_NonExistentProjectUUID(t *testing.T) {
 	srv, mockMemoryService := newMemoryTestServer(t)
 
 	mockMemoryService.On(
-		"CreateMemory", testMemberUserID, testTeamUUID, mock.AnythingOfType("*models.CreateMemoryRequest"),
+		"CreateMemory", mock.Anything, testMemberUserID, testTeamUUID, mock.AnythingOfType("*models.CreateMemoryRequest"),
 	).Return(nil, errors.New("project not found"))
 
 	params := &StoreMemoryParams{TeamID: testTeamUUID, ProjectID: nonExistentProjectUUID, Text: "hello"}
@@ -414,7 +414,7 @@ var errMCPInvalidStatus = fmt.Errorf(
 func TestStoreMemory_InvalidStatus(t *testing.T) {
 	srv, mockMemoryService := newMemoryTestServer(t)
 	mockMemoryService.On(
-		"CreateMemory", testMemberUserID, testTeamUUID,
+		"CreateMemory", mock.Anything, testMemberUserID, testTeamUUID,
 		mock.MatchedBy(func(req *models.CreateMemoryRequest) bool {
 			return req.Status != nil && *req.Status == "bogus"
 		}),
@@ -438,7 +438,7 @@ func TestStoreMemory_InvalidStatus(t *testing.T) {
 func TestStoreMemory_CustomStatusThreaded(t *testing.T) {
 	srv, mockMemoryService := newMemoryTestServer(t)
 	mockMemoryService.On(
-		"CreateMemory", testMemberUserID, testTeamUUID,
+		"CreateMemory", mock.Anything, testMemberUserID, testTeamUUID,
 		mock.MatchedBy(func(req *models.CreateMemoryRequest) bool {
 			return req.Status != nil && *req.Status == "in-review"
 		}),
@@ -462,7 +462,7 @@ func TestStoreMemory_StatusThreaded(t *testing.T) {
 
 	expectedMemory := buildTestMemory()
 	mockMemoryService.On(
-		"CreateMemory", testMemberUserID, testTeamUUID,
+		"CreateMemory", mock.Anything, testMemberUserID, testTeamUUID,
 		mock.MatchedBy(func(req *models.CreateMemoryRequest) bool {
 			return req.Status != nil && *req.Status == models.MemoryStatusDraft
 		}),
@@ -486,7 +486,7 @@ func TestStoreMemory_StatusThreaded(t *testing.T) {
 func TestUpdateMemory_InvalidStatus(t *testing.T) {
 	srv, mockMemoryService := newMemoryTestServer(t)
 	mockMemoryService.On(
-		"UpdateMemory", testMemberUserID, testTeamUUID, "mem-1",
+		"UpdateMemory", mock.Anything, testMemberUserID, testTeamUUID, "mem-1",
 		mock.MatchedBy(func(req *models.UpdateMemoryRequest) bool {
 			return req.Status != nil && *req.Status == "bogus"
 		}),
@@ -588,7 +588,7 @@ func TestStoreMemory_PersistsTitle(t *testing.T) {
 
 	expectedMemory := buildTestMemory()
 	mockMemoryService.On(
-		"CreateMemory", testMemberUserID, testTeamUUID,
+		"CreateMemory", mock.Anything, testMemberUserID, testTeamUUID,
 		mock.MatchedBy(func(req *models.CreateMemoryRequest) bool {
 			return req.Title != nil && *req.Title == "Deploy checklist"
 		}),
@@ -610,7 +610,7 @@ func TestStoreMemory_OmittedTitleStaysNil(t *testing.T) {
 
 	expectedMemory := buildTestMemory()
 	mockMemoryService.On(
-		"CreateMemory", testMemberUserID, testTeamUUID,
+		"CreateMemory", mock.Anything, testMemberUserID, testTeamUUID,
 		mock.MatchedBy(func(req *models.CreateMemoryRequest) bool { return req.Title == nil }),
 	).Return(expectedMemory, nil)
 

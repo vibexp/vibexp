@@ -132,8 +132,11 @@ type MemoryFilters struct {
 	Limit          int
 }
 
-func (s *MemoryService) CreateMemory(userID, teamID string, req *models.CreateMemoryRequest) (*models.Memory, error) {
-	ctx := context.Background()
+func (s *MemoryService) CreateMemory(
+	ctx context.Context, userID, teamID string, req *models.CreateMemoryRequest,
+) (*models.Memory, error) {
+	// Only authorization takes the caller's ctx; the rest stays as before (#1541).
+	bgCtx := context.Background()
 
 	// Creating a resource is open to any team member (epic #220), but the caller
 	// must still BE one — the middleware proves tenancy, this proves the role.
@@ -152,7 +155,7 @@ func (s *MemoryService) CreateMemory(userID, teamID string, req *models.CreateMe
 	// Status is checked here so the MCP tools get the REST answer (#912),
 	// against the team's own catalog (#1266).
 	if err := s.statuses.ValidateOptional(
-		ctx, teamID, models.StatusResourceTypeMemory, req.Status,
+		bgCtx, teamID, models.StatusResourceTypeMemory, req.Status,
 	); err != nil {
 		return nil, err
 	}
@@ -186,7 +189,7 @@ func (s *MemoryService) CreateMemory(userID, teamID string, req *models.CreateMe
 		memory.Metadata = make(map[string]interface{})
 	}
 
-	if err := s.writeMemory(ctx, memory, s.repo.Create); err != nil {
+	if err := s.writeMemory(bgCtx, memory, s.repo.Create); err != nil {
 		return nil, err
 	}
 
@@ -196,7 +199,7 @@ func (s *MemoryService) CreateMemory(userID, teamID string, req *models.CreateMe
 		// exactly what the embedding context header treats as "no header".
 		event := events.NewMemoryCreatedEvent(
 			memory.ID, memory.UserID, memory.ProjectID, derefString(memory.Title), memory.Text, memory.CreatedAt)
-		if err := s.eventManager.Publish(ctx, event); err != nil {
+		if err := s.eventManager.Publish(bgCtx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish memory created event")
 		}
 	}
@@ -258,12 +261,13 @@ func (s *MemoryService) ListMemories(userID string, filters MemoryFilters) (*mod
 }
 
 func (s *MemoryService) UpdateMemory(
-	userID, teamID, memoryID string, req *models.UpdateMemoryRequest,
+	ctx context.Context, userID, teamID, memoryID string, req *models.UpdateMemoryRequest,
 ) (*models.Memory, error) {
-	ctx := context.Background()
+	// Only authorization takes the caller's ctx; the rest stays as before (#1541).
+	bgCtx := context.Background()
 
 	// Get existing memory (team-scoped — enforces tenancy)
-	memory, err := s.repo.GetByID(ctx, userID, teamID, memoryID)
+	memory, err := s.repo.GetByID(bgCtx, userID, teamID, memoryID)
 	if err != nil {
 		return nil, err
 	}
@@ -331,6 +335,9 @@ func (s *MemoryService) applyAndPersistMemoryUpdate(
 		return nil, authzErr
 	}
 
+	// Only authorization takes the caller's ctx; the rest stays as before (#1541).
+	bgCtx := context.Background()
+
 	// Reject an over-limit label list before anything else: the documented
 	// maxItems/maxLength are enforced nowhere else (issue #910).
 	if err := validateLabels(req.Labels); err != nil {
@@ -342,7 +349,7 @@ func (s *MemoryService) applyAndPersistMemoryUpdate(
 	// Status is checked here so the MCP tools get the REST answer (#912),
 	// against the catalog of the memory's own team (#1266).
 	if err := s.statuses.ValidateOptional(
-		ctx, memory.TeamID, models.StatusResourceTypeMemory, req.Status,
+		bgCtx, memory.TeamID, models.StatusResourceTypeMemory, req.Status,
 	); err != nil {
 		return nil, err
 	}
@@ -359,7 +366,7 @@ func (s *MemoryService) applyAndPersistMemoryUpdate(
 	// Best-effort content-version snapshot: record the pre-update text when it changed.
 	// A snapshot failure must not fail the update (mirrors event publishing).
 	if s.contentVersionSvc != nil && oldContent != memory.Text {
-		if err := s.contentVersionSvc.SnapshotIfChanged(ctx, SnapshotRequest{
+		if err := s.contentVersionSvc.SnapshotIfChanged(bgCtx, SnapshotRequest{
 			ResourceType:  "memory",
 			ResourceID:    memory.ID,
 			TeamID:        memory.TeamID,
@@ -374,18 +381,18 @@ func (s *MemoryService) applyAndPersistMemoryUpdate(
 		}
 	}
 
-	if err := s.writeMemory(ctx, memory, s.repo.Update); err != nil {
+	if err := s.writeMemory(bgCtx, memory, s.repo.Update); err != nil {
 		return nil, err
 	}
 
-	clearFreshnessAfterEdit(ctx, s.freshnessClearer, s.logger,
+	clearFreshnessAfterEdit(bgCtx, s.freshnessClearer, s.logger,
 		memory.TeamID, "memory", memory.ID)
 
 	// Publish memory updated event using project_id as project identifier
 	if s.eventManager != nil {
 		event := events.NewMemoryUpdatedEvent(
 			memory.ID, memory.UserID, memory.ProjectID, derefString(memory.Title), memory.Text, memory.UpdatedAt)
-		if err := s.eventManager.Publish(ctx, event); err != nil {
+		if err := s.eventManager.Publish(bgCtx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish memory updated event")
 		}
 	}
@@ -422,15 +429,16 @@ func (s *MemoryService) GetMemoryVersion(
 // RestoreMemoryVersion restores a memory's text to the given version by applying it through
 // the shared update path, which snapshots the pre-restore text as a new version.
 func (s *MemoryService) RestoreMemoryVersion(
-	userID, teamID, memoryID string, versionNumber int, origin *models.WriteOrigin,
+	ctx context.Context, userID, teamID, memoryID string, versionNumber int, origin *models.WriteOrigin,
 ) (*models.Memory, error) {
-	ctx := context.Background()
-	memory, err := s.repo.GetByID(ctx, userID, teamID, memoryID)
+	// Only authorization takes the caller's ctx; the rest stays as before (#1541).
+	bgCtx := context.Background()
+	memory, err := s.repo.GetByID(bgCtx, userID, teamID, memoryID)
 	if err != nil {
 		return nil, err
 	}
 
-	target, err := s.contentVersionSvc.Restore(ctx, memory.TeamID, "memory", memory.ID, versionNumber)
+	target, err := s.contentVersionSvc.Restore(bgCtx, memory.TeamID, "memory", memory.ID, versionNumber)
 	if err != nil {
 		return nil, err
 	}
@@ -444,14 +452,15 @@ func (s *MemoryService) RestoreMemoryVersion(
 	)
 }
 
-func (s *MemoryService) DeleteMemory(userID, teamID, memoryID string) error {
-	ctx := context.Background()
+func (s *MemoryService) DeleteMemory(ctx context.Context, userID, teamID, memoryID string) error {
+	// Only authorization takes the caller's ctx; the rest stays as before (#1541).
+	bgCtx := context.Background()
 
 	// Fetch first to learn who created the memory: delete is own-vs-any (members
 	// delete only what they authored; Admin+ delete anyone's), and the repository
 	// no longer carries that decision in its SQL. This fetch is also what now
 	// surfaces a missing memory.
-	memory, err := s.repo.GetByID(ctx, userID, teamID, memoryID)
+	memory, err := s.repo.GetByID(bgCtx, userID, teamID, memoryID)
 	if err != nil {
 		return err
 	}
@@ -463,13 +472,13 @@ func (s *MemoryService) DeleteMemory(userID, teamID, memoryID string) error {
 		return authzErr
 	}
 
-	if err := s.repo.Delete(ctx, userID, teamID, memoryID); err != nil {
+	if err := s.repo.Delete(bgCtx, userID, teamID, memoryID); err != nil {
 		return err
 	}
 
-	s.deleteMemoryComments(ctx, teamID, memoryID)
-	s.deleteMemoryRelations(ctx, teamID, memoryID)
-	s.deleteMemoryFreshness(ctx, teamID, memoryID)
+	s.deleteMemoryComments(bgCtx, teamID, memoryID)
+	s.deleteMemoryRelations(bgCtx, teamID, memoryID)
+	s.deleteMemoryFreshness(bgCtx, teamID, memoryID)
 
 	return nil
 }

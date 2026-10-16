@@ -98,7 +98,7 @@ func TestPromptHandlers_PermissionDeniedIsForbidden(t *testing.T) {
 
 	t.Run("create", func(t *testing.T) {
 		prompt := svcmocks.NewMockPromptServiceInterface(t)
-		prompt.EXPECT().CreatePrompt(praUserID, praTeamID, mock.Anything).
+		prompt.EXPECT().CreatePrompt(mock.Anything, praUserID, praTeamID, mock.Anything).
 			Return(nil, services.ErrPermissionDenied).Once()
 
 		srv := createTestPromptAgentServer(t, prompt, svcmocks.NewMockAgentServiceInterface(t))
@@ -110,7 +110,7 @@ func TestPromptHandlers_PermissionDeniedIsForbidden(t *testing.T) {
 
 	t.Run("update", func(t *testing.T) {
 		prompt := svcmocks.NewMockPromptServiceInterface(t)
-		prompt.EXPECT().UpdatePromptBySlug(praUserID, praTeamID, "p", mock.Anything).
+		prompt.EXPECT().UpdatePromptBySlug(mock.Anything, praUserID, praTeamID, "p", mock.Anything).
 			Return(nil, services.ErrPermissionDenied).Once()
 
 		srv := createTestPromptAgentServer(t, prompt, svcmocks.NewMockAgentServiceInterface(t))

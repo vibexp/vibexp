@@ -414,7 +414,7 @@ func mcpWriteCases() []mcpWriteCase {
 		{
 			name: "create_prompt", resourceType: "prompt", action: models.WriteActionCreate, resourceID: prompt.ID,
 			arrange: func(f *mcpWriteFixture, fail bool) {
-				call := f.prompts.On("CreatePrompt", testMemberUserID, testTeamUUID, mock.Anything)
+				call := f.prompts.On("CreatePrompt", mock.Anything, testMemberUserID, testTeamUUID, mock.Anything)
 				returnOrFail(call, fail, prompt, errWrite)
 			},
 			call: func(f *mcpWriteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
@@ -427,7 +427,7 @@ func mcpWriteCases() []mcpWriteCase {
 		{
 			name: "update_prompt", resourceType: "prompt", action: models.WriteActionUpdate, resourceID: prompt.ID,
 			arrange: func(f *mcpWriteFixture, fail bool) {
-				call := f.prompts.On("UpdatePromptBySlug", testMemberUserID, testTeamUUID, "p",
+				call := f.prompts.On("UpdatePromptBySlug", mock.Anything, testMemberUserID, testTeamUUID, "p",
 					mock.MatchedBy(func(req *models.UpdatePromptRequest) bool { return isMCPOrigin(req.WriteOrigin) }))
 				returnOrFail(call, fail, prompt, errWrite)
 			},
@@ -441,7 +441,7 @@ func mcpWriteCases() []mcpWriteCase {
 		{
 			name: "create_artifact", resourceType: "artifact", action: models.WriteActionCreate, resourceID: artifact.ID,
 			arrange: func(f *mcpWriteFixture, fail bool) {
-				call := f.artifacts.On("CreateArtifact", testMemberUserID, testTeamUUID, mock.Anything)
+				call := f.artifacts.On("CreateArtifact", mock.Anything, testMemberUserID, testTeamUUID, mock.Anything)
 				returnOrFail(call, fail, artifact, errWrite)
 			},
 			call: func(f *mcpWriteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
@@ -454,7 +454,7 @@ func mcpWriteCases() []mcpWriteCase {
 		{
 			name: "update_artifact", resourceType: "artifact", action: models.WriteActionUpdate, resourceID: artifact.ID,
 			arrange: func(f *mcpWriteFixture, fail bool) {
-				call := f.artifacts.On("UpdateArtifactByProjectIDAndSlugInTeam",
+				call := f.artifacts.On("UpdateArtifactByProjectIDAndSlugInTeam", mock.Anything,
 					testMemberUserID, testTeamUUID, writeTestProjectID, "a",
 					mock.MatchedBy(func(req *models.UpdateArtifactRequest) bool { return isMCPOrigin(req.WriteOrigin) }))
 				returnOrFail(call, fail, artifact, errWrite)
@@ -469,7 +469,7 @@ func mcpWriteCases() []mcpWriteCase {
 		{
 			name: "create_blueprint", resourceType: "blueprint", action: models.WriteActionCreate, resourceID: blueprint.ID,
 			arrange: func(f *mcpWriteFixture, fail bool) {
-				call := f.blueprints.On("CreateBlueprint", testMemberUserID, testTeamUUID, mock.Anything)
+				call := f.blueprints.On("CreateBlueprint", mock.Anything, testMemberUserID, testTeamUUID, mock.Anything)
 				returnOrFail(call, fail, blueprint, errWrite)
 			},
 			call: func(f *mcpWriteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
@@ -482,7 +482,7 @@ func mcpWriteCases() []mcpWriteCase {
 		{
 			name: "update_blueprint", resourceType: "blueprint", action: models.WriteActionUpdate, resourceID: blueprint.ID,
 			arrange: func(f *mcpWriteFixture, fail bool) {
-				call := f.blueprints.On("UpdateBlueprintByProjectIDAndSlugInTeam",
+				call := f.blueprints.On("UpdateBlueprintByProjectIDAndSlugInTeam", mock.Anything,
 					testMemberUserID, testTeamUUID, writeTestProjectID, "b",
 					mock.MatchedBy(func(req *models.UpdateBlueprintRequest) bool { return isMCPOrigin(req.WriteOrigin) }))
 				returnOrFail(call, fail, blueprint, errWrite)
@@ -497,7 +497,7 @@ func mcpWriteCases() []mcpWriteCase {
 		{
 			name: "create_memory", resourceType: "memory", action: models.WriteActionCreate, resourceID: memory.ID,
 			arrange: func(f *mcpWriteFixture, fail bool) {
-				call := f.memories.On("CreateMemory", testMemberUserID, testTeamUUID, mock.Anything)
+				call := f.memories.On("CreateMemory", mock.Anything, testMemberUserID, testTeamUUID, mock.Anything)
 				returnOrFail(call, fail, memory, errWrite)
 			},
 			call: func(f *mcpWriteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
@@ -510,7 +510,7 @@ func mcpWriteCases() []mcpWriteCase {
 		{
 			name: "update_memory", resourceType: "memory", action: models.WriteActionUpdate, resourceID: memory.ID,
 			arrange: func(f *mcpWriteFixture, fail bool) {
-				call := f.memories.On("UpdateMemory", testMemberUserID, testTeamUUID, memory.ID,
+				call := f.memories.On("UpdateMemory", mock.Anything, testMemberUserID, testTeamUUID, memory.ID,
 					mock.MatchedBy(func(req *models.UpdateMemoryRequest) bool { return isMCPOrigin(req.WriteOrigin) }))
 				returnOrFail(call, fail, memory, errWrite)
 			},
@@ -597,7 +597,7 @@ func TestMCPWriteTools_RecordClientNameFromSession(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newMCPWriteFixture(t)
-			f.memories.On("CreateMemory", testMemberUserID, testTeamUUID, mock.Anything).
+			f.memories.On("CreateMemory", mock.Anything, testMemberUserID, testTeamUUID, mock.Anything).
 				Return(&models.Memory{ID: "mem-1", ProjectID: writeTestProjectID}, nil)
 
 			// The populated server lists the user's teams and prompts when the
@@ -731,7 +731,7 @@ func restWriteCases() []restWriteCase {
 			body:       `{"name":"P","slug":"p","body":"hello","project_id":"` + writeTestProjectID + `"}`,
 			wantStatus: http.StatusCreated, resourceType: "prompt", action: models.WriteActionCreate, resourceID: prompt.ID,
 			arrange: func(f *restWriteFixture, fail bool) {
-				call := f.prompts.On("CreatePrompt", writeTestUserID, writeTestTeamID, mock.Anything)
+				call := f.prompts.On("CreatePrompt", mock.Anything, writeTestUserID, writeTestTeamID, mock.Anything)
 				returnOrFail(call, fail, prompt, errWrite)
 			},
 		},
@@ -740,7 +740,7 @@ func restWriteCases() []restWriteCase {
 			body:       `{"body":"new body"}`,
 			wantStatus: http.StatusOK, resourceType: "prompt", action: models.WriteActionUpdate, resourceID: prompt.ID,
 			arrange: func(f *restWriteFixture, fail bool) {
-				call := f.prompts.On("UpdatePromptBySlug", writeTestUserID, writeTestTeamID, "p",
+				call := f.prompts.On("UpdatePromptBySlug", mock.Anything, writeTestUserID, writeTestTeamID, "p",
 					mock.MatchedBy(func(req *models.UpdatePromptRequest) bool { return isRESTOrigin(req.WriteOrigin) }))
 				returnOrFail(call, fail, prompt, errWrite)
 			},
@@ -751,7 +751,7 @@ func restWriteCases() []restWriteCase {
 				`","slug":"a","title":"A","content":"c","type":"general","status":"active"}`,
 			wantStatus: http.StatusCreated, resourceType: "artifact", action: models.WriteActionCreate, resourceID: artifact.ID,
 			arrange: func(f *restWriteFixture, fail bool) {
-				call := f.artifacts.On("CreateArtifact", writeTestUserID, writeTestTeamID, mock.Anything)
+				call := f.artifacts.On("CreateArtifact", mock.Anything, writeTestUserID, writeTestTeamID, mock.Anything)
 				returnOrFail(call, fail, artifact, errWrite)
 			},
 		},
@@ -760,7 +760,7 @@ func restWriteCases() []restWriteCase {
 			body:       `{"content":"new"}`,
 			wantStatus: http.StatusOK, resourceType: "artifact", action: models.WriteActionUpdate, resourceID: artifact.ID,
 			arrange: func(f *restWriteFixture, fail bool) {
-				call := f.artifacts.On("UpdateArtifactByProjectIDAndSlugInTeam",
+				call := f.artifacts.On("UpdateArtifactByProjectIDAndSlugInTeam", mock.Anything,
 					writeTestUserID, writeTestTeamID, writeTestProjectID, "a",
 					mock.MatchedBy(func(req *models.UpdateArtifactRequest) bool { return isRESTOrigin(req.WriteOrigin) }))
 				returnOrFail(call, fail, artifact, errWrite)
@@ -772,7 +772,7 @@ func restWriteCases() []restWriteCase {
 				`","slug":"b","title":"B","content":"c","type":"general","status":"active"}`,
 			wantStatus: http.StatusCreated, resourceType: "blueprint", action: models.WriteActionCreate, resourceID: blueprint.ID,
 			arrange: func(f *restWriteFixture, fail bool) {
-				call := f.blueprints.On("CreateBlueprint", writeTestUserID, writeTestTeamID, mock.Anything)
+				call := f.blueprints.On("CreateBlueprint", mock.Anything, writeTestUserID, writeTestTeamID, mock.Anything)
 				returnOrFail(call, fail, blueprint, errWrite)
 			},
 		},
@@ -781,7 +781,7 @@ func restWriteCases() []restWriteCase {
 			body:       `{"content":"new"}`,
 			wantStatus: http.StatusOK, resourceType: "blueprint", action: models.WriteActionUpdate, resourceID: blueprint.ID,
 			arrange: func(f *restWriteFixture, fail bool) {
-				call := f.blueprints.On("UpdateBlueprintByProjectIDAndSlugInTeam",
+				call := f.blueprints.On("UpdateBlueprintByProjectIDAndSlugInTeam", mock.Anything,
 					writeTestUserID, writeTestTeamID, writeTestProjectID, "b",
 					mock.MatchedBy(func(req *models.UpdateBlueprintRequest) bool { return isRESTOrigin(req.WriteOrigin) }))
 				returnOrFail(call, fail, blueprint, errWrite)
@@ -792,7 +792,7 @@ func restWriteCases() []restWriteCase {
 			body:       `{"project_id":"` + writeTestProjectID + `","text":"remember"}`,
 			wantStatus: http.StatusCreated, resourceType: "memory", action: models.WriteActionCreate, resourceID: memory.ID,
 			arrange: func(f *restWriteFixture, fail bool) {
-				call := f.memories.On("CreateMemory", writeTestUserID, writeTestTeamID, mock.Anything)
+				call := f.memories.On("CreateMemory", mock.Anything, writeTestUserID, writeTestTeamID, mock.Anything)
 				returnOrFail(call, fail, memory, errWrite)
 			},
 		},
@@ -801,7 +801,7 @@ func restWriteCases() []restWriteCase {
 			body:       `{"text":"new"}`,
 			wantStatus: http.StatusOK, resourceType: "memory", action: models.WriteActionUpdate, resourceID: memory.ID,
 			arrange: func(f *restWriteFixture, fail bool) {
-				call := f.memories.On("UpdateMemory", writeTestUserID, writeTestTeamID, writeTestMemoryID,
+				call := f.memories.On("UpdateMemory", mock.Anything, writeTestUserID, writeTestTeamID, writeTestMemoryID,
 					mock.MatchedBy(func(req *models.UpdateMemoryRequest) bool { return isRESTOrigin(req.WriteOrigin) }))
 				returnOrFail(call, fail, memory, errWrite)
 			},
@@ -813,7 +813,7 @@ func restWriteCases() []restWriteCase {
 			name: "restore prompt", method: http.MethodPost, path: base + "/prompts/p/versions/2/restore",
 			wantStatus: http.StatusOK, resourceType: "prompt", action: models.WriteActionUpdate, resourceID: prompt.ID,
 			arrange: func(f *restWriteFixture, fail bool) {
-				call := f.prompts.On("RestorePromptVersion", writeTestUserID, writeTestTeamID, "p", 2,
+				call := f.prompts.On("RestorePromptVersion", mock.Anything, writeTestUserID, writeTestTeamID, "p", 2,
 					mock.MatchedBy(isRESTOrigin))
 				returnOrFail(call, fail, prompt, errWrite)
 			},
@@ -823,7 +823,7 @@ func restWriteCases() []restWriteCase {
 			path:       base + "/artifacts/" + writeTestProjectID + "/a/versions/2/restore",
 			wantStatus: http.StatusOK, resourceType: "artifact", action: models.WriteActionUpdate, resourceID: artifact.ID,
 			arrange: func(f *restWriteFixture, fail bool) {
-				call := f.artifacts.On("RestoreArtifactVersionInTeam",
+				call := f.artifacts.On("RestoreArtifactVersionInTeam", mock.Anything,
 					writeTestUserID, writeTestTeamID, writeTestProjectID, "a", 2, mock.MatchedBy(isRESTOrigin))
 				returnOrFail(call, fail, artifact, errWrite)
 			},
@@ -833,7 +833,7 @@ func restWriteCases() []restWriteCase {
 			path:       base + "/blueprints/" + writeTestProjectID + "/b/versions/2/restore",
 			wantStatus: http.StatusOK, resourceType: "blueprint", action: models.WriteActionUpdate, resourceID: blueprint.ID,
 			arrange: func(f *restWriteFixture, fail bool) {
-				call := f.blueprints.On("RestoreBlueprintVersionInTeam",
+				call := f.blueprints.On("RestoreBlueprintVersionInTeam", mock.Anything,
 					writeTestUserID, writeTestTeamID, writeTestProjectID, "b", 2, mock.MatchedBy(isRESTOrigin))
 				returnOrFail(call, fail, blueprint, errWrite)
 			},
@@ -843,7 +843,7 @@ func restWriteCases() []restWriteCase {
 			path:       base + "/memories/" + writeTestMemoryID + "/versions/2/restore",
 			wantStatus: http.StatusOK, resourceType: "memory", action: models.WriteActionUpdate, resourceID: memory.ID,
 			arrange: func(f *restWriteFixture, fail bool) {
-				call := f.memories.On("RestoreMemoryVersion",
+				call := f.memories.On("RestoreMemoryVersion", mock.Anything,
 					writeTestUserID, writeTestTeamID, writeTestMemoryID, 2, mock.MatchedBy(isRESTOrigin))
 				returnOrFail(call, fail, memory, errWrite)
 			},

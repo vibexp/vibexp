@@ -113,7 +113,7 @@ func (s *Server) storeMemory(
 		Labels:   params.Labels,
 	}
 
-	memory, err := s.container.MemoryService().CreateMemory(userID, teamID, createReq)
+	memory, err := s.container.MemoryService().CreateMemory(ctx, userID, teamID, createReq)
 	if err != nil {
 		slog.Error(
 			"Failed to create memory via MCP",
@@ -231,7 +231,7 @@ func (s *Server) updateMemory(
 	before := s.memoryAuditBefore(userID, teamID, params.MemoryID)
 	updateReq.WriteOrigin = resourceaccess.WriteOriginFromContext(ctx)
 
-	memory, err := s.container.MemoryService().UpdateMemory(userID, teamID, params.MemoryID, updateReq)
+	memory, err := s.container.MemoryService().UpdateMemory(ctx, userID, teamID, params.MemoryID, updateReq)
 	if err != nil {
 		slog.Error(
 			"Failed to update memory via MCP",

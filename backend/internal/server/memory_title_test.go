@@ -103,7 +103,7 @@ func TestCreateMemory_MapsInvalidTitleTo400(t *testing.T) {
 	container := newMockMemoryContainer(t)
 	container.projectRepository.On("GetByID", mock.Anything, memoriesTestUserID, testHandlerProjectID).
 		Return(&models.Project{ID: testHandlerProjectID, UserID: memoriesTestUserID, TeamID: memoriesTestTeamID}, nil)
-	container.memoryService.On("CreateMemory", memoriesTestUserID, memoriesTestTeamID, mock.Anything).
+	container.memoryService.On("CreateMemory", mock.Anything, memoriesTestUserID, memoriesTestTeamID, mock.Anything).
 		Return(nil, services.ErrInvalidMemoryTitle)
 
 	srv := createMemoryTestServer(container)
@@ -124,7 +124,7 @@ func TestCreateMemory_MapsInvalidTitleTo400(t *testing.T) {
 
 func TestUpdateMemory_MapsInvalidTitleTo400(t *testing.T) {
 	container := newMockMemoryContainer(t)
-	container.memoryService.On("UpdateMemory",
+	container.memoryService.On("UpdateMemory", mock.Anything,
 		memoriesTestUserID, memoriesTestTeamID, memoriesTestMemoryID, mock.Anything).
 		Return(nil, services.ErrInvalidMemoryTitle)
 
@@ -181,10 +181,10 @@ func TestUpdateMemory_TitleThreeStatesReachTheService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			container := newMockMemoryContainer(t)
 			var captured *models.UpdateMemoryRequest
-			container.memoryService.On("UpdateMemory",
+			container.memoryService.On("UpdateMemory", mock.Anything,
 				memoriesTestUserID, memoriesTestTeamID, memoriesTestMemoryID, mock.Anything).
 				Run(func(args mock.Arguments) {
-					captured = args.Get(3).(*models.UpdateMemoryRequest)
+					captured = args.Get(4).(*models.UpdateMemoryRequest)
 				}).
 				Return(sampleStrictMemory(), nil)
 

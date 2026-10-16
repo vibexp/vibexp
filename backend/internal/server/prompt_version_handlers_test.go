@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/models"
@@ -154,7 +155,7 @@ func TestHandleRestorePromptVersion_Success(t *testing.T) {
 	}
 
 	mockContainer.promptService.On(
-		"RestorePromptVersion", "user-123", versionTeamID, versionPromptSlug, 1, (*models.WriteOrigin)(nil),
+		"RestorePromptVersion", mock.Anything, "user-123", versionTeamID, versionPromptSlug, 1, (*models.WriteOrigin)(nil),
 	).Return(restored, nil)
 
 	srv := createTestServer(mockContainer)

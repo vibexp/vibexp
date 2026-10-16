@@ -53,7 +53,7 @@ func (s *Server) handleCreateBlueprint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	blueprint, err := s.container.BlueprintService().CreateBlueprint(userID, teamID, &req)
+	blueprint, err := s.container.BlueprintService().CreateBlueprint(r.Context(), userID, teamID, &req)
 	if err != nil {
 		s.handleCreateBlueprintError(w, userID, err)
 		return
@@ -120,7 +120,7 @@ func (s *Server) handleUpdateBlueprint(w http.ResponseWriter, r *http.Request) {
 	before := s.blueprintAuditBefore(userID, teamID, decodedProjectID, decodedSlug)
 	req.WriteOrigin = resourceaccess.WriteOriginFromContext(r.Context())
 	blueprint, err := s.container.BlueprintService().UpdateBlueprintByProjectIDAndSlugInTeam(
-		userID, teamID, decodedProjectID, decodedSlug, &req,
+		r.Context(), userID, teamID, decodedProjectID, decodedSlug, &req,
 	)
 	if writeResourceWriteLocked(w, r, err) {
 		return
@@ -176,7 +176,8 @@ func (s *Server) handleDeleteBlueprint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.container.BlueprintService().DeleteBlueprintByProjectIDAndSlug(userID, teamID, decodedProjectID, decodedSlug)
+	err = s.container.BlueprintService().DeleteBlueprintByProjectIDAndSlug(
+		r.Context(), userID, teamID, decodedProjectID, decodedSlug)
 	if writeResourceWriteLocked(w, r, err) {
 		return
 	}
@@ -755,6 +756,7 @@ func (s *Server) handleRestoreBlueprintVersion(w http.ResponseWriter, r *http.Re
 	).Info("Restore blueprint version request received")
 
 	blueprint, err := s.container.BlueprintService().RestoreBlueprintVersionInTeam(
+		r.Context(),
 		userID, teamID, decodedProjectID, decodedSlug, versionNumber, resourceaccess.WriteOriginFromContext(r.Context()),
 	)
 	if err != nil {

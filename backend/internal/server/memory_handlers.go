@@ -95,7 +95,7 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	memory, err := s.container.MemoryService().CreateMemory(userID, teamID, &req)
+	memory, err := s.container.MemoryService().CreateMemory(r.Context(), userID, teamID, &req)
 	if err != nil {
 		s.handleCreateMemoryError(w, userID, err)
 		return
@@ -164,7 +164,7 @@ func (s *Server) handleUpdateMemory(w http.ResponseWriter, r *http.Request) {
 
 	before := s.memoryAuditBefore(userID, teamID, memoryID)
 	req.WriteOrigin = resourceaccess.WriteOriginFromContext(r.Context())
-	memory, err := s.container.MemoryService().UpdateMemory(userID, teamID, memoryID, &req)
+	memory, err := s.container.MemoryService().UpdateMemory(r.Context(), userID, teamID, memoryID, &req)
 	if err != nil {
 		s.handleUpdateMemoryError(w, userID, memoryID, err)
 		return
@@ -261,7 +261,7 @@ func (s *Server) handleDeleteMemory(w http.ResponseWriter, r *http.Request) {
 
 	before := s.memoryAuditBefore(userID, teamID, memoryID) // its title is gone after the delete
 	// Delete the memory
-	err := s.container.MemoryService().DeleteMemory(userID, teamID, memoryID)
+	err := s.container.MemoryService().DeleteMemory(r.Context(), userID, teamID, memoryID)
 	if err != nil {
 		if errors.Is(err, services.ErrPermissionDenied) {
 			s.logger.With("service", serverLogServiceName, "handler", "handleDeleteMemory", "user_id", userID).
@@ -418,7 +418,7 @@ func (s *Server) handleRestoreMemoryVersion(w http.ResponseWriter, r *http.Reque
 	).Info("Restore memory version request received")
 
 	memory, err := s.container.MemoryService().RestoreMemoryVersion(
-		userID, teamID, memoryID, versionNumber, resourceaccess.WriteOriginFromContext(r.Context()),
+		r.Context(), userID, teamID, memoryID, versionNumber, resourceaccess.WriteOriginFromContext(r.Context()),
 	)
 	if err != nil {
 		s.handleMemoryVersionError(w, userID, memoryID, err)

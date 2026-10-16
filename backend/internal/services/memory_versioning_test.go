@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -80,7 +81,7 @@ func TestMemoryService_UpdateSnapshotsOldContent(t *testing.T) {
 			})
 
 			text := tt.newContent
-			_, err := svc.UpdateMemory(userID, teamID, memoryID, &models.UpdateMemoryRequest{Text: &text, WriteOrigin: testWriteOrigin()})
+			_, err := svc.UpdateMemory(context.Background(), userID, teamID, memoryID, &models.UpdateMemoryRequest{Text: &text, WriteOrigin: testWriteOrigin()})
 			require.NoError(t, err)
 		})
 	}
@@ -134,7 +135,7 @@ func TestMemoryService_RestoreSnapshotsAsSystem(t *testing.T) {
 		Logger:            logger,
 		ContentVersionSvc: cvs,
 	})
-	restored, err := svc.RestoreMemoryVersion(userID, teamID, memoryID, 2, &models.WriteOrigin{Source: "web"})
+	restored, err := svc.RestoreMemoryVersion(context.Background(), userID, teamID, memoryID, 2, &models.WriteOrigin{Source: "web"})
 	require.NoError(t, err)
 	require.Equal(t, "v2-content", restored.Text)
 }
@@ -226,7 +227,7 @@ func TestRestoreMemoryVersion_IsGated(t *testing.T) {
 		ContentVersionSvc: cvs,
 	})
 
-	_, err := svc.RestoreMemoryVersion(userID, teamID, memoryID, 2, nil)
+	_, err := svc.RestoreMemoryVersion(context.Background(), userID, teamID, memoryID, 2, nil)
 
 	require.ErrorIs(t, err, services.ErrPermissionDenied)
 	repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)

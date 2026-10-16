@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -86,6 +87,7 @@ func TestBlueprintService_UpdateSnapshotsOldContent(t *testing.T) {
 
 			content := tt.newContent
 			_, err := svc.UpdateBlueprintByProjectIDAndSlugInTeam(
+				context.Background(),
 				userID, teamID, projectID, slug, &models.UpdateBlueprintRequest{Content: &content, WriteOrigin: testWriteOrigin()},
 			)
 			require.NoError(t, err)
@@ -146,6 +148,6 @@ func TestBlueprintService_RestoreSnapshotsAsSystem(t *testing.T) {
 		ContentVersionSvc: cvs,
 		CommentRepo:       nil,
 	})
-	_, err := svc.RestoreBlueprintVersionInTeam(userID, teamID, projectID, slug, 2, &models.WriteOrigin{Source: "web"})
+	_, err := svc.RestoreBlueprintVersionInTeam(context.Background(), userID, teamID, projectID, slug, 2, &models.WriteOrigin{Source: "web"})
 	require.NoError(t, err)
 }

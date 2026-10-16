@@ -253,7 +253,7 @@ func TestBlueprintService_CreateBlueprint(t *testing.T) {
 				ContentVersionSvc: nil,
 				CommentRepo:       nil,
 			})
-			blueprint, err := service.CreateBlueprint(tt.userID, "team-123", tt.request)
+			blueprint, err := service.CreateBlueprint(context.Background(), tt.userID, "team-123", tt.request)
 
 			tt.expected(t, blueprint, err)
 			repo.AssertExpectations(t)
@@ -279,7 +279,7 @@ func TestBlueprintService_CreateBlueprint_PathLifecycle(t *testing.T) {
 		repo.On("Create", mock.Anything, mock.MatchedBy(func(bp *models.Blueprint) bool {
 			return bp.Path == ".claude/skills/deploy/SKILL.md" && bp.PathDerived && bp.ContentSHA != ""
 		})).Return(nil)
-		bp, err := newSvc(repo).CreateBlueprint("u1", "team-123", &models.CreateBlueprintRequest{
+		bp, err := newSvc(repo).CreateBlueprint(context.Background(), "u1", "team-123", &models.CreateBlueprintRequest{
 			ProjectID: "550e8400-e29b-41d4-a716-446655440000", Slug: "deploy",
 			Title: "Deploy", Content: "body", Type: "claude-code", Subtype: strptr("skills"),
 		})
@@ -294,7 +294,7 @@ func TestBlueprintService_CreateBlueprint_PathLifecycle(t *testing.T) {
 		repo.On("Create", mock.Anything, mock.MatchedBy(func(bp *models.Blueprint) bool {
 			return bp.Path == "custom/dir/file.md" && !bp.PathDerived
 		})).Return(nil)
-		bp, err := newSvc(repo).CreateBlueprint("u1", "team-123", &models.CreateBlueprintRequest{
+		bp, err := newSvc(repo).CreateBlueprint(context.Background(), "u1", "team-123", &models.CreateBlueprintRequest{
 			ProjectID: "550e8400-e29b-41d4-a716-446655440000", Slug: "deploy",
 			Title: "Deploy", Content: "body", Path: strptr("custom/dir/file.md"),
 		})
@@ -311,7 +311,7 @@ func TestBlueprintService_CreateBlueprint_PathLifecycle(t *testing.T) {
 		repo.On("Create", mock.Anything, mock.MatchedBy(func(bp *models.Blueprint) bool {
 			return bp.Path == "loose.md" && bp.PathDerived
 		})).Return(nil)
-		bp, err := newSvc(repo).CreateBlueprint("u1", "team-123", &models.CreateBlueprintRequest{
+		bp, err := newSvc(repo).CreateBlueprint(context.Background(), "u1", "team-123", &models.CreateBlueprintRequest{
 			ProjectID: "550e8400-e29b-41d4-a716-446655440000", Slug: "loose",
 			Title: "Loose", Content: "body", Type: "cursor",
 		})
@@ -322,7 +322,7 @@ func TestBlueprintService_CreateBlueprint_PathLifecycle(t *testing.T) {
 
 	t.Run("traversal-invalid path is rejected", func(t *testing.T) {
 		repo := &MockBlueprintRepository{}
-		bp, err := newSvc(repo).CreateBlueprint("u1", "team-123", &models.CreateBlueprintRequest{
+		bp, err := newSvc(repo).CreateBlueprint(context.Background(), "u1", "team-123", &models.CreateBlueprintRequest{
 			ProjectID: "550e8400-e29b-41d4-a716-446655440000", Slug: "deploy",
 			Title: "Deploy", Content: "body", Path: strptr("../escape.md"),
 		})
@@ -359,7 +359,7 @@ func TestBlueprintService_UpdateBlueprint_PathLifecycle(t *testing.T) {
 		repo.On("Update", mock.Anything, mock.MatchedBy(func(bp *models.Blueprint) bool {
 			return bp.Path == "moved/here.md" && !bp.PathDerived
 		})).Return(nil)
-		bp, err := newSvc(repo).UpdateBlueprintByProjectIDAndSlugInTeam("u1", "team-1", "p1", "s",
+		bp, err := newSvc(repo).UpdateBlueprintByProjectIDAndSlugInTeam(context.Background(), "u1", "team-1", "p1", "s",
 			&models.UpdateBlueprintRequest{Path: strptr("moved/here.md")})
 		require.NoError(t, err)
 		assert.Equal(t, "moved/here.md", bp.Path)
@@ -370,7 +370,7 @@ func TestBlueprintService_UpdateBlueprint_PathLifecycle(t *testing.T) {
 	t.Run("traversal-invalid path is rejected", func(t *testing.T) {
 		repo := &MockBlueprintRepository{}
 		repo.On("GetByProjectIDAndSlug", mock.Anything, "u1", "team-1", "p1", "s").Return(existing(), nil)
-		bp, err := newSvc(repo).UpdateBlueprintByProjectIDAndSlugInTeam("u1", "team-1", "p1", "s",
+		bp, err := newSvc(repo).UpdateBlueprintByProjectIDAndSlugInTeam(context.Background(), "u1", "team-1", "p1", "s",
 			&models.UpdateBlueprintRequest{Path: strptr("../escape.md")})
 		require.Error(t, err)
 		assert.ErrorIs(t, err, ErrInvalidBlueprintPath)
@@ -878,7 +878,7 @@ func TestBlueprintService_UpdateBlueprintByProjectIDAndSlugInTeam(t *testing.T) 
 				ContentVersionSvc: nil,
 				CommentRepo:       nil,
 			})
-			blueprint, err := service.UpdateBlueprintByProjectIDAndSlugInTeam(tt.userID, "team-1", tt.projectName, tt.slug, tt.request)
+			blueprint, err := service.UpdateBlueprintByProjectIDAndSlugInTeam(context.Background(), tt.userID, "team-1", tt.projectName, tt.slug, tt.request)
 
 			tt.expected(t, blueprint, err)
 			repo.AssertExpectations(t)
@@ -991,7 +991,7 @@ func TestBlueprintService_DeleteBlueprintByProjectIDAndSlug(t *testing.T) {
 				ContentVersionSvc: nil,
 				CommentRepo:       nil,
 			})
-			err := service.DeleteBlueprintByProjectIDAndSlug(tt.userID, tt.teamID, tt.projectName, tt.slug)
+			err := service.DeleteBlueprintByProjectIDAndSlug(context.Background(), tt.userID, tt.teamID, tt.projectName, tt.slug)
 
 			tt.expected(t, err)
 			repo.AssertExpectations(t)
@@ -1140,7 +1140,7 @@ func TestBlueprintService_PublishesBlueprintEvents(t *testing.T) {
 					Type:        "general",
 					Status:      "active",
 				}
-				_, err := service.CreateBlueprint("user-123", "team-123", req)
+				_, err := service.CreateBlueprint(context.Background(), "user-123", "team-123", req)
 				return err
 			},
 			expectEventCalls: 1,
@@ -1180,6 +1180,7 @@ func TestBlueprintService_PublishesBlueprintEvents(t *testing.T) {
 					Title: &title,
 				}
 				_, err := service.UpdateBlueprintByProjectIDAndSlugInTeam(
+					context.Background(),
 					"user-123", "team-1",
 					"550e8400-e29b-41d4-a716-446655440000",
 					"test-spec-library",
@@ -1272,7 +1273,7 @@ func TestBlueprintService_UpdateBlueprint_PreservesTeamID(t *testing.T) {
 		Title: &title,
 	}
 
-	blueprint, err := service.UpdateBlueprintByProjectIDAndSlugInTeam("user-123", "team-1", "project-789", "test-spec", request)
+	blueprint, err := service.UpdateBlueprintByProjectIDAndSlugInTeam(context.Background(), "user-123", "team-1", "project-789", "test-spec", request)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, blueprint)
@@ -1321,6 +1322,7 @@ func TestBlueprintService_UpdateBlueprint_MetadataNilVsEmpty(t *testing.T) {
 				Return(nil)
 
 			blueprint, err := service.UpdateBlueprintByProjectIDAndSlugInTeam(
+				context.Background(),
 				"user-123", "team-1", "project-789", "test-spec",
 				&models.UpdateBlueprintRequest{Metadata: tt.reqMetadata},
 			)
@@ -1598,7 +1600,7 @@ func TestBlueprintService_CreateBlueprintWithNewTypes(t *testing.T) {
 				ContentVersionSvc: nil,
 				CommentRepo:       nil,
 			})
-			blueprint, err := service.CreateBlueprint(tt.userID, "team-123", tt.request)
+			blueprint, err := service.CreateBlueprint(context.Background(), tt.userID, "team-123", tt.request)
 
 			tt.expected(t, blueprint, err)
 			repo.AssertExpectations(t)

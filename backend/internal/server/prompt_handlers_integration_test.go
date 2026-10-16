@@ -429,6 +429,7 @@ func TestHandleCreatePrompt_Success(t *testing.T) {
 
 	mockContainer.promptService.On(
 		"CreatePrompt",
+		mock.Anything,
 		"user-123",
 		teamID,
 		mock.MatchedBy(func(req *models.CreatePromptRequest) bool {
@@ -534,7 +535,7 @@ func TestHandleCreatePrompt_Conflict(t *testing.T) {
 	mockContainer.teamService.On("IsUserMemberOfTeam", mock.Anything, "user-123", teamID).
 		Return(true, nil)
 
-	mockContainer.promptService.On("CreatePrompt", "user-123", teamID, mock.Anything).
+	mockContainer.promptService.On("CreatePrompt", mock.Anything, "user-123", teamID, mock.Anything).
 		Return((*models.Prompt)(nil), errors.New("prompt with slug 'duplicate' already exists for this user"))
 
 	srv := createTestServer(mockContainer)
@@ -578,7 +579,7 @@ func TestHandleUpdatePrompt_Success(t *testing.T) {
 		UpdatedAt:   time.Now(),
 	}
 
-	mockContainer.promptService.On("UpdatePromptBySlug", "user-123", mock.Anything, "test-slug", mock.Anything).
+	mockContainer.promptService.On("UpdatePromptBySlug", mock.Anything, "user-123", mock.Anything, "test-slug", mock.Anything).
 		Return(updatedPrompt, nil)
 
 	srv := createTestServer(mockContainer)
@@ -611,7 +612,7 @@ func TestHandleUpdatePrompt_NotFound(t *testing.T) {
 		Name: &newName,
 	}
 
-	mockContainer.promptService.On("UpdatePromptBySlug", "user-123", mock.Anything, "non-existent", mock.Anything).
+	mockContainer.promptService.On("UpdatePromptBySlug", mock.Anything, "user-123", mock.Anything, "non-existent", mock.Anything).
 		Return((*models.Prompt)(nil), repositories.ErrPromptNotFound)
 
 	srv := createTestServer(mockContainer)
@@ -653,7 +654,7 @@ func TestHandleDeletePrompt_Success(t *testing.T) {
 	mockContainer.promptService.On("GetPromptBySlug", "user-123", mock.Anything, "test-slug").
 		Return(existingPrompt, nil)
 
-	mockContainer.promptService.On("DeletePromptBySlug", "user-123", mock.Anything, "test-slug").
+	mockContainer.promptService.On("DeletePromptBySlug", mock.Anything, "user-123", mock.Anything, "test-slug").
 		Return(nil)
 
 	mockContainer.embeddingService.On("DeleteEmbeddingsByEntity", "prompt", "prompt-1").

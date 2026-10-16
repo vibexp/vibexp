@@ -28,7 +28,7 @@ func mcpLockRefusal(resourceType, field string) *services.ResourceLockedError {
 
 func TestUpdatePrompt_LockedSurfacesTheLockComment(t *testing.T) {
 	srv, promptService := newPromptTestServer(t)
-	promptService.On("UpdatePromptBySlug", testMemberUserID, testTeamUUID, "my-prompt",
+	promptService.On("UpdatePromptBySlug", mock.Anything, testMemberUserID, testTeamUUID, "my-prompt",
 		mock.AnythingOfType("*models.UpdatePromptRequest"),
 	).Return(nil, mcpLockRefusal(models.RelationResourceTypePrompt, "status"))
 
@@ -45,7 +45,7 @@ func TestUpdatePrompt_LockedSurfacesTheLockComment(t *testing.T) {
 
 func TestUpdateBlueprint_LockedSurfacesTheLockComment(t *testing.T) {
 	srv, blueprintService := newBlueprintTestServer(t)
-	blueprintService.On("UpdateBlueprintByProjectIDAndSlugInTeam",
+	blueprintService.On("UpdateBlueprintByProjectIDAndSlugInTeam", mock.Anything,
 		testMemberUserID, testTeamUUID, testBlueprintProjectID, "bp",
 		mock.AnythingOfType("*models.UpdateBlueprintRequest"),
 	).Return(nil, mcpLockRefusal(models.RelationResourceTypeBlueprint, "type"))
@@ -63,7 +63,7 @@ func TestUpdateBlueprint_LockedSurfacesTheLockComment(t *testing.T) {
 
 func TestUpdateArtifact_LockedSurfacesTheLockComment(t *testing.T) {
 	srv, artifactService := newArtifactTestServer(t)
-	artifactService.On("UpdateArtifactByProjectIDAndSlugInTeam",
+	artifactService.On("UpdateArtifactByProjectIDAndSlugInTeam", mock.Anything,
 		testMemberUserID, testTeamUUID, testArtifactProjectID, "art",
 		mock.AnythingOfType("*models.UpdateArtifactRequest"),
 	).Return(nil, mcpLockRefusal(models.RelationResourceTypeArtifact, "labels"))
@@ -93,7 +93,7 @@ func TestDeleteResource_LockedSurfacesTheLockComment(t *testing.T) {
 			expect: func(m *deleteResourceMocks, refusal error) {
 				m.prompt.On("GetPromptBySlug", testMemberUserID, testTeamUUID, "p").
 					Return(&models.Prompt{ID: "prompt-1"}, nil)
-				m.prompt.On("DeletePromptBySlug", testMemberUserID, testTeamUUID, "p").Return(refusal)
+				m.prompt.On("DeletePromptBySlug", mock.Anything, testMemberUserID, testTeamUUID, "p").Return(refusal)
 			},
 		},
 		{
@@ -104,7 +104,7 @@ func TestDeleteResource_LockedSurfacesTheLockComment(t *testing.T) {
 			expect: func(m *deleteResourceMocks, refusal error) {
 				m.artifact.On("GetArtifactByProjectIDAndSlugInTeam", testMemberUserID, testTeamUUID, testProjectID, "a").
 					Return(&models.Artifact{ID: "artifact-1"}, nil)
-				m.artifact.On("DeleteArtifactByProjectIDAndSlug", testMemberUserID, testTeamUUID, testProjectID, "a").
+				m.artifact.On("DeleteArtifactByProjectIDAndSlug", mock.Anything, testMemberUserID, testTeamUUID, testProjectID, "a").
 					Return(refusal)
 			},
 		},
@@ -116,7 +116,7 @@ func TestDeleteResource_LockedSurfacesTheLockComment(t *testing.T) {
 			expect: func(m *deleteResourceMocks, refusal error) {
 				m.blueprint.On("GetBlueprintByProjectIDAndSlugInTeam", testMemberUserID, testTeamUUID, testProjectID, "b").
 					Return(&models.Blueprint{ID: "blueprint-1"}, nil)
-				m.blueprint.On("DeleteBlueprintByProjectIDAndSlug", testMemberUserID, testTeamUUID, testProjectID, "b").
+				m.blueprint.On("DeleteBlueprintByProjectIDAndSlug", mock.Anything, testMemberUserID, testTeamUUID, testProjectID, "b").
 					Return(refusal)
 			},
 		},

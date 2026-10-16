@@ -106,7 +106,7 @@ func (s *Server) createBlueprint(
 		Labels:      params.Labels,
 	}
 
-	blueprint, err := s.container.BlueprintService().CreateBlueprint(userID, teamID, createReq)
+	blueprint, err := s.container.BlueprintService().CreateBlueprint(ctx, userID, teamID, createReq)
 	if err != nil {
 		slog.Error(
 			"Failed to create blueprint via MCP",
@@ -190,7 +190,7 @@ func (s *Server) updateBlueprint(
 	before := s.blueprintAuditBefore(userID, teamID, params.ProjectID, params.Slug)
 	updateReq.WriteOrigin = resourceaccess.WriteOriginFromContext(ctx)
 	blueprint, err := s.container.BlueprintService().UpdateBlueprintByProjectIDAndSlugInTeam(
-		userID, teamID, params.ProjectID, params.Slug, updateReq,
+		ctx, userID, teamID, params.ProjectID, params.Slug, updateReq,
 	)
 	if err != nil {
 		slog.Error(

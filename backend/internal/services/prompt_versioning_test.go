@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -107,7 +108,7 @@ func TestPromptService_UpdateSnapshotsOldBody(t *testing.T) {
 			})
 
 			body := tt.newBody
-			_, err := svc.UpdatePrompt(userID, teamID, promptID, &models.UpdatePromptRequest{Body: &body, WriteOrigin: testWriteOrigin()})
+			_, err := svc.UpdatePrompt(context.Background(), userID, teamID, promptID, &models.UpdatePromptRequest{Body: &body, WriteOrigin: testWriteOrigin()})
 			require.NoError(t, err)
 		})
 	}
@@ -169,7 +170,7 @@ func TestPromptService_RestoreSnapshotsAsSystem(t *testing.T) {
 		ContentVersionSvc: cvs,
 		CommentRepo:       nil,
 	})
-	restored, err := svc.RestorePromptVersion(userID, teamID, slug, 2, &models.WriteOrigin{Source: "web"})
+	restored, err := svc.RestorePromptVersion(context.Background(), userID, teamID, slug, 2, &models.WriteOrigin{Source: "web"})
 	require.NoError(t, err)
 	require.Equal(t, "v2 {{x}}", restored.Body)
 }

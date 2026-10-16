@@ -74,7 +74,7 @@ func TestCreateBlueprint_Success(t *testing.T) {
 		Content:   "Test content",
 	}
 	mockBlueprintService.On(
-		"CreateBlueprint", testMemberUserID, testTeamUUID,
+		"CreateBlueprint", mock.Anything, testMemberUserID, testTeamUUID,
 		mock.MatchedBy(func(req *models.CreateBlueprintRequest) bool {
 			return req.ProjectID == testBlueprintProjectID && req.Slug == "test-slug" &&
 				req.Title == "Test Blueprint" && req.Content == "Test content"
@@ -109,7 +109,7 @@ func TestCreateBlueprint_ForwardsOptionalFields(t *testing.T) {
 
 	subtype := "sub-agents"
 	mockBlueprintService.On(
-		"CreateBlueprint", testMemberUserID, testTeamUUID,
+		"CreateBlueprint", mock.Anything, testMemberUserID, testTeamUUID,
 		mock.MatchedBy(func(req *models.CreateBlueprintRequest) bool {
 			return req.Type == "agent" && req.Status == "active" &&
 				req.Subtype != nil && *req.Subtype == "sub-agents" &&
@@ -142,7 +142,7 @@ func TestCreateBlueprint_ServiceError(t *testing.T) {
 	srv, mockBlueprintService := newBlueprintTestServer(t)
 
 	mockBlueprintService.On(
-		"CreateBlueprint", testMemberUserID, testTeamUUID, mock.AnythingOfType("*models.CreateBlueprintRequest"),
+		"CreateBlueprint", mock.Anything, testMemberUserID, testTeamUUID, mock.AnythingOfType("*models.CreateBlueprintRequest"),
 	).Return(nil, errors.New("service error"))
 
 	params := &CreateBlueprintParams{
@@ -173,7 +173,7 @@ func TestCreateBlueprint_SubAgentsRuleErrorSurfaced(t *testing.T) {
 
 	subtype := "sub-agents"
 	mockBlueprintService.On(
-		"CreateBlueprint", testMemberUserID, testTeamUUID, mock.AnythingOfType("*models.CreateBlueprintRequest"),
+		"CreateBlueprint", mock.Anything, testMemberUserID, testTeamUUID, mock.AnythingOfType("*models.CreateBlueprintRequest"),
 	).Return(nil, errors.New("sub-agents blueprints require a model in metadata"))
 
 	params := &CreateBlueprintParams{
@@ -220,7 +220,7 @@ func TestCreateBlueprint_NonMemberTeamDenied(t *testing.T) {
 		t.Error("expected nil structured result on access denied")
 	}
 	assertGenericAccessDenied(t, result)
-	mockBlueprintService.AssertNotCalled(t, "CreateBlueprint")
+	mockBlueprintService.AssertNotCalled(t, "CreateBlueprint", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 // TestCreateBlueprint_MissingTeamID verifies missing team_id yields a model-actionable error.
@@ -240,7 +240,7 @@ func TestCreateBlueprint_MissingTeamID(t *testing.T) {
 	if !strings.Contains(text, "team_id is required") || !strings.Contains(text, "vibexp_io_list_teams") {
 		t.Errorf("expected model-actionable missing team_id error, got %q", text)
 	}
-	mockBlueprintService.AssertNotCalled(t, "CreateBlueprint")
+	mockBlueprintService.AssertNotCalled(t, "CreateBlueprint", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestCreateBlueprint_InvalidProjectID(t *testing.T) {
@@ -263,7 +263,7 @@ func TestCreateBlueprint_InvalidProjectID(t *testing.T) {
 				t.Error("expected nil structured result on validation rejection")
 			}
 			assertValidationFailure(t, result, tc.substrMust)
-			mockBlueprintService.AssertNotCalled(t, "CreateBlueprint")
+			mockBlueprintService.AssertNotCalled(t, "CreateBlueprint", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 		})
 	}
 }
@@ -276,6 +276,7 @@ func TestUpdateBlueprint_Success(t *testing.T) {
 	}
 	mockBlueprintService.On(
 		"UpdateBlueprintByProjectIDAndSlugInTeam",
+		mock.Anything,
 		testMemberUserID, testTeamUUID, testBlueprintProjectID, "test-slug",
 		mock.MatchedBy(func(req *models.UpdateBlueprintRequest) bool {
 			return req.Title != nil && *req.Title == "Updated" &&
@@ -310,6 +311,7 @@ func TestUpdateBlueprint_OptionalFields(t *testing.T) {
 
 	mockBlueprintService.On(
 		"UpdateBlueprintByProjectIDAndSlugInTeam",
+		mock.Anything,
 		testMemberUserID, testTeamUUID, testBlueprintProjectID, "test-slug",
 		mock.MatchedBy(func(req *models.UpdateBlueprintRequest) bool {
 			// only status + metadata provided; title/content/description/type must remain nil
@@ -341,6 +343,7 @@ func TestUpdateBlueprint_ServiceError(t *testing.T) {
 
 	mockBlueprintService.On(
 		"UpdateBlueprintByProjectIDAndSlugInTeam",
+		mock.Anything,
 		testMemberUserID, testTeamUUID, testBlueprintProjectID, "nonexistent",
 		mock.AnythingOfType("*models.UpdateBlueprintRequest"),
 	).Return(nil, errors.New("blueprint not found"))
@@ -374,7 +377,7 @@ func TestUpdateBlueprint_NonMemberTeamDenied(t *testing.T) {
 		t.Error("expected nil structured result")
 	}
 	assertGenericAccessDenied(t, result)
-	mockBlueprintService.AssertNotCalled(t, "UpdateBlueprintByProjectIDAndSlugInTeam")
+	mockBlueprintService.AssertNotCalled(t, "UpdateBlueprintByProjectIDAndSlugInTeam", mock.Anything)
 }
 
 func TestUpdateBlueprint_InvalidProjectID(t *testing.T) {
@@ -396,7 +399,7 @@ func TestUpdateBlueprint_InvalidProjectID(t *testing.T) {
 				t.Error("expected nil structured result on validation rejection")
 			}
 			assertValidationFailure(t, result, tc.substrMust)
-			mockBlueprintService.AssertNotCalled(t, "UpdateBlueprintByProjectIDAndSlugInTeam")
+			mockBlueprintService.AssertNotCalled(t, "UpdateBlueprintByProjectIDAndSlugInTeam", mock.Anything)
 		})
 	}
 }

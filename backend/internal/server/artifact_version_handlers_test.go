@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/config"
@@ -174,7 +175,7 @@ func TestHandleRestoreArtifactVersion_Success(t *testing.T) {
 	}
 
 	mockArtifactService.On(
-		"RestoreArtifactVersionInTeam", "user-123", versionTeamID, versionProjectID, versionSlug, 1, (*models.WriteOrigin)(nil),
+		"RestoreArtifactVersionInTeam", mock.Anything, "user-123", versionTeamID, versionProjectID, versionSlug, 1, (*models.WriteOrigin)(nil),
 	).Return(restored, nil)
 
 	srv := newVersionTestServer(mockArtifactService)

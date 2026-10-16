@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -140,7 +141,7 @@ func TestPromptService_Update_LockedRejectsFrozenFieldChange(t *testing.T) {
 			req := tc.req
 			req.Body = lockPtr("new body")
 
-			_, err := h.svc.UpdatePrompt(lockCaller, lockTeamID, existing.ID, &req)
+			_, err := h.svc.UpdatePrompt(context.Background(), lockCaller, lockTeamID, existing.ID, &req)
 
 			requireLockRefusal(t, err, "prompt", tc.field)
 			assert.Equal(t, before, *existing, "the loaded prompt is untouched")
@@ -156,7 +157,7 @@ func TestPromptService_Update_UnlockedAcceptsFrozenFieldChange(t *testing.T) {
 			h.expectWrite()
 			req := tc.req
 
-			_, err := h.svc.UpdatePrompt(lockCaller, lockTeamID, existing.ID, &req)
+			_, err := h.svc.UpdatePrompt(context.Background(), lockCaller, lockTeamID, existing.ID, &req)
 
 			require.NoError(t, err)
 		})
@@ -187,7 +188,7 @@ func TestPromptService_Update_LockedAcceptsEditableFieldsAndUnchangedFrozenValue
 			h.expectWrite()
 			req := tt.req
 
-			updated, err := h.svc.UpdatePrompt(lockCaller, lockTeamID, existing.ID, &req)
+			updated, err := h.svc.UpdatePrompt(context.Background(), lockCaller, lockTeamID, existing.ID, &req)
 
 			require.NoError(t, err)
 			assert.Equal(t, lockSlug, updated.Slug)
@@ -201,7 +202,7 @@ func TestPromptService_Update_LockedNonMemberGetsTheDenialNotTheLock(t *testing.
 	existing := lockablePrompt(heldLock())
 	h := newPromptLockHarness(t, "", existing)
 
-	_, err := h.svc.UpdatePrompt(lockCaller, lockTeamID, existing.ID,
+	_, err := h.svc.UpdatePrompt(context.Background(), lockCaller, lockTeamID, existing.ID,
 		&models.UpdatePromptRequest{Slug: lockPtr("renamed")})
 
 	assert.ErrorIs(t, err, services.ErrPermissionDenied)
@@ -213,7 +214,7 @@ func TestPromptService_Restore_LockedStaysAllowed(t *testing.T) {
 	h.cvs.EXPECT().Restore(mock.Anything, lockTeamID, "prompt", existing.ID, 2).Return("v2 body", nil).Once()
 	h.expectWrite()
 
-	restored, err := h.svc.RestorePromptVersion(lockCaller, lockTeamID, lockSlug, 2, nil)
+	restored, err := h.svc.RestorePromptVersion(context.Background(), lockCaller, lockTeamID, lockSlug, 2, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "v2 body", restored.Body)
@@ -226,8 +227,8 @@ func TestPromptService_Delete_LockedRejectedForEveryRole(t *testing.T) {
 			existing := lockablePrompt(heldLock())
 			h := newPromptLockHarness(t, role, existing)
 
-			requireLockRefusal(t, h.svc.DeletePrompt(lockCaller, lockTeamID, existing.ID), "prompt", "")
-			requireLockRefusal(t, h.svc.DeletePromptBySlug(lockCaller, lockTeamID, lockSlug), "prompt", "")
+			requireLockRefusal(t, h.svc.DeletePrompt(context.Background(), lockCaller, lockTeamID, existing.ID), "prompt", "")
+			requireLockRefusal(t, h.svc.DeletePromptBySlug(context.Background(), lockCaller, lockTeamID, lockSlug), "prompt", "")
 		})
 	}
 }
@@ -237,7 +238,7 @@ func TestPromptService_Delete_LockedMemberDeletingAnothersGetsTheDenial(t *testi
 	existing.UserID = lockOther
 	h := newPromptLockHarness(t, models.TeamMemberRoleMember, existing)
 
-	assert.ErrorIs(t, h.svc.DeletePrompt(lockCaller, lockTeamID, existing.ID), services.ErrPermissionDenied)
+	assert.ErrorIs(t, h.svc.DeletePrompt(context.Background(), lockCaller, lockTeamID, existing.ID), services.ErrPermissionDenied)
 }
 
 func TestPromptService_Delete_WorksAgainAfterUnlock(t *testing.T) {
@@ -246,7 +247,7 @@ func TestPromptService_Delete_WorksAgainAfterUnlock(t *testing.T) {
 	h.refs.EXPECT().HasDependents(mock.Anything, existing.ID).Return(false, nil).Once()
 	h.repo.EXPECT().Delete(mock.Anything, lockCaller, lockTeamID, existing.ID).Return(nil).Once()
 
-	require.NoError(t, h.svc.DeletePrompt(lockCaller, lockTeamID, existing.ID))
+	require.NoError(t, h.svc.DeletePrompt(context.Background(), lockCaller, lockTeamID, existing.ID))
 }
 
 // ---- blueprints ----
@@ -292,7 +293,7 @@ func (h *blueprintLockHarness) expectWrite() {
 }
 
 func (h *blueprintLockHarness) update(req *models.UpdateBlueprintRequest) (*models.Blueprint, error) {
-	return h.svc.UpdateBlueprintByProjectIDAndSlugInTeam(lockCaller, lockTeamID, lockProjectID, lockSlug, req)
+	return h.svc.UpdateBlueprintByProjectIDAndSlugInTeam(context.Background(), lockCaller, lockTeamID, lockProjectID, lockSlug, req)
 }
 
 var blueprintFrozenChanges = []struct {
@@ -414,7 +415,7 @@ func TestBlueprintService_Restore_LockedStaysAllowed(t *testing.T) {
 		Return(&models.ContentVersion{Content: "v2 body", RawContent: "v2 raw"}, nil).Once()
 	h.expectWrite()
 
-	restored, err := h.svc.RestoreBlueprintVersionInTeam(lockCaller, lockTeamID, lockProjectID, lockSlug, 2, nil)
+	restored, err := h.svc.RestoreBlueprintVersionInTeam(context.Background(), lockCaller, lockTeamID, lockProjectID, lockSlug, 2, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "v2 body", restored.Content)
@@ -426,7 +427,7 @@ func TestBlueprintService_Delete_LockedRejectedForEveryRole(t *testing.T) {
 		t.Run(string(role), func(t *testing.T) {
 			h := newBlueprintLockHarness(t, role, lockableBlueprint(heldLock()))
 
-			err := h.svc.DeleteBlueprintByProjectIDAndSlug(lockCaller, lockTeamID, lockProjectID, lockSlug)
+			err := h.svc.DeleteBlueprintByProjectIDAndSlug(context.Background(), lockCaller, lockTeamID, lockProjectID, lockSlug)
 
 			requireLockRefusal(t, err, "blueprint", "")
 		})
@@ -438,7 +439,7 @@ func TestBlueprintService_Delete_LockedMemberDeletingAnothersGetsTheDenial(t *te
 	existing.UserID = lockOther
 	h := newBlueprintLockHarness(t, models.TeamMemberRoleMember, existing)
 
-	err := h.svc.DeleteBlueprintByProjectIDAndSlug(lockCaller, lockTeamID, lockProjectID, lockSlug)
+	err := h.svc.DeleteBlueprintByProjectIDAndSlug(context.Background(), lockCaller, lockTeamID, lockProjectID, lockSlug)
 
 	assert.ErrorIs(t, err, services.ErrPermissionDenied)
 }
@@ -448,7 +449,7 @@ func TestBlueprintService_Delete_WorksAgainAfterUnlock(t *testing.T) {
 	h := newBlueprintLockHarness(t, models.TeamMemberRoleMember, existing)
 	h.repo.EXPECT().Delete(mock.Anything, lockCaller, lockTeamID, existing.ID).Return(nil).Once()
 
-	require.NoError(t, h.svc.DeleteBlueprintByProjectIDAndSlug(lockCaller, lockTeamID, lockProjectID, lockSlug))
+	require.NoError(t, h.svc.DeleteBlueprintByProjectIDAndSlug(context.Background(), lockCaller, lockTeamID, lockProjectID, lockSlug))
 }
 
 // ---- artifacts ----
@@ -492,7 +493,7 @@ func (h *artifactLockHarness) expectWrite() {
 }
 
 func (h *artifactLockHarness) update(req *models.UpdateArtifactRequest) (*models.Artifact, error) {
-	return h.svc.UpdateArtifactByProjectIDAndSlugInTeam(lockCaller, lockTeamID, lockProjectID, lockSlug, req)
+	return h.svc.UpdateArtifactByProjectIDAndSlugInTeam(context.Background(), lockCaller, lockTeamID, lockProjectID, lockSlug, req)
 }
 
 var artifactFrozenChanges = []struct {
@@ -529,7 +530,7 @@ func TestArtifactService_Update_LockedRejectsFrozenFieldChange(t *testing.T) {
 func TestArtifactService_Update_LockedRejectsFrozenFieldChangeAcrossTeams(t *testing.T) {
 	h := newArtifactLockHarness(t, models.TeamMemberRoleAdmin, lockableArtifact(heldLock()))
 
-	_, err := h.svc.UpdateArtifactByProjectIDAndSlug(lockCaller, lockProjectID, lockSlug,
+	_, err := h.svc.UpdateArtifactByProjectIDAndSlug(context.Background(), lockCaller, lockProjectID, lockSlug,
 		&models.UpdateArtifactRequest{Slug: lockPtr("renamed")})
 
 	requireLockRefusal(t, err, "artifact", "slug")
@@ -599,7 +600,7 @@ func TestArtifactService_Restore_LockedStaysAllowed(t *testing.T) {
 	h.cvs.EXPECT().Restore(mock.Anything, lockTeamID, "artifact", existing.ID, 2).Return("v2 body", nil).Once()
 	h.expectWrite()
 
-	restored, err := h.svc.RestoreArtifactVersionInTeam(lockCaller, lockTeamID, lockProjectID, lockSlug, 2, nil)
+	restored, err := h.svc.RestoreArtifactVersionInTeam(context.Background(), lockCaller, lockTeamID, lockProjectID, lockSlug, 2, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "v2 body", restored.Content)
@@ -610,7 +611,7 @@ func TestArtifactService_Delete_LockedRejectedForEveryRole(t *testing.T) {
 		t.Run(string(role), func(t *testing.T) {
 			h := newArtifactLockHarness(t, role, lockableArtifact(heldLock()))
 
-			err := h.svc.DeleteArtifactByProjectIDAndSlug(lockCaller, lockTeamID, lockProjectID, lockSlug)
+			err := h.svc.DeleteArtifactByProjectIDAndSlug(context.Background(), lockCaller, lockTeamID, lockProjectID, lockSlug)
 
 			requireLockRefusal(t, err, "artifact", "")
 		})
@@ -622,7 +623,7 @@ func TestArtifactService_Delete_LockedMemberDeletingAnothersGetsTheDenial(t *tes
 	existing.UserID = lockOther
 	h := newArtifactLockHarness(t, models.TeamMemberRoleMember, existing)
 
-	err := h.svc.DeleteArtifactByProjectIDAndSlug(lockCaller, lockTeamID, lockProjectID, lockSlug)
+	err := h.svc.DeleteArtifactByProjectIDAndSlug(context.Background(), lockCaller, lockTeamID, lockProjectID, lockSlug)
 
 	assert.ErrorIs(t, err, services.ErrPermissionDenied)
 }
@@ -632,5 +633,5 @@ func TestArtifactService_Delete_WorksAgainAfterUnlock(t *testing.T) {
 	h := newArtifactLockHarness(t, models.TeamMemberRoleMember, existing)
 	h.repo.EXPECT().Delete(mock.Anything, lockCaller, lockTeamID, existing.ID).Return(nil).Once()
 
-	require.NoError(t, h.svc.DeleteArtifactByProjectIDAndSlug(lockCaller, lockTeamID, lockProjectID, lockSlug))
+	require.NoError(t, h.svc.DeleteArtifactByProjectIDAndSlug(context.Background(), lockCaller, lockTeamID, lockProjectID, lockSlug))
 }
