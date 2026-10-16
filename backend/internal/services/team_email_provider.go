@@ -16,6 +16,7 @@ import (
 	"github.com/vibexp/vibexp/internal/external/implementations"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 // Supported team email provider types. These are the same values
@@ -55,6 +56,16 @@ type TeamEmailProviderService struct {
 	// credential and decides what address the team's mail comes from.
 	authz  AuthorizationServiceInterface
 	logger *slog.Logger
+	teamSettingsAuditor
+}
+
+// TeamEmailProviderServiceOption customizes a TeamEmailProviderService.
+type TeamEmailProviderServiceOption func(*TeamEmailProviderService)
+
+// WithTeamEmailProviderAuditRecorder records changes in the instance audit log
+// (#1520).
+func WithTeamEmailProviderAuditRecorder(recorder audit.Recorder) TeamEmailProviderServiceOption {
+	return func(s *TeamEmailProviderService) { s.recorder = recorder }
 }
 
 // Ensure TeamEmailProviderService implements TeamEmailProviderServiceInterface
@@ -69,8 +80,9 @@ func NewTeamEmailProviderService(
 	cfg *config.Config,
 	authzSvc AuthorizationServiceInterface,
 	logger *slog.Logger,
+	opts ...TeamEmailProviderServiceOption,
 ) *TeamEmailProviderService {
-	return &TeamEmailProviderService{
+	s := &TeamEmailProviderService{
 		repo:         repo,
 		instanceRepo: instanceRepo,
 		userRepo:     userRepo,
@@ -79,6 +91,10 @@ func NewTeamEmailProviderService(
 		authz:        authzSvc,
 		logger:       logger,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // authorizeMutation gates upsert/delete/test. A nil authz service is a wiring
@@ -264,6 +280,17 @@ func (s *TeamEmailProviderService) Upsert(
 	if err := s.repo.Upsert(ctx, provider); err != nil {
 		return nil, err
 	}
+	change := teamSettingsChange{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceEmailProvider, Action: teamSettingsActionUpdate,
+		After: emailProviderAuditValues(provider),
+	}
+	if existing != nil {
+		change.Before = emailProviderAuditValues(existing)
+	}
+	if req.Secret != nil {
+		change.Withheld = []string{"secret"}
+	}
+	s.record(ctx, change)
 
 	return provider, nil
 }
@@ -273,7 +300,55 @@ func (s *TeamEmailProviderService) Delete(ctx context.Context, userID, teamID st
 	if err := s.authorizeMutation(ctx, userID, teamID); err != nil {
 		return err
 	}
-	return s.repo.Delete(ctx, teamID)
+	var before map[string]any
+	if s.enabled() {
+		// Old values for the audit event only; a failed read must not block
+		// the delete.
+		existing, err := s.repo.GetByTeamID(ctx, teamID)
+		if err == nil && existing != nil {
+			before = emailProviderAuditValues(existing)
+		}
+	}
+	if err := s.repo.Delete(ctx, teamID); err != nil {
+		return err
+	}
+	s.record(ctx, teamSettingsChange{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceEmailProvider, Action: teamSettingsActionDelete,
+		Before: before,
+	})
+	return nil
+}
+
+// emailProviderAuditValues is the audited field allowlist of a team email
+// provider: the type, the sender identity and the non-secret settings of its
+// type. The credential (SecretEncrypted) is never read here.
+func emailProviderAuditValues(provider *models.TeamEmailProvider) map[string]any {
+	values := map[string]any{
+		"provider_type": provider.ProviderType,
+		"from_address":  provider.FromAddress,
+		"from_name":     optionalAuditString(provider.FromName),
+		"reply_to":      optionalAuditString(provider.ReplyTo),
+	}
+	var settings struct {
+		Host          *string `json:"host"`
+		Port          *string `json:"port"`
+		Username      *string `json:"username"`
+		Domain        *string `json:"domain"`
+		BaseURL       *string `json:"base_url"`
+		MessageStream *string `json:"message_stream"`
+	}
+	if len(provider.Settings) == 0 || json.Unmarshal(provider.Settings, &settings) != nil {
+		return values
+	}
+	for field, value := range map[string]*string{
+		"host": settings.Host, "port": settings.Port, "username": settings.Username,
+		"domain": settings.Domain, "base_url": settings.BaseURL, "message_stream": settings.MessageStream,
+	} {
+		if value != nil {
+			values[field] = *value
+		}
+	}
+	return values
 }
 
 // Test sends a real message using the configuration in the REQUEST, not the

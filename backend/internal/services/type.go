@@ -7,9 +7,11 @@ import (
 	"log/slog"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 // Type validation rules and sentinels. The handler maps these to 400 responses.
@@ -72,6 +74,16 @@ type TypeService struct {
 	authorizer AuthorizationServiceInterface
 	audit      TeamSettingsAuditServiceInterface
 	logger     *slog.Logger
+	teamSettingsAuditor
+}
+
+// TypeServiceOption customizes a TypeService.
+type TypeServiceOption func(*TypeService)
+
+// WithTypeAuditRecorder records custom type changes in the instance audit log
+// (#1520).
+func WithTypeAuditRecorder(recorder audit.Recorder) TypeServiceOption {
+	return func(s *TypeService) { s.recorder = recorder }
 }
 
 // NewTypeService creates a new TypeService.
@@ -80,8 +92,13 @@ func NewTypeService(
 	authorizer AuthorizationServiceInterface,
 	audit TeamSettingsAuditServiceInterface,
 	logger *slog.Logger,
+	opts ...TypeServiceOption,
 ) *TypeService {
-	return &TypeService{repo: repo, authorizer: authorizer, audit: audit, logger: logger}
+	s := &TypeService{repo: repo, authorizer: authorizer, audit: audit, logger: logger}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func (s *TypeService) List(ctx context.Context, teamID, resourceType string) ([]models.Type, error) {
@@ -121,6 +138,11 @@ func (s *TypeService) CreateCustom(ctx context.Context, params CreateTypeParams)
 	if err := s.repo.Create(ctx, t); err != nil {
 		return nil, err
 	}
+	s.record(ctx, teamSettingsChange{
+		TeamID: params.TeamID, ActorID: params.UserID, Surface: teamSettingsSurfaceCustomTypes,
+		Action: teamSettingsActionCreate, After: customTypeAuditValues(t),
+		Details: map[string]any{"type_id": t.ID, "type_slug": t.Slug},
+	})
 	return t, nil
 }
 
@@ -128,7 +150,50 @@ func (s *TypeService) Delete(ctx context.Context, teamID, id string) error {
 	// "general" is the artifacts default; the repository only applies the
 	// fallback to the row's own resource_type, so passing the artifacts default
 	// is safe even once other resources adopt types.
-	return s.repo.DeleteCustom(ctx, teamID, id, resourceTypeDefaultSlug["artifacts"])
+	existing := s.customTypeForAudit(ctx, teamID, id)
+	if err := s.repo.DeleteCustom(ctx, teamID, id, resourceTypeDefaultSlug["artifacts"]); err != nil {
+		return err
+	}
+	// The method has no user id: the recorder takes the actor from the request.
+	change := teamSettingsChange{
+		TeamID: teamID, Surface: teamSettingsSurfaceCustomTypes, Action: teamSettingsActionDelete,
+		Before: customTypeAuditValues(existing), Details: map[string]any{"type_id": id},
+	}
+	if existing != nil {
+		change.Details["type_slug"] = existing.Slug
+	}
+	s.record(ctx, change)
+	return nil
+}
+
+// customTypeForAudit finds the team's custom type id before a delete, for the
+// audit event. The repository has no lookup by id, so it scans the team's
+// types; nil when nothing is recorded or the type is not found.
+func (s *TypeService) customTypeForAudit(ctx context.Context, teamID, id string) *models.Type {
+	if !s.enabled() {
+		return nil
+	}
+	for _, resourceType := range copyableResourceTypes() {
+		types, err := s.repo.List(ctx, teamID, resourceType)
+		if err != nil {
+			return nil
+		}
+		for i := range types {
+			if types[i].ID == id {
+				return &types[i]
+			}
+		}
+	}
+	return nil
+}
+
+// customTypeAuditValues is the audited field allowlist of a custom type, nil
+// for no type.
+func customTypeAuditValues(t *models.Type) map[string]any {
+	if t == nil {
+		return nil
+	}
+	return map[string]any{"resource_type": t.ResourceType, "slug": t.Slug, "name": t.Name}
 }
 
 // CopyFromTeam merges another team's custom types into params.TeamID.
@@ -153,6 +218,8 @@ func (s *TypeService) CopyFromTeam(ctx context.Context, params CopyTypesParams) 
 	if err := s.recordCopy(ctx, params, result); err != nil {
 		return nil, err
 	}
+	// The team history above is fail-closed; the instance log is best-effort.
+	s.recordCopyEvent(ctx, params, result)
 
 	s.logger.Info("Copied custom types between teams",
 		"team_id", params.TeamID, "source_team_id", params.SourceTeamID,
@@ -268,6 +335,28 @@ func (s *TypeService) recordCopy(
 		return fmt.Errorf("failed to record custom types copy: %w", err)
 	}
 	return nil
+}
+
+// recordCopyEvent records a custom types copy in the instance audit log, with
+// the slugs added and skipped.
+func (s *TypeService) recordCopyEvent(ctx context.Context, params CopyTypesParams, result *CopyTypesResult) {
+	added := make([]string, 0, len(result.Added))
+	for i := range result.Added {
+		added = append(added, result.Added[i].Slug)
+	}
+	skipped := make([]string, 0, len(result.Skipped))
+	for i := range result.Skipped {
+		skipped = append(skipped, result.Skipped[i].Slug)
+	}
+	s.record(ctx, teamSettingsChange{
+		TeamID: params.TeamID, ActorID: params.UserID, Surface: teamSettingsSurfaceCustomTypes,
+		Action: teamSettingsActionCopy,
+		Details: map[string]any{
+			"source_team_id": params.SourceTeamID,
+			"added_slugs":    strings.Join(added, ", "),
+			"skipped_slugs":  strings.Join(skipped, ", "),
+		},
+	})
 }
 
 func (s *TypeService) ValidateType(

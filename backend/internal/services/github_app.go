@@ -15,6 +15,7 @@ import (
 	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 	"github.com/vibexp/vibexp/pkg/events"
 )
 
@@ -46,6 +47,7 @@ type GitHubAppService struct {
 	// source, so it is an owner/admin action rather than a member one (#463).
 	authz  AuthorizationServiceInterface
 	logger *slog.Logger
+	teamSettingsAuditor
 }
 
 // GitHubAppServiceDeps groups the dependencies injected into GitHubAppService.
@@ -60,20 +62,24 @@ type GitHubAppServiceDeps struct {
 	EventManager     events.EventPublisher
 	Authz            AuthorizationServiceInterface
 	Logger           *slog.Logger
+	// AuditRecorder, when set, records connects and disconnects in the
+	// instance audit log (#1520).
+	AuditRecorder audit.Recorder
 }
 
 // NewGitHubAppService creates a new GitHub App service
 func NewGitHubAppService(deps GitHubAppServiceDeps) GitHubAppServiceInterface {
 	return &GitHubAppService{
-		installationRepo: deps.InstallationRepo,
-		projectRepo:      deps.ProjectRepo,
-		blueprintRepo:    deps.BlueprintRepo,
-		clients:          deps.Clients,
-		encryptionSvc:    deps.EncryptionSvc,
-		attachmentSvc:    deps.AttachmentSvc,
-		eventManager:     deps.EventManager,
-		authz:            deps.Authz,
-		logger:           deps.Logger,
+		installationRepo:    deps.InstallationRepo,
+		projectRepo:         deps.ProjectRepo,
+		blueprintRepo:       deps.BlueprintRepo,
+		clients:             deps.Clients,
+		encryptionSvc:       deps.EncryptionSvc,
+		attachmentSvc:       deps.AttachmentSvc,
+		eventManager:        deps.EventManager,
+		authz:               deps.Authz,
+		logger:              deps.Logger,
+		teamSettingsAuditor: teamSettingsAuditor{recorder: deps.AuditRecorder},
 	}
 }
 
@@ -115,6 +121,10 @@ func (s *GitHubAppService) DisconnectInstallation(ctx context.Context, userID, t
 	if err := s.installationRepo.Delete(ctx, teamID); err != nil {
 		return fmt.Errorf("failed to delete installation: %w", err)
 	}
+	s.record(ctx, teamSettingsChange{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceGitHubApp, Action: teamSettingsActionDisconnect,
+		Before: gitHubInstallationAuditValues(installation.InstallationID, installation.AccountLogin),
+	})
 
 	// Evict the per-installation transport so stale credentials are not served
 	// after the installation is removed. The App-level client stays cached: the
@@ -134,6 +144,23 @@ func (s *GitHubAppService) DisconnectInstallation(ctx context.Context, userID, t
 	}
 
 	return nil
+}
+
+// recordConnect records a connected installation in the instance audit log.
+func (s *GitHubAppService) recordConnect(
+	ctx context.Context, userID, teamID string, installationID int64, accountLogin string, reconnected bool,
+) {
+	s.record(ctx, teamSettingsChange{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceGitHubApp, Action: teamSettingsActionConnect,
+		After:   gitHubInstallationAuditValues(installationID, accountLogin),
+		Details: map[string]any{"reconnected": reconnected},
+	})
+}
+
+// gitHubInstallationAuditValues is the audited field allowlist of an
+// installation: the GitHub ids only, never its token.
+func gitHubInstallationAuditValues(installationID int64, accountLogin string) map[string]any {
+	return map[string]any{"installation_id": installationID, "account_login": accountLogin}
 }
 
 // resolveClient returns the GitHub App client bound to this team's own App.

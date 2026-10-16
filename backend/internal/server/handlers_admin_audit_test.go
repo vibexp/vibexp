@@ -161,6 +161,34 @@ func TestListAdminAuditEvents_MapsEveryFilter(t *testing.T) {
 	assert.Equal(t, map[string]interface{}{"changed": []interface{}{"content"}}, got.Metadata)
 }
 
+// team.settings.updated (#1520) is a filterable operation, and its event, with
+// the surface and changes in the metadata, conforms to the spec.
+func TestListAdminAuditEvents_FiltersTeamSettingsChanges(t *testing.T) {
+	svc := servicesmocks.NewMockAdminAuditServiceInterface(t)
+	want := models.AuditEventFilter{
+		Operations: []models.AuditOperation{models.AuditOpTeamSettingsUpdated},
+		Limit:      25,
+	}
+	event := fullAuditEvent(uuid.NewString(), time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC))
+	event.Operation = models.AuditOpTeamSettingsUpdated
+	event.ResourceType = auditStrPtr(models.AuditResourceTypeTeamSettings)
+	event.ResourceName = auditStrPtr("Model provider")
+	event.Metadata = []byte(`{"surface":"model_provider","action":"update",` +
+		`"changed_fields":["model","api_key"],"model":{"old":"a","new":"b"}}`)
+	svc.EXPECT().List(mock.Anything, want).Return([]models.AuditEvent{event}, nil, nil)
+
+	req, rr := serveAudit(t, newAuditTestRouter(t, svc, nil),
+		adminAuditEventsPath+"?limit=25&operation=team.settings.updated")
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	specconformance.AssertConformsToSpec(t, req, rr)
+	var page admingen.AdminAuditEventPage
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &page))
+	require.Len(t, page.Items, 1)
+	assert.Equal(t, admingen.AdminAuditOperationTeamSettingsUpdated, page.Items[0].Operation)
+	assert.Equal(t, "model_provider", page.Items[0].Metadata["surface"])
+}
+
 // With no params the default page size applies and nothing filters; an empty
 // page is `items: []`, never null, and a system event's nullable fields and
 // missing metadata serialize as null and {}.

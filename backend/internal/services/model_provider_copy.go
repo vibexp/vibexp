@@ -158,6 +158,10 @@ func (mps *ModelProviderService) recordCopy(
 	}); err != nil {
 		return fmt.Errorf("failed to record model provider copy: %w", err)
 	}
+	// The team history above is fail-closed; the instance log is best-effort.
+	mps.record(ctx, providerCopyChange(params.TeamID, params.UserID, params.SourceTeamID,
+		teamSettingsSurfaceModelProvider, source.ID, created.ID, modelProviderAuditValues(created),
+		created.APIKeyEncrypted, created.Configuration))
 	return nil
 }
 

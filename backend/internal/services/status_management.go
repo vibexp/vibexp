@@ -12,6 +12,7 @@ import (
 	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 // Custom status validation sentinels. The handler maps the first five to 400
@@ -145,9 +146,19 @@ type StatusManagementService struct {
 	authz   AuthorizationServiceInterface
 	audit   TeamSettingsAuditServiceInterface
 	logger  *slog.Logger
+	teamSettingsAuditor
 }
 
 var _ StatusManagementServiceInterface = (*StatusManagementService)(nil)
+
+// StatusManagementServiceOption customizes a StatusManagementService.
+type StatusManagementServiceOption func(*StatusManagementService)
+
+// WithStatusManagementAuditRecorder records custom status changes in the
+// instance audit log (#1520).
+func WithStatusManagementAuditRecorder(recorder audit.Recorder) StatusManagementServiceOption {
+	return func(s *StatusManagementService) { s.recorder = recorder }
+}
 
 // NewStatusManagementService creates a new StatusManagementService.
 func NewStatusManagementService(
@@ -156,10 +167,15 @@ func NewStatusManagementService(
 	authzService AuthorizationServiceInterface,
 	audit TeamSettingsAuditServiceInterface,
 	logger *slog.Logger,
+	opts ...StatusManagementServiceOption,
 ) *StatusManagementService {
-	return &StatusManagementService{
+	s := &StatusManagementService{
 		repo: repo, catalog: catalog, authz: authzService, audit: audit, logger: logger,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func (s *StatusManagementService) List(
@@ -217,9 +233,12 @@ func (s *StatusManagementService) Create(
 		Name:         name,
 		CreatedBy:    optionalID(params.UserID),
 	}
-	if err := s.repo.Create(ctx, row, s.auditBuilder(params.UserID, statusAuditActionCreated, "")); err != nil {
+	var change repositories.TeamStatusChange
+	build := capturingStatusChange(s.auditBuilder(params.UserID, statusAuditActionCreated, ""), &change)
+	if err := s.repo.Create(ctx, row, build); err != nil {
 		return nil, err
 	}
+	s.recordStatusChange(ctx, params.UserID, params.TeamID, statusAuditActionCreated, "", change)
 	// A status that did not exist until this insert is on no resource, so the
 	// count is known without a query that could fail after the write.
 	return managedStatus(row, 0), nil
@@ -236,11 +255,13 @@ func (s *StatusManagementService) Rename(
 		return nil, err
 	}
 
+	var change repositories.TeamStatusChange
 	row, err := s.repo.UpdateName(ctx, params.TeamID, params.ID, name,
-		s.auditBuilder(params.UserID, statusAuditActionRenamed, ""))
+		capturingStatusChange(s.auditBuilder(params.UserID, statusAuditActionRenamed, ""), &change))
 	if err != nil {
 		return nil, err
 	}
+	s.recordStatusChange(ctx, params.UserID, params.TeamID, statusAuditActionRenamed, "", change)
 	return managedStatus(row, s.usageCountOrZero(ctx, row)), nil
 }
 
@@ -263,12 +284,54 @@ func (s *StatusManagementService) Delete(
 		return nil, fmt.Errorf("%w: %q", ErrStatusResourceTypeUnsupported, existing.ResourceType)
 	}
 
+	var change repositories.TeamStatusChange
 	_, reassigned, err := s.repo.DeleteAndReassign(ctx, params.TeamID, params.ID, reassignTo,
-		s.auditBuilder(params.UserID, statusAuditActionDeleted, reassignTo))
+		capturingStatusChange(s.auditBuilder(params.UserID, statusAuditActionDeleted, reassignTo), &change))
 	if err != nil {
 		return nil, err
 	}
+	s.recordStatusChange(ctx, params.UserID, params.TeamID, statusAuditActionDeleted, reassignTo, change)
 	return &StatusDeletion{ReassignedCount: reassigned, ReassignedTo: reassignTo}, nil
+}
+
+// capturingStatusChange wraps build so the change the repository hands it is
+// also kept in dst, for the instance audit event recorded after the commit.
+func capturingStatusChange(
+	build repositories.TeamStatusAuditBuilder, dst *repositories.TeamStatusChange,
+) repositories.TeamStatusAuditBuilder {
+	return func(change repositories.TeamStatusChange) (*models.TeamSettingsAudit, error) {
+		*dst = change
+		return build(change)
+	}
+}
+
+// recordStatusChange records a committed custom status write in the instance
+// audit log, with the per-team history's action names (created / renamed /
+// deleted). change is what the repository passed to the builder.
+func (s *StatusManagementService) recordStatusChange(
+	ctx context.Context, userID, teamID, action, reassignTo string, change repositories.TeamStatusChange,
+) {
+	row := change.Status
+	if row == nil {
+		return
+	}
+	values := map[string]any{"resource_type": row.ResourceType, "slug": row.Slug, "name": row.Name}
+	audited := teamSettingsChange{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceCustomStatuses, Action: action,
+		Details: map[string]any{"status_id": row.ID},
+	}
+	switch action {
+	case statusAuditActionCreated:
+		audited.After = values
+	case statusAuditActionRenamed:
+		audited.After = values
+		audited.Before = map[string]any{"resource_type": row.ResourceType, "slug": row.Slug, "name": change.PreviousName}
+	case statusAuditActionDeleted:
+		audited.Before = values
+		audited.Details["reassigned_count"] = change.ReassignedCount
+		audited.Details["reassigned_to"] = reassignTo
+	}
+	s.record(ctx, audited)
 }
 
 // authorizeWrite is the one gate on every custom-status write.

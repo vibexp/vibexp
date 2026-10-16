@@ -144,6 +144,10 @@ const (
 	AuditOpTeamMemberRoleChanged    AuditOperation = "team.member.role_changed"
 	AuditOpTeamMemberRemoved        AuditOperation = "team.member.removed"
 	AuditOpTeamOwnershipTransferred AuditOperation = "team.ownership.transferred"
+	// AuditOpTeamSettingsUpdated is any team-scoped settings change (#1520):
+	// search, AI summary, email/model/embedding providers, freshness, the
+	// GitHub App, custom types and statuses. Its metadata names the surface.
+	AuditOpTeamSettingsUpdated AuditOperation = "team.settings.updated"
 )
 
 // Instance administration.
@@ -188,7 +192,7 @@ var allAuditOperations = []AuditOperation{
 	AuditOpTeamCreated, AuditOpTeamUpdated, AuditOpTeamDeleted,
 	AuditOpTeamInviteSent, AuditOpTeamInviteAccepted, AuditOpTeamInviteRejected, AuditOpTeamInviteRevoked,
 	AuditOpTeamMemberAdded, AuditOpTeamMemberRoleChanged, AuditOpTeamMemberRemoved,
-	AuditOpTeamOwnershipTransferred,
+	AuditOpTeamOwnershipTransferred, AuditOpTeamSettingsUpdated,
 
 	AuditOpInstanceSettingsUpdated,
 	AuditOpAdminUserCreated, AuditOpAdminUserUpdated, AuditOpAdminUserSuspended,
@@ -249,6 +253,9 @@ const (
 	AuditResourceTypeTeam        = "team"
 	AuditResourceTypeTeamMember  = "team_member"
 	AuditResourceTypeInvitation  = "team_invitation"
+	// AuditResourceTypeTeamSettings is a team.settings.updated event; the
+	// resource name is the settings surface's label.
+	AuditResourceTypeTeamSettings = "team_settings"
 )
 
 // AuditEvent is one row of the instance audit log (audit_events).

@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 
 	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 // ErrInvalidFreshnessRule is returned when a rule definition is rejected by
@@ -137,6 +139,7 @@ type FreshnessService struct {
 	projects  repositories.ProjectRepository
 	authz     AuthorizationServiceInterface
 	logger    *slog.Logger
+	teamSettingsAuditor
 }
 
 var _ FreshnessServiceInterface = (*FreshnessService)(nil)
@@ -151,19 +154,23 @@ type FreshnessServiceDeps struct {
 	Projects  repositories.ProjectRepository
 	Authz     AuthorizationServiceInterface
 	Logger    *slog.Logger
+	// AuditRecorder, when set, records rule and settings changes in the
+	// instance audit log (#1520).
+	AuditRecorder audit.Recorder
 }
 
 // NewFreshnessService creates a new FreshnessService.
 func NewFreshnessService(deps FreshnessServiceDeps) *FreshnessService {
 	return &FreshnessService{
-		rules:     deps.Rules,
-		freshness: deps.Freshness,
-		settings:  deps.Settings,
-		audit:     deps.Audit,
-		schedules: deps.Schedules,
-		projects:  deps.Projects,
-		authz:     deps.Authz,
-		logger:    deps.Logger,
+		rules:               deps.Rules,
+		freshness:           deps.Freshness,
+		settings:            deps.Settings,
+		audit:               deps.Audit,
+		schedules:           deps.Schedules,
+		projects:            deps.Projects,
+		authz:               deps.Authz,
+		logger:              deps.Logger,
+		teamSettingsAuditor: teamSettingsAuditor{recorder: deps.AuditRecorder},
 	}
 }
 
@@ -198,6 +205,7 @@ func (s *FreshnessService) CreateRule(
 	if err := s.rules.Create(ctx, rule); err != nil {
 		return nil, fmt.Errorf("FreshnessService.CreateRule: %w", err)
 	}
+	s.recordRuleChange(ctx, userID, teamID, rule.ID, teamSettingsActionCreate, nil, rule)
 	s.syncSchedule(ctx, teamID)
 	return rule, nil
 }
@@ -222,12 +230,21 @@ func (s *FreshnessService) UpdateRule(
 		ThresholdDays: input.ThresholdDays,
 		Enabled:       input.Enabled,
 	}
+	var before *models.FreshnessRule
+	if s.enabled() {
+		// Old values for the audit event only; a failed read must not block
+		// the update.
+		if stored, err := s.rules.GetByID(ctx, teamID, ruleID); err == nil {
+			before = stored
+		}
+	}
 	if err := s.rules.Update(ctx, rule); err != nil {
 		if errors.Is(err, repositories.ErrFreshnessRuleNotFound) {
 			return nil, err
 		}
 		return nil, fmt.Errorf("FreshnessService.UpdateRule: %w", err)
 	}
+	s.recordRuleChange(ctx, userID, teamID, ruleID, teamSettingsActionUpdate, before, rule)
 	s.syncSchedule(ctx, teamID)
 	return rule, nil
 }
@@ -266,8 +283,61 @@ func (s *FreshnessService) DeleteRule(ctx context.Context, userID, teamID, ruleI
 		// Lost a race with a concurrent delete; the caller's intent still holds.
 		return repositories.ErrFreshnessRuleNotFound
 	}
+	s.recordRuleChange(ctx, userID, teamID, ruleID, teamSettingsActionDelete, existing, nil)
 	s.syncSchedule(ctx, teamID)
 	return nil
+}
+
+// recordRuleChange records a rule write in the instance audit log. A nil side
+// does not exist.
+func (s *FreshnessService) recordRuleChange(
+	ctx context.Context, userID, teamID, ruleID, action string, before, after *models.FreshnessRule,
+) {
+	s.record(ctx, teamSettingsChange{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceFreshness, Action: action,
+		Before: freshnessRuleAuditValues(before), After: freshnessRuleAuditValues(after),
+		Details: map[string]any{"rule_id": ruleID},
+	})
+}
+
+// freshnessRuleAuditValues is the audited field allowlist of a rule, nil for
+// no rule. The type and medium lists are joined into one value each.
+func freshnessRuleAuditValues(rule *models.FreshnessRule) map[string]any {
+	if rule == nil {
+		return nil
+	}
+	return map[string]any{
+		"project_id":     optionalAuditString(rule.ProjectID),
+		"resource_types": strings.Join(rule.ResourceTypes, ", "),
+		"mediums":        strings.Join(rule.Mediums, ", "),
+		"threshold_days": rule.ThresholdDays,
+		"enabled":        rule.Enabled,
+	}
+}
+
+// freshnessSettingsAuditValues is the audited field allowlist of the settings,
+// nil for no stored row.
+func freshnessSettingsAuditValues(stored *models.TeamFreshnessSettings) map[string]any {
+	if stored == nil {
+		return nil
+	}
+	return map[string]any{
+		"interval_seconds":      stored.IntervalSeconds,
+		"reversibility_enabled": stored.ReversibilityEnabled,
+	}
+}
+
+// storedSettingsAuditValues reads the stored settings before a write, for the
+// audit event's old values; nil when nothing is recorded or the read fails.
+func (s *FreshnessService) storedSettingsAuditValues(ctx context.Context, teamID string) map[string]any {
+	if !s.enabled() {
+		return nil
+	}
+	stored, err := s.settings.Get(ctx, teamID)
+	if err != nil {
+		return nil
+	}
+	return freshnessSettingsAuditValues(stored)
 }
 
 // GetSettings returns the team's effective settings and their provenance.
@@ -303,9 +373,14 @@ func (s *FreshnessService) UpdateSettings(
 		IntervalSeconds:      values.IntervalSeconds,
 		ReversibilityEnabled: values.ReversibilityEnabled,
 	}
+	before := s.storedSettingsAuditValues(ctx, teamID)
 	if err := s.settings.Upsert(ctx, stored); err != nil {
 		return nil, fmt.Errorf("FreshnessService.UpdateSettings: %w", err)
 	}
+	s.record(ctx, teamSettingsChange{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceFreshness, Action: teamSettingsActionUpdate,
+		Before: before, After: freshnessSettingsAuditValues(stored),
+	})
 	s.syncSchedule(ctx, teamID)
 	return s.view(models.FreshnessSettingsSourceTeam, values), nil
 }
@@ -315,9 +390,14 @@ func (s *FreshnessService) ResetSettings(ctx context.Context, userID, teamID str
 	if err := s.authz.Can(ctx, userID, teamID, authz.TeamSettingsUpdate); err != nil {
 		return err
 	}
+	before := s.storedSettingsAuditValues(ctx, teamID)
 	if err := s.settings.Delete(ctx, teamID); err != nil {
 		return fmt.Errorf("FreshnessService.ResetSettings: %w", err)
 	}
+	s.record(ctx, teamSettingsChange{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceFreshness, Action: teamSettingsActionReset,
+		Before: before,
+	})
 	s.syncSchedule(ctx, teamID)
 	return nil
 }

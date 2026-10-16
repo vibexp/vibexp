@@ -88,6 +88,8 @@ func (s *GitHubAppService) HandleInstallationCallback(
 		reconnected = true
 	}
 
+	s.recordConnect(ctx, userID, teamID, installationID, installationInfo.AccountLogin, reconnected)
+
 	// NOTE: Token caching removed since ghinstallation manages tokens automatically
 
 	// Emit event

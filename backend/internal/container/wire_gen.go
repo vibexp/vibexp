@@ -172,8 +172,8 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	attachmentServiceInterface := providers.ProvideAttachmentService(attachmentRepository, objectStore, logger)
 	typeRepository := providers.ProvideTypeRepository(db)
 	teamSettingsAuditServiceInterface := providers.ProvideTeamSettingsAuditService(teamSettingsAuditRepository, authorizationServiceInterface, userRepository, teamRepository, logger)
-	typeServiceInterface := providers.ProvideTypeService(typeRepository, authorizationServiceInterface, teamSettingsAuditServiceInterface, logger)
-	statusManagementServiceInterface := providers.ProvideStatusManagementService(teamStatusRepository, statusCatalogServiceInterface, authorizationServiceInterface, teamSettingsAuditServiceInterface, logger)
+	typeServiceInterface := providers.ProvideTypeService(typeRepository, authorizationServiceInterface, teamSettingsAuditServiceInterface, logger, recorder)
+	statusManagementServiceInterface := providers.ProvideStatusManagementService(teamStatusRepository, statusCatalogServiceInterface, authorizationServiceInterface, teamSettingsAuditServiceInterface, logger, recorder)
 	resourceLockEventRepository := providers.ProvideResourceLockEventRepository(db)
 	resourceLockServiceDeps := services.ResourceLockServiceDeps{
 		Prompts:    promptRepository,
@@ -199,10 +199,10 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	}
 	blueprintServiceInterface := providers.ProvideBlueprintService(blueprintServiceDeps)
 	embeddingBackfillRepository := providers.ProvideEmbeddingBackfillRepository(db)
-	embeddingProviderServiceInterface := providers.ProvideEmbeddingProviderService(embeddingProviderRepository, encryptionServiceInterface, cfg, authorizationServiceInterface, teamSettingsAuditServiceInterface, embeddingBackfillRepository)
-	modelProviderServiceInterface := providers.ProvideModelProviderService(modelProviderRepository, encryptionServiceInterface, cfg, authorizationServiceInterface, teamSettingsAuditServiceInterface)
+	embeddingProviderServiceInterface := providers.ProvideEmbeddingProviderService(embeddingProviderRepository, encryptionServiceInterface, cfg, authorizationServiceInterface, teamSettingsAuditServiceInterface, embeddingBackfillRepository, recorder)
+	modelProviderServiceInterface := providers.ProvideModelProviderService(modelProviderRepository, encryptionServiceInterface, cfg, authorizationServiceInterface, teamSettingsAuditServiceInterface, recorder)
 	gitHubAppClientResolver := providers.ProvideGitHubAppClientResolver(gitHubAppConfigRepository, encryptionServiceInterface, logger)
-	gitHubAppConfigServiceInterface := providers.ProvideGitHubAppConfigService(gitHubAppConfigRepository, encryptionServiceInterface, cfg, authorizationServiceInterface, gitHubAppClientResolver)
+	gitHubAppConfigServiceInterface := providers.ProvideGitHubAppConfigService(gitHubAppConfigRepository, encryptionServiceInterface, cfg, authorizationServiceInterface, gitHubAppClientResolver, recorder)
 	emailServiceInterface := providers.ProvideEmailService(emailSenderResolver, instanceSiteInfoService, cfg)
 	activityServiceDeps := providers.ActivityServiceDeps{
 		Repo:          activityRepository,
@@ -264,20 +264,21 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	teamAISummarySettingsRepository := providers.ProvideTeamAISummarySettingsRepository(db)
 	instanceAISummarySettingsRepository := providers.ProvideInstanceAISummarySettingsRepository(db)
 	instanceAISummarySettingsService := providers.ProvideInstanceAISummarySettingsService(instanceAISummarySettingsRepository, logger)
-	teamAISummarySettingsService := providers.ProvideTeamAISummarySettingsService(teamAISummarySettingsRepository, modelProviderRepository, authorizationServiceInterface, instanceAISummarySettingsService, logger)
+	teamAISummarySettingsService := providers.ProvideTeamAISummarySettingsService(teamAISummarySettingsRepository, modelProviderRepository, authorizationServiceInterface, instanceAISummarySettingsService, logger, recorder)
 	searchSummaryServiceInterface := providers.ProvideSearchSummaryService(searchService, llmService, teamAISummarySettingsService, instanceAISummarySettingsService, logger)
-	teamEmailProviderServiceInterface := providers.ProvideTeamEmailProviderService(teamEmailProviderRepository, instanceEmailProviderRepository, userRepository, encryptionServiceInterface, cfg, authorizationServiceInterface, logger)
-	teamSearchSettingsServiceInterface := providers.ProvideTeamSearchSettingsService(teamSearchSettingsRepository, authorizationServiceInterface, instanceSearchSettingsService, logger)
+	teamEmailProviderServiceInterface := providers.ProvideTeamEmailProviderService(teamEmailProviderRepository, instanceEmailProviderRepository, userRepository, encryptionServiceInterface, cfg, authorizationServiceInterface, logger, recorder)
+	teamSearchSettingsServiceInterface := providers.ProvideTeamSearchSettingsService(teamSearchSettingsRepository, authorizationServiceInterface, instanceSearchSettingsService, logger, recorder)
 	scheduleRepository := providers.ProvideScheduleRepository(db)
 	freshnessServiceDeps := services.FreshnessServiceDeps{
-		Rules:     freshnessRuleRepository,
-		Freshness: resourceFreshnessRepository,
-		Settings:  teamFreshnessSettingsRepository,
-		Audit:     freshnessAuditRepository,
-		Schedules: scheduleRepository,
-		Projects:  projectRepository,
-		Authz:     authorizationServiceInterface,
-		Logger:    logger,
+		Rules:         freshnessRuleRepository,
+		Freshness:     resourceFreshnessRepository,
+		Settings:      teamFreshnessSettingsRepository,
+		Audit:         freshnessAuditRepository,
+		Schedules:     scheduleRepository,
+		Projects:      projectRepository,
+		Authz:         authorizationServiceInterface,
+		Logger:        logger,
+		AuditRecorder: recorder,
 	}
 	freshnessServiceInterface := providers.ProvideFreshnessService(freshnessServiceDeps)
 	metadataCatalogRepository := providers.ProvideMetadataCatalogRepository(db)
@@ -314,6 +315,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		EventManager:     eventManager,
 		Authz:            authorizationServiceInterface,
 		Logger:           logger,
+		AuditRecorder:    recorder,
 	}
 	gitHubAppServiceInterface := providers.ProvideGitHubAppService(gitHubAppServiceDeps)
 	feedServiceInterface := providers.ProvideFeedService(feedRepository, teamServiceInterface, authorizationServiceInterface, eventManager, logger)

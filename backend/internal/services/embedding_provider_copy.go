@@ -310,6 +310,12 @@ func (eps *EmbeddingProviderService) recordCopy(
 	}); err != nil {
 		return fmt.Errorf("failed to record embedding provider copy: %w", err)
 	}
+	// The team history above is fail-closed; the instance log is best-effort.
+	change := providerCopyChange(params.TeamID, params.UserID, params.SourceTeamID,
+		teamSettingsSurfaceEmbeddingProvider, source.ID, created.ID, embeddingProviderAuditValues(created),
+		created.APIKeyEncrypted, created.Configuration)
+	change.Details["becomes_active"] = activation.BecomesActive
+	eps.record(ctx, change)
 	return nil
 }
 

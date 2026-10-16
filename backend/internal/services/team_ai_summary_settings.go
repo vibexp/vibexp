@@ -9,6 +9,7 @@ import (
 	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 // ErrInvalidAISummarySettings is returned when a submitted summary profile is
@@ -86,6 +87,16 @@ type TeamAISummarySettingsService struct {
 	authz     AuthorizationServiceInterface
 	instance  InstanceAISummarySettingsReader
 	logger    *slog.Logger
+	teamSettingsAuditor
+}
+
+// TeamAISummarySettingsServiceOption customizes a TeamAISummarySettingsService.
+type TeamAISummarySettingsServiceOption func(*TeamAISummarySettingsService)
+
+// WithTeamAISummarySettingsAuditRecorder records changes in the instance audit
+// log (#1520).
+func WithTeamAISummarySettingsAuditRecorder(recorder audit.Recorder) TeamAISummarySettingsServiceOption {
+	return func(s *TeamAISummarySettingsService) { s.recorder = recorder }
 }
 
 var (
@@ -101,14 +112,19 @@ func NewTeamAISummarySettingsService(
 	authzService AuthorizationServiceInterface,
 	instance InstanceAISummarySettingsReader,
 	logger *slog.Logger,
+	opts ...TeamAISummarySettingsServiceOption,
 ) *TeamAISummarySettingsService {
-	return &TeamAISummarySettingsService{
+	s := &TeamAISummarySettingsService{
 		repo:      repo,
 		providers: providers,
 		authz:     authzService,
 		instance:  instance,
 		logger:    logger,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // teamAISummarySettingsView assembles the response shape from the effective
@@ -274,9 +290,14 @@ func (s *TeamAISummarySettingsService) Update(
 		Style:           values.Style,
 		MaxOutputTokens: values.MaxOutputTokens,
 	}
+	before := s.storedAuditValues(ctx, teamID)
 	if err := s.repo.Upsert(ctx, stored); err != nil {
 		return nil, fmt.Errorf("TeamAISummarySettingsService.Update: %w", err)
 	}
+	s.record(ctx, teamSettingsChange{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceAISummary, Action: teamSettingsActionUpdate,
+		Before: before, After: aiSummarySettingsAuditValues(stored),
+	})
 	available, err := s.availability(ctx, teamID)
 	if err != nil {
 		return nil, fmt.Errorf("TeamAISummarySettingsService.Update: %w", err)
@@ -295,10 +316,45 @@ func (s *TeamAISummarySettingsService) Reset(ctx context.Context, userID, teamID
 	if err := s.authz.Can(ctx, userID, teamID, authz.TeamSettingsUpdate); err != nil {
 		return err
 	}
+	before := s.storedAuditValues(ctx, teamID)
 	if err := s.repo.Delete(ctx, teamID); err != nil {
 		return fmt.Errorf("TeamAISummarySettingsService.Reset: %w", err)
 	}
+	s.record(ctx, teamSettingsChange{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceAISummary, Action: teamSettingsActionReset,
+		Before: before,
+	})
 	return nil
+}
+
+// storedAuditValues reads the team's stored settings before a write, for the
+// audit event's old values. It is nil when nothing is recorded, nothing is
+// stored, or the read fails: a missing old value must not fail the write.
+func (s *TeamAISummarySettingsService) storedAuditValues(ctx context.Context, teamID string) map[string]any {
+	if !s.enabled() {
+		return nil
+	}
+	stored, err := s.repo.Get(ctx, teamID)
+	if err != nil {
+		s.logger.WarnContext(ctx, "reading team AI summary settings for the audit log", "team_id", teamID, "error", err)
+		return nil
+	}
+	if stored == nil {
+		return nil
+	}
+	return aiSummarySettingsAuditValues(stored)
+}
+
+// aiSummarySettingsAuditValues is the audited field allowlist of the AI
+// summary settings. None of it is secret.
+func aiSummarySettingsAuditValues(stored *models.TeamAISummarySettings) map[string]any {
+	return map[string]any{
+		"enabled":           stored.Enabled,
+		"model_provider_id": optionalAuditString(stored.ModelProviderID),
+		"top_n":             stored.TopN,
+		"style":             stored.Style,
+		"max_output_tokens": stored.MaxOutputTokens,
+	}
 }
 
 // requireOwnedProvider rejects a model_provider_id that is not one of teamID's
