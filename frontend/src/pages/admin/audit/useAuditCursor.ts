@@ -13,7 +13,7 @@ export interface AuditCursorState {
 }
 
 export type AuditCursorAction =
-  { type: 'next'; cursor: string } | { type: 'previous' } | { type: 'reset' }
+  { type: 'next'; cursor: string } | { type: 'previous' }
 
 export const INITIAL_CURSOR_STATE: AuditCursorState = { stack: [] }
 
