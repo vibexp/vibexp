@@ -77,6 +77,7 @@ services:
   # advertised agent-card URL the app dials; the app is allowed to reach this
   # private host because it runs in local-development mode (see #208).
   a2a-test-agent:
+    image: vibexp-e2e/a2a-test-agent:local
     build:
       context: .
       dockerfile: backend/cmd/a2a-test-agent/Dockerfile
@@ -102,6 +103,7 @@ services:
   # completion delay keeps the loading skeleton observable. Reachable from the
   # app for the same local-development reason as a2a-test-agent.
   llm-test-provider:
+    image: vibexp-e2e/llm-test-provider:local
     build:
       context: .
       dockerfile: backend/cmd/llm-test-provider/Dockerfile
@@ -137,6 +139,10 @@ services:
       retries: 20
 
   app:
+    # Fixed image names (here and on the two test services above) so CI can
+    # build every image ONCE, `docker save` them, and start any number of shard
+    # stacks from the loaded images with `up --no-build` (#1562).
+    image: vibexp-e2e/app:local
     build:
       context: .
       dockerfile: backend/Dockerfile

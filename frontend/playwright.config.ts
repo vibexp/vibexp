@@ -24,16 +24,20 @@ export default defineConfig({
   workers: process.env.CI ? 2 : 1,
 
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: process.env.CI
-    ? [
-        ['list'],
-        ['html'],
-        ['json', { outputFile: 'test-results/results.json' }],
-      ]
-    : [
-        ['html', { outputFolder: 'playwright-report' }],
-        ['json', { outputFile: 'test-results/results.json' }],
-      ],
+  /* A sharded CI run (#1562) writes a blob report per shard, which the
+   * workflow's report job merges into one HTML + JSON report. */
+  reporter: process.env.PLAYWRIGHT_BLOB_REPORT
+    ? [['list'], ['blob']]
+    : process.env.CI
+      ? [
+          ['list'],
+          ['html'],
+          ['json', { outputFile: 'test-results/results.json' }],
+        ]
+      : [
+          ['html', { outputFolder: 'playwright-report' }],
+          ['json', { outputFile: 'test-results/results.json' }],
+        ],
 
   /* Output folder for test results */
   outputDir: 'test-results',
