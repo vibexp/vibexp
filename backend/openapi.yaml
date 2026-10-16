@@ -1102,6 +1102,18 @@ components:
     AdminProjectConfig:
       $ref: "./schemas/admin.yaml#/AdminProjectConfig"
     # Admin saved filter presets (#1147)
+    AdminAuditOperation:
+      $ref: "./schemas/admin.yaml#/AdminAuditOperation"
+    AdminAuditSource:
+      $ref: "./schemas/admin.yaml#/AdminAuditSource"
+    AdminAuditOutcome:
+      $ref: "./schemas/admin.yaml#/AdminAuditOutcome"
+    AdminAuditActorType:
+      $ref: "./schemas/admin.yaml#/AdminAuditActorType"
+    AdminAuditEvent:
+      $ref: "./schemas/admin.yaml#/AdminAuditEvent"
+    AdminAuditEventPage:
+      $ref: "./schemas/admin.yaml#/AdminAuditEventPage"
     AdminSavedFilterListName:
       $ref: "./schemas/admin.yaml#/AdminSavedFilterListName"
     AdminSavedFilterQuery:
@@ -1596,6 +1608,10 @@ paths:
     $ref: "./paths/admin.yaml#/api-v1-admin-projects-id-config"
   /api/v1/admin/saved-filters/{list}:
     $ref: "./paths/admin.yaml#/api-v1-admin-saved-filters-list"
+  /api/v1/admin/audit-events:
+    $ref: "./paths/admin.yaml#/api-v1-admin-audit-events"
+  /api/v1/admin/audit-events/export:
+    $ref: "./paths/admin.yaml#/api-v1-admin-audit-events-export"
   /api/v1/admin/users/export:
     $ref: "./paths/admin.yaml#/api-v1-admin-users-export"
   /api/v1/admin/teams/export:

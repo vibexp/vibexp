@@ -522,6 +522,11 @@ func (b *BaseMockContainer) AuditPurgeService() services.AuditPurger {
 	return nil
 }
 
+// AdminAuditService returns nil; suites that exercise it install their own.
+func (b *BaseMockContainer) AdminAuditService() services.AdminAuditServiceInterface {
+	return nil
+}
+
 // InstanceSiteInfoService returns nil; suites that exercise it install their own.
 func (b *BaseMockContainer) InstanceSiteInfoService() services.InstanceSiteInfoServiceInterface {
 	return nil

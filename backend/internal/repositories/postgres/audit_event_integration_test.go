@@ -488,3 +488,41 @@ func TestIntegrationProject_GetNameByIDForAudit(t *testing.T) {
 	_, err = repo.GetNameByIDForAudit(ctx, "not-a-uuid")
 	assert.Error(t, err)
 }
+
+// Count applies exactly List's filters (the export's total must agree with what
+// it streams) and ignores the page size and cursor.
+func TestIntegrationAuditEvent_CountMatchesListFilters(t *testing.T) {
+	f := newAuditFilterFixture(t)
+	from, to := auditBase.Add(time.Hour), auditBase.Add(3*time.Hour)
+	filters := map[string]models.AuditEventFilter{
+		"no filter":   {},
+		"actor":       {ActorUserID: &f.userA},
+		"wildcard q":  {Query: strp("100% done_v2")},
+		"date range":  {From: &from, To: &to},
+		"enums":       {Outcomes: []models.AuditOutcome{models.AuditOutcomeDenied, models.AuditOutcomeFailure}},
+		"no match":    {TeamID: &f.teamA, Outcomes: []models.AuditOutcome{models.AuditOutcomeDenied}},
+		"combination": {ActorUserID: &f.userA, Sources: []models.AuditSource{models.AuditSourceWeb}},
+	}
+	for name, filter := range filters {
+		t.Run(name, func(t *testing.T) {
+			listed := listIDs(t, f.repo, models.AuditEventFilter{
+				ActorUserID: filter.ActorUserID, TeamID: filter.TeamID, Query: filter.Query,
+				From: filter.From, To: filter.To, Outcomes: filter.Outcomes, Sources: filter.Sources,
+				Limit: repositories.AuditEventListMaxLimit,
+			})
+
+			n, err := f.repo.Count(context.Background(), filter)
+
+			require.NoError(t, err)
+			assert.Equal(t, len(listed), n)
+		})
+	}
+
+	t.Run("ignores the limit and the cursor", func(t *testing.T) {
+		n, err := f.repo.Count(context.Background(), models.AuditEventFilter{
+			Limit: 1, After: &models.AuditCursor{CreatedAt: auditBase.Add(time.Hour), ID: f.byName["a-mcp-memory"]},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 7, n)
+	})
+}

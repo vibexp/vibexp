@@ -77,7 +77,7 @@ func (a *adminStrictServer) ReplaceAdminSavedFilters(
 }
 
 func unknownSavedFilterListDetail(list admingen.AdminSavedFilterListName) string {
-	return "Unknown saved-filter list \"" + string(list) + "\": must be users, teams or projects"
+	return "Unknown saved-filter list \"" + string(list) + "\": must be users, teams, projects or audit"
 }
 
 // mapSavedFiltersError turns validation failures into 400, a lost version race

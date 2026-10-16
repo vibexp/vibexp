@@ -164,6 +164,7 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(audit.DropCounter), new(*metrics.Metrics)),
 	wire.Struct(new(audit.RecorderDeps), "*"),
 	providers.ProvideAuditRecorder,
+	providers.ProvideAdminAuditService,
 	providers.ProvideEncryptionService,
 	providers.ProvideAgentService,
 	providers.ProvideAgentCardFetcher,

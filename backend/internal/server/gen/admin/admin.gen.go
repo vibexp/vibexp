@@ -44,6 +44,303 @@ func (e AdminAISummaryValuesStyle) Valid() bool {
 	}
 }
 
+// Defines values for AdminAuditActorType.
+const (
+	AdminAuditActorTypeAnonymous AdminAuditActorType = "anonymous"
+	AdminAuditActorTypeSystem    AdminAuditActorType = "system"
+	AdminAuditActorTypeUser      AdminAuditActorType = "user"
+)
+
+// Valid indicates whether the value is a known member of the AdminAuditActorType enum.
+func (e AdminAuditActorType) Valid() bool {
+	switch e {
+	case AdminAuditActorTypeAnonymous:
+		return true
+	case AdminAuditActorTypeSystem:
+		return true
+	case AdminAuditActorTypeUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAuditOperation.
+const (
+	AdminAuditOperationAdminUserCreated                   AdminAuditOperation = "admin.user.created"
+	AdminAuditOperationAdminUserDeleted                   AdminAuditOperation = "admin.user.deleted"
+	AdminAuditOperationAdminUserSuspended                 AdminAuditOperation = "admin.user.suspended"
+	AdminAuditOperationAdminUserUnsuspended               AdminAuditOperation = "admin.user.unsuspended"
+	AdminAuditOperationAdminUserUpdated                   AdminAuditOperation = "admin.user.updated"
+	AdminAuditOperationArtifactCreate                     AdminAuditOperation = "artifact.create"
+	AdminAuditOperationArtifactDelete                     AdminAuditOperation = "artifact.delete"
+	AdminAuditOperationArtifactLock                       AdminAuditOperation = "artifact.lock"
+	AdminAuditOperationArtifactMove                       AdminAuditOperation = "artifact.move"
+	AdminAuditOperationArtifactUnlock                     AdminAuditOperation = "artifact.unlock"
+	AdminAuditOperationArtifactUpdate                     AdminAuditOperation = "artifact.update"
+	AdminAuditOperationAuditExport                        AdminAuditOperation = "audit.export"
+	AdminAuditOperationAuditSettingsUpdated               AdminAuditOperation = "audit.settings.updated"
+	AdminAuditOperationAuthAPIAccessRevoked               AdminAuditOperation = "auth.api_access.revoked"
+	AdminAuditOperationAuthAPIKeyCreated                  AdminAuditOperation = "auth.api_key.created"
+	AdminAuditOperationAuthAPIKeyRevoked                  AdminAuditOperation = "auth.api_key.revoked"
+	AdminAuditOperationAuthIdentityLinked                 AdminAuditOperation = "auth.identity.linked"
+	AdminAuditOperationAuthIdentityUnlinked               AdminAuditOperation = "auth.identity.unlinked"
+	AdminAuditOperationAuthLocalCredentialChanged         AdminAuditOperation = "auth.password.changed"
+	AdminAuditOperationAuthLocalCredentialRemoved         AdminAuditOperation = "auth.password.removed"
+	AdminAuditOperationAuthLocalCredentialResetLinkIssued AdminAuditOperation = "auth.password.reset_link_issued"
+	AdminAuditOperationAuthLocalCredentialResetRequested  AdminAuditOperation = "auth.password.reset_requested"
+	AdminAuditOperationAuthLocalCredentialSet             AdminAuditOperation = "auth.password.set"
+	AdminAuditOperationAuthLogin                          AdminAuditOperation = "auth.login"
+	AdminAuditOperationAuthLoginFailed                    AdminAuditOperation = "auth.login_failed"
+	AdminAuditOperationAuthLogout                         AdminAuditOperation = "auth.logout"
+	AdminAuditOperationAuthMCPClientRegistered            AdminAuditOperation = "auth.mcp_client.registered"
+	AdminAuditOperationAuthMCPConsentDenied               AdminAuditOperation = "auth.mcp_consent.denied"
+	AdminAuditOperationAuthMCPConsentGranted              AdminAuditOperation = "auth.mcp_consent.granted"
+	AdminAuditOperationAuthMCPGrantRevoked                AdminAuditOperation = "auth.mcp_grant.revoked"
+	AdminAuditOperationAuthSessionsRevoked                AdminAuditOperation = "auth.sessions.revoked"
+	AdminAuditOperationAuthSetupSessionStarted            AdminAuditOperation = "auth.setup_session.started"
+	AdminAuditOperationAuthzDenied                        AdminAuditOperation = "authz.denied"
+	AdminAuditOperationBlueprintCreate                    AdminAuditOperation = "blueprint.create"
+	AdminAuditOperationBlueprintDelete                    AdminAuditOperation = "blueprint.delete"
+	AdminAuditOperationBlueprintLock                      AdminAuditOperation = "blueprint.lock"
+	AdminAuditOperationBlueprintMove                      AdminAuditOperation = "blueprint.move"
+	AdminAuditOperationBlueprintUnlock                    AdminAuditOperation = "blueprint.unlock"
+	AdminAuditOperationBlueprintUpdate                    AdminAuditOperation = "blueprint.update"
+	AdminAuditOperationFeedCreate                         AdminAuditOperation = "feed.create"
+	AdminAuditOperationFeedDelete                         AdminAuditOperation = "feed.delete"
+	AdminAuditOperationFeedItemArchive                    AdminAuditOperation = "feed_item.archive"
+	AdminAuditOperationFeedItemCreate                     AdminAuditOperation = "feed_item.create"
+	AdminAuditOperationFeedItemDelete                     AdminAuditOperation = "feed_item.delete"
+	AdminAuditOperationFeedItemUnarchive                  AdminAuditOperation = "feed_item.unarchive"
+	AdminAuditOperationFeedUpdate                         AdminAuditOperation = "feed.update"
+	AdminAuditOperationInstanceSettingsUpdated            AdminAuditOperation = "instance.settings.updated"
+	AdminAuditOperationMemoryCreate                       AdminAuditOperation = "memory.create"
+	AdminAuditOperationMemoryDelete                       AdminAuditOperation = "memory.delete"
+	AdminAuditOperationMemoryMove                         AdminAuditOperation = "memory.move"
+	AdminAuditOperationMemoryUpdate                       AdminAuditOperation = "memory.update"
+	AdminAuditOperationProjectCreate                      AdminAuditOperation = "project.create"
+	AdminAuditOperationProjectDelete                      AdminAuditOperation = "project.delete"
+	AdminAuditOperationProjectMigrated                    AdminAuditOperation = "project.migrated"
+	AdminAuditOperationProjectUpdate                      AdminAuditOperation = "project.update"
+	AdminAuditOperationPromptCreate                       AdminAuditOperation = "prompt.create"
+	AdminAuditOperationPromptDelete                       AdminAuditOperation = "prompt.delete"
+	AdminAuditOperationPromptLock                         AdminAuditOperation = "prompt.lock"
+	AdminAuditOperationPromptMove                         AdminAuditOperation = "prompt.move"
+	AdminAuditOperationPromptUnlock                       AdminAuditOperation = "prompt.unlock"
+	AdminAuditOperationPromptUpdate                       AdminAuditOperation = "prompt.update"
+	AdminAuditOperationTeamCreated                        AdminAuditOperation = "team.created"
+	AdminAuditOperationTeamDeleted                        AdminAuditOperation = "team.deleted"
+	AdminAuditOperationTeamInviteAccepted                 AdminAuditOperation = "team.invite.accepted"
+	AdminAuditOperationTeamInviteRejected                 AdminAuditOperation = "team.invite.rejected"
+	AdminAuditOperationTeamInviteRevoked                  AdminAuditOperation = "team.invite.revoked"
+	AdminAuditOperationTeamInviteSent                     AdminAuditOperation = "team.invite.sent"
+	AdminAuditOperationTeamMemberAdded                    AdminAuditOperation = "team.member.added"
+	AdminAuditOperationTeamMemberRemoved                  AdminAuditOperation = "team.member.removed"
+	AdminAuditOperationTeamMemberRoleChanged              AdminAuditOperation = "team.member.role_changed"
+	AdminAuditOperationTeamOwnershipTransferred           AdminAuditOperation = "team.ownership.transferred"
+	AdminAuditOperationTeamUpdated                        AdminAuditOperation = "team.updated"
+)
+
+// Valid indicates whether the value is a known member of the AdminAuditOperation enum.
+func (e AdminAuditOperation) Valid() bool {
+	switch e {
+	case AdminAuditOperationAdminUserCreated:
+		return true
+	case AdminAuditOperationAdminUserDeleted:
+		return true
+	case AdminAuditOperationAdminUserSuspended:
+		return true
+	case AdminAuditOperationAdminUserUnsuspended:
+		return true
+	case AdminAuditOperationAdminUserUpdated:
+		return true
+	case AdminAuditOperationArtifactCreate:
+		return true
+	case AdminAuditOperationArtifactDelete:
+		return true
+	case AdminAuditOperationArtifactLock:
+		return true
+	case AdminAuditOperationArtifactMove:
+		return true
+	case AdminAuditOperationArtifactUnlock:
+		return true
+	case AdminAuditOperationArtifactUpdate:
+		return true
+	case AdminAuditOperationAuditExport:
+		return true
+	case AdminAuditOperationAuditSettingsUpdated:
+		return true
+	case AdminAuditOperationAuthAPIAccessRevoked:
+		return true
+	case AdminAuditOperationAuthAPIKeyCreated:
+		return true
+	case AdminAuditOperationAuthAPIKeyRevoked:
+		return true
+	case AdminAuditOperationAuthIdentityLinked:
+		return true
+	case AdminAuditOperationAuthIdentityUnlinked:
+		return true
+	case AdminAuditOperationAuthLocalCredentialChanged:
+		return true
+	case AdminAuditOperationAuthLocalCredentialRemoved:
+		return true
+	case AdminAuditOperationAuthLocalCredentialResetLinkIssued:
+		return true
+	case AdminAuditOperationAuthLocalCredentialResetRequested:
+		return true
+	case AdminAuditOperationAuthLocalCredentialSet:
+		return true
+	case AdminAuditOperationAuthLogin:
+		return true
+	case AdminAuditOperationAuthLoginFailed:
+		return true
+	case AdminAuditOperationAuthLogout:
+		return true
+	case AdminAuditOperationAuthMCPClientRegistered:
+		return true
+	case AdminAuditOperationAuthMCPConsentDenied:
+		return true
+	case AdminAuditOperationAuthMCPConsentGranted:
+		return true
+	case AdminAuditOperationAuthMCPGrantRevoked:
+		return true
+	case AdminAuditOperationAuthSessionsRevoked:
+		return true
+	case AdminAuditOperationAuthSetupSessionStarted:
+		return true
+	case AdminAuditOperationAuthzDenied:
+		return true
+	case AdminAuditOperationBlueprintCreate:
+		return true
+	case AdminAuditOperationBlueprintDelete:
+		return true
+	case AdminAuditOperationBlueprintLock:
+		return true
+	case AdminAuditOperationBlueprintMove:
+		return true
+	case AdminAuditOperationBlueprintUnlock:
+		return true
+	case AdminAuditOperationBlueprintUpdate:
+		return true
+	case AdminAuditOperationFeedCreate:
+		return true
+	case AdminAuditOperationFeedDelete:
+		return true
+	case AdminAuditOperationFeedItemArchive:
+		return true
+	case AdminAuditOperationFeedItemCreate:
+		return true
+	case AdminAuditOperationFeedItemDelete:
+		return true
+	case AdminAuditOperationFeedItemUnarchive:
+		return true
+	case AdminAuditOperationFeedUpdate:
+		return true
+	case AdminAuditOperationInstanceSettingsUpdated:
+		return true
+	case AdminAuditOperationMemoryCreate:
+		return true
+	case AdminAuditOperationMemoryDelete:
+		return true
+	case AdminAuditOperationMemoryMove:
+		return true
+	case AdminAuditOperationMemoryUpdate:
+		return true
+	case AdminAuditOperationProjectCreate:
+		return true
+	case AdminAuditOperationProjectDelete:
+		return true
+	case AdminAuditOperationProjectMigrated:
+		return true
+	case AdminAuditOperationProjectUpdate:
+		return true
+	case AdminAuditOperationPromptCreate:
+		return true
+	case AdminAuditOperationPromptDelete:
+		return true
+	case AdminAuditOperationPromptLock:
+		return true
+	case AdminAuditOperationPromptMove:
+		return true
+	case AdminAuditOperationPromptUnlock:
+		return true
+	case AdminAuditOperationPromptUpdate:
+		return true
+	case AdminAuditOperationTeamCreated:
+		return true
+	case AdminAuditOperationTeamDeleted:
+		return true
+	case AdminAuditOperationTeamInviteAccepted:
+		return true
+	case AdminAuditOperationTeamInviteRejected:
+		return true
+	case AdminAuditOperationTeamInviteRevoked:
+		return true
+	case AdminAuditOperationTeamInviteSent:
+		return true
+	case AdminAuditOperationTeamMemberAdded:
+		return true
+	case AdminAuditOperationTeamMemberRemoved:
+		return true
+	case AdminAuditOperationTeamMemberRoleChanged:
+		return true
+	case AdminAuditOperationTeamOwnershipTransferred:
+		return true
+	case AdminAuditOperationTeamUpdated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAuditOutcome.
+const (
+	AdminAuditOutcomeDenied  AdminAuditOutcome = "denied"
+	AdminAuditOutcomeFailure AdminAuditOutcome = "failure"
+	AdminAuditOutcomeSuccess AdminAuditOutcome = "success"
+)
+
+// Valid indicates whether the value is a known member of the AdminAuditOutcome enum.
+func (e AdminAuditOutcome) Valid() bool {
+	switch e {
+	case AdminAuditOutcomeDenied:
+		return true
+	case AdminAuditOutcomeFailure:
+		return true
+	case AdminAuditOutcomeSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAuditSource.
+const (
+	AdminAuditSourceApi    AdminAuditSource = "api"
+	AdminAuditSourceCli    AdminAuditSource = "cli"
+	AdminAuditSourceMcp    AdminAuditSource = "mcp"
+	AdminAuditSourceSystem AdminAuditSource = "system"
+	AdminAuditSourceWeb    AdminAuditSource = "web"
+)
+
+// Valid indicates whether the value is a known member of the AdminAuditSource enum.
+func (e AdminAuditSource) Valid() bool {
+	switch e {
+	case AdminAuditSourceApi:
+		return true
+	case AdminAuditSourceCli:
+		return true
+	case AdminAuditSourceMcp:
+		return true
+	case AdminAuditSourceSystem:
+		return true
+	case AdminAuditSourceWeb:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminAuthProviderHealthStatus.
 const (
 	AdminAuthProviderHealthStatusDisabled  AdminAuthProviderHealthStatus = "disabled"
@@ -331,6 +628,7 @@ func (e AdminProjectResourceCreationMetricsGranularity) Valid() bool {
 
 // Defines values for AdminSavedFilterListName.
 const (
+	Audit    AdminSavedFilterListName = "audit"
 	Projects AdminSavedFilterListName = "projects"
 	Teams    AdminSavedFilterListName = "teams"
 	Users    AdminSavedFilterListName = "users"
@@ -339,6 +637,8 @@ const (
 // Valid indicates whether the value is a known member of the AdminSavedFilterListName enum.
 func (e AdminSavedFilterListName) Valid() bool {
 	switch e {
+	case Audit:
+		return true
 	case Projects:
 		return true
 	case Teams:
@@ -1384,6 +1684,95 @@ type AdminArtifactType struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// AdminAuditActorType Who performed the operation: a signed-in `user` (including an AI tool acting
+// for them), the server itself (`system`), or an unauthenticated request
+// (`anonymous`).
+type AdminAuditActorType string
+
+// AdminAuditEvent One entry of the instance audit log. Ids are kept as recorded and carry no
+// reference guarantee; the names are snapshots taken when the event was
+// recorded, so an entry stays readable after what it names is deleted.
+type AdminAuditEvent struct {
+	// ActorEmail The actor's email at the time, or the attempted address of a failed
+	// sign-in. Empty for a system actor.
+	ActorEmail string `json:"actor_email"`
+
+	// ActorName The actor's display name at the time; may be empty.
+	ActorName string `json:"actor_name"`
+
+	// ActorType Who performed the operation: a signed-in `user` (including an AI tool acting
+	// for them), the server itself (`system`), or an unauthenticated request
+	// (`anonymous`).
+	ActorType AdminAuditActorType `json:"actor_type"`
+
+	// ActorUserId The acting user; null for a system or anonymous actor.
+	ActorUserId *string `json:"actor_user_id"`
+
+	// ApiKeyId The API key the request authenticated with, if any.
+	ApiKeyId *string `json:"api_key_id"`
+
+	// ApiKeyName That API key's name at the time.
+	ApiKeyName *string `json:"api_key_name"`
+
+	// AssistantName The AI assistant that made the request, when known.
+	AssistantName *string            `json:"assistant_name"`
+	CreatedAt     time.Time          `json:"created_at"`
+	Id            openapi_types.UUID `json:"id"`
+
+	// Ip The client IP address; null when the instance does not capture client info.
+	Ip *string `json:"ip"`
+
+	// Metadata Operation-specific details (e.g. the changed fields); `{}` when there are none.
+	Metadata map[string]interface{} `json:"metadata"`
+
+	// Operation An audited operation, as a dotted `<domain>.<verb>`. The set is closed and
+	// equals the server's operation vocabulary.
+	Operation AdminAuditOperation `json:"operation"`
+
+	// Outcome How an audited operation ended: `denied` is an authorization denial, `failure`
+	// any other failed attempt (e.g. a wrong password).
+	Outcome AdminAuditOutcome `json:"outcome"`
+
+	// ProjectId The project the operation concerned, if any.
+	ProjectId *string `json:"project_id"`
+
+	// ProjectName The project name at the time.
+	ProjectName *string `json:"project_name"`
+
+	// RequestId The request id, for correlating with server logs.
+	RequestId *string `json:"request_id"`
+
+	// ResourceId The resource acted on, if any.
+	ResourceId *string `json:"resource_id"`
+
+	// ResourceName The resource name at the time.
+	ResourceName *string `json:"resource_name"`
+
+	// ResourceType The kind of resource acted on (e.g. `prompt`), if any.
+	ResourceType *string `json:"resource_type"`
+
+	// Source The channel an audited operation arrived through.
+	Source AdminAuditSource `json:"source"`
+
+	// TeamId The team the operation concerned, if any.
+	TeamId *string `json:"team_id"`
+
+	// TeamName The team name at the time.
+	TeamName *string `json:"team_name"`
+
+	// UserAgent The client user agent; null when the instance does not capture client info.
+	UserAgent *string `json:"user_agent"`
+}
+
+// AdminAuditEventPage One page of the audit log, newest first.
+type AdminAuditEventPage struct {
+	// Items The events on this page, newest first. `[]` when there are none.
+	Items []AdminAuditEvent `json:"items"`
+
+	// NextCursor Pass as `cursor` to get the next page; null on the last page.
+	NextCursor *string `json:"next_cursor"`
+}
+
 // AdminAuditLogSettings The instance audit-log settings in effect, where they come from, the
 // built-in defaults, the bounds and the stored row's metadata. With nothing
 // stored the built-in defaults apply, `source` is `default` and the metadata
@@ -1457,6 +1846,17 @@ type AdminAuditLogSettingsValues struct {
 	// older than that.
 	RetentionWeeks int `json:"retention_weeks"`
 }
+
+// AdminAuditOperation An audited operation, as a dotted `<domain>.<verb>`. The set is closed and
+// equals the server's operation vocabulary.
+type AdminAuditOperation string
+
+// AdminAuditOutcome How an audited operation ended: `denied` is an authorization denial, `failure`
+// any other failed attempt (e.g. a wrong password).
+type AdminAuditOutcome string
+
+// AdminAuditSource The channel an audited operation arrived through.
+type AdminAuditSource string
 
 // AdminAuthAllowlist The instance's sign-in access allowlist. A user may sign in when their
 // email's domain is in `domains` or the address is in `emails`. With both
@@ -3947,6 +4347,80 @@ type bearerAuthContextKey string
 // cookieAuthContextKey is the context key for CookieAuth security scheme
 type cookieAuthContextKey string
 
+// ListAdminAuditEventsParams defines parameters for ListAdminAuditEvents.
+type ListAdminAuditEventsParams struct {
+	// Limit Page size.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque cursor from a previous page's `next_cursor`.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// ActorUserId Only events by this user.
+	ActorUserId *openapi_types.UUID `form:"actor_user_id,omitempty" json:"actor_user_id,omitempty"`
+
+	// TeamId Only events concerning this team.
+	TeamId *openapi_types.UUID `form:"team_id,omitempty" json:"team_id,omitempty"`
+
+	// ProjectId Only events concerning this project.
+	ProjectId *openapi_types.UUID `form:"project_id,omitempty" json:"project_id,omitempty"`
+
+	// Operation Only these operations; repeat the parameter for several.
+	Operation *[]AdminAuditOperation `form:"operation,omitempty" json:"operation,omitempty"`
+
+	// ResourceType Only events on this kind of resource (e.g. `prompt`).
+	ResourceType *string `form:"resource_type,omitempty" json:"resource_type,omitempty"`
+
+	// From Only events at or after this instant (inclusive).
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Only events before this instant (exclusive).
+	To *time.Time `form:"to,omitempty" json:"to,omitempty"`
+
+	// Source Only these sources; repeat the parameter for several.
+	Source *[]AdminAuditSource `form:"source,omitempty" json:"source,omitempty"`
+
+	// Outcome Only these outcomes; repeat the parameter for several.
+	Outcome *[]AdminAuditOutcome `form:"outcome,omitempty" json:"outcome,omitempty"`
+
+	// Q Case-insensitive substring of the resource name, the actor email or the
+	// IP address. `%` and `_` match literally.
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+}
+
+// ExportAdminAuditEventsParams defines parameters for ExportAdminAuditEvents.
+type ExportAdminAuditEventsParams struct {
+	// ActorUserId Only events by this user.
+	ActorUserId *openapi_types.UUID `form:"actor_user_id,omitempty" json:"actor_user_id,omitempty"`
+
+	// TeamId Only events concerning this team.
+	TeamId *openapi_types.UUID `form:"team_id,omitempty" json:"team_id,omitempty"`
+
+	// ProjectId Only events concerning this project.
+	ProjectId *openapi_types.UUID `form:"project_id,omitempty" json:"project_id,omitempty"`
+
+	// Operation Only these operations; repeat the parameter for several.
+	Operation *[]AdminAuditOperation `form:"operation,omitempty" json:"operation,omitempty"`
+
+	// ResourceType Only events on this kind of resource (e.g. `prompt`).
+	ResourceType *string `form:"resource_type,omitempty" json:"resource_type,omitempty"`
+
+	// From Only events at or after this instant (inclusive).
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Only events before this instant (exclusive).
+	To *time.Time `form:"to,omitempty" json:"to,omitempty"`
+
+	// Source Only these sources; repeat the parameter for several.
+	Source *[]AdminAuditSource `form:"source,omitempty" json:"source,omitempty"`
+
+	// Outcome Only these outcomes; repeat the parameter for several.
+	Outcome *[]AdminAuditOutcome `form:"outcome,omitempty" json:"outcome,omitempty"`
+
+	// Q Case-insensitive substring of the resource name, the actor email or the
+	// IP address. `%` and `_` match literally.
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+}
+
 // GetAdminDashboardTimeseriesParams defines parameters for GetAdminDashboardTimeseries.
 type GetAdminDashboardTimeseriesParams struct {
 	// From Inclusive start of the range. Defaults to 30 days before `to`.
@@ -4877,6 +5351,12 @@ type IssueAdminUserSetupLinkJSONRequestBody = AdminUserSetupLinkRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// List the instance audit log
+	// (GET /api/v1/admin/audit-events)
+	ListAdminAuditEvents(w http.ResponseWriter, r *http.Request, params ListAdminAuditEventsParams)
+	// Export the instance audit log as CSV
+	// (GET /api/v1/admin/audit-events/export)
+	ExportAdminAuditEvents(w http.ResponseWriter, r *http.Request, params ExportAdminAuditEventsParams)
 	// Get admin dashboard overview
 	// (GET /api/v1/admin/dashboard/overview)
 	GetAdminDashboardOverview(w http.ResponseWriter, r *http.Request)
@@ -5116,6 +5596,18 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// List the instance audit log
+// (GET /api/v1/admin/audit-events)
+func (_ Unimplemented) ListAdminAuditEvents(w http.ResponseWriter, r *http.Request, params ListAdminAuditEventsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Export the instance audit log as CSV
+// (GET /api/v1/admin/audit-events/export)
+func (_ Unimplemented) ExportAdminAuditEvents(w http.ResponseWriter, r *http.Request, params ExportAdminAuditEventsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // Get admin dashboard overview
 // (GET /api/v1/admin/dashboard/overview)
@@ -5593,6 +6085,348 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ListAdminAuditEvents operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminAuditEvents(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminAuditEventsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "actor_user_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "actor_user_id", r.URL.Query(), &params.ActorUserId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "actor_user_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "actor_user_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "team_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "team_id", r.URL.Query(), &params.TeamId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "team_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "project_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "project_id", r.URL.Query(), &params.ProjectId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "project_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "project_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "operation" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "operation", r.URL.Query(), &params.Operation, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "operation"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "operation", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "resource_type" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "resource_type", r.URL.Query(), &params.ResourceType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "resource_type"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "resource_type", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "source" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "source", r.URL.Query(), &params.Source, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "source"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "source", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "outcome" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "outcome", r.URL.Query(), &params.Outcome, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "outcome"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "outcome", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", r.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "q"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminAuditEvents(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ExportAdminAuditEvents operation middleware
+func (siw *ServerInterfaceWrapper) ExportAdminAuditEvents(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ExportAdminAuditEventsParams
+
+	// ------------- Optional query parameter "actor_user_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "actor_user_id", r.URL.Query(), &params.ActorUserId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "actor_user_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "actor_user_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "team_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "team_id", r.URL.Query(), &params.TeamId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "team_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "project_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "project_id", r.URL.Query(), &params.ProjectId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "project_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "project_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "operation" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "operation", r.URL.Query(), &params.Operation, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "operation"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "operation", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "resource_type" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "resource_type", r.URL.Query(), &params.ResourceType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "resource_type"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "resource_type", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "source" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "source", r.URL.Query(), &params.Source, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "source"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "source", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "outcome" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "outcome", r.URL.Query(), &params.Outcome, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "outcome"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "outcome", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", r.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "q"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ExportAdminAuditEvents(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetAdminDashboardOverview operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminDashboardOverview(w http.ResponseWriter, r *http.Request) {
@@ -11071,6 +11905,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/audit-events", wrapper.ListAdminAuditEvents)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/audit-events/export", wrapper.ExportAdminAuditEvents)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/dashboard/overview", wrapper.GetAdminDashboardOverview)
 	})
 	r.Group(func(r chi.Router) {
@@ -11306,6 +12146,150 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 
 	return r
+}
+
+type ListAdminAuditEventsRequestObject struct {
+	Params ListAdminAuditEventsParams
+}
+
+type ListAdminAuditEventsResponseObject interface {
+	VisitListAdminAuditEventsResponse(w http.ResponseWriter) error
+}
+
+type ListAdminAuditEvents200JSONResponse AdminAuditEventPage
+
+func (response ListAdminAuditEvents200JSONResponse) VisitListAdminAuditEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAuditEvents400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminAuditEvents400ApplicationProblemPlusJSONResponse) VisitListAdminAuditEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAuditEvents404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminAuditEvents404ApplicationProblemPlusJSONResponse) VisitListAdminAuditEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAuditEvents500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminAuditEvents500ApplicationProblemPlusJSONResponse) VisitListAdminAuditEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExportAdminAuditEventsRequestObject struct {
+	Params ExportAdminAuditEventsParams
+}
+
+type ExportAdminAuditEventsResponseObject interface {
+	VisitExportAdminAuditEventsResponse(w http.ResponseWriter) error
+}
+
+type ExportAdminAuditEvents200ResponseHeaders struct {
+	ContentDisposition string
+	XExportTotalCount  int64
+	XExportTruncated   bool
+}
+
+type ExportAdminAuditEvents200TextcsvResponse struct {
+	Body          io.Reader
+	Headers       ExportAdminAuditEvents200ResponseHeaders
+	ContentLength int64
+}
+
+func (response ExportAdminAuditEvents200TextcsvResponse) VisitExportAdminAuditEventsResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/csv")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprint(response.Headers.ContentDisposition))
+	w.Header().Set("X-Export-Total-Count", fmt.Sprint(response.Headers.XExportTotalCount))
+	w.Header().Set("X-Export-Truncated", fmt.Sprint(response.Headers.XExportTruncated))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type ExportAdminAuditEvents400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ExportAdminAuditEvents400ApplicationProblemPlusJSONResponse) VisitExportAdminAuditEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExportAdminAuditEvents404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ExportAdminAuditEvents404ApplicationProblemPlusJSONResponse) VisitExportAdminAuditEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExportAdminAuditEvents500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ExportAdminAuditEvents500ApplicationProblemPlusJSONResponse) VisitExportAdminAuditEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetAdminDashboardOverviewRequestObject struct {
@@ -16338,6 +17322,12 @@ func (response GetAdminUserTopAccessedResources500ApplicationProblemPlusJSONResp
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// List the instance audit log
+	// (GET /api/v1/admin/audit-events)
+	ListAdminAuditEvents(ctx context.Context, request ListAdminAuditEventsRequestObject) (ListAdminAuditEventsResponseObject, error)
+	// Export the instance audit log as CSV
+	// (GET /api/v1/admin/audit-events/export)
+	ExportAdminAuditEvents(ctx context.Context, request ExportAdminAuditEventsRequestObject) (ExportAdminAuditEventsResponseObject, error)
 	// Get admin dashboard overview
 	// (GET /api/v1/admin/dashboard/overview)
 	GetAdminDashboardOverview(ctx context.Context, request GetAdminDashboardOverviewRequestObject) (GetAdminDashboardOverviewResponseObject, error)
@@ -16601,6 +17591,58 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// ListAdminAuditEvents operation middleware
+func (sh *strictHandler) ListAdminAuditEvents(w http.ResponseWriter, r *http.Request, params ListAdminAuditEventsParams) {
+	var request ListAdminAuditEventsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdminAuditEvents(ctx, request.(ListAdminAuditEventsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdminAuditEvents")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAdminAuditEventsResponseObject); ok {
+		if err := validResponse.VisitListAdminAuditEventsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ExportAdminAuditEvents operation middleware
+func (sh *strictHandler) ExportAdminAuditEvents(w http.ResponseWriter, r *http.Request, params ExportAdminAuditEventsParams) {
+	var request ExportAdminAuditEventsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ExportAdminAuditEvents(ctx, request.(ExportAdminAuditEventsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ExportAdminAuditEvents")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ExportAdminAuditEventsResponseObject); ok {
+		if err := validResponse.VisitExportAdminAuditEventsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetAdminDashboardOverview operation middleware

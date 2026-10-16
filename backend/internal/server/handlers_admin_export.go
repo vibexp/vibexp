@@ -11,9 +11,11 @@ import (
 	"time"
 
 	apierrors "github.com/vibexp/vibexp/internal/errors"
+	"github.com/vibexp/vibexp/internal/models"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 // Admin CSV exports (#1149). Each export binds its params onto the SAME
@@ -89,7 +91,7 @@ func adminExportFilename(list string, now time.Time) string {
 
 // adminExportRequest is what an export handler hands to startAdminExport.
 type adminExportRequest struct {
-	list         string // users | teams | projects
+	list         string // users | teams | projects | audit
 	activityType string
 	params       any
 	sortBy       string
@@ -138,7 +140,9 @@ func (a *adminStrictServer) startAdminExport(
 		}
 	}()
 	return &adminExportBody{PipeReader: pr, onEOF: func() {
-		a.recordExportActivity(context.WithoutCancel(ctx), req, exp, rows)
+		done := context.WithoutCancel(ctx)
+		a.recordExportActivity(done, req, exp, rows)
+		a.recordExportAuditEvent(done, req, exp, rows)
 	}}
 }
 
@@ -182,6 +186,29 @@ func (a *adminStrictServer) recordExportActivity(
 			"service", serverLogServiceName, "activity_type", req.activityType, "error", err,
 		).Error("Failed to record admin export activity")
 	}
+}
+
+// recordExportAuditEvent records the completed export in the instance audit log
+// (audit.export, #1516): exports of every admin list hand personal data out of
+// the instance, so each one is audited, whatever the list. Record never fails
+// or blocks.
+func (a *adminStrictServer) recordExportAuditEvent(
+	ctx context.Context, req adminExportRequest, exp services.AdminExport, rows int,
+) {
+	recorder := a.s.container.AuditRecorder()
+	if recorder == nil {
+		return
+	}
+	recorder.Record(ctx, audit.Event{
+		Operation: models.AuditOpAuditExport,
+		Metadata: map[string]any{
+			"list":        req.list,
+			"filters":     adminExportFilterSummary(req.params),
+			"row_count":   rows,
+			"total_count": exp.TotalCount,
+			"truncated":   exp.Truncated,
+		},
+	})
 }
 
 // logExportFailure reports a failure to prepare an export as a 500.
