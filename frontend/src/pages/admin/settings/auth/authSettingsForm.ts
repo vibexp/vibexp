@@ -360,6 +360,16 @@ export function lockoutRiskAccountCount(err: unknown): number | null {
 }
 
 /**
+ * The `password_only_accounts` title: singular for one account, "Some" when
+ * the count is unknown, the number otherwise.
+ */
+function passwordOnlyAccountsTitle(accounts: number | null): string {
+  if (accounts === 1) return '1 account can only sign in with a password'
+  if (accounts === null) return 'Some accounts can only sign in with a password'
+  return `${String(accounts)} accounts can only sign in with a password`
+}
+
+/**
  * What the lockout confirmation says for `reason`. `accounts` is the count a
  * `password_only_accounts` risk carries.
  */
@@ -385,10 +395,7 @@ export function lockoutRiskCopy(
       }
     case 'password_only_accounts':
       return {
-        title:
-          accounts === 1
-            ? '1 account can only sign in with a password'
-            : `${accounts === null ? 'Some' : String(accounts)} accounts can only sign in with a password`,
+        title: passwordOnlyAccountsTitle(accounts),
         description:
           'They have no sign-in provider connected, so after this change they cannot sign in. Their passwords are kept and work again if you switch password sign-in back on.',
       }
