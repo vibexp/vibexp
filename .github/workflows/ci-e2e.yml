@@ -58,8 +58,12 @@ jobs:
         with:
           ref: ${{ inputs.branch }}
 
+      # cleanup: false skips removing the builder at job end (~25s on the
+      # critical path), which buys nothing on a throwaway hosted runner.
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          cleanup: false
 
       # The app's Go module and build caches are BuildKit cache mounts
       # (backend/Dockerfile), which the GHA layer cache does not carry. Restore
