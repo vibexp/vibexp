@@ -9,8 +9,8 @@ name: CI / E2E
 # against any branch.
 #
 # Build once, test in parallel (#1562):
-#   build  - builds the three stack images ONCE (buildx, GHA layer cache) and
-#            hands them to the test jobs as an artifact.
+#   build  - builds the three stack images ONCE, in parallel (buildx, GHA layer
+#            cache), and hands them to the test jobs as artifacts.
 #   test   - one job per lane, each loading those images and starting its OWN
 #            stack (`make e2e E2E_UP_FLAGS=--no-build`), so lanes share no state:
 #            - shard i/N: the chromium, smoke, journeys and features projects,
@@ -35,14 +35,22 @@ on:
 permissions:
   contents: read
 
-env:
-  E2E_IMAGES: vibexp-e2e/app:local vibexp-e2e/a2a-test-agent:local vibexp-e2e/llm-test-provider:local
-
 jobs:
   build:
-    name: Build e2e images (${{ inputs.branch }})
+    name: Build e2e image ${{ matrix.image }} (${{ inputs.branch }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # One job per image, so the three build in parallel and the slowest (app)
+    # alone sets the critical path.
+    strategy:
+      matrix:
+        include:
+          - image: app
+            dockerfile: backend/Dockerfile
+          - image: a2a-test-agent
+            dockerfile: backend/cmd/a2a-test-agent/Dockerfile
+          - image: llm-test-provider
+            dockerfile: backend/cmd/llm-test-provider/Dockerfile
 
     steps:
       - name: Checkout ${{ inputs.branch }}
@@ -53,53 +61,26 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      # One step per image, each with its own GHA cache scope so the three never
-      # evict each other's layers. Tags match the `image:` names in
-      # docker-compose.e2e.yml, which is what lets the test jobs `up --no-build`.
-      - name: Build app image
+      # Each image has its own GHA cache scope so they never evict each other's
+      # layers. The tag matches the `image:` name in docker-compose.e2e.yml,
+      # which is what lets the test jobs `up --no-build`. The image is written
+      # straight to a tarball: nothing needs it in this job's Docker daemon.
+      - name: Build ${{ matrix.image }} image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
-          file: backend/Dockerfile
-          tags: vibexp-e2e/app:local
-          load: true
-          cache-from: type=gha,scope=e2e-app
-          cache-to: type=gha,scope=e2e-app,mode=max
+          file: ${{ matrix.dockerfile }}
+          tags: vibexp-e2e/${{ matrix.image }}:local
+          outputs: type=docker,dest=${{ runner.temp }}/e2e-image-${{ matrix.image }}.tar
+          cache-from: type=gha,scope=e2e-${{ matrix.image }}
+          cache-to: type=gha,scope=e2e-${{ matrix.image }},mode=max
 
-      - name: Build a2a-test-agent image
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          file: backend/cmd/a2a-test-agent/Dockerfile
-          tags: vibexp-e2e/a2a-test-agent:local
-          load: true
-          cache-from: type=gha,scope=e2e-a2a-test-agent
-          cache-to: type=gha,scope=e2e-a2a-test-agent,mode=max
-
-      - name: Build llm-test-provider image
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          file: backend/cmd/llm-test-provider/Dockerfile
-          tags: vibexp-e2e/llm-test-provider:local
-          load: true
-          cache-from: type=gha,scope=e2e-llm-test-provider
-          cache-to: type=gha,scope=e2e-llm-test-provider,mode=max
-
-      - name: Save images
-        run: |
-          # E2E_IMAGES is a space-separated list, split on purpose.
-          # shellcheck disable=SC2086
-          docker save $E2E_IMAGES | gzip -1 > e2e-images.tar.gz
-          ls -lh e2e-images.tar.gz
-
-      - name: Upload images
+      - name: Upload image
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: e2e-images
-          path: e2e-images.tar.gz
+          name: e2e-image-${{ matrix.image }}
+          path: ${{ runner.temp }}/e2e-image-${{ matrix.image }}.tar
           retention-days: 1
-          compression-level: 0
 
   test:
     name: E2E ${{ matrix.lane }} (${{ inputs.branch }})
@@ -144,10 +125,12 @@ jobs:
       - name: Download images
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: e2e-images
+          pattern: e2e-image-*
+          path: ${{ runner.temp }}/e2e-images
+          merge-multiple: true
 
       - name: Load images
-        run: gunzip -c e2e-images.tar.gz | docker load
+        run: for f in "$RUNNER_TEMP"/e2e-images/*.tar; do docker load -i "$f"; done
 
       # `make e2e` installs the Playwright browser, boots the stack from the
       # loaded images, runs this lane's tests, then always tears the stack down.
