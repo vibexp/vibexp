@@ -220,7 +220,7 @@ func TestCreateBlueprint_NonMemberTeamDenied(t *testing.T) {
 		t.Error("expected nil structured result on access denied")
 	}
 	assertGenericAccessDenied(t, result)
-	mockBlueprintService.AssertNotCalled(t, "CreateBlueprint", mock.Anything)
+	mockBlueprintService.AssertNotCalled(t, "CreateBlueprint", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 // TestCreateBlueprint_MissingTeamID verifies missing team_id yields a model-actionable error.
@@ -240,7 +240,7 @@ func TestCreateBlueprint_MissingTeamID(t *testing.T) {
 	if !strings.Contains(text, "team_id is required") || !strings.Contains(text, "vibexp_io_list_teams") {
 		t.Errorf("expected model-actionable missing team_id error, got %q", text)
 	}
-	mockBlueprintService.AssertNotCalled(t, "CreateBlueprint", mock.Anything)
+	mockBlueprintService.AssertNotCalled(t, "CreateBlueprint", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestCreateBlueprint_InvalidProjectID(t *testing.T) {
@@ -263,7 +263,7 @@ func TestCreateBlueprint_InvalidProjectID(t *testing.T) {
 				t.Error("expected nil structured result on validation rejection")
 			}
 			assertValidationFailure(t, result, tc.substrMust)
-			mockBlueprintService.AssertNotCalled(t, "CreateBlueprint", mock.Anything)
+			mockBlueprintService.AssertNotCalled(t, "CreateBlueprint", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 		})
 	}
 }

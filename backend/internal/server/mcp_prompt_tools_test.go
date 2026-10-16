@@ -188,7 +188,7 @@ func TestCreatePrompt_NonMemberTeamDenied(t *testing.T) {
 		t.Error("expected nil structured result on access denied")
 	}
 	assertGenericAccessDenied(t, result)
-	mockPromptService.AssertNotCalled(t, "CreatePrompt", mock.Anything)
+	mockPromptService.AssertNotCalled(t, "CreatePrompt", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 // TestCreatePrompt_MissingTeamID verifies missing team_id yields a model-actionable error.
@@ -208,7 +208,7 @@ func TestCreatePrompt_MissingTeamID(t *testing.T) {
 	if !strings.Contains(text, "team_id is required") || !strings.Contains(text, "vibexp_io_list_teams") {
 		t.Errorf("expected model-actionable missing team_id error, got %q", text)
 	}
-	mockPromptService.AssertNotCalled(t, "CreatePrompt", mock.Anything)
+	mockPromptService.AssertNotCalled(t, "CreatePrompt", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestCreatePrompt_InvalidProjectID(t *testing.T) {
@@ -231,7 +231,7 @@ func TestCreatePrompt_InvalidProjectID(t *testing.T) {
 				t.Error("expected nil structured result on validation rejection")
 			}
 			assertValidationFailure(t, result, tc.substrMust)
-			mockPromptService.AssertNotCalled(t, "CreatePrompt", mock.Anything)
+			mockPromptService.AssertNotCalled(t, "CreatePrompt", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 		})
 	}
 }

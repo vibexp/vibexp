@@ -131,7 +131,7 @@ func TestStoreMemory_NonMemberTeamDenied(t *testing.T) {
 		t.Error("expected nil structured result")
 	}
 	assertGenericAccessDenied(t, result)
-	mockMemoryService.AssertNotCalled(t, "CreateMemory", mock.Anything)
+	mockMemoryService.AssertNotCalled(t, "CreateMemory", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestStoreMemory_MissingTeamID(t *testing.T) {
@@ -149,7 +149,7 @@ func TestStoreMemory_MissingTeamID(t *testing.T) {
 	if !strings.Contains(text, "team_id is required") || !strings.Contains(text, "vibexp_io_list_teams") {
 		t.Errorf("expected model-actionable missing team_id error, got %q", text)
 	}
-	mockMemoryService.AssertNotCalled(t, "CreateMemory", mock.Anything)
+	mockMemoryService.AssertNotCalled(t, "CreateMemory", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestListMemoriesByProject_Success(t *testing.T) {
@@ -337,7 +337,7 @@ func TestUpdateMemory_NonMemberTeamDenied(t *testing.T) {
 		t.Error("expected nil structured result")
 	}
 	assertGenericAccessDenied(t, result)
-	mockMemoryService.AssertNotCalled(t, "UpdateMemory", mock.Anything)
+	mockMemoryService.AssertNotCalled(t, "UpdateMemory", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestStoreMemory_InvalidProjectID(t *testing.T) {
@@ -354,7 +354,7 @@ func TestStoreMemory_InvalidProjectID(t *testing.T) {
 				t.Error("expected nil structured result on rejection")
 			}
 			assertValidationFailure(t, result, tc.substrMust)
-			mockMemoryService.AssertNotCalled(t, "CreateMemory", mock.Anything)
+			mockMemoryService.AssertNotCalled(t, "CreateMemory", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 		})
 	}
 }

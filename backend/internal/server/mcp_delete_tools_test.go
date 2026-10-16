@@ -254,7 +254,7 @@ func TestDeleteResource_NonMemberTeamDenied(t *testing.T) {
 		t.Error("expected nil structured result")
 	}
 	assertGenericAccessDenied(t, result)
-	m.memory.AssertNotCalled(t, "DeleteMemory", mock.Anything)
+	m.memory.AssertNotCalled(t, "DeleteMemory", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestDeleteResource_MissingTeamID(t *testing.T) {
@@ -265,7 +265,7 @@ func TestDeleteResource_MissingTeamID(t *testing.T) {
 
 	assertDeleteIsError(t, result, structured, err)
 	assertValidationFailure(t, result, []string{"team_id is required", "vibexp_io_list_teams"})
-	m.memory.AssertNotCalled(t, "DeleteMemory", mock.Anything)
+	m.memory.AssertNotCalled(t, "DeleteMemory", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 // TestDeleteResource_ServiceError verifies a delete failure surfaces as an
@@ -293,7 +293,7 @@ func TestDeleteResource_PromptNotFound(t *testing.T) {
 	result, structured, err := srv.deleteResource(context.Background(), nil, params, testMemberUserID)
 
 	assertDeleteIsError(t, result, structured, err)
-	m.prompt.AssertNotCalled(t, "DeletePromptBySlug", mock.Anything)
+	m.prompt.AssertNotCalled(t, "DeletePromptBySlug", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 // TestDeleteResource_EmbeddingFailureNonFatal proves a best-effort embeddings

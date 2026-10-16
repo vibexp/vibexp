@@ -156,7 +156,7 @@ func TestCreateArtifact_NonMemberTeamDenied(t *testing.T) {
 		t.Error("expected nil structured result on access denied")
 	}
 	assertGenericAccessDenied(t, result)
-	mockArtifactService.AssertNotCalled(t, "CreateArtifact", mock.Anything)
+	mockArtifactService.AssertNotCalled(t, "CreateArtifact", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 // TestCreateArtifact_MissingTeamID verifies missing team_id yields a model-actionable error.
@@ -176,7 +176,7 @@ func TestCreateArtifact_MissingTeamID(t *testing.T) {
 	if !strings.Contains(text, "team_id is required") || !strings.Contains(text, "vibexp_io_list_teams") {
 		t.Errorf("expected model-actionable missing team_id error, got %q", text)
 	}
-	mockArtifactService.AssertNotCalled(t, "CreateArtifact", mock.Anything)
+	mockArtifactService.AssertNotCalled(t, "CreateArtifact", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestGetArtifact_Success(t *testing.T) {
@@ -557,7 +557,7 @@ func TestCreateArtifact_InvalidProjectID(t *testing.T) {
 				t.Error("expected nil structured result on validation rejection")
 			}
 			assertValidationFailure(t, result, tc.substrMust)
-			mockArtifactService.AssertNotCalled(t, "CreateArtifact", mock.Anything)
+			mockArtifactService.AssertNotCalled(t, "CreateArtifact", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 		})
 	}
 }
