@@ -53,8 +53,12 @@ ARG TARGETARCH
 WORKDIR /app
 
 # Copy go mod and sum files, download dependencies (cached until they change).
+# The module cache and the build cache below are BuildKit cache mounts, so a
+# source change recompiles only what changed instead of every package. CI
+# carries them across runs (ci-e2e.yml, #1562); a plain `docker build` simply
+# starts with them empty.
 COPY backend/go.mod backend/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 # Copy backend source.
 COPY backend/ ./
@@ -73,9 +77,12 @@ ARG RELEASE_DATE=""
 # Build with the embedfrontend tag so the SPA is embedded and served.
 # GOOS/GOARCH come from buildx's TARGETOS/TARGETARCH so one native build stage
 # emits a binary for each target platform (linux/amd64, linux/arm64).
-RUN CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build \
+# No `-a`: it forces every package to rebuild and so defeats the build cache.
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build \
     -ldflags "-X github.com/vibexp/vibexp/cmd.buildSHA=${RELEASE_SHA} -X github.com/vibexp/vibexp/cmd.buildDate=${RELEASE_DATE}" \
-    -tags embedfrontend -a -installsuffix cgo -o main .
+    -tags embedfrontend -o main .
 
 # ---- 3) Minimal runtime ----
 FROM alpine:3.20

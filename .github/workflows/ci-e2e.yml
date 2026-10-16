@@ -61,6 +61,33 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
+      # The app's Go module and build caches are BuildKit cache mounts
+      # (backend/Dockerfile), which the GHA layer cache does not carry. Restore
+      # them into the builder so a code change recompiles only what changed
+      # (cold `go build`: ~80s). One entry per go.sum: the key misses, and so
+      # saves, only when the dependencies change, which keeps a ~0.5GB entry
+      # from being written on every run. Entries saved on a branch are visible
+      # only to that branch; main's serves everyone.
+      - name: Cache Go build for the app image
+        if: ${{ matrix.image == 'app' }}
+        id: go-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: go-cache
+          key: e2e-go-${{ hashFiles('backend/go.sum') }}
+          restore-keys: e2e-go-
+
+      - name: Inject Go caches into the builder
+        if: ${{ matrix.image == 'app' }}
+        uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
+        with:
+          cache-map: |
+            {
+              "go-cache/mod": "/go/pkg/mod",
+              "go-cache/build": "/root/.cache/go-build"
+            }
+          skip-extraction: ${{ steps.go-cache.outputs.cache-hit == 'true' }}
+
       # Each image has its own GHA cache scope so they never evict each other's
       # layers. The tag matches the `image:` name in docker-compose.e2e.yml,
       # which is what lets the test jobs `up --no-build`. The image is written
@@ -93,16 +120,20 @@ jobs:
       # Adding a shard means a new lane AND bumping the `/N` total in every
       # shard's args.
       matrix:
-        lane: [shard-1, shard-2, shard-3, shard-4, global]
+        lane: [shard-1, shard-2, shard-3, shard-4, shard-5, shard-6, global]
         include:
           - lane: shard-1
-            args: --project=chromium --project=smoke --project=journeys --project=features --shard=1/4
+            args: --project=chromium --project=smoke --project=journeys --project=features --shard=1/6
           - lane: shard-2
-            args: --project=chromium --project=smoke --project=journeys --project=features --shard=2/4
+            args: --project=chromium --project=smoke --project=journeys --project=features --shard=2/6
           - lane: shard-3
-            args: --project=chromium --project=smoke --project=journeys --project=features --shard=3/4
+            args: --project=chromium --project=smoke --project=journeys --project=features --shard=3/6
           - lane: shard-4
-            args: --project=chromium --project=smoke --project=journeys --project=features --shard=4/4
+            args: --project=chromium --project=smoke --project=journeys --project=features --shard=4/6
+          - lane: shard-5
+            args: --project=chromium --project=smoke --project=journeys --project=features --shard=5/6
+          - lane: shard-6
+            args: --project=chromium --project=smoke --project=journeys --project=features --shard=6/6
           - lane: global
             args: --project=password-journeys --no-deps
 
