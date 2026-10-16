@@ -33738,6 +33738,7 @@ components:
         - team.member.role_changed
         - team.member.removed
         - team.ownership.transferred
+        - team.settings.updated
         - instance.settings.updated
         - admin.user.created
         - admin.user.updated
@@ -33811,6 +33812,7 @@ components:
         - AdminAuditOperationTeamMemberRoleChanged
         - AdminAuditOperationTeamMemberRemoved
         - AdminAuditOperationTeamOwnershipTransferred
+        - AdminAuditOperationTeamSettingsUpdated
         - AdminAuditOperationInstanceSettingsUpdated
         - AdminAuditOperationAdminUserCreated
         - AdminAuditOperationAdminUserUpdated

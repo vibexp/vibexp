@@ -138,6 +138,7 @@ const (
 	AdminAuditOperationTeamMemberRemoved                  AdminAuditOperation = "team.member.removed"
 	AdminAuditOperationTeamMemberRoleChanged              AdminAuditOperation = "team.member.role_changed"
 	AdminAuditOperationTeamOwnershipTransferred           AdminAuditOperation = "team.ownership.transferred"
+	AdminAuditOperationTeamSettingsUpdated                AdminAuditOperation = "team.settings.updated"
 	AdminAuditOperationTeamUpdated                        AdminAuditOperation = "team.updated"
 )
 
@@ -285,6 +286,8 @@ func (e AdminAuditOperation) Valid() bool {
 	case AdminAuditOperationTeamMemberRoleChanged:
 		return true
 	case AdminAuditOperationTeamOwnershipTransferred:
+		return true
+	case AdminAuditOperationTeamSettingsUpdated:
 		return true
 	case AdminAuditOperationTeamUpdated:
 		return true

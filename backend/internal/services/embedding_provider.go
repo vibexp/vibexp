@@ -12,6 +12,7 @@ import (
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 // Default in-Go text-chunker sizing applied to a provider when the create
@@ -47,6 +48,15 @@ type EmbeddingProviderService struct {
 	// given model, so a copy can report what its activation displaces (#831).
 	// Same counter EmbeddingStatusService reports coverage from.
 	coverageRepo repositories.EmbeddingBackfillRepository
+	teamSettingsAuditor
+}
+
+// EmbeddingProviderServiceOption customizes an EmbeddingProviderService.
+type EmbeddingProviderServiceOption func(*EmbeddingProviderService)
+
+// WithEmbeddingProviderAuditRecorder records changes in the instance audit log (#1520).
+func WithEmbeddingProviderAuditRecorder(recorder audit.Recorder) EmbeddingProviderServiceOption {
+	return func(s *EmbeddingProviderService) { s.recorder = recorder }
 }
 
 // Ensure EmbeddingProviderService implements EmbeddingProviderServiceInterface
@@ -59,8 +69,9 @@ func NewEmbeddingProviderService(
 	authz AuthorizationServiceInterface,
 	audit TeamSettingsAuditServiceInterface,
 	coverageRepo repositories.EmbeddingBackfillRepository,
+	opts ...EmbeddingProviderServiceOption,
 ) *EmbeddingProviderService {
-	return &EmbeddingProviderService{
+	eps := &EmbeddingProviderService{
 		repo:         repo,
 		enc:          enc,
 		guard:        ssrfGuardForConfig(cfg),
@@ -68,6 +79,10 @@ func NewEmbeddingProviderService(
 		audit:        audit,
 		coverageRepo: coverageRepo,
 	}
+	for _, opt := range opts {
+		opt(eps)
+	}
+	return eps
 }
 
 // encrypt delegates to the shared, fail-closed EncryptionService, preserving the
@@ -194,6 +209,13 @@ func (eps *EmbeddingProviderService) CreateEmbeddingProvider(
 			return nil, fmt.Errorf("failed to set as default: %w", err)
 		}
 	}
+
+	eps.record(ctx, providerChange(providerWrite{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceEmbeddingProvider, Action: teamSettingsActionCreate,
+		ProviderID: provider.ID, After: embeddingProviderAuditValues(provider),
+		APIKeySet:        nonEmpty(req.APIKey),
+		ConfigurationSet: configurationSet(provider.Configuration),
+	}))
 
 	return provider, nil
 }
@@ -369,6 +391,8 @@ func (eps *EmbeddingProviderService) UpdateEmbeddingProvider(
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrProviderNotFound, providerID)
 	}
+	before := embeddingProviderAuditValues(provider)
+	beforeConfiguration := provider.Configuration
 
 	err = eps.handleDefaultProviderUpdate(ctx, teamID, providerID, req, provider)
 	if err != nil {
@@ -387,6 +411,13 @@ func (eps *EmbeddingProviderService) UpdateEmbeddingProvider(
 		return nil, fmt.Errorf("failed to update embedding provider: %w", err)
 	}
 
+	eps.record(ctx, providerChange(providerWrite{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceEmbeddingProvider, Action: teamSettingsActionUpdate,
+		ProviderID: providerID, Before: before, After: embeddingProviderAuditValues(provider),
+		APIKeySet:        req.APIKey != nil,
+		ConfigurationSet: provider.Configuration != beforeConfiguration,
+	}))
+
 	return provider, nil
 }
 
@@ -402,7 +433,7 @@ func (eps *EmbeddingProviderService) DeleteEmbeddingProvider(
 	}
 
 	// First, verify the provider exists and belongs to the user (security check)
-	_, err := eps.repo.GetByID(ctx, teamID, providerID)
+	existing, err := eps.repo.GetByID(ctx, teamID, providerID)
 	if err != nil {
 		return fmt.Errorf("%w: %s", ErrProviderNotFound, providerID)
 	}
@@ -423,7 +454,30 @@ func (eps *EmbeddingProviderService) DeleteEmbeddingProvider(
 		return fmt.Errorf("failed to delete embedding provider: %w", err)
 	}
 
+	eps.record(ctx, providerChange(providerWrite{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceEmbeddingProvider, Action: teamSettingsActionDelete,
+		ProviderID: providerID, Before: embeddingProviderAuditValues(existing),
+	}))
+
 	return nil
+}
+
+// embeddingProviderAuditValues is the audited field allowlist of a embedding
+// provider. The API key and the free-form configuration are never read here;
+// a write names them in changed_fields only.
+func embeddingProviderAuditValues(provider *models.EmbeddingProvider) map[string]any {
+	return map[string]any{
+		"name":            provider.Name,
+		"provider_type":   provider.ProviderType,
+		"model":           provider.Model,
+		"is_default":      provider.IsDefault,
+		"base_url":        optionalAuditString(provider.BaseURL),
+		"chunk_size":      provider.ChunkSize,
+		"chunk_overlap":   provider.ChunkOverlap,
+		"concurrency":     provider.Concurrency,
+		"query_prefix":    optionalAuditString(provider.QueryPrefix),
+		"document_prefix": optionalAuditString(provider.DocumentPrefix),
+	}
 }
 
 func (eps *EmbeddingProviderService) GetDefaultEmbeddingProvider(

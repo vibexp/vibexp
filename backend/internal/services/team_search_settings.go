@@ -9,6 +9,7 @@ import (
 	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 // ErrInvalidSearchSettings is returned when a submitted ranking profile is
@@ -47,6 +48,16 @@ type TeamSearchSettingsService struct {
 	authz    AuthorizationServiceInterface
 	instance InstanceSearchSettingsReader
 	logger   *slog.Logger
+	teamSettingsAuditor
+}
+
+// TeamSearchSettingsServiceOption customizes a TeamSearchSettingsService.
+type TeamSearchSettingsServiceOption func(*TeamSearchSettingsService)
+
+// WithTeamSearchSettingsAuditRecorder records changes in the instance audit
+// log (#1520).
+func WithTeamSearchSettingsAuditRecorder(recorder audit.Recorder) TeamSearchSettingsServiceOption {
+	return func(s *TeamSearchSettingsService) { s.recorder = recorder }
 }
 
 var _ TeamSearchSettingsServiceInterface = (*TeamSearchSettingsService)(nil)
@@ -57,13 +68,18 @@ func NewTeamSearchSettingsService(
 	authzService AuthorizationServiceInterface,
 	instance InstanceSearchSettingsReader,
 	logger *slog.Logger,
+	opts ...TeamSearchSettingsServiceOption,
 ) *TeamSearchSettingsService {
-	return &TeamSearchSettingsService{
+	s := &TeamSearchSettingsService{
 		repo:     repo,
 		authz:    authzService,
 		instance: instance,
 		logger:   logger,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // teamSearchSettingsView assembles the response shape from the effective
@@ -121,9 +137,14 @@ func (s *TeamSearchSettingsService) Update(
 		RankWeightUpdated:     values.RankWeightUpdated,
 		RankHalfLifeDays:      values.RankHalfLifeDays,
 	}
+	before := s.storedAuditValues(ctx, teamID)
 	if err := s.repo.Upsert(ctx, stored); err != nil {
 		return nil, fmt.Errorf("TeamSearchSettingsService.Update: %w", err)
 	}
+	s.record(ctx, teamSettingsChange{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceSearch, Action: teamSettingsActionUpdate,
+		Before: before, After: searchSettingsAuditValues(stored),
+	})
 
 	// Read after the write, and fail closed: the profile is stored, but a
 	// response reporting guessed instance defaults would be wrong. The PUT is a
@@ -140,10 +161,45 @@ func (s *TeamSearchSettingsService) Reset(ctx context.Context, userID, teamID st
 	if err := s.authz.Can(ctx, userID, teamID, authz.TeamSettingsUpdate); err != nil {
 		return err
 	}
+	before := s.storedAuditValues(ctx, teamID)
 	if err := s.repo.Delete(ctx, teamID); err != nil {
 		return fmt.Errorf("TeamSearchSettingsService.Reset: %w", err)
 	}
+	s.record(ctx, teamSettingsChange{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceSearch, Action: teamSettingsActionReset,
+		Before: before,
+	})
 	return nil
+}
+
+// storedAuditValues reads the team's stored profile before a write, for the
+// audit event's old values. It is nil when nothing is recorded, nothing is
+// stored, or the read fails: a missing old value must not fail the write.
+func (s *TeamSearchSettingsService) storedAuditValues(ctx context.Context, teamID string) map[string]any {
+	if !s.enabled() {
+		return nil
+	}
+	stored, err := s.repo.Get(ctx, teamID)
+	if err != nil {
+		s.logger.WarnContext(ctx, "reading team search settings for the audit log", "team_id", teamID, "error", err)
+		return nil
+	}
+	if stored == nil {
+		return nil
+	}
+	return searchSettingsAuditValues(stored)
+}
+
+// searchSettingsAuditValues is the audited field allowlist of a search
+// profile. None of it is secret.
+func searchSettingsAuditValues(stored *models.TeamSearchSettings) map[string]any {
+	return map[string]any{
+		"recency_ranking_enabled": stored.RecencyRankingEnabled,
+		"rank_weight_relevance":   stored.RankWeightRelevance,
+		"rank_weight_created":     stored.RankWeightCreated,
+		"rank_weight_updated":     stored.RankWeightUpdated,
+		"rank_half_life_days":     stored.RankHalfLifeDays,
+	}
 }
 
 // valuesFromStored projects a persisted row onto the wire profile.

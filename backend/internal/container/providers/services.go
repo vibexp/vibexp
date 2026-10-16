@@ -215,8 +215,9 @@ func ProvideTypeService(
 	authorizer services.AuthorizationServiceInterface,
 	audit services.TeamSettingsAuditServiceInterface,
 	logger *slog.Logger,
+	recorder audit.Recorder,
 ) services.TypeServiceInterface {
-	return services.NewTypeService(repo, authorizer, audit, logger)
+	return services.NewTypeService(repo, authorizer, audit, logger, services.WithTypeAuditRecorder(recorder))
 }
 
 // ProvideStatusCatalogService creates a new StatusCatalogService.
@@ -233,8 +234,10 @@ func ProvideStatusManagementService(
 	authorizer services.AuthorizationServiceInterface,
 	audit services.TeamSettingsAuditServiceInterface,
 	logger *slog.Logger,
+	recorder audit.Recorder,
 ) services.StatusManagementServiceInterface {
-	return services.NewStatusManagementService(repo, catalog, authorizer, audit, logger)
+	return services.NewStatusManagementService(repo, catalog, authorizer, audit, logger,
+		services.WithStatusManagementAuditRecorder(recorder))
 }
 
 // ProvideResourceLockService creates a new ResourceLockService. Wire fills the
@@ -259,8 +262,10 @@ func ProvideEmbeddingProviderService(
 	authzSvc services.AuthorizationServiceInterface,
 	audit services.TeamSettingsAuditServiceInterface,
 	coverageRepo repositories.EmbeddingBackfillRepository,
+	recorder audit.Recorder,
 ) services.EmbeddingProviderServiceInterface {
-	return services.NewEmbeddingProviderService(repo, enc, cfg, authzSvc, audit, coverageRepo)
+	return services.NewEmbeddingProviderService(repo, enc, cfg, authzSvc, audit, coverageRepo,
+		services.WithEmbeddingProviderAuditRecorder(recorder))
 }
 
 // ProvideLLMService creates the central completion service (#1069). The search
@@ -284,8 +289,10 @@ func ProvideModelProviderService(
 	cfg *config.Config,
 	authzSvc services.AuthorizationServiceInterface,
 	audit services.TeamSettingsAuditServiceInterface,
+	recorder audit.Recorder,
 ) services.ModelProviderServiceInterface {
-	return services.NewModelProviderService(repo, enc, cfg, authzSvc, audit)
+	return services.NewModelProviderService(repo, enc, cfg, authzSvc, audit,
+		services.WithModelProviderAuditRecorder(recorder))
 }
 
 // ProvideGitHubAppConfigService creates a new GitHubAppConfigService. The
@@ -297,8 +304,10 @@ func ProvideGitHubAppConfigService(
 	cfg *config.Config,
 	authzSvc services.AuthorizationServiceInterface,
 	clients services.GitHubAppClientResolver,
+	recorder audit.Recorder,
 ) services.GitHubAppConfigServiceInterface {
-	return services.NewGitHubAppConfigService(repo, enc, authzSvc, clients, cfg.Frontend.BaseURL)
+	return services.NewGitHubAppConfigService(repo, enc, authzSvc, clients, cfg.Frontend.BaseURL,
+		services.WithGitHubAppConfigAuditRecorder(recorder))
 }
 
 // ProvideEmailService creates a new EmailService.
@@ -599,15 +608,9 @@ func ProvideEmbeddingProcessor(
 // nil and the service refuses to store or read a credential rather than handling
 // one in plaintext.
 func ProvideTeamEmailProviderService(
-	repo repositories.TeamEmailProviderRepository,
-	instanceRepo repositories.InstanceEmailProviderRepository,
-	userRepo repositories.UserRepository,
-	enc services.EncryptionServiceInterface,
-	cfg *config.Config,
-	authzService services.AuthorizationServiceInterface,
-	logger *slog.Logger,
+	deps services.TeamEmailProviderServiceDeps,
 ) services.TeamEmailProviderServiceInterface {
-	return services.NewTeamEmailProviderService(repo, instanceRepo, userRepo, enc, cfg, authzService, logger)
+	return services.NewTeamEmailProviderService(deps)
 }
 
 // ProvideInstanceEmailProviderService creates the instance email provider
@@ -845,8 +848,10 @@ func ProvideTeamSearchSettingsService(
 	authzService services.AuthorizationServiceInterface,
 	instance services.InstanceSearchSettingsReader,
 	logger *slog.Logger,
+	recorder audit.Recorder,
 ) services.TeamSearchSettingsServiceInterface {
-	return services.NewTeamSearchSettingsService(repo, authzService, instance, logger)
+	return services.NewTeamSearchSettingsService(repo, authzService, instance, logger,
+		services.WithTeamSearchSettingsAuditRecorder(recorder))
 }
 
 // ProvideInstanceAISummarySettingsService creates the instance AI summary
@@ -884,9 +889,11 @@ func ProvideTeamAISummarySettingsService(
 	authzService services.AuthorizationServiceInterface,
 	instance services.InstanceAISummarySettingsReader,
 	logger *slog.Logger,
+	recorder audit.Recorder,
 ) *services.TeamAISummarySettingsService {
 	return services.NewTeamAISummarySettingsService(
-		repo, modelProviders, authzService, instance, logger)
+		repo, modelProviders, authzService, instance, logger,
+		services.WithTeamAISummarySettingsAuditRecorder(recorder))
 }
 
 // ProvideTeamSettingsAuditService creates the team settings audit log service

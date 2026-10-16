@@ -22,6 +22,7 @@ import (
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 // GitHubAppConfigService owns a team's own GitHub App credentials (#478):
@@ -49,6 +50,16 @@ type GitHubAppConfigService struct {
 	httpClient *http.Client
 	// webhookBaseURL builds the webhook URL an admin pastes into GitHub.
 	webhookBaseURL string
+	teamSettingsAuditor
+}
+
+// GitHubAppConfigServiceOption customizes a GitHubAppConfigService.
+type GitHubAppConfigServiceOption func(*GitHubAppConfigService)
+
+// WithGitHubAppConfigAuditRecorder records changes in the instance audit log
+// (#1520).
+func WithGitHubAppConfigAuditRecorder(recorder audit.Recorder) GitHubAppConfigServiceOption {
+	return func(s *GitHubAppConfigService) { s.recorder = recorder }
 }
 
 // Ensure GitHubAppConfigService implements GitHubAppConfigServiceInterface
@@ -95,8 +106,9 @@ func NewGitHubAppConfigService(
 	authzSvc AuthorizationServiceInterface,
 	clients GitHubAppClientResolver,
 	webhookBaseURL string,
+	opts ...GitHubAppConfigServiceOption,
 ) *GitHubAppConfigService {
-	return &GitHubAppConfigService{
+	s := &GitHubAppConfigService{
 		repo:           repo,
 		enc:            enc,
 		authz:          authzSvc,
@@ -105,6 +117,10 @@ func NewGitHubAppConfigService(
 		httpClient:     &http.Client{Timeout: validateGitHubAppTimeout},
 		webhookBaseURL: strings.TrimRight(webhookBaseURL, "/"),
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // authorizeAppConfigMutation gates create/update/delete/validate/rotate. A nil
@@ -227,6 +243,8 @@ func (s *GitHubAppConfigService) CreateAppConfig(
 	if err := s.createWithTokenRetry(ctx, config); err != nil {
 		return nil, err
 	}
+	s.recordAppConfigChange(ctx, userID, config, teamSettingsActionCreate, nil, config,
+		"private_key", "client_secret", "webhook_secret", "webhook_token")
 
 	return &models.GitHubAppConfigCreated{
 		GitHubAppConfigResponse: s.toResponse(config),
@@ -364,6 +382,7 @@ func (s *GitHubAppConfigService) UpdateAppConfig(
 		}
 		return nil, fmt.Errorf("failed to get GitHub App config: %w", err)
 	}
+	before := *config
 
 	if err := s.applyUpdate(req, config); err != nil {
 		return nil, err
@@ -379,9 +398,44 @@ func (s *GitHubAppConfigService) UpdateAppConfig(
 			return nil, fmt.Errorf("failed to update GitHub App config: %w", err)
 		}
 	}
+	var secrets []string
+	if req.PrivateKey != nil {
+		secrets = append(secrets, "private_key")
+	}
+	if req.ClientSecret != nil {
+		secrets = append(secrets, "client_secret")
+	}
+	s.recordAppConfigChange(ctx, userID, config, teamSettingsActionUpdate, &before, config, secrets...)
 
 	response := s.toResponse(config)
 	return &response, nil
+}
+
+// recordAppConfigChange records an App config write in the instance audit log.
+// secrets names the secret fields the write set; they are never read here.
+func (s *GitHubAppConfigService) recordAppConfigChange(
+	ctx context.Context, userID string, config *models.GitHubAppConfig, action string,
+	before, after *models.GitHubAppConfig, secrets ...string,
+) {
+	s.record(ctx, teamSettingsChange{
+		TeamID: config.TeamID, ActorID: userID, Surface: teamSettingsSurfaceGitHubApp, Action: action,
+		Before: gitHubAppConfigAuditValues(before), After: gitHubAppConfigAuditValues(after),
+		Withheld: secrets, Details: map[string]any{"app_config_id": config.ID},
+	})
+}
+
+// gitHubAppConfigAuditValues is the audited field allowlist of an App config:
+// the public identifiers only, nil for no config. The private key, client
+// secret, webhook secret and webhook token are never read here.
+func gitHubAppConfigAuditValues(config *models.GitHubAppConfig) map[string]any {
+	if config == nil {
+		return nil
+	}
+	return map[string]any{
+		"app_id":    config.AppID,
+		"app_slug":  config.AppSlug,
+		"client_id": config.ClientID,
+	}
 }
 
 // applyUpdate folds the request onto the stored config. Every field follows the
@@ -469,6 +523,7 @@ func (s *GitHubAppConfigService) DeleteAppConfig(ctx context.Context, teamID, us
 	if s.clients != nil {
 		s.clients.Evict(config.ID)
 	}
+	s.recordAppConfigChange(ctx, userID, config, teamSettingsActionDelete, config, nil)
 
 	return nil
 }
@@ -496,6 +551,7 @@ func (s *GitHubAppConfigService) RotateWebhookToken(
 	if err := s.repo.Update(ctx, config); err != nil {
 		return nil, fmt.Errorf("failed to rotate webhook token: %w", err)
 	}
+	s.recordAppConfigChange(ctx, userID, config, teamSettingsActionRotate, config, config, "webhook_token")
 
 	response := s.toResponse(config)
 	return &response, nil
@@ -529,6 +585,7 @@ func (s *GitHubAppConfigService) RotateWebhookSecret(
 	if err := s.repo.Update(ctx, config); err != nil {
 		return nil, fmt.Errorf("failed to rotate webhook secret: %w", err)
 	}
+	s.recordAppConfigChange(ctx, userID, config, teamSettingsActionRotate, config, config, "webhook_secret")
 
 	return &models.GitHubAppConfigCreated{
 		GitHubAppConfigResponse: s.toResponse(config),

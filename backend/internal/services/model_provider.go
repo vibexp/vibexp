@@ -10,6 +10,7 @@ import (
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 type ModelProviderService struct {
@@ -24,6 +25,15 @@ type ModelProviderService struct {
 	// a credential arriving from another team is the one provider mutation the
 	// destination's own members did not author.
 	audit TeamSettingsAuditServiceInterface
+	teamSettingsAuditor
+}
+
+// ModelProviderServiceOption customizes a ModelProviderService.
+type ModelProviderServiceOption func(*ModelProviderService)
+
+// WithModelProviderAuditRecorder records changes in the instance audit log (#1520).
+func WithModelProviderAuditRecorder(recorder audit.Recorder) ModelProviderServiceOption {
+	return func(s *ModelProviderService) { s.recorder = recorder }
 }
 
 // Ensure ModelProviderService implements ModelProviderServiceInterface
@@ -35,14 +45,19 @@ func NewModelProviderService(
 	cfg *config.Config,
 	authz AuthorizationServiceInterface,
 	audit TeamSettingsAuditServiceInterface,
+	opts ...ModelProviderServiceOption,
 ) *ModelProviderService {
-	return &ModelProviderService{
+	mps := &ModelProviderService{
 		repo:  repo,
 		enc:   enc,
 		guard: ssrfGuardForConfig(cfg),
 		authz: authz,
 		audit: audit,
 	}
+	for _, opt := range opts {
+		opt(mps)
+	}
+	return mps
 }
 
 // authorizeProviderMutation gates create/update/delete/validate. A nil authz is
@@ -162,6 +177,13 @@ func (mps *ModelProviderService) CreateModelProvider(
 			return nil, fmt.Errorf("failed to set as default: %w", err)
 		}
 	}
+
+	mps.record(ctx, providerChange(providerWrite{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceModelProvider, Action: teamSettingsActionCreate,
+		ProviderID: provider.ID, After: modelProviderAuditValues(provider),
+		APIKeySet:        nonEmpty(req.APIKey),
+		ConfigurationSet: configurationSet(provider.Configuration),
+	}))
 
 	return provider, nil
 }
@@ -321,6 +343,8 @@ func (mps *ModelProviderService) UpdateModelProvider(
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrModelProviderNotFound, providerID)
 	}
+	before := modelProviderAuditValues(provider)
+	beforeConfiguration := provider.Configuration
 
 	err = mps.handleDefaultProviderUpdate(ctx, teamID, providerID, req, provider)
 	if err != nil {
@@ -339,6 +363,13 @@ func (mps *ModelProviderService) UpdateModelProvider(
 		return nil, fmt.Errorf("failed to update model provider: %w", err)
 	}
 
+	mps.record(ctx, providerChange(providerWrite{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceModelProvider, Action: teamSettingsActionUpdate,
+		ProviderID: providerID, Before: before, After: modelProviderAuditValues(provider),
+		APIKeySet:        req.APIKey != nil,
+		ConfigurationSet: provider.Configuration != beforeConfiguration,
+	}))
+
 	return provider, nil
 }
 
@@ -354,7 +385,7 @@ func (mps *ModelProviderService) DeleteModelProvider(
 	}
 
 	// First, verify the provider exists and belongs to the team (security check)
-	_, err := mps.repo.GetByID(ctx, teamID, providerID)
+	existing, err := mps.repo.GetByID(ctx, teamID, providerID)
 	if err != nil {
 		return fmt.Errorf("%w: %s", ErrModelProviderNotFound, providerID)
 	}
@@ -375,7 +406,25 @@ func (mps *ModelProviderService) DeleteModelProvider(
 		return fmt.Errorf("failed to delete model provider: %w", err)
 	}
 
+	mps.record(ctx, providerChange(providerWrite{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceModelProvider, Action: teamSettingsActionDelete,
+		ProviderID: providerID, Before: modelProviderAuditValues(existing),
+	}))
+
 	return nil
+}
+
+// modelProviderAuditValues is the audited field allowlist of a model
+// provider. The API key and the free-form configuration are never read here;
+// a write names them in changed_fields only.
+func modelProviderAuditValues(provider *models.ModelProvider) map[string]any {
+	return map[string]any{
+		"name":          provider.Name,
+		"provider_type": provider.ProviderType,
+		"model":         provider.Model,
+		"is_default":    provider.IsDefault,
+		"base_url":      optionalAuditString(provider.BaseURL),
+	}
 }
 
 func (mps *ModelProviderService) GetDefaultModelProvider(

@@ -16,6 +16,7 @@ import (
 	"github.com/vibexp/vibexp/internal/external/implementations"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 // Supported team email provider types. These are the same values
@@ -55,29 +56,38 @@ type TeamEmailProviderService struct {
 	// credential and decides what address the team's mail comes from.
 	authz  AuthorizationServiceInterface
 	logger *slog.Logger
+	teamSettingsAuditor
 }
 
 // Ensure TeamEmailProviderService implements TeamEmailProviderServiceInterface
 var _ TeamEmailProviderServiceInterface = (*TeamEmailProviderService)(nil)
 
+// TeamEmailProviderServiceDeps groups the dependencies injected into
+// TeamEmailProviderService. Wire fills it via wire.Struct.
+type TeamEmailProviderServiceDeps struct {
+	Repo         repositories.TeamEmailProviderRepository
+	InstanceRepo repositories.InstanceEmailProviderRepository
+	UserRepo     repositories.UserRepository
+	Enc          EncryptionServiceInterface
+	Config       *config.Config
+	Authz        AuthorizationServiceInterface
+	Logger       *slog.Logger
+	// AuditRecorder, when set, records provider changes in the instance audit
+	// log (#1520).
+	AuditRecorder audit.Recorder
+}
+
 // NewTeamEmailProviderService creates a new TeamEmailProviderService.
-func NewTeamEmailProviderService(
-	repo repositories.TeamEmailProviderRepository,
-	instanceRepo repositories.InstanceEmailProviderRepository,
-	userRepo repositories.UserRepository,
-	enc EncryptionServiceInterface,
-	cfg *config.Config,
-	authzSvc AuthorizationServiceInterface,
-	logger *slog.Logger,
-) *TeamEmailProviderService {
+func NewTeamEmailProviderService(deps TeamEmailProviderServiceDeps) *TeamEmailProviderService {
 	return &TeamEmailProviderService{
-		repo:         repo,
-		instanceRepo: instanceRepo,
-		userRepo:     userRepo,
-		enc:          enc,
-		guard:        ssrfGuardForConfig(cfg),
-		authz:        authzSvc,
-		logger:       logger,
+		repo:                deps.Repo,
+		instanceRepo:        deps.InstanceRepo,
+		userRepo:            deps.UserRepo,
+		enc:                 deps.Enc,
+		guard:               ssrfGuardForConfig(deps.Config),
+		authz:               deps.Authz,
+		logger:              deps.Logger,
+		teamSettingsAuditor: teamSettingsAuditor{recorder: deps.AuditRecorder},
 	}
 }
 
@@ -264,6 +274,17 @@ func (s *TeamEmailProviderService) Upsert(
 	if err := s.repo.Upsert(ctx, provider); err != nil {
 		return nil, err
 	}
+	change := teamSettingsChange{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceEmailProvider, Action: teamSettingsActionUpdate,
+		After: emailProviderAuditValues(provider),
+	}
+	if existing != nil {
+		change.Before = emailProviderAuditValues(existing)
+	}
+	if req.Secret != nil {
+		change.Withheld = []string{"secret"}
+	}
+	s.record(ctx, change)
 
 	return provider, nil
 }
@@ -273,7 +294,49 @@ func (s *TeamEmailProviderService) Delete(ctx context.Context, userID, teamID st
 	if err := s.authorizeMutation(ctx, userID, teamID); err != nil {
 		return err
 	}
-	return s.repo.Delete(ctx, teamID)
+	var before map[string]any
+	if s.enabled() {
+		// Old values for the audit event only; a failed read must not block
+		// the delete.
+		existing, err := s.repo.GetByTeamID(ctx, teamID)
+		switch {
+		case err != nil && !errors.Is(err, repositories.ErrTeamEmailProviderNotFound):
+			s.logger.WarnContext(ctx, "reading the team email provider for the audit log", "team_id", teamID, "error", err)
+		case existing != nil:
+			before = emailProviderAuditValues(existing)
+		}
+	}
+	if err := s.repo.Delete(ctx, teamID); err != nil {
+		return err
+	}
+	s.record(ctx, teamSettingsChange{
+		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceEmailProvider, Action: teamSettingsActionDelete,
+		Before: before,
+	})
+	return nil
+}
+
+// emailProviderAuditValues is the audited field allowlist of a team email
+// provider: the type, the sender identity and the non-secret settings of its
+// type. The credential (SecretEncrypted) is never read here.
+func emailProviderAuditValues(provider *models.TeamEmailProvider) map[string]any {
+	values := map[string]any{
+		"provider_type": provider.ProviderType,
+		"from_address":  provider.FromAddress,
+		"from_name":     optionalAuditString(provider.FromName),
+		"reply_to":      optionalAuditString(provider.ReplyTo),
+	}
+	union := settingsUnionFromStored(provider.ProviderType, provider.Settings)
+	switch {
+	case union == nil:
+	case union.SMTP != nil:
+		values["host"], values["port"], values["username"] = union.SMTP.Host, union.SMTP.Port, union.SMTP.Username
+	case union.Mailgun != nil:
+		values["domain"], values["base_url"] = union.Mailgun.Domain, union.Mailgun.BaseURL
+	case union.Postmark != nil:
+		values["message_stream"] = union.Postmark.MessageStream
+	}
+	return values
 }
 
 // Test sends a real message using the configuration in the REQUEST, not the

@@ -50,7 +50,7 @@ func TestAllAuditOperations_CoversTheEpic(t *testing.T) {
 		"team.created", "team.updated", "team.deleted",
 		"team.invite.sent", "team.invite.accepted", "team.invite.rejected", "team.invite.revoked",
 		"team.member.added", "team.member.role_changed", "team.member.removed",
-		"team.ownership.transferred",
+		"team.ownership.transferred", "team.settings.updated",
 		"instance.settings.updated",
 		"admin.user.created", "admin.user.updated", "admin.user.suspended",
 		"admin.user.unsuspended", "admin.user.deleted",
