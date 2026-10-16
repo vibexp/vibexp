@@ -187,24 +187,41 @@ func (s *AuthRecoveryService) RearmSetup(ctx context.Context) (string, error) {
 // account must exist: see RootAdminPasswordService.Set for what it checks and
 // leaves behind.
 //
-// A successful change is recorded as auth.password.set, or auth.password.changed
-// when it replaced a password, on the account it changed. Switching password
-// login on is a settings change of its own, recorded by the observer.
+// A stored password is recorded as auth.password.set, or auth.password.changed
+// when it replaced one, on the account it changed. That includes a call that
+// failed AFTER storing it (ending the sessions, switching login on): the
+// credential did change, so the log must show it, with the error returned all
+// the same. Switching password login on is a settings change of its own,
+// recorded by the observer.
 func (s *AuthRecoveryService) SetRootAdminPassword(
 	ctx context.Context, email, plaintext string, enableLogin bool,
 ) (*RootAdminPasswordResult, error) {
 	result, err := s.rootPw.Set(s.audited(ctx), email, plaintext, enableLogin)
+	if result != nil && result.PasswordStored {
+		s.recordRootAdminPassword(ctx, result, err)
+	}
 	if err != nil {
 		return nil, err
 	}
+	return result, nil
+}
+
+// recordRootAdminPassword records a stored root-admin password. setErr is the
+// error of a call that failed after storing it, nil otherwise.
+func (s *AuthRecoveryService) recordRootAdminPassword(
+	ctx context.Context, result *RootAdminPasswordResult, setErr error,
+) {
 	op := models.AuditOpAuthLocalCredentialSet
 	if result.PasswordReplaced {
 		op = models.AuditOpAuthLocalCredentialChanged
 	}
+	metadata := map[string]any{"login_switched_on": result.LoginSwitchedOn}
+	if setErr != nil {
+		metadata["completed"] = false
+	}
 	audit.SafeRecord(ctx, s.recorder, audit.Event{
 		Operation:    op,
 		ResourceType: models.AuditResourceTypeUser, ResourceID: result.UserID, ResourceName: result.Email,
-		Metadata: map[string]any{"by": repositories.AuditSourceCLI, "login_switched_on": result.LoginSwitchedOn},
+		Metadata: metadata,
 	})
-	return result, nil
 }

@@ -70,20 +70,24 @@ func cliAuditRows(t *testing.T) []cliAuditRow {
 	return got
 }
 
-// onlyCLIAuditRow returns the one row and checks the CLI attribution every row
-// carries.
-func onlyCLIAuditRow(t *testing.T) cliAuditRow {
+// assertCLIAttribution checks the attribution every CLI row carries.
+func assertCLIAttribution(t *testing.T, row cliAuditRow) {
 	t.Helper()
-	rows := cliAuditRows(t)
-	require.Len(t, rows, 1, "exactly one audit_events row")
-	row := rows[0]
 	assert.Equal(t, string(models.AuditSourceCLI), row.Source)
 	assert.Equal(t, string(models.AuditActorSystem), row.ActorType)
 	assert.Equal(t, cliAuditActorName, row.ActorName)
 	assert.Nil(t, row.ActorUserID)
 	assert.Equal(t, itOSUser, row.Metadata["os_user"])
 	assert.Equal(t, itHost, row.Metadata["hostname"])
-	return row
+}
+
+// onlyCLIAuditRow returns the one row, attribution checked.
+func onlyCLIAuditRow(t *testing.T) cliAuditRow {
+	t.Helper()
+	rows := cliAuditRows(t)
+	require.Len(t, rows, 1, "exactly one audit_events row")
+	assertCLIAttribution(t, rows[0])
+	return rows[0]
 }
 
 // runCLI runs `vibexp args...` with the production wiring over the test
@@ -182,6 +186,7 @@ func TestIntegrationCLIAudit_SetupRearm(t *testing.T) {
 
 	row := onlyCLIAuditRow(t)
 	assert.Equal(t, string(models.AuditOpInstanceSettingsUpdated), row.Operation)
+	assert.Equal(t, models.InstanceSettingAuthSetup, row.Metadata["setting"])
 	assert.NotContains(t, row.Raw, token, "the setup token never reaches the log")
 }
 
@@ -224,9 +229,12 @@ func TestIntegrationCLIAudit_PasswordSetWithEnableLogin(t *testing.T) {
 	_, _, err := runCLI(t, itPassphrase, "admin", "auth", "password", "set", "--email", itRootEmail, "--enable-login")
 
 	require.NoError(t, err)
+	rows := cliAuditRows(t)
+	require.Len(t, rows, 2, "one row per change")
 	ops := map[string]any{}
-	for _, row := range cliAuditRows(t) {
-		assert.Equal(t, string(models.AuditSourceCLI), row.Source)
+	for _, row := range rows {
+		assertCLIAttribution(t, row)
+		assert.NotContains(t, row.Raw, itPassphrase)
 		ops[row.Operation] = row.Metadata["setting"]
 	}
 	assert.Equal(t, map[string]any{

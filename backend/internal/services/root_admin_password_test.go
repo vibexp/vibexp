@@ -131,7 +131,9 @@ func TestRootAdminPassword_ExistingAccount(t *testing.T) {
 		result, err := f.svc.Set(ctx, "  ROOT@Example.com ", rootPwPhrase, true)
 
 		require.NoError(t, err)
-		assert.Equal(t, &RootAdminPasswordResult{UserID: rootPwUserID, Email: rootPwEmail, LoginSwitchedOn: true}, result)
+		assert.Equal(t, &RootAdminPasswordResult{
+			UserID: rootPwUserID, Email: rootPwEmail, LoginSwitchedOn: true, PasswordStored: true,
+		}, result)
 		assert.Equal(t, []string{rootPwUserID + ":" + rootPwPhrase}, f.setter.calls)
 		assert.Empty(t, f.events.published)
 		for _, entry := range f.logs.AllEntries() {
@@ -366,4 +368,41 @@ func TestRootAdminPassword_EndsSessionsOnBothSidesOfTheChange(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"bump(stored=0)", "bump(stored=1)"}, order)
+}
+
+// TestRootAdminPassword_PartialFailureReturnsTheResult: a failure after the
+// password was stored hands back the result with PasswordStored, so the caller
+// can audit the change that happened (#1535); one before it hands back nil.
+func TestRootAdminPassword_PartialFailureReturnsTheResult(t *testing.T) {
+	ctx := context.Background()
+	errDB := errors.New("db down")
+
+	t.Run("switching login on fails after the password was stored", func(t *testing.T) {
+		f := newRootPwFixture(t, false)
+		verified := f.now
+		f.existing(&models.User{ID: rootPwUserID, Email: rootPwEmail, EmailVerifiedAt: &verified}, true)
+		f.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(1), nil).Twice()
+		f.policies.On("Get", mock.Anything).Return(nil, errDB)
+
+		result, err := f.svc.Set(ctx, rootPwEmail, rootPwPhrase, true)
+
+		require.ErrorIs(t, err, errDB)
+		require.NotNil(t, result)
+		assert.True(t, result.PasswordStored)
+		assert.True(t, result.PasswordReplaced)
+		assert.False(t, result.LoginSwitchedOn)
+	})
+
+	t.Run("storing the password fails", func(t *testing.T) {
+		f := newRootPwFixture(t, false)
+		verified := f.now
+		f.existing(&models.User{ID: rootPwUserID, Email: rootPwEmail, EmailVerifiedAt: &verified}, false)
+		f.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(1), nil).Once()
+		f.setter.err = errDB
+
+		result, err := f.svc.Set(ctx, rootPwEmail, rootPwPhrase, false)
+
+		require.ErrorIs(t, err, errDB)
+		assert.Nil(t, result)
+	})
 }

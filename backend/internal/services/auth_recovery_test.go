@@ -352,7 +352,7 @@ func TestAuthRecovery_SetRootAdminPasswordAudits(t *testing.T) {
 			assert.Equal(t, models.AuditResourceTypeUser, got.ResourceType)
 			assert.Equal(t, rootPwUserID, got.ResourceID)
 			assert.Equal(t, rootPwEmail, got.ResourceName)
-			assert.Equal(t, map[string]any{"by": "cli", "login_switched_on": false}, got.Metadata)
+			assert.Equal(t, map[string]any{"login_switched_on": false}, got.Metadata)
 		})
 	}
 
@@ -362,6 +362,34 @@ func TestAuthRecovery_SetRootAdminPasswordAudits(t *testing.T) {
 		_, err := svc.SetRootAdminPassword(ctx, rootPwEmail, "short", false)
 
 		require.Error(t, err)
+		assert.Empty(t, events.got)
+	})
+
+	t.Run("a password stored before a later step failed is still recorded", func(t *testing.T) {
+		pw, svc, events := newRecovery(t)
+		verified := pw.now
+		pw.existing(&models.User{ID: rootPwUserID, Email: rootPwEmail, EmailVerifiedAt: &verified}, false)
+		pw.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(1), nil).Once()
+		pw.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(0), errRecoveryDB).Once()
+
+		result, err := svc.SetRootAdminPassword(ctx, rootPwEmail, rootPwPhrase, false)
+
+		require.ErrorIs(t, err, errRecoveryDB)
+		assert.Nil(t, result)
+		got := events.only(t)
+		assert.Equal(t, models.AuditOpAuthLocalCredentialSet, got.Operation)
+		assert.Equal(t, map[string]any{"login_switched_on": false, "completed": false}, got.Metadata)
+	})
+
+	t.Run("a failure before the password was stored records nothing", func(t *testing.T) {
+		pw, svc, events := newRecovery(t)
+		verified := pw.now
+		pw.existing(&models.User{ID: rootPwUserID, Email: rootPwEmail, EmailVerifiedAt: &verified}, false)
+		pw.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(0), errRecoveryDB).Once()
+
+		_, err := svc.SetRootAdminPassword(ctx, rootPwEmail, rootPwPhrase, false)
+
+		require.ErrorIs(t, err, errRecoveryDB)
 		assert.Empty(t, events.got)
 	})
 
