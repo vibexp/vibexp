@@ -23,6 +23,7 @@ import (
 	"github.com/vibexp/vibexp/internal/auth/mcptoken"
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 const (
@@ -55,6 +56,12 @@ type harnessOpt func(*harnessOptions)
 
 type harnessOptions struct {
 	access ConsentAccessChecker
+	audit  audit.Recorder
+}
+
+// withAudit installs an audit recorder (#1514).
+func withAudit(r audit.Recorder) harnessOpt {
+	return func(o *harnessOptions) { o.audit = r }
 }
 
 // withAccessPolicy installs a ConsentAccessChecker so the attach-time allowlist
@@ -92,6 +99,7 @@ func newTestHarness(t *testing.T, opts ...harnessOpt) *testHarness {
 			LoginSessions: newMemLoginSessionRepo(),
 			AccessPolicy:  ho.access,
 			Logger:        slog.New(slog.DiscardHandler),
+			Audit:         ho.audit,
 		},
 	)
 	require.NoError(t, svc.keys.EnsureActiveKey(context.Background()))

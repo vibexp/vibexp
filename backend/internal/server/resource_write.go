@@ -223,11 +223,7 @@ func (s *Server) auditRecorder() audit.Recorder {
 // agent come from ctx, which is why the routes and tools that call it carry a
 // write origin. Recording is asynchronous and can never fail the write.
 func (s *Server) recordAuditWrite(ctx context.Context, w auditedWrite) {
-	recorder := s.auditRecorder()
-	if recorder == nil {
-		return
-	}
-	recorder.Record(ctx, audit.Event{
+	s.recordAudit(ctx, audit.Event{
 		Operation:    w.op,
 		TeamID:       w.teamID,
 		ProjectID:    w.projectID,

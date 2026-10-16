@@ -14,6 +14,7 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	setupgen "github.com/vibexp/vibexp/internal/server/gen/setup"
 	"github.com/vibexp/vibexp/internal/services"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 // First-run authentication setup (#1236, epic #1230): the public setup status,
@@ -118,6 +119,7 @@ func (h *setupStrictServer) CreateSetupSession(
 		return nil, apierrors.NewResourceNotFoundError(endpointResource, endpointNotFoundMsg)
 	case errors.Is(err, services.ErrSetupTokenInvalid):
 		h.s.logger.With("handler", "CreateSetupSession").Warn("Rejected a setup token")
+		h.s.auditLoginFailed(ctx, auditLoginFailure{method: auditMethodSetupToken, reason: "setup_token_invalid"})
 		return nil, apierrors.NewAuthInvalidError(setupMsgRejected)
 	case err != nil:
 		h.s.logger.With("handler", "CreateSetupSession", "error", err.Error()).Error(setupMsgSessionFailed)
@@ -131,6 +133,10 @@ func (h *setupStrictServer) CreateSetupSession(
 	}
 	h.s.logger.With("handler", "CreateSetupSession").Warn("Setup session started",
 		"expires_at", sess.ExpiresAt)
+	h.s.recordAudit(ctx, audit.Event{
+		Operation: models.AuditOpAuthSetupSessionStarted, Actor: &audit.Actor{Type: models.AuditActorAnonymous},
+		Metadata: map[string]any{"expires_at": sess.ExpiresAt},
+	})
 
 	setCookie := cookie.String()
 	return setupgen.CreateSetupSession200JSONResponse{

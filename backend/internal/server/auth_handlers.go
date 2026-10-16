@@ -19,6 +19,7 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
+	"github.com/vibexp/vibexp/internal/services/audit"
 )
 
 const (
@@ -259,52 +260,52 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 
 	user, idpTokens, isNewUser, err := s.container.AuthService().HandleCallback(r.Context(), code, provider)
 	if err != nil {
-		s.handleCallbackFailure(w, r, stateParam, err)
+		s.handleCallbackFailure(w, r, stateParam, provider, err)
 		return
 	}
 
 	s.handleCallbackSuccess(w, r, user, idpTokens, stateParam, provider, isNewUser)
 }
 
-func (s *Server) handleCallbackFailure(w http.ResponseWriter, r *http.Request, state string, err error) {
+func (s *Server) handleCallbackFailure(w http.ResponseWriter, r *http.Request, state, provider string, err error) {
 	// A deliberate access-allowlist denial is a policy outcome, not an IdP
 	// failure. The browser was redirected here by the provider, so JSON is
 	// user-hostile: redirect to the SPA with a stable error code it can render.
 	// The service already logged the denial at INFO with the email + provider.
 	if stderrors.Is(err, services.ErrAccessRestricted) {
-		s.redirectCallbackError(w, r, "access_restricted")
+		s.redirectCallbackError(w, r, provider, "access_restricted")
 		return
 	}
 	// The sign-in matched an existing account by email, but the provider did
 	// not verify that email, so it was not linked (#1430). Also a policy
 	// outcome the SPA explains; the service logged it with the account.
 	if stderrors.Is(err, services.ErrEmailNotVerified) {
-		s.redirectCallbackError(w, r, callbackErrorEmailNotVerified)
+		s.redirectCallbackError(w, r, provider, callbackErrorEmailNotVerified)
 		return
 	}
 	// Same family: the matching account was never verified and already has a
 	// sign-in method, so it must be signed in to that way first.
 	if stderrors.Is(err, services.ErrExistingSignInRequired) {
-		s.redirectCallbackError(w, r, callbackErrorExistingSignInRequired)
+		s.redirectCallbackError(w, r, provider, callbackErrorExistingSignInRequired)
 		return
 	}
 	// The provider account was disconnected by the account's owner (#1460).
 	if stderrors.Is(err, services.ErrIdentityDisconnected) {
-		s.redirectCallbackError(w, r, callbackErrorIdentityDisconnected)
+		s.redirectCallbackError(w, r, provider, callbackErrorIdentityDisconnected)
 		return
 	}
 	// The sign-in would have created an account the registration gate refuses:
 	// not invited on an invite_only instance (#1434), or an unverified claim to
 	// a root admin's address (#1467). The service logged the reason.
 	if stderrors.Is(err, services.ErrRegistrationClosed) {
-		s.redirectCallbackError(w, r, callbackErrorRegistrationClosed)
+		s.redirectCallbackError(w, r, provider, callbackErrorRegistrationClosed)
 		return
 	}
 	// The provider the flow started with was disabled or removed before the
 	// callback: also a clean redirect, never a JSON 500.
 	if stderrors.Is(err, services.ErrIdentityProviderUnavailable) {
 		s.logAuthError("handleCallback", "Identity provider no longer enabled", err)
-		s.redirectCallbackError(w, r, callbackErrorProviderUnavailable)
+		s.redirectCallbackError(w, r, provider, callbackErrorProviderUnavailable)
 		return
 	}
 	if stderrors.Is(err, services.ErrIdentityProvidersUnresolvable) {
@@ -323,6 +324,9 @@ func (s *Server) handleCallbackFailure(w http.ResponseWriter, r *http.Request, s
 	if s.metrics != nil {
 		s.metrics.RecordUserLoginFailed(r.Context(), "idp_auth_failed")
 	}
+	s.auditLoginFailed(r.Context(), auditLoginFailure{
+		method: auditAuthMethodOIDC, provider: provider, reason: "idp_auth_failed",
+	})
 
 	apiErr := errors.NewIDPAuthError("Identity provider authentication failed")
 	errors.WriteJSONError(w, r, apiErr)
@@ -330,10 +334,11 @@ func (s *Server) handleCallbackFailure(w http.ResponseWriter, r *http.Request, s
 
 // redirectCallbackError records a failed login under code and sends the browser
 // to the SPA's callback page with ?error=<code>.
-func (s *Server) redirectCallbackError(w http.ResponseWriter, r *http.Request, code string) {
+func (s *Server) redirectCallbackError(w http.ResponseWriter, r *http.Request, provider, code string) {
 	if s.metrics != nil {
 		s.metrics.RecordUserLoginFailed(r.Context(), code)
 	}
+	s.auditLoginFailed(r.Context(), auditLoginFailure{method: auditAuthMethodOIDC, provider: provider, reason: code})
 	http.Redirect(w, r, s.config.Frontend.BaseURL+"/auth/callback?error="+code, http.StatusFound)
 }
 
@@ -387,6 +392,9 @@ func (s *Server) handleCallbackSuccess(
 		"email":    user.Email,
 	}
 	ar.RecordAuthActivity(r.Context(), user.ID, activities.ActivityTypeAuthLogin, &sessionID, metadata, r)
+	s.auditLoginSucceeded(r.Context(), user, auditLogin{
+		method: auditAuthMethodOIDC, provider: provider, newUser: isNewUser,
+	})
 
 	// Redirect to frontend home after successful authentication
 	http.Redirect(w, r, s.config.Frontend.BaseURL+"/", http.StatusFound)
@@ -445,6 +453,9 @@ func (s *Server) rejectSuspendedSignIn(
 	if s.metrics != nil {
 		s.metrics.RecordUserLoginFailed(r.Context(), "account_suspended")
 	}
+	s.auditLoginFailed(r.Context(), auditLoginFailure{
+		method: auditAuthMethodOIDC, provider: provider, reason: "account_suspended", email: user.Email, userID: user.ID,
+	})
 	http.Redirect(w, r, s.config.Frontend.BaseURL+"/auth/callback?error=account_suspended", http.StatusFound)
 	return true
 }
@@ -500,6 +511,18 @@ func (s *Server) recordLogout(r *http.Request) {
 	}
 	NewActivityRecorder(s.container.ActivityService()).
 		RecordAuthActivity(r.Context(), sess.UserID, activities.ActivityTypeAuthLogout, nil, metadata, r)
+	s.auditLogout(r.Context(), user, sess)
+}
+
+// auditLogout records the sign-out with the same metadata keys a sign-in
+// uses. It builds its own map: the activity recorder adds the request's HTTP
+// method and path to the one it is given.
+func (s *Server) auditLogout(ctx context.Context, user *models.User, sess *sesslib.Session) {
+	metadata := map[string]any{auditMetaMethod: sess.AuthMethod}
+	if sess.Provider != "" {
+		metadata[auditMetaProvider] = sess.Provider
+	}
+	s.recordAudit(ctx, audit.Event{Operation: models.AuditOpAuthLogout, Actor: auditUserActor(user), Metadata: metadata})
 }
 
 // revokeOtherSessions ends every cookie session of userID except the one this
@@ -656,10 +679,15 @@ func (s *Server) handleDevLoginFailure(w http.ResponseWriter, r *http.Request, e
 	// Access-allowlist denial → 403 with the stable access_restricted code (the
 	// XHR client surfaces it). The service already logged the denial at INFO.
 	if stderrors.Is(err, services.ErrAccessRestricted) {
+		s.auditLoginFailed(r.Context(), auditLoginFailure{
+			method: auditAuthMethodDev, reason: "access_restricted", email: email,
+		})
 		apiErr := errors.NewAccessRestrictedError("Your account is not permitted to sign in")
 		errors.WriteJSONError(w, r, apiErr)
 		return
 	}
+	s.auditLoginFailed(r.Context(),
+		auditLoginFailure{method: auditAuthMethodDev, reason: "dev_login_failed", email: email})
 
 	s.logger.With(
 		"service", serverLogServiceName,
@@ -687,6 +715,7 @@ func (s *Server) handleDevLoginSuccess(w http.ResponseWriter, r *http.Request, u
 		"email":    user.Email,
 	}
 	ar.RecordAuthActivity(r.Context(), user.ID, activities.ActivityTypeAuthLogin, nil, metadata, r)
+	s.auditLoginSucceeded(r.Context(), user, auditLogin{method: auditAuthMethodDev})
 
 	// Build and write session cookie for dev login. The access token is
 	// a non-validating marker — middleware never sends it to an identity

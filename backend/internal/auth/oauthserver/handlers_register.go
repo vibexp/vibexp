@@ -61,6 +61,7 @@ func (s *Service) Register(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, "could not register client")
 		return
 	}
+	s.auditClientRegistered(r.Context(), client)
 	s.writeJSON(w, http.StatusCreated, dcrResponse{
 		ClientID:                client.ID,
 		ClientName:              client.ClientName,

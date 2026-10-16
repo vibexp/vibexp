@@ -276,6 +276,7 @@ func (s *Service) ConsentDecision(w http.ResponseWriter, r *http.Request) {
 		s.writeJSONError(w, http.StatusInternalServerError, "failed to complete authorization")
 		return
 	}
+	s.auditConsentDecision(ctx, ar, body.Action, *ls.UserID)
 	// redirect_to embeds the single-use authorization code; never cache it.
 	w.Header().Set(headerCacheControl, cacheControlNoStore)
 	s.writeJSON(w, http.StatusOK, consentDecisionResponse{RedirectTo: redirectTo})

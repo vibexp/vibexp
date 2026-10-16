@@ -11,6 +11,7 @@ import (
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/audit"
 	"github.com/vibexp/vibexp/pkg/events"
 )
 
@@ -33,6 +34,15 @@ type AuthService struct {
 	allowlist    AccessAllowlistResolver
 	eventManager events.EventPublisher
 	logger       *slog.Logger
+	// audit records session revocations and identity links (#1514); nil
+	// records nothing.
+	audit audit.Recorder
+}
+
+// WithAuditRecorder makes the service record session revocations and the
+// sign-in identities it links in the audit log.
+func WithAuditRecorder(recorder audit.Recorder) AuthServiceOption {
+	return func(as *AuthService) { as.audit = recorder }
 }
 
 // Ensure AuthService implements AuthServiceInterface
@@ -288,6 +298,13 @@ func (as *AuthService) RevokeUserSessions(ctx context.Context, userID string) (i
 		return 0, fmt.Errorf("failed to revoke sessions of user %q: %w", userID, err)
 	}
 	as.logger.With("user_id", userID, "session_epoch", epoch).Info("Revoked the user's cookie sessions")
+	// Cookie sessions are not stored, so how many ended is unknown: the epoch
+	// they were all minted under is what the event can say. The actor is the
+	// caller from the context (the user, or an admin acting on them).
+	audit.SafeRecord(ctx, as.audit, audit.Event{
+		Operation: models.AuditOpAuthSessionsRevoked, ResourceType: models.AuditResourceTypeUser, ResourceID: userID,
+		Metadata: map[string]any{"session_epoch": epoch},
+	})
 	return epoch, nil
 }
 
@@ -509,6 +526,15 @@ func (as *AuthService) linkIdentityByEmail(
 		"user_id", user.ID,
 		"provider", providerName,
 	).Info("Linked a new sign-in identity to an existing account by verified email")
+	// The sign-in route is public, so the account that gained the identity is
+	// named as the actor.
+	userID := user.ID
+	audit.SafeRecord(ctx, as.audit, audit.Event{
+		Operation: models.AuditOpAuthIdentityLinked,
+		Actor:     &audit.Actor{UserID: &userID, Email: user.Email, Name: user.Name},
+		Source:    models.AuditSourceWeb, ResourceType: models.AuditResourceTypeUser, ResourceID: userID,
+		ResourceName: user.Email, Metadata: map[string]any{"provider": providerName},
+	})
 
 	return user, false, nil
 }

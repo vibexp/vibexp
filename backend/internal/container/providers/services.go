@@ -42,6 +42,8 @@ type AuthServiceDeps struct {
 	Allowlist    services.AccessAllowlistResolver
 	// Gate enforces the registration mode for a new account (#1434).
 	Gate services.RegistrationGate
+	// Audit records session revocations and identity links (#1514).
+	Audit audit.Recorder
 	// Methods records and reports disconnected identities (#1460).
 	Methods repositories.SignInMethodRepository
 }
@@ -55,6 +57,7 @@ func ProvideAuthService(deps AuthServiceDeps) services.AuthServiceInterface {
 	return services.NewAuthService(
 		deps.UserRepo, deps.IdentityRepo, deps.Resolver, deps.EventManager, deps.Logger, deps.Allowlist,
 		services.WithRegistrationGate(deps.Gate),
+		services.WithAuditRecorder(deps.Audit),
 		services.WithDisconnectedIdentities(deps.Methods),
 		services.WithUnverifiedAccountClaimHook(
 			services.NewUnverifiedAccountCleanup(deps.AccountTokens, deps.APIAccess, deps.Notifier, deps.Logger)))
@@ -75,9 +78,9 @@ func ProvideRegistrationGate(
 
 // ProvideAPIAccessService creates a new APIAccessService
 func ProvideAPIAccessService(
-	repo repositories.APIAccessRepository, logger *slog.Logger,
+	repo repositories.APIAccessRepository, logger *slog.Logger, recorder audit.Recorder,
 ) services.APIAccessServiceInterface {
-	return services.NewAPIAccessService(repo, logger)
+	return services.NewAPIAccessService(repo, logger, services.WithAPIAccessAuditRecorder(recorder))
 }
 
 // ProvideAPIKeyService creates a new APIKeyService
