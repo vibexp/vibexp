@@ -21,6 +21,7 @@ e2e/journeys/
 ├── custom-statuses.journey.spec.ts          # Custom status: create, apply, search, filter, delete
 ├── resource-locking.journey.spec.ts         # Lock, enforcement and unlock across three users
 ├── site-info.journey.spec.ts                # Company branding: sign-in, app shell, VibeXP footer mark, admin Site info page
+├── audit-log.journey.spec.ts                # Admin → Audit: a user's events, filters, drawer, CSV export
 ├── password-*.journey.spec.ts               # Password sign-in journeys (#1444), their own project, see below
 └── README.md                                # This file
 ```
@@ -76,6 +77,44 @@ guards only a new account created by a provider sign-in; the backend tests of
 **A second stack.** To run beside a stack already on :8080:
 `E2E_APP_PORT=8481 E2E_COMPOSE_PROJECT=vibexp-e2e-one make e2e`.
 The app listens on `E2E_APP_PORT`, and its base URL, the links it emails and the local OAuth issuer follow it.
+
+## Audit log (`audit-log.journey.spec.ts`)
+
+The ship gate for epic #1510. A per-run user signs in with dev login and
+creates a prompt through the UI. As the instance admin, Admin → Audit filtered
+by that user (through the user picker) lists the "Signed in" and "Prompt
+created" rows with the right actor, channel (Web) and outcome. Adding the
+operation filter narrows the list to the prompt row, the URL carries both
+filters, and a reload reproduces the list. The detail drawer shows the event.
+The CSV export of that filter matches the visible rows one-for-one, with the
+documented header order and the exact team, project and resource ids.
+
+The second test changes retention. From the Audit tab's "Audit settings" button
+it opens Admin → Settings → Audit log, saves retention as `(original % 52) + 1`
+(always in range and never the value found), and sees "Customized" and the
+change-history entry (old → new). Back on the Audit tab, the "Audit settings
+updated" row filtered to the admin shows the same change in its drawer.
+
+**Isolation.** Every spec in the run writes audit events in parallel, so this
+one never reads "the newest row". It filters by its own per-run actor
+(`e2e-audit-<run>@vibexp.test`), whose events no other spec can create.
+
+**Waiting.** Events are recorded asynchronously (a worker pool persists them
+after the request returns), so every "the row is there" assertion reloads the
+list and polls (`toPass`) until it holds.
+
+**Restore.** The audit settings are one instance-wide record. The test reads
+them first and, in a `finally`, writes the stored values back (or resets to
+defaults when none were stored), then reads them again to verify. No other spec
+writes that record, and `describe.serial` keeps this file's tests on one
+worker, so a normal run never races on it. `--repeat-each` does run copies in
+parallel, so repeat this file with `--workers=1`.
+
+**Not covered:** authorization denials and MCP-channel events (the backend
+tests of #1513 and #1515 cover them; the stack has no MCP client), sign-in
+methods other than dev login, the retention purge, and `capture_ip_ua`, which
+this journey never touches because it changes what every parallel spec's
+events store.
 
 ## Site info branding (`site-info.journey.spec.ts`)
 
