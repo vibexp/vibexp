@@ -232,49 +232,10 @@ func TestAccountLinkMailer_PasswordReset(t *testing.T) {
 
 	// The cooldown is decided where the link is stored, so simultaneous
 	// requests cannot each pass it.
-	t.Run("simultaneous requests for one account send one email", func(t *testing.T) {
-		f := newMailerFixture(t)
-		f.tokens.events = nil // appended from many goroutines otherwise
-		const callers = 12
-		outcomes := make(chan string, callers)
-		var start sync.WaitGroup
-		start.Add(1)
-		for range callers {
-			go func() {
-				start.Wait()
-				skipped, err := f.mailer.sendPasswordReset(ctx, pwTestEmail)
-				if err != nil {
-					skipped = "error: " + err.Error()
-				}
-				outcomes <- skipped
-			}()
-		}
-		start.Done()
-
-		sent, cooled := 0, 0
-		for range callers {
-			switch outcome := <-outcomes; outcome {
-			case "":
-				sent++
-			case resetSkippedCooldown:
-				cooled++
-			default:
-				t.Errorf("unexpected outcome %q", outcome)
-			}
-		}
-		assert.Equal(t, 1, sent)
-		assert.Equal(t, callers-1, cooled)
-		_, resets, _ := f.sent.counts()
-		assert.Equal(t, 1, resets, "one email, whose link is the live one")
-		require.Len(t, f.tokens.all(), 1)
-	})
+	t.Run("simultaneous requests for one account send one email", testSimultaneousPasswordResets)
 
 	// Every one of these issues no link and sends nothing.
-	refusals := map[string]struct {
-		arrange func(f *mailerFixture)
-		email   string
-		want    string
-	}{
+	refusals := map[string]resetRefusalCase{
 		"no email provider stored": {
 			arrange: func(f *mailerFixture) { f.policy.channel = PasswordResetByAdmin }, want: resetSkippedNoEmail,
 		},
@@ -290,24 +251,7 @@ func TestAccountLinkMailer_PasswordReset(t *testing.T) {
 		},
 	}
 	for name, tc := range refusals {
-		t.Run("no email for: "+name, func(t *testing.T) {
-			f := newMailerFixture(t)
-			if tc.arrange != nil {
-				tc.arrange(f)
-			}
-			email := tc.email
-			if email == "" {
-				email = pwTestEmail
-			}
-
-			skipped, err := f.mailer.sendPasswordReset(ctx, email)
-
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, skipped)
-			setups, resets, changed := f.sent.counts()
-			assert.Zero(t, setups+resets+changed, "nothing was sent")
-			assert.Empty(t, f.tokens.all(), "no link was issued")
-		})
+		t.Run("no email for: "+name, tc.run)
 	}
 
 	t.Run("no email for: an address the allowlist does not admit", func(t *testing.T) {
@@ -383,6 +327,84 @@ func TestAccountLinkMailer_PasswordReset(t *testing.T) {
 			assert.Empty(t, f.tokens.all(), name)
 		}
 	})
+}
+
+// testSimultaneousPasswordResets races many reset requests for one account:
+// the cooldown is decided where the link is stored, so exactly one passes it.
+func testSimultaneousPasswordResets(t *testing.T) {
+	f := newMailerFixture(t)
+	f.tokens.events = nil // appended from many goroutines otherwise
+	const callers = 12
+	outcomes := make(chan string, callers)
+	var start sync.WaitGroup
+	start.Add(1)
+	for range callers {
+		go func() {
+			start.Wait()
+			outcomes <- resetOutcome(f.mailer.sendPasswordReset(context.Background(), pwTestEmail))
+		}()
+	}
+	start.Done()
+
+	sent, cooled := tallyResetOutcomes(t, outcomes, callers)
+	assert.Equal(t, 1, sent)
+	assert.Equal(t, callers-1, cooled)
+	_, resets, _ := f.sent.counts()
+	assert.Equal(t, 1, resets, "one email, whose link is the live one")
+	require.Len(t, f.tokens.all(), 1)
+}
+
+// resetOutcome folds a sendPasswordReset result into one comparable string:
+// "" for a send, the skip reason, or the error.
+func resetOutcome(skipped string, err error) string {
+	if err != nil {
+		return "error: " + err.Error()
+	}
+	return skipped
+}
+
+// tallyResetOutcomes reads n outcomes and counts the sends and the cooldown
+// skips, failing the test on anything else.
+func tallyResetOutcomes(t *testing.T, outcomes <-chan string, n int) (sent, cooled int) {
+	t.Helper()
+	for range n {
+		switch outcome := <-outcomes; outcome {
+		case "":
+			sent++
+		case resetSkippedCooldown:
+			cooled++
+		default:
+			t.Errorf("unexpected outcome %q", outcome)
+		}
+	}
+	return sent, cooled
+}
+
+// resetRefusalCase is a reset request that must issue no link and send
+// nothing. email defaults to the fixture account's address.
+type resetRefusalCase struct {
+	arrange func(f *mailerFixture)
+	email   string
+	want    string
+}
+
+func (tc resetRefusalCase) run(t *testing.T) {
+	f := newMailerFixture(t)
+	if tc.arrange != nil {
+		tc.arrange(f)
+	}
+	email := tc.email
+	if email == "" {
+		email = pwTestEmail
+	}
+
+	skipped, err := f.mailer.sendPasswordReset(context.Background(), email)
+
+	require.NoError(t, err)
+	assert.Equal(t, tc.want, skipped)
+	setups, resets, changed := f.sent.counts()
+	assert.Zero(t, setups+resets+changed, "nothing was sent")
+	assert.Empty(t, f.tokens.all(), "no link was issued")
 }
 
 // A lookup that fails is an error too, and sends nothing.
