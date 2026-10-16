@@ -1,6 +1,7 @@
 import type { CellContext, ColumnDef } from '@tanstack/react-table'
-import { ChevronLeft, ChevronRight, History } from 'lucide-react'
+import { ChevronLeft, ChevronRight, History, Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router'
 
 import { EmptyState } from '@/components/EmptyState'
 import {
@@ -252,13 +253,24 @@ export function AdminAudit() {
             currentQuery={currentQuery}
             onApplyPreset={applyQuery}
             actions={
-              <AdminExportButton
-                noun="audit events"
-                disabled={status === 'empty'}
-                onExport={() =>
-                  adminAuditService.exportEvents(auditExportParams(baseParams))
-                }
-              />
+              <>
+                {/* Retention and IP/UA capture live in Settings (#1518). */}
+                <Button variant="outline" size="sm" asChild>
+                  <Link to="/admin/settings/audit-log">
+                    <Settings2 className="mr-2 size-4" aria-hidden />
+                    Audit settings
+                  </Link>
+                </Button>
+                <AdminExportButton
+                  noun="audit events"
+                  disabled={status === 'empty'}
+                  onExport={() =>
+                    adminAuditService.exportEvents(
+                      auditExportParams(baseParams)
+                    )
+                  }
+                />
+              </>
             }
           />
         </ListPage.Filters>

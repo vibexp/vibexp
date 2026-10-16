@@ -7,6 +7,7 @@ import {
   type LucideIcon,
   Mail,
   Search,
+  Settings2,
   Sparkles,
   Users,
   UsersRound,
@@ -128,7 +129,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   {
     label: 'Audit log',
     href: '/admin/settings/audit-log',
-    icon: History,
+    icon: Settings2,
     group: 'settings',
     description:
       'How long audit events are kept, and whether new ones capture the client IP address and user agent.',
