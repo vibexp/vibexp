@@ -137,13 +137,13 @@ func (s *TeamSearchSettingsService) Update(
 		RankWeightUpdated:     values.RankWeightUpdated,
 		RankHalfLifeDays:      values.RankHalfLifeDays,
 	}
-	before := s.storedAuditValues(ctx, teamID)
+	before, inherited := s.effectiveAuditValues(ctx, teamID)
 	if err := s.repo.Upsert(ctx, stored); err != nil {
 		return nil, fmt.Errorf("TeamSearchSettingsService.Update: %w", err)
 	}
 	s.record(ctx, teamSettingsChange{
 		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceSearch, Action: teamSettingsActionUpdate,
-		Before: before, After: searchSettingsAuditValues(stored),
+		Before: before, BeforeInherited: inherited, After: searchSettingsAuditValues(values),
 	})
 
 	// Read after the write, and fail closed: the profile is stored, but a
@@ -161,44 +161,64 @@ func (s *TeamSearchSettingsService) Reset(ctx context.Context, userID, teamID st
 	if err := s.authz.Can(ctx, userID, teamID, authz.TeamSettingsUpdate); err != nil {
 		return err
 	}
-	before := s.storedAuditValues(ctx, teamID)
+	before, inherited := s.effectiveAuditValues(ctx, teamID)
 	if err := s.repo.Delete(ctx, teamID); err != nil {
 		return fmt.Errorf("TeamSearchSettingsService.Reset: %w", err)
 	}
+	after := s.inheritedAuditValues(ctx)
 	s.record(ctx, teamSettingsChange{
 		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceSearch, Action: teamSettingsActionReset,
-		Before: before,
+		Before: before, BeforeInherited: inherited, After: after, AfterInherited: after != nil,
 	})
 	return nil
 }
 
-// storedAuditValues reads the team's stored profile before a write, for the
-// audit event's old values. It is nil when nothing is recorded, nothing is
-// stored, or the read fails: a missing old value must not fail the write.
-func (s *TeamSearchSettingsService) storedAuditValues(ctx context.Context, teamID string) map[string]any {
+// effectiveAuditValues reads the settings in effect before a write, for the
+// audit event's old values: the team's stored profile, or the instance
+// defaults it inherits when it stores none (inherited is then true, #1551).
+// It is nil when nothing is recorded or a read fails: a missing old value must
+// not fail the write.
+func (s *TeamSearchSettingsService) effectiveAuditValues(
+	ctx context.Context, teamID string,
+) (values map[string]any, inherited bool) {
 	if !s.enabled() {
-		return nil
+		return nil, false
 	}
 	stored, err := s.repo.Get(ctx, teamID)
 	if err != nil {
 		s.logger.WarnContext(ctx, "reading team search settings for the audit log", "team_id", teamID, "error", err)
-		return nil
+		return nil, false
 	}
 	if stored == nil {
+		values = s.inheritedAuditValues(ctx)
+		return values, values != nil
+	}
+	return searchSettingsAuditValues(valuesFromStored(stored)), false
+}
+
+// inheritedAuditValues are the instance defaults a team without a profile
+// inherits, as audit values; nil when nothing is recorded or the read fails.
+func (s *TeamSearchSettingsService) inheritedAuditValues(ctx context.Context) map[string]any {
+	if !s.enabled() {
 		return nil
 	}
-	return searchSettingsAuditValues(stored)
+	instance, err := s.instance.Get(ctx)
+	if err != nil {
+		s.logger.WarnContext(ctx, "reading instance search defaults for the audit log", "error", err)
+		return nil
+	}
+	return searchSettingsAuditValues(instance.Values.TeamValues())
 }
 
 // searchSettingsAuditValues is the audited field allowlist of a search
 // profile. None of it is secret.
-func searchSettingsAuditValues(stored *models.TeamSearchSettings) map[string]any {
+func searchSettingsAuditValues(values models.TeamSearchSettingsValues) map[string]any {
 	return map[string]any{
-		"recency_ranking_enabled": stored.RecencyRankingEnabled,
-		"rank_weight_relevance":   stored.RankWeightRelevance,
-		"rank_weight_created":     stored.RankWeightCreated,
-		"rank_weight_updated":     stored.RankWeightUpdated,
-		"rank_half_life_days":     stored.RankHalfLifeDays,
+		"recency_ranking_enabled": values.RecencyRankingEnabled,
+		"rank_weight_relevance":   values.RankWeightRelevance,
+		"rank_weight_created":     values.RankWeightCreated,
+		"rank_weight_updated":     values.RankWeightUpdated,
+		"rank_half_life_days":     values.RankHalfLifeDays,
 	}
 }
 

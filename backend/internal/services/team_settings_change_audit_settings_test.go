@@ -26,7 +26,27 @@ var errSettingsStore = errors.New("store down")
 type instanceSearchDefaults struct{ InstanceSearchSettingsReader }
 
 func (instanceSearchDefaults) Get(context.Context) (*models.InstanceSearchSettingsView, error) {
-	return &models.InstanceSearchSettingsView{}, nil
+	return &models.InstanceSearchSettingsView{Values: models.InstanceSearchSettingsValues{
+		RecencyRankingEnabled: true, RankWeightRelevance: 0.6, RankWeightCreated: 0.2,
+		RankWeightUpdated: 0.2, RankHalfLifeDays: 90,
+	}}, nil
+}
+
+// unreadableInstanceSearch fails every read of the instance search defaults.
+type unreadableInstanceSearch struct{ InstanceSearchSettingsReader }
+
+func (unreadableInstanceSearch) Get(context.Context) (*models.InstanceSearchSettingsView, error) {
+	return nil, errSettingsStore
+}
+
+// unreadableInstanceAISummary fails every read of the instance AI summary
+// defaults.
+type unreadableInstanceAISummary struct {
+	InstanceAISummarySettingsReader
+}
+
+func (unreadableInstanceAISummary) Get(context.Context) (*models.InstanceAISummarySettingsView, error) {
+	return nil, errSettingsStore
 }
 
 // instanceAISummaryDefaults answers the instance AI summary defaults.
@@ -35,7 +55,9 @@ type instanceAISummaryDefaults struct {
 }
 
 func (instanceAISummaryDefaults) Get(context.Context) (*models.InstanceAISummarySettingsView, error) {
-	return &models.InstanceAISummarySettingsView{}, nil
+	return &models.InstanceAISummarySettingsView{Values: models.InstanceAISummarySettingsValues{
+		Enabled: true, TopN: 5, Style: "concise", MaxOutputTokens: 400,
+	}}, nil
 }
 
 func searchAuditProfile() models.TeamSearchSettingsValues {
@@ -73,17 +95,42 @@ func TestTeamSearchSettingsAudit_UpdateRecordsOldAndNew(t *testing.T) {
 	assert.Equal(t, settingsAuditActor, *events.only(t).Actor.UserID)
 }
 
-func TestTeamSearchSettingsAudit_FirstProfileHasNoOldValues(t *testing.T) {
+// A team's first save compares against the instance defaults it inherited,
+// so only what it actually changed is recorded (#1551).
+func TestTeamSearchSettingsAudit_FirstSaveRecordsOnlyWhatChangedFromTheDefaults(t *testing.T) {
 	svc, repo, events := newSearchAuditService(t, allowAllAuthz{})
 	repo.EXPECT().Get(mock.Anything, settingsAuditTeam).Return(nil, nil)
+	repo.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil)
+	profile := models.TeamSearchSettingsValues{
+		RecencyRankingEnabled: true, RankWeightRelevance: 0.6, RankWeightCreated: 0.2,
+		RankWeightUpdated: 0.2, RankHalfLifeDays: 45,
+	}
+
+	_, err := svc.Update(context.Background(), settingsAuditActor, settingsAuditTeam, profile)
+
+	require.NoError(t, err)
+	metadata := requireTeamSettingsEvent(t, events, settingsAuditTeam, teamSettingsSurfaceSearch, teamSettingsActionUpdate)
+	assert.Equal(t, []string{"rank_half_life_days"}, changedFields(t, metadata))
+	assert.Equal(t, map[string]any{"old": 90.0, "new": 45.0}, metadata["rank_half_life_days"])
+	assert.Equal(t, teamSettingsSourceInstanceDefault, metadata[teamSettingsMetaBeforeSource])
+	assert.NotContains(t, metadata, teamSettingsMetaAfterSource)
+}
+
+func TestTeamSearchSettingsAudit_AnUpdateOfAStoredProfileIsNotInherited(t *testing.T) {
+	svc, repo, events := newSearchAuditService(t, allowAllAuthz{})
+	repo.EXPECT().Get(mock.Anything, settingsAuditTeam).Return(&models.TeamSearchSettings{
+		RecencyRankingEnabled: true, RankWeightRelevance: 0.6, RankWeightCreated: 0.2,
+		RankWeightUpdated: 0.2, RankHalfLifeDays: 45,
+	}, nil)
 	repo.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil)
 
 	_, err := svc.Update(context.Background(), settingsAuditActor, settingsAuditTeam, searchAuditProfile())
 
 	require.NoError(t, err)
 	metadata := requireTeamSettingsEvent(t, events, settingsAuditTeam, teamSettingsSurfaceSearch, teamSettingsActionUpdate)
-	assert.Len(t, changedFields(t, metadata), 5)
-	assert.Equal(t, map[string]any{"new": 30.0}, metadata["rank_half_life_days"])
+	assert.Equal(t, []string{"rank_half_life_days"}, changedFields(t, metadata))
+	assert.Equal(t, map[string]any{"old": 45.0, "new": 30.0}, metadata["rank_half_life_days"])
+	assert.NotContains(t, metadata, teamSettingsMetaBeforeSource)
 }
 
 func TestTeamSearchSettingsAudit_AFailedOldValueReadDoesNotBlockTheWrite(t *testing.T) {
@@ -94,18 +141,69 @@ func TestTeamSearchSettingsAudit_AFailedOldValueReadDoesNotBlockTheWrite(t *test
 	_, err := svc.Update(context.Background(), settingsAuditActor, settingsAuditTeam, searchAuditProfile())
 
 	require.NoError(t, err)
-	requireTeamSettingsEvent(t, events, settingsAuditTeam, teamSettingsSurfaceSearch, teamSettingsActionUpdate)
+	metadata := requireTeamSettingsEvent(t, events, settingsAuditTeam, teamSettingsSurfaceSearch, teamSettingsActionUpdate)
+	assert.NotContains(t, metadata, teamSettingsMetaBeforeSource, "a failed read is not an inherited side")
 }
 
-func TestTeamSearchSettingsAudit_ResetRecordsTheDroppedValues(t *testing.T) {
+// When the instance defaults cannot be read, the old side is unknown, never
+// marked inherited; the write still succeeds (#1551).
+func TestTeamSearchSettingsAudit_UnreadableDefaultsLeaveTheSideUnknown(t *testing.T) {
+	repo := repomocks.NewMockTeamSearchSettingsRepository(t)
+	events := &auditEvents{}
+	svc := NewTeamSearchSettingsService(repo, allowAllAuthz{}, unreadableInstanceSearch{},
+		slog.New(slog.DiscardHandler), WithTeamSearchSettingsAuditRecorder(events))
+	repo.EXPECT().Get(mock.Anything, settingsAuditTeam).Return(nil, nil)
+	repo.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil)
+
+	// Update reads the instance defaults again for its response and fails
+	// closed there; the audit event is recorded before that.
+	_, err := svc.Update(context.Background(), settingsAuditActor, settingsAuditTeam, searchAuditProfile())
+	require.Error(t, err)
+	metadata := requireTeamSettingsEvent(t, events, settingsAuditTeam, teamSettingsSurfaceSearch, teamSettingsActionUpdate)
+	assert.Len(t, changedFields(t, metadata), 5)
+	assert.Equal(t, map[string]any{"new": 30.0}, metadata["rank_half_life_days"])
+	assert.NotContains(t, metadata, teamSettingsMetaBeforeSource)
+
+	resetRepo := repomocks.NewMockTeamSearchSettingsRepository(t)
+	resetEvents := &auditEvents{}
+	resetSvc := NewTeamSearchSettingsService(resetRepo, allowAllAuthz{}, unreadableInstanceSearch{},
+		slog.New(slog.DiscardHandler), WithTeamSearchSettingsAuditRecorder(resetEvents))
+	resetRepo.EXPECT().Get(mock.Anything, settingsAuditTeam).Return(&models.TeamSearchSettings{RankHalfLifeDays: 7}, nil)
+	resetRepo.EXPECT().Delete(mock.Anything, settingsAuditTeam).Return(nil)
+	require.NoError(t, resetSvc.Reset(context.Background(), settingsAuditActor, settingsAuditTeam))
+	metadata = requireTeamSettingsEvent(t, resetEvents, settingsAuditTeam, teamSettingsSurfaceSearch,
+		teamSettingsActionReset)
+	assert.Equal(t, map[string]any{"old": 7.0}, metadata["rank_half_life_days"])
+	assert.NotContains(t, metadata, teamSettingsMetaAfterSource)
+}
+
+// A reset's new side is the inherited defaults (#1551).
+func TestTeamSearchSettingsAudit_ResetRecordsTheReturnToTheDefaults(t *testing.T) {
 	svc, repo, events := newSearchAuditService(t, allowAllAuthz{})
-	repo.EXPECT().Get(mock.Anything, settingsAuditTeam).Return(&models.TeamSearchSettings{RankHalfLifeDays: 7}, nil)
+	repo.EXPECT().Get(mock.Anything, settingsAuditTeam).Return(&models.TeamSearchSettings{
+		RecencyRankingEnabled: true, RankWeightRelevance: 0.6, RankWeightCreated: 0.2,
+		RankWeightUpdated: 0.2, RankHalfLifeDays: 7,
+	}, nil)
 	repo.EXPECT().Delete(mock.Anything, settingsAuditTeam).Return(nil)
 
 	require.NoError(t, svc.Reset(context.Background(), settingsAuditActor, settingsAuditTeam))
 
 	metadata := requireTeamSettingsEvent(t, events, settingsAuditTeam, teamSettingsSurfaceSearch, teamSettingsActionReset)
-	assert.Equal(t, map[string]any{"old": 7.0}, metadata["rank_half_life_days"])
+	assert.Equal(t, []string{"rank_half_life_days"}, changedFields(t, metadata))
+	assert.Equal(t, map[string]any{"old": 7.0, "new": 90.0}, metadata["rank_half_life_days"])
+	assert.Equal(t, teamSettingsSourceInstanceDefault, metadata[teamSettingsMetaAfterSource])
+	assert.NotContains(t, metadata, teamSettingsMetaBeforeSource)
+}
+
+func TestTeamSearchSettingsAudit_ResettingAnInheritingTeamChangesNothing(t *testing.T) {
+	svc, repo, events := newSearchAuditService(t, allowAllAuthz{})
+	repo.EXPECT().Get(mock.Anything, settingsAuditTeam).Return(nil, nil)
+	repo.EXPECT().Delete(mock.Anything, settingsAuditTeam).Return(nil)
+
+	require.NoError(t, svc.Reset(context.Background(), settingsAuditActor, settingsAuditTeam))
+
+	metadata := requireTeamSettingsEvent(t, events, settingsAuditTeam, teamSettingsSurfaceSearch, teamSettingsActionReset)
+	assert.Empty(t, changedFields(t, metadata))
 }
 
 func TestTeamSearchSettingsAudit_NothingOnFailureOrDenial(t *testing.T) {
@@ -170,10 +268,64 @@ func TestTeamAISummarySettingsAudit_UpdateAndReset(t *testing.T) {
 	assert.Equal(t, map[string]any{"old": false, "new": true}, metadata["enabled"])
 
 	resetSvc, resetRepo, resetEvents := newAISummaryAuditService(t, allowAllAuthz{})
-	resetRepo.EXPECT().Get(mock.Anything, settingsAuditTeam).Return(nil, nil)
+	resetRepo.EXPECT().Get(mock.Anything, settingsAuditTeam).Return(&models.TeamAISummarySettings{
+		Enabled: true, TopN: 8, Style: "concise", MaxOutputTokens: 400,
+	}, nil)
 	resetRepo.EXPECT().Delete(mock.Anything, settingsAuditTeam).Return(nil)
 	require.NoError(t, resetSvc.Reset(context.Background(), settingsAuditActor, settingsAuditTeam))
-	requireTeamSettingsEvent(t, resetEvents, settingsAuditTeam, teamSettingsSurfaceAISummary, teamSettingsActionReset)
+	metadata = requireTeamSettingsEvent(t, resetEvents, settingsAuditTeam, teamSettingsSurfaceAISummary,
+		teamSettingsActionReset)
+	assert.Equal(t, []string{"top_n"}, changedFields(t, metadata))
+	assert.Equal(t, map[string]any{"old": 8, "new": 5}, metadata["top_n"])
+	assert.Equal(t, teamSettingsSourceInstanceDefault, metadata[teamSettingsMetaAfterSource])
+}
+
+// A team's first AI summary save compares against the inherited defaults (#1551).
+func TestTeamAISummarySettingsAudit_FirstSaveRecordsOnlyWhatChangedFromTheDefaults(t *testing.T) {
+	svc, repo, events := newAISummaryAuditService(t, allowAllAuthz{})
+	repo.EXPECT().Get(mock.Anything, settingsAuditTeam).Return(nil, nil)
+	repo.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil)
+	values := aiSummaryAuditValues()
+	values.TopN = 8
+
+	_, err := svc.Update(context.Background(), settingsAuditActor, settingsAuditTeam, values)
+
+	require.NoError(t, err)
+	metadata := requireTeamSettingsEvent(t, events, settingsAuditTeam, teamSettingsSurfaceAISummary, teamSettingsActionUpdate)
+	assert.Equal(t, []string{"top_n"}, changedFields(t, metadata))
+	assert.Equal(t, map[string]any{"old": 5, "new": 8}, metadata["top_n"])
+	assert.Equal(t, teamSettingsSourceInstanceDefault, metadata[teamSettingsMetaBeforeSource])
+}
+
+// When the instance defaults cannot be read, neither side is marked inherited
+// (#1551).
+func TestTeamAISummarySettingsAudit_UnreadableDefaultsLeaveTheSideUnknown(t *testing.T) {
+	newService := func() (*TeamAISummarySettingsService, *repomocks.MockTeamAISummarySettingsRepository, *auditEvents) {
+		repo := repomocks.NewMockTeamAISummarySettingsRepository(t)
+		providers := repomocks.NewMockModelProviderRepository(t)
+		providers.EXPECT().Count(mock.Anything, settingsAuditTeam).Return(1, nil).Maybe()
+		events := &auditEvents{}
+		return NewTeamAISummarySettingsService(repo, providers, allowAllAuthz{}, unreadableInstanceAISummary{},
+			slog.New(slog.DiscardHandler), WithTeamAISummarySettingsAuditRecorder(events)), repo, events
+	}
+
+	svc, repo, events := newService()
+	repo.EXPECT().Get(mock.Anything, settingsAuditTeam).Return(nil, nil)
+	repo.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil)
+	_, err := svc.Update(context.Background(), settingsAuditActor, settingsAuditTeam, aiSummaryAuditValues())
+	require.Error(t, err, "the response's own read of the defaults fails closed")
+	metadata := requireTeamSettingsEvent(t, events, settingsAuditTeam, teamSettingsSurfaceAISummary, teamSettingsActionUpdate)
+	assert.Equal(t, map[string]any{"new": 5}, metadata["top_n"])
+	assert.NotContains(t, metadata, teamSettingsMetaBeforeSource)
+
+	resetSvc, resetRepo, resetEvents := newService()
+	resetRepo.EXPECT().Get(mock.Anything, settingsAuditTeam).Return(&models.TeamAISummarySettings{TopN: 8}, nil)
+	resetRepo.EXPECT().Delete(mock.Anything, settingsAuditTeam).Return(nil)
+	require.NoError(t, resetSvc.Reset(context.Background(), settingsAuditActor, settingsAuditTeam))
+	metadata = requireTeamSettingsEvent(t, resetEvents, settingsAuditTeam, teamSettingsSurfaceAISummary,
+		teamSettingsActionReset)
+	assert.Equal(t, map[string]any{"old": 8}, metadata["top_n"])
+	assert.NotContains(t, metadata, teamSettingsMetaAfterSource)
 }
 
 func TestTeamAISummarySettingsAudit_NothingOnFailureOrDenial(t *testing.T) {
@@ -258,18 +410,45 @@ func TestFreshnessAudit_RuleCreateUpdateDelete(t *testing.T) {
 }
 
 func TestFreshnessAudit_SettingsUpdateAndReset(t *testing.T) {
+	defaults := models.DefaultFreshnessSettingsValues()
+
+	// First save: the fixture's settings read finds no row, so the old side is
+	// the inherited defaults and only the interval changed (#1551).
 	f := newFreshnessAuditFixture(t, allowAllAuthz{})
 	f.settings.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil)
 	_, err := f.svc.UpdateSettings(context.Background(), settingsAuditActor, settingsAuditTeam,
-		models.FreshnessSettingsValues{IntervalSeconds: 7200, ReversibilityEnabled: true})
+		models.FreshnessSettingsValues{IntervalSeconds: 7200, ReversibilityEnabled: defaults.ReversibilityEnabled})
 	require.NoError(t, err)
 	metadata := requireTeamSettingsEvent(t, f.events, settingsAuditTeam, teamSettingsSurfaceFreshness, teamSettingsActionUpdate)
-	assert.Equal(t, map[string]any{"new": 7200}, metadata["interval_seconds"])
+	assert.Equal(t, []string{"interval_seconds"}, changedFields(t, metadata))
+	assert.Equal(t, map[string]any{"old": defaults.IntervalSeconds, "new": 7200}, metadata["interval_seconds"])
+	assert.Equal(t, teamSettingsSourceInstanceDefault, metadata[teamSettingsMetaBeforeSource])
 
+	// Reset of an inheriting team: both sides are the defaults, nothing changed.
 	f = newFreshnessAuditFixture(t, allowAllAuthz{})
 	f.settings.EXPECT().Delete(mock.Anything, settingsAuditTeam).Return(nil)
 	require.NoError(t, f.svc.ResetSettings(context.Background(), settingsAuditActor, settingsAuditTeam))
-	requireTeamSettingsEvent(t, f.events, settingsAuditTeam, teamSettingsSurfaceFreshness, teamSettingsActionReset)
+	metadata = requireTeamSettingsEvent(t, f.events, settingsAuditTeam, teamSettingsSurfaceFreshness, teamSettingsActionReset)
+	assert.Empty(t, changedFields(t, metadata))
+	assert.Equal(t, teamSettingsSourceInstanceDefault, metadata[teamSettingsMetaAfterSource])
+}
+
+func TestFreshnessAudit_ResetOfStoredSettingsRecordsTheReturnToTheDefaults(t *testing.T) {
+	defaults := models.DefaultFreshnessSettingsValues()
+	settings := repomocks.NewMockTeamFreshnessSettingsRepository(t)
+	settings.EXPECT().Get(mock.Anything, settingsAuditTeam).Return(&models.TeamFreshnessSettings{
+		IntervalSeconds: 7200, ReversibilityEnabled: defaults.ReversibilityEnabled,
+	}, nil).Once()
+	settings.EXPECT().Delete(mock.Anything, settingsAuditTeam).Return(nil)
+	settings.EXPECT().Get(mock.Anything, settingsAuditTeam).Return(nil, nil).Maybe()
+	f := newFreshnessAuditFixture(t, allowAllAuthz{})
+	f.svc.settings = settings
+
+	require.NoError(t, f.svc.ResetSettings(context.Background(), settingsAuditActor, settingsAuditTeam))
+
+	metadata := requireTeamSettingsEvent(t, f.events, settingsAuditTeam, teamSettingsSurfaceFreshness, teamSettingsActionReset)
+	assert.Equal(t, map[string]any{"old": 7200, "new": defaults.IntervalSeconds}, metadata["interval_seconds"])
+	assert.NotContains(t, metadata, teamSettingsMetaBeforeSource)
 }
 
 func TestFreshnessAudit_NothingOnFailureOrDenial(t *testing.T) {

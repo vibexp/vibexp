@@ -64,6 +64,11 @@ const (
 	teamSettingsMetaSurface       = "surface"
 	teamSettingsMetaAction        = "action"
 	teamSettingsMetaChangedFields = "changed_fields"
+	teamSettingsMetaBeforeSource  = "before_source"
+	teamSettingsMetaAfterSource   = "after_source"
+	// teamSettingsSourceInstanceDefault marks a side holding the inherited
+	// instance defaults.
+	teamSettingsSourceInstanceDefault = "instance_default"
 )
 
 // teamSettingsChange describes one team settings write.
@@ -86,6 +91,10 @@ type teamSettingsChange struct {
 	// Details are extra identifiers, such as the rule id or the source team
 	// of a copy.
 	Details map[string]any
+	// BeforeInherited and AfterInherited mark a side that holds the instance
+	// defaults a team inherits because it stores no settings of its own: the
+	// old side of a team's first save, the new side of a reset (#1551).
+	BeforeInherited, AfterInherited bool
 }
 
 // teamSettingsAuditor is embedded by every team settings service. Its zero
@@ -128,6 +137,12 @@ func teamSettingsChangeMetadata(change teamSettingsChange) map[string]any {
 	}
 	for key, value := range change.Details {
 		metadata[key] = value
+	}
+	if change.BeforeInherited {
+		metadata[teamSettingsMetaBeforeSource] = teamSettingsSourceInstanceDefault
+	}
+	if change.AfterInherited {
+		metadata[teamSettingsMetaAfterSource] = teamSettingsSourceInstanceDefault
 	}
 
 	changed := changedSettingsFields(change.Before, change.After)

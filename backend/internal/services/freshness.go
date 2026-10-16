@@ -317,30 +317,35 @@ func freshnessRuleAuditValues(rule *models.FreshnessRule) map[string]any {
 	}
 }
 
-// freshnessSettingsAuditValues is the audited field allowlist of the settings,
-// nil for no stored row.
-func freshnessSettingsAuditValues(stored *models.TeamFreshnessSettings) map[string]any {
-	if stored == nil {
-		return nil
-	}
+// freshnessSettingsAuditValues is the audited field allowlist of the settings.
+func freshnessSettingsAuditValues(values models.FreshnessSettingsValues) map[string]any {
 	return map[string]any{
-		"interval_seconds":      stored.IntervalSeconds,
-		"reversibility_enabled": stored.ReversibilityEnabled,
+		"interval_seconds":      values.IntervalSeconds,
+		"reversibility_enabled": values.ReversibilityEnabled,
 	}
 }
 
-// storedSettingsAuditValues reads the stored settings before a write, for the
-// audit event's old values; nil when nothing is recorded or the read fails.
-func (s *FreshnessService) storedSettingsAuditValues(ctx context.Context, teamID string) map[string]any {
+// effectiveSettingsAuditValues reads the settings in effect before a write,
+// for the audit event's old values: the team's stored settings, or the
+// defaults it inherits when it stores none (inherited is then true, #1551);
+// nil when nothing is recorded or the read fails.
+func (s *FreshnessService) effectiveSettingsAuditValues(
+	ctx context.Context, teamID string,
+) (values map[string]any, inherited bool) {
 	if !s.enabled() {
-		return nil
+		return nil, false
 	}
 	stored, err := s.settings.Get(ctx, teamID)
 	if err != nil {
 		s.logger.WarnContext(ctx, "reading team freshness settings for the audit log", "team_id", teamID, "error", err)
-		return nil
+		return nil, false
 	}
-	return freshnessSettingsAuditValues(stored)
+	if stored == nil {
+		return freshnessSettingsAuditValues(models.DefaultFreshnessSettingsValues()), true
+	}
+	return freshnessSettingsAuditValues(models.FreshnessSettingsValues{
+		IntervalSeconds: stored.IntervalSeconds, ReversibilityEnabled: stored.ReversibilityEnabled,
+	}), false
 }
 
 // GetSettings returns the team's effective settings and their provenance.
@@ -376,13 +381,13 @@ func (s *FreshnessService) UpdateSettings(
 		IntervalSeconds:      values.IntervalSeconds,
 		ReversibilityEnabled: values.ReversibilityEnabled,
 	}
-	before := s.storedSettingsAuditValues(ctx, teamID)
+	before, inherited := s.effectiveSettingsAuditValues(ctx, teamID)
 	if err := s.settings.Upsert(ctx, stored); err != nil {
 		return nil, fmt.Errorf("FreshnessService.UpdateSettings: %w", err)
 	}
 	s.record(ctx, teamSettingsChange{
 		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceFreshness, Action: teamSettingsActionUpdate,
-		Before: before, After: freshnessSettingsAuditValues(stored),
+		Before: before, BeforeInherited: inherited, After: freshnessSettingsAuditValues(values),
 	})
 	s.syncSchedule(ctx, teamID)
 	return s.view(models.FreshnessSettingsSourceTeam, values), nil
@@ -393,13 +398,14 @@ func (s *FreshnessService) ResetSettings(ctx context.Context, userID, teamID str
 	if err := s.authz.Can(ctx, userID, teamID, authz.TeamSettingsUpdate); err != nil {
 		return err
 	}
-	before := s.storedSettingsAuditValues(ctx, teamID)
+	before, inherited := s.effectiveSettingsAuditValues(ctx, teamID)
 	if err := s.settings.Delete(ctx, teamID); err != nil {
 		return fmt.Errorf("FreshnessService.ResetSettings: %w", err)
 	}
 	s.record(ctx, teamSettingsChange{
 		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceFreshness, Action: teamSettingsActionReset,
-		Before: before,
+		Before: before, BeforeInherited: inherited,
+		After: freshnessSettingsAuditValues(models.DefaultFreshnessSettingsValues()), AfterInherited: true,
 	})
 	s.syncSchedule(ctx, teamID)
 	return nil

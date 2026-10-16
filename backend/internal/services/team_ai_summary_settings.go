@@ -290,13 +290,13 @@ func (s *TeamAISummarySettingsService) Update(
 		Style:           values.Style,
 		MaxOutputTokens: values.MaxOutputTokens,
 	}
-	before := s.storedAuditValues(ctx, teamID)
+	before, inherited := s.effectiveAuditValues(ctx, teamID)
 	if err := s.repo.Upsert(ctx, stored); err != nil {
 		return nil, fmt.Errorf("TeamAISummarySettingsService.Update: %w", err)
 	}
 	s.record(ctx, teamSettingsChange{
 		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceAISummary, Action: teamSettingsActionUpdate,
-		Before: before, After: aiSummarySettingsAuditValues(stored),
+		Before: before, BeforeInherited: inherited, After: aiSummarySettingsAuditValues(values),
 	})
 	available, err := s.availability(ctx, teamID)
 	if err != nil {
@@ -316,44 +316,64 @@ func (s *TeamAISummarySettingsService) Reset(ctx context.Context, userID, teamID
 	if err := s.authz.Can(ctx, userID, teamID, authz.TeamSettingsUpdate); err != nil {
 		return err
 	}
-	before := s.storedAuditValues(ctx, teamID)
+	before, inherited := s.effectiveAuditValues(ctx, teamID)
 	if err := s.repo.Delete(ctx, teamID); err != nil {
 		return fmt.Errorf("TeamAISummarySettingsService.Reset: %w", err)
 	}
+	after := s.inheritedAuditValues(ctx)
 	s.record(ctx, teamSettingsChange{
 		TeamID: teamID, ActorID: userID, Surface: teamSettingsSurfaceAISummary, Action: teamSettingsActionReset,
-		Before: before,
+		Before: before, BeforeInherited: inherited, After: after, AfterInherited: after != nil,
 	})
 	return nil
 }
 
-// storedAuditValues reads the team's stored settings before a write, for the
-// audit event's old values. It is nil when nothing is recorded, nothing is
-// stored, or the read fails: a missing old value must not fail the write.
-func (s *TeamAISummarySettingsService) storedAuditValues(ctx context.Context, teamID string) map[string]any {
+// effectiveAuditValues reads the settings in effect before a write, for the
+// audit event's old values: the team's stored settings, or the instance
+// defaults it inherits when it stores none (inherited is then true, #1551).
+// It is nil when nothing is recorded or a read fails: a missing old value must
+// not fail the write.
+func (s *TeamAISummarySettingsService) effectiveAuditValues(
+	ctx context.Context, teamID string,
+) (values map[string]any, inherited bool) {
 	if !s.enabled() {
-		return nil
+		return nil, false
 	}
 	stored, err := s.repo.Get(ctx, teamID)
 	if err != nil {
 		s.logger.WarnContext(ctx, "reading team AI summary settings for the audit log", "team_id", teamID, "error", err)
-		return nil
+		return nil, false
 	}
 	if stored == nil {
+		values = s.inheritedAuditValues(ctx)
+		return values, values != nil
+	}
+	return aiSummarySettingsAuditValues(aiSummaryValuesFromStored(stored)), false
+}
+
+// inheritedAuditValues are the instance defaults a team without settings
+// inherits, as audit values; nil when nothing is recorded or the read fails.
+func (s *TeamAISummarySettingsService) inheritedAuditValues(ctx context.Context) map[string]any {
+	if !s.enabled() {
 		return nil
 	}
-	return aiSummarySettingsAuditValues(stored)
+	instance, err := s.instance.Get(ctx)
+	if err != nil {
+		s.logger.WarnContext(ctx, "reading instance AI summary defaults for the audit log", "error", err)
+		return nil
+	}
+	return aiSummarySettingsAuditValues(instance.Values.TeamValues())
 }
 
 // aiSummarySettingsAuditValues is the audited field allowlist of the AI
 // summary settings. None of it is secret.
-func aiSummarySettingsAuditValues(stored *models.TeamAISummarySettings) map[string]any {
+func aiSummarySettingsAuditValues(values models.TeamAISummarySettingsValues) map[string]any {
 	return map[string]any{
-		"enabled":           stored.Enabled,
-		"model_provider_id": optionalAuditString(stored.ModelProviderID),
-		"top_n":             stored.TopN,
-		"style":             stored.Style,
-		"max_output_tokens": stored.MaxOutputTokens,
+		"enabled":           values.Enabled,
+		"model_provider_id": optionalAuditString(values.ModelProviderID),
+		"top_n":             values.TopN,
+		"style":             values.Style,
+		"max_output_tokens": values.MaxOutputTokens,
 	}
 }
 

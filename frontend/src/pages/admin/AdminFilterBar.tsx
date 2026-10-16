@@ -27,6 +27,11 @@ export interface AdminFilterBarProps {
   createdClassName?: string
   onClear?: () => void
   hasActiveFilters: boolean
+  /**
+   * Shows the Clear action as a short "Clear" (its accessible name stays
+   * "Clear filters"), for a bar whose second row is full (#1551).
+   */
+  compactClear?: boolean
   /** The page's own domain filters, rendered between search and the date range. */
   children?: ReactNode
   /**
@@ -69,6 +74,7 @@ export function AdminFilterBar({
   createdClassName,
   onClear,
   hasActiveFilters,
+  compactClear = false,
   children,
   advanced,
   advancedActiveCount = 0,
@@ -106,8 +112,13 @@ export function AdminFilterBar({
       />
 
       {hasActiveFilters && (
-        <Button variant="ghost" size="sm" onClick={onClear}>
-          Clear filters
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onClear}
+          aria-label={compactClear ? 'Clear filters' : undefined}
+        >
+          {compactClear ? 'Clear' : 'Clear filters'}
         </Button>
       )}
 
