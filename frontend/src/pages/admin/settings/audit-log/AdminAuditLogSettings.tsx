@@ -1,4 +1,5 @@
 import { AlertTriangle } from 'lucide-react'
+import { useMemo } from 'react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -33,6 +34,7 @@ import {
   toAuditLogForm,
   toAuditLogUpdate,
   validateAuditLogForm,
+  withDefaultSnapshots,
 } from './auditLogSettingsForm'
 
 const NOUN = 'audit log settings'
@@ -55,9 +57,7 @@ const EDITOR_OPTIONS: InstanceSettingsEditorOptions<
   noun: NOUN,
 }
 
-const AUDIT = {
-  fetchPage: (params: AdminInstanceSettingsAuditParams) =>
-    adminSettingsService.listAuditLogSettingsAudit(params),
+const AUDIT_BASE = {
   fields: AUDIT_LOG_AUDIT_FIELDS,
   description: 'Every change to the audit log retention and capture settings.',
   entryTestId: 'instance-audit-log-audit-entry',
@@ -71,6 +71,30 @@ const AUDIT = {
 export function AdminAuditLogSettings() {
   const editor = useInstanceSettingsEditor(EDITOR_OPTIONS)
   const { errors, setField } = editor
+  const defaultRetention = editor.settings?.built_in_defaults.retention_weeks
+  const defaultCapture = editor.settings?.built_in_defaults.capture_ip_ua
+
+  // Keyed on the default values, so the history refetches only when they
+  // change (never, in practice) and not on every settings reload.
+  const audit = useMemo(
+    () => ({
+      ...AUDIT_BASE,
+      fetchPage: async (params: AdminInstanceSettingsAuditParams) => {
+        const page =
+          await adminSettingsService.listAuditLogSettingsAudit(params)
+        return withDefaultSnapshots(
+          page,
+          defaultRetention === undefined || defaultCapture === undefined
+            ? undefined
+            : {
+                retention_weeks: defaultRetention,
+                capture_ip_ua: defaultCapture,
+              }
+        )
+      },
+    }),
+    [defaultRetention, defaultCapture]
+  )
 
   return (
     <InstanceSettingsLayout
@@ -81,7 +105,7 @@ export function AdminAuditLogSettings() {
         // The layout previews a reset only once the settings are loaded.
         describeAuditLogReset(defaults, editor.settings?.values ?? defaults)
       }
-      audit={AUDIT}
+      audit={audit}
     >
       {(form, settings, disabled) => {
         const warning = retentionLoweredWarning(form, settings.values)
@@ -96,8 +120,9 @@ export function AdminAuditLogSettings() {
             <CardContent className="space-y-4">
               <NumberSettingField
                 id="retention_weeks"
-                label="Retention (weeks)"
+                label="Retention"
                 hint={`How long an audit event is kept (${String(settings.limits.retention_weeks_min)}–${String(settings.limits.retention_weeks_max)} weeks). A daily purge deletes older events.`}
+                suffix="weeks"
                 value={form.retention_weeks}
                 error={errors.retention_weeks}
                 min={settings.limits.retention_weeks_min}

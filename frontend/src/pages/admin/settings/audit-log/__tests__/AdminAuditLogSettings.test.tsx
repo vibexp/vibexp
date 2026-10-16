@@ -68,7 +68,7 @@ const apiError = (
   } as ConstructorParameters<typeof ApiError>[0])
 
 const saveButton = () => screen.getByRole('button', { name: 'Save changes' })
-const retention = () => screen.findByLabelText('Retention (weeks)')
+const retention = () => screen.findByLabelText('Retention')
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -90,6 +90,9 @@ describe('AdminAuditLogSettings — status', () => {
       screen.queryByTestId('instance-settings-overrides')
     ).not.toBeInTheDocument()
     expect(await retention()).toHaveValue(2)
+    // A short number: a narrow input with the unit after it.
+    expect(await retention()).toHaveClass('w-24')
+    expect(screen.getByText('weeks')).toBeInTheDocument()
     expect(
       screen.getByLabelText('Capture IP address and user agent')
     ).toBeChecked()
@@ -294,7 +297,7 @@ describe('AdminAuditLogSettings — saving', () => {
     await user.click(within(alert).getByRole('button', { name: 'Reload' }))
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Retention (weeks)')).toHaveValue(30)
+      expect(screen.getByLabelText('Retention')).toHaveValue(30)
     })
     expect(
       screen.queryByTestId('instance-settings-conflict')
@@ -327,7 +330,7 @@ describe('AdminAuditLogSettings — reset', () => {
       )
     })
     expect(service.resetAuditLogSettings).toHaveBeenCalledTimes(1)
-    expect(screen.getByLabelText('Retention (weeks)')).toHaveValue(2)
+    expect(screen.getByLabelText('Retention')).toHaveValue(2)
     expect(service.listAuditLogSettingsAudit).toHaveBeenCalledTimes(2)
   })
 })
@@ -356,5 +359,50 @@ describe('AdminAuditLogSettings — history', () => {
     expect(entry).toHaveTextContent(/Retention \(weeks\)\s*2\s*→\s*8/)
     expect(entry).toHaveTextContent(/Capture IP address and user agent/)
     expect(entry).not.toHaveTextContent('version')
+  })
+})
+
+describe('AdminAuditLogSettings — history defaults', () => {
+  it('shows the built-in value for the missing side of a first save and a reset', async () => {
+    service.listAuditLogSettingsAudit.mockResolvedValue({
+      entries: [
+        {
+          id: 'reset',
+          setting: 'audit_log',
+          action: 'delete',
+          actor_user_id: 'u1',
+          actor_name: 'Ada Admin',
+          before: { retention_weeks: 12, capture_ip_ua: false, version: 2 },
+          after: null,
+          created_at: '2026-10-16T11:00:00Z',
+        },
+        {
+          id: 'first',
+          setting: 'audit_log',
+          action: 'upsert',
+          actor_user_id: 'u1',
+          actor_name: 'Ada Admin',
+          before: null,
+          after: { retention_weeks: 8, capture_ip_ua: true, version: 1 },
+          created_at: '2026-10-16T10:00:00Z',
+        },
+      ],
+      next_cursor: null,
+    })
+    render(<AdminAuditLogSettings />)
+
+    const entries = await screen.findAllByTestId(
+      'instance-audit-log-audit-entry'
+    )
+    expect(entries[0]).toHaveTextContent(
+      /Retention \(weeks\)\s*12\s*→\s*2 \(default\)/
+    )
+    expect(entries[0]).toHaveTextContent(/No\s*→\s*Yes \(default\)/)
+    expect(entries[1]).toHaveTextContent(
+      /Retention \(weeks\)\s*2 \(default\)\s*→\s*8/
+    )
+    // Capture stayed at its default, so it is not listed as a change.
+    expect(entries[1]).not.toHaveTextContent('Capture IP address')
+    expect(entries[1]).not.toHaveTextContent('—')
   })
 })

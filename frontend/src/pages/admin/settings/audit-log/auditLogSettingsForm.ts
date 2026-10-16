@@ -1,9 +1,10 @@
+import type { AdminInstanceSettingsAuditPage } from '@/services/adminService'
 import type {
   AdminAuditLogSettings,
   AdminAuditLogSettingsUpdate,
 } from '@/services/adminSettingsService'
 
-import type { AuditField } from '../instanceSettingsAudit'
+import { type AuditField, formatAuditValue } from '../instanceSettingsAudit'
 import {
   type FieldErrors,
   integerRangeError,
@@ -135,4 +136,51 @@ export function describeAuditLogReset(
   const summary = describeAuditLogValues(defaults)
   if (defaults.retention_weeks >= saved.retention_weeks) return summary
   return `${summary}. ${purgeSentence(defaults.retention_weeks).slice(0, -1)}`
+}
+
+type AuditSnapshot = Record<string, unknown>
+
+/**
+ * The built-in defaults standing in for a missing history snapshot. A null
+ * `before` (first save) or `after` (reset) means nothing was stored, so the
+ * built-in defaults applied: the history shows them as "2 (default)" rather
+ * than "—". A field whose default equals the other side keeps its raw value,
+ * so it compares equal and drops out of the diff.
+ */
+function defaultSnapshot(
+  defaults: AuditLogValues,
+  other: AuditSnapshot
+): AuditSnapshot {
+  const current = new Map(Object.entries(other))
+  return Object.fromEntries(
+    Object.entries(defaults).map(([key, value]) => [
+      key,
+      current.get(key) === value
+        ? value
+        : `${formatAuditValue(value)} (default)`,
+    ])
+  )
+}
+
+/**
+ * The history page with missing snapshots filled from the built-in defaults;
+ * unchanged while the defaults are not known yet.
+ */
+export function withDefaultSnapshots(
+  page: AdminInstanceSettingsAuditPage,
+  defaults: AuditLogValues | undefined
+): AdminInstanceSettingsAuditPage {
+  if (!defaults) return page
+  return {
+    ...page,
+    entries: page.entries.map(entry => {
+      if (entry.before === null && entry.after !== null) {
+        return { ...entry, before: defaultSnapshot(defaults, entry.after) }
+      }
+      if (entry.after === null && entry.before !== null) {
+        return { ...entry, after: defaultSnapshot(defaults, entry.before) }
+      }
+      return entry
+    }),
+  }
 }

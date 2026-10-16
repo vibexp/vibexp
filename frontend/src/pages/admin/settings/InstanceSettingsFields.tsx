@@ -71,6 +71,11 @@ interface NumberSettingFieldProps {
   /** `1` for whole numbers, `'any'` for decimals. */
   step: number | 'any'
   disabled?: boolean
+  /**
+   * A unit shown after the input, e.g. "weeks". With it the input is sized for
+   * a short number instead of spanning the row.
+   */
+  suffix?: string
 }
 
 export function NumberSettingField({
@@ -84,24 +89,36 @@ export function NumberSettingField({
   max,
   step,
   disabled,
+  suffix,
 }: Readonly<NumberSettingFieldProps>) {
+  const input = (
+    <Input
+      id={id}
+      type="number"
+      inputMode={step === 1 ? 'numeric' : 'decimal'}
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      disabled={disabled}
+      className={suffix ? 'w-24' : undefined}
+      aria-invalid={error ? true : undefined}
+      aria-describedby={fieldDescribedBy(id, hint, error)}
+      onChange={e => {
+        onChange(e.target.value)
+      }}
+    />
+  )
   return (
     <FieldFrame id={id} label={label} hint={hint} error={error}>
-      <Input
-        id={id}
-        type="number"
-        inputMode={step === 1 ? 'numeric' : 'decimal'}
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        disabled={disabled}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={fieldDescribedBy(id, hint, error)}
-        onChange={e => {
-          onChange(e.target.value)
-        }}
-      />
+      {suffix ? (
+        <div className="flex items-center gap-2">
+          {input}
+          <span className="text-muted-foreground text-sm">{suffix}</span>
+        </div>
+      ) : (
+        input
+      )}
     </FieldFrame>
   )
 }

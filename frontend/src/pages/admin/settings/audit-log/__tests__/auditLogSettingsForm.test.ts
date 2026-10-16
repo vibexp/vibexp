@@ -9,6 +9,7 @@ import {
   toAuditLogForm,
   toAuditLogUpdate,
   validateAuditLogForm,
+  withDefaultSnapshots,
 } from '../auditLogSettingsForm'
 
 const values: AdminAuditLogSettings['values'] = {
@@ -133,5 +134,63 @@ describe('describeAuditLogReset', () => {
     expect(
       describeAuditLogReset(builtIn, { ...values, retention_weeks: 2 })
     ).toBe('retention 2 weeks, IP address and user agent capture on')
+  })
+})
+
+describe('withDefaultSnapshots', () => {
+  const builtIn = { retention_weeks: 2, capture_ip_ua: true }
+  const entry = (
+    before: Record<string, unknown> | null,
+    after: Record<string, unknown> | null
+  ) => ({
+    id: 'e',
+    setting: 'audit_log' as const,
+    action: 'upsert' as const,
+    actor_user_id: 'u1',
+    actor_name: 'Ada Admin',
+    before,
+    after,
+    created_at: '2026-10-16T10:00:00Z',
+  })
+  const page = (...entries: ReturnType<typeof entry>[]) => ({
+    entries,
+    next_cursor: 'c2',
+  })
+
+  it('fills a missing before, marking only the fields that differ', () => {
+    const result = withDefaultSnapshots(
+      page(entry(null, { retention_weeks: 8, capture_ip_ua: true })),
+      builtIn
+    )
+    expect(result.next_cursor).toBe('c2')
+    expect(result.entries[0].before).toEqual({
+      retention_weeks: '2 (default)',
+      capture_ip_ua: true,
+    })
+  })
+
+  it('fills a missing after', () => {
+    const result = withDefaultSnapshots(
+      page(entry({ retention_weeks: 12, capture_ip_ua: false }, null)),
+      builtIn
+    )
+    expect(result.entries[0].after).toEqual({
+      retention_weeks: '2 (default)',
+      capture_ip_ua: 'Yes (default)',
+    })
+  })
+
+  it('leaves complete and empty entries alone', () => {
+    const both = entry({ retention_weeks: 4 }, { retention_weeks: 6 })
+    const neither = entry(null, null)
+    expect(withDefaultSnapshots(page(both, neither), builtIn).entries).toEqual([
+      both,
+      neither,
+    ])
+  })
+
+  it('returns the page unchanged while the defaults are unknown', () => {
+    const input = page(entry(null, { retention_weeks: 8 }))
+    expect(withDefaultSnapshots(input, undefined)).toBe(input)
   })
 })
