@@ -727,7 +727,10 @@ test.describe.serial('Admin panel v3 journey', () => {
     const leakedBodies = observed
       .filter(o => o.body.includes(SECRET))
       .map(o => o.url)
-    expect(leakedBodies, 'the secret appeared in these responses').toEqual([])
+    expect(
+      leakedBodies,
+      `the secret appeared in these responses (bodies not inspected: ${recorder.unreadable.join(', ') || 'none'})`
+    ).toEqual([])
     const leakedPages = adminPages
       .filter(p => p.html.includes(SECRET))
       .map(p => p.url)

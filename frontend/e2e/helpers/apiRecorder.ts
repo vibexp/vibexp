@@ -1,5 +1,23 @@
 import { expect, type BrowserContext, type Page } from '@playwright/test'
 
+/** How long one response body may take to read before it counts as unreadable. */
+const BODY_READ_TIMEOUT_MS = 5_000
+
+/** Rejects if `promise` has not settled within `ms`. */
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`timed out after ${String(ms)}ms`))
+    }, ms)
+  })
+  try {
+    return await Promise.race([promise, timeout])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** One recorded `/api/v1/` response. */
 export interface RecordedResponse {
   url: string
@@ -32,23 +50,32 @@ export class ApiRecorder {
   private readonly pending: Promise<void>[] = []
 
   /**
+   * URLs whose body could not be read, or did not finish reading within
+   * {@link BODY_READ_TIMEOUT_MS}. A read can stay pending forever (Playwright
+   * does not always settle it when the request is torn down), and an
+   * unbounded wait in {@link settled} hung the cross-team copy journey until
+   * its test timeout (#1568). Kept, not dropped silently, so a leak check can
+   * name what it could not inspect.
+   */
+  readonly unreadable: string[] = []
+
+  /**
    * Record a context's API traffic. Bind it before the first navigation so
-   * nothing is missed. A body that cannot be read (a redirect, an aborted
-   * request) is skipped; callers pair their assertion with a check that a
-   * substantial amount of traffic was seen.
+   * nothing is missed. A body that cannot be read in time (a redirect, an
+   * aborted request) is listed in {@link unreadable}; callers pair their
+   * assertion with a check that a substantial amount of traffic was seen.
    */
   attach(context: BrowserContext): void {
     context.on('response', response => {
       const url = response.url()
       if (!url.includes('/api/v1/')) return
       this.pending.push(
-        response
-          .text()
+        withTimeout(response.text(), BODY_READ_TIMEOUT_MS)
           .then(body => {
             this.recorded.push({ url, body })
           })
           .catch(() => {
-            /* body unavailable — nothing to inspect */
+            this.unreadable.push(url)
           })
       )
     })
