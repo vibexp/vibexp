@@ -119,39 +119,59 @@ func (s *svc) fine(ctx context.Context, userID string) error {
 // to an authorization check: an AuthorizationService method called on an
 // authz field or an AuthorizationService value, or a function of the package
 // that forwards its context parameter to one (directly or through another
-// such function). A background context is context.Background()/TODO(), a
-// context derived from one, or a local assigned either in the same function.
+// such function). A background context is an empty root context
+// (context.Background or its placeholder counterpart), a context derived from
+// one, or a local assigned either in the same function.
 func authzContextViolations(fset *token.FileSet, files []*ast.File) []authzContextViolation {
 	forwarders := authzForwarders(files)
 	var out []authzContextViolation
+	for _, fn := range funcDecls(files) {
+		out = append(out, functionViolations(fset, fn, forwarders)...)
+	}
+	return out
+}
+
+// funcDecls lists the functions and methods with a body declared in files.
+func funcDecls(files []*ast.File) []*ast.FuncDecl {
+	var out []*ast.FuncDecl
 	for _, file := range files {
 		for _, decl := range file.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Body == nil {
-				continue
+			if fn, ok := decl.(*ast.FuncDecl); ok && fn.Body != nil {
+				out = append(out, fn)
 			}
-			background := backgroundLocals(fn.Body)
-			scope := callScope{recv: receiverOf(fn), authorizers: authorizerNames(fn), forwarders: forwarders}
-			ast.Inspect(fn.Body, func(n ast.Node) bool {
-				call, ok := n.(*ast.CallExpr)
-				if !ok || len(call.Args) == 0 {
-					return true
-				}
-				name, ok := scope.authzCall(call)
-				if !ok {
-					return true
-				}
-				arg := call.Args[0]
-				ident, isIdent := arg.(*ast.Ident)
-				if isBackgroundContext(arg) || (isIdent && background[ident.Name]) {
-					pos := fset.Position(call.Pos())
-					out = append(out, authzContextViolation{file: pos.Filename, line: pos.Line, call: name})
-				}
-				return true
-			})
 		}
 	}
 	return out
+}
+
+// functionViolations reports fn's authorization calls that receive a
+// background context.
+func functionViolations(fset *token.FileSet, fn *ast.FuncDecl, forwarders map[string]bool) []authzContextViolation {
+	background := backgroundLocals(fn.Body)
+	scope := callScope{recv: receiverOf(fn), authorizers: authorizerNames(fn), forwarders: forwarders}
+	var out []authzContextViolation
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || len(call.Args) == 0 {
+			return true
+		}
+		name, ok := scope.authzCall(call)
+		if ok && receivesBackground(call.Args[0], background) {
+			pos := fset.Position(call.Pos())
+			out = append(out, authzContextViolation{file: pos.Filename, line: pos.Line, call: name})
+		}
+		return true
+	})
+	return out
+}
+
+// receivesBackground reports whether arg is a background context or a local
+// holding one.
+func receivesBackground(arg ast.Expr, background map[string]bool) bool {
+	if ident, ok := arg.(*ast.Ident); ok && background[ident.Name] {
+		return true
+	}
+	return isBackgroundContext(arg)
 }
 
 // receiver is a method's receiver: its variable name and type name.
@@ -185,29 +205,33 @@ func forwarderKey(recvType, name string) string {
 // which is how a service reaches its private helpers.
 func authzForwarders(files []*ast.File) map[string]bool {
 	forwarders := map[string]bool{}
+	decls := funcDecls(files)
 	for changed := true; changed; {
 		changed = false
-		for _, file := range files {
-			for _, decl := range file.Decls {
-				fn, ok := decl.(*ast.FuncDecl)
-				if !ok || fn.Body == nil {
-					continue
-				}
-				recv := receiverOf(fn)
-				key := forwarderKey(recv.typ, fn.Name.Name)
-				param := firstContextParam(fn)
-				if forwarders[key] || param == "" {
-					continue
-				}
-				scope := callScope{recv: recv, authorizers: authorizerNames(fn), forwarders: forwarders}
-				if scope.forwardsContext(fn.Body, param) {
-					forwarders[key] = true
-					changed = true
-				}
+		for _, fn := range decls {
+			if markForwarder(fn, forwarders) {
+				changed = true
 			}
 		}
 	}
 	return forwarders
+}
+
+// markForwarder adds fn to forwarders when it forwards its context parameter
+// to an authorization call and is not there yet, reporting whether it did.
+func markForwarder(fn *ast.FuncDecl, forwarders map[string]bool) bool {
+	recv := receiverOf(fn)
+	key := forwarderKey(recv.typ, fn.Name.Name)
+	param := firstContextParam(fn)
+	if forwarders[key] || param == "" {
+		return false
+	}
+	scope := callScope{recv: recv, authorizers: authorizerNames(fn), forwarders: forwarders}
+	if !scope.forwardsContext(fn.Body, param) {
+		return false
+	}
+	forwarders[key] = true
+	return true
 }
 
 // forwardsContext reports whether body passes param as the context of an
@@ -292,22 +316,28 @@ func (c callScope) authzCall(call *ast.CallExpr) (string, bool) {
 	case *ast.Ident:
 		return fun.Name, c.forwarders[forwarderKey("", fun.Name)]
 	case *ast.SelectorExpr:
-		if recv, ok := fun.X.(*ast.Ident); ok && c.recv.name != "" && recv.Name == c.recv.name &&
-			c.forwarders[forwarderKey(c.recv.typ, fun.Sel.Name)] {
-			return recv.Name + "." + fun.Sel.Name, true
-		}
-		if !authzMethods[fun.Sel.Name] {
-			return "", false
-		}
-		switch recv := fun.X.(type) {
-		case *ast.Ident:
-			return recv.Name + "." + fun.Sel.Name, c.authorizers[recv.Name]
-		case *ast.SelectorExpr:
-			name := strings.ToLower(recv.Sel.Name)
-			if strings.Contains(name, "authz") || strings.Contains(name, "authorization") {
-				return recv.Sel.Name + "." + fun.Sel.Name, true
-			}
-		}
+		return c.selectorCall(fun)
+	}
+	return "", false
+}
+
+// selectorCall is authzCall for a call through a selector: a forwarder on
+// the caller's own receiver, or an AuthorizationService method.
+func (c callScope) selectorCall(fun *ast.SelectorExpr) (string, bool) {
+	if recv, ok := fun.X.(*ast.Ident); ok && c.recv.name != "" && recv.Name == c.recv.name &&
+		c.forwarders[forwarderKey(c.recv.typ, fun.Sel.Name)] {
+		return recv.Name + "." + fun.Sel.Name, true
+	}
+	if !authzMethods[fun.Sel.Name] {
+		return "", false
+	}
+	switch recv := fun.X.(type) {
+	case *ast.Ident:
+		return recv.Name + "." + fun.Sel.Name, c.authorizers[recv.Name]
+	case *ast.SelectorExpr:
+		name := strings.ToLower(recv.Sel.Name)
+		return recv.Sel.Name + "." + fun.Sel.Name,
+			strings.Contains(name, "authz") || strings.Contains(name, "authorization")
 	}
 	return "", false
 }
@@ -334,8 +364,9 @@ func backgroundLocals(body *ast.BlockStmt) map[string]bool {
 	return out
 }
 
-// isBackgroundContext reports whether expr is context.Background() or
-// context.TODO(), or a context.With* call derived from one.
+// isBackgroundContext reports whether expr is an empty root context
+// (context.Background or its placeholder counterpart), or a context.With*
+// call derived from one.
 func isBackgroundContext(expr ast.Expr) bool {
 	call, ok := expr.(*ast.CallExpr)
 	if !ok {
