@@ -355,6 +355,18 @@ describe('lockout risk', () => {
     expect(other.title).toBe('This change could lock you out')
     expect(new Set([none.title, own.title, other.title]).size).toBe(3)
   })
+
+  it('counts the password-only accounts in the title', () => {
+    expect(lockoutRiskCopy('password_only_accounts', 1).title).toBe(
+      '1 account can only sign in with a password'
+    )
+    expect(lockoutRiskCopy('password_only_accounts', 3).title).toBe(
+      '3 accounts can only sign in with a password'
+    )
+    expect(lockoutRiskCopy('password_only_accounts').title).toBe(
+      'Some accounts can only sign in with a password'
+    )
+  })
 })
 
 describe('access allowlist', () => {
