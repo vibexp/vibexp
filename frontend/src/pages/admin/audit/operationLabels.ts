@@ -104,6 +104,7 @@ export const AUDIT_OPERATIONS: Record<AuditOperation, AuditOperationInfo> = {
     label: 'Ownership transferred',
     group: 'team',
   },
+  'team.settings.updated': { label: 'Team settings changed', group: 'team' },
   'instance.settings.updated': {
     label: 'Instance settings updated',
     group: 'instance',

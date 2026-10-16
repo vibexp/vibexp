@@ -354,6 +354,66 @@ it('opens the detail drawer with old → new changes and uncaptured client info'
   expect(within(drawer).getByText('claude-code')).toBeInTheDocument()
 })
 
+it("renders a team settings change: its label, resource, and the drawer's surface, action and withheld secret (#1520)", async () => {
+  mockAudit.listEvents.mockResolvedValue(
+    eventPage([
+      auditEvent({
+        operation: 'team.settings.updated',
+        resource_type: 'team_settings',
+        resource_id: null,
+        resource_name: 'Model provider',
+        project_id: null,
+        project_name: null,
+        source: 'web',
+        assistant_name: null,
+        metadata: {
+          surface: 'model_provider',
+          action: 'copy',
+          provider_id: 'mp-2',
+          source_team_id: 'team-src',
+          source_provider_id: 'mp-src',
+          changed_fields: ['model', 'api_key'],
+          model: { new: 'gpt-4o' },
+        },
+      }),
+    ])
+  )
+  renderAudit()
+  const table = within(await screen.findByRole('table'))
+
+  expect(table.getByText('Model provider')).toBeInTheDocument()
+  await userEvent.click(table.getByText('Team settings changed'))
+
+  const drawer = within(await screen.findByRole('dialog'))
+  expect(drawer.getByText('Team settings · Model provider')).toBeInTheDocument()
+  const changes = drawer.getByRole('list', { name: 'Changes' })
+  expect(changes).toHaveTextContent('gpt-4o')
+  expect(changes).toHaveTextContent('api_key: changed (value not recorded)')
+  expect(drawer.getByText('Settings').nextSibling).toHaveTextContent(
+    'Model provider'
+  )
+  expect(drawer.getByText('Action').nextSibling).toHaveTextContent(
+    'Copied from another team'
+  )
+  expect(drawer.getByText('Source team').nextSibling).toHaveTextContent(
+    'team-src'
+  )
+})
+
+it('filters by the team settings operation (#1520)', async () => {
+  renderAudit()
+  await screen.findByRole('table')
+
+  await userEvent.click(
+    screen.getByRole('combobox', { name: 'Filter by operation' })
+  )
+  await userEvent.click(await screen.findByText('Team settings changed'))
+
+  await waitFor(() => {
+    expect(lastQuery().operation).toEqual(['team.settings.updated'])
+  })
+})
+
 it('exports the filter on screen, without the cursor or page size', async () => {
   mockAudit.exportEvents.mockResolvedValue({
     blob: new Blob(['x']),

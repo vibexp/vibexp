@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  CONTENT_WITHHELD,
   DEFAULTS_LABEL,
   describeAuditMetadata,
   formatAuditValue,
+  TEAM_SETTINGS_ACTION_LABELS,
+  TEAM_SETTINGS_SURFACE_LABELS,
+  VALUE_WITHHELD,
 } from '../auditMetadata'
 
 describe('describeAuditMetadata', () => {
@@ -27,7 +31,7 @@ describe('describeAuditMetadata', () => {
     })
     expect(got.changes).toEqual([
       { field: 'name', old: 'Release notes', new: 'Release notes v2' },
-      { field: 'body', valuesWithheld: true },
+      { field: 'body', valuesWithheld: true, withheldNote: CONTENT_WITHHELD },
     ])
     expect(got.details).toEqual([])
   })
@@ -93,6 +97,100 @@ describe('describeAuditMetadata', () => {
     expect(
       describeAuditMetadata({ title: { new: 'Created' } }).changes
     ).toEqual([{ field: 'title', old: undefined, new: 'Created' }])
+  })
+
+  it('renders a team settings update: surface, action, old → new and a secret by name only (#1520)', () => {
+    const got = describeAuditMetadata({
+      surface: 'model_provider',
+      action: 'update',
+      provider_id: 'mp-1',
+      changed_fields: ['model', 'api_key', 'configuration'],
+      model: { old: 'gpt-4o-mini', new: 'gpt-4o' },
+    })
+    expect(got.changes).toEqual([
+      { field: 'model', old: 'gpt-4o-mini', new: 'gpt-4o' },
+      { field: 'api_key', valuesWithheld: true, withheldNote: VALUE_WITHHELD },
+      {
+        field: 'configuration',
+        valuesWithheld: true,
+        withheldNote: VALUE_WITHHELD,
+      },
+    ])
+    expect(got.details).toEqual([
+      { key: 'Settings', value: 'Model provider' },
+      { key: 'Action', value: 'Updated' },
+      { key: 'Provider', value: 'mp-1' },
+    ])
+  })
+
+  it('renders a team settings copy with its source team (#1520)', () => {
+    const got = describeAuditMetadata({
+      provider_id: 'mp-2',
+      source_team_id: 'team-src',
+      source_provider_id: 'mp-src',
+      action: 'copy',
+      surface: 'embedding_provider',
+      becomes_active: false,
+      changed_fields: ['name', 'api_key'],
+      name: { new: 'Embed' },
+    })
+    expect(got.changes).toEqual([
+      { field: 'name', old: undefined, new: 'Embed' },
+      { field: 'api_key', valuesWithheld: true, withheldNote: VALUE_WITHHELD },
+    ])
+    expect(got.details.slice(0, 2)).toEqual([
+      { key: 'Settings', value: 'Embedding provider' },
+      { key: 'Action', value: 'Copied from another team' },
+    ])
+    expect(got.details).toContainEqual({
+      key: 'Source team',
+      value: 'team-src',
+    })
+    expect(got.details).toContainEqual({
+      key: 'Source provider',
+      value: 'mp-src',
+    })
+    expect(got.details).toContainEqual({
+      key: 'Becomes active',
+      value: 'false',
+    })
+  })
+
+  it('labels every team settings surface and action, and falls back to the raw value', () => {
+    // The backend's vocabulary (#1520), exactly.
+    expect(Object.keys(TEAM_SETTINGS_SURFACE_LABELS).sort()).toEqual(
+      [
+        'search',
+        'ai_summary',
+        'email_provider',
+        'model_provider',
+        'embedding_provider',
+        'freshness',
+        'github_app',
+        'custom_types',
+        'custom_statuses',
+      ].sort()
+    )
+    expect(Object.keys(TEAM_SETTINGS_ACTION_LABELS).sort()).toEqual(
+      [
+        'create',
+        'update',
+        'delete',
+        'reset',
+        'copy',
+        'connect',
+        'disconnect',
+        'rotate',
+        'created',
+        'renamed',
+        'deleted',
+      ].sort()
+    )
+    const got = describeAuditMetadata({ surface: 'future', action: 'zap' })
+    expect(got.details).toEqual([
+      { key: 'Settings', value: 'future' },
+      { key: 'Action', value: 'zap' },
+    ])
   })
 
   it('is empty for no metadata', () => {

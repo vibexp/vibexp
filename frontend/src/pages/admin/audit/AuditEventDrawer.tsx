@@ -140,7 +140,7 @@ function AuditEventDetail({ event }: Readonly<{ event: AdminAuditEvent }>) {
                 <span className="text-muted-foreground">: </span>
                 {change.valuesWithheld ? (
                   <span className="text-muted-foreground">
-                    changed (content is not recorded)
+                    {change.withheldNote}
                   </span>
                 ) : (
                   <>
