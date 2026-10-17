@@ -47,19 +47,24 @@ stack: it stops Playwright from trying to start its own Vite dev server, which
 would conflict with the container. The base URL is `http://localhost:8080`
 (override with `PLAYWRIGHT_BASE_URL` / `E2E_BASE_URL`).
 
-### On demand in CI (`workflow_dispatch`)
+### In CI
 
-The suite is **not** wired to every PR/push (it builds an image and boots a full
-stack — too heavy to gate every PR). Run it manually from the **Actions → CI /
-E2E** workflow (`.github/workflows/ci-e2e.yml`), which takes a `branch` input so
-you can run it against any branch from anywhere:
+`.github/workflows/ci-e2e.yml` runs in three ways (#1564):
+
+- **Pull requests** that touch `frontend/`, `backend/`, the e2e compose file,
+  the Makefile or the workflow: the `smoke` project only (critical paths), a few
+  minutes end to end.
+- **Pushes to `main`** (same paths): the full suite. Runs share one queue that
+  keeps one running and one pending, so a burst of merges is covered by the run
+  of its newest commit.
+- **On demand**, the full suite against any branch, tag or SHA:
 
 ```bash
 gh workflow run ci-e2e.yml -f branch=<your-branch>
 ```
 
-CI builds the stack images once, then runs the suite in parallel lanes, each on
-its own stack (#1562):
+A full run builds the stack images once, then runs the suite in parallel lanes,
+each on its own stack (#1562; a PR run has the one `smoke` lane):
 
 - **shard 1..6**: the `chromium`, `smoke`, `journeys` and `features` projects,
   split with Playwright `--shard`.
