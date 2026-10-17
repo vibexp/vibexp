@@ -25,9 +25,16 @@ embedded SPA), so a red run is a real signal even when the fix is test-side.
   image from source and boots a full stack, too heavy to gate every PR. The
   consequence is drift — specs break on `main` and stay green-by-absence until
   someone runs this. Expect stale specs after any batch of route/UI refactors.
-- **Local and CI run the identical command.** `ci-e2e.yml` just calls `make e2e`,
-  so a green local run means a green CI run and vice versa. If they disagree,
-  that itself is the finding.
+- **Local and CI run the same tests, split differently.** Locally `make e2e`
+  runs the whole suite on one stack. CI (#1562) builds the images once and runs
+  seven lanes, each a `make e2e` on its own stack: six `--shard`s of the
+  chromium/smoke/journeys/features projects, and a `global` lane running
+  `--project=password-journeys --no-deps`. The test set is identical, so a
+  disagreement is still a finding, but it can be ordering or shared state:
+  within a local run every spec shares one stack. Reproduce one CI lane with
+  `make e2e E2E_PLAYWRIGHT_ARGS="... --shard=N/6"`, and read the merged
+  `playwright-report` artifact; a failing lane's traces are in
+  `test-results-<lane>`.
 - **What `make e2e` does** (Makefile, `E2E_COMPOSE` / `e2e-*` targets):
   `frontend-deps` (npm ci only if `frontend/node_modules` is absent — a fresh
   clone or worktree) → `e2e-browsers` (installs chromium) → `e2e-up`

@@ -554,11 +554,17 @@ E2E_BASE_URL ?= http://localhost:$(E2E_APP_PORT)
 # compose service name, resolvable inside the vibexp-e2e network. The real-agent
 # journey spec registers this URL. Local dev runs default to loopback:9001.
 E2E_A2A_AGENT_URL ?= http://a2a-test-agent:9001
+# Flags for `compose up`. `--build` builds the images from source; CI builds
+# them once in a separate job and starts each shard's stack from the loaded
+# images with E2E_UP_FLAGS=--no-build (#1562).
+E2E_UP_FLAGS ?= --build
+# Extra Playwright CLI arguments, e.g. a project selection and `--shard=1/4`.
+E2E_PLAYWRIGHT_ARGS ?=
 
 # Build + start the e2e stack and block until every service is healthy.
 e2e-up:
 	@echo "🐳 Building and starting the e2e stack (postgres + fake-gcs + combined app)..."
-	$(E2E_COMPOSE) up -d --build --wait --wait-timeout 600
+	$(E2E_COMPOSE) up -d $(E2E_UP_FLAGS) --wait --wait-timeout 600
 
 # Tear the stack down and wipe its volumes/network.
 e2e-down:
@@ -585,7 +591,7 @@ e2e-browsers: frontend-deps
 # The Playwright invocation, defined once and shared by `e2e-test` and `e2e` so
 # the two can never drift. It cd's, so callers that do anything afterwards must
 # run it in a subshell — see `e2e` below.
-E2E_PLAYWRIGHT = cd frontend && CI=true PLAYWRIGHT_BASE_URL=$(E2E_BASE_URL) E2E_A2A_AGENT_URL=$(E2E_A2A_AGENT_URL) npm run test:e2e
+E2E_PLAYWRIGHT = cd frontend && CI=true PLAYWRIGHT_BASE_URL=$(E2E_BASE_URL) E2E_A2A_AGENT_URL=$(E2E_A2A_AGENT_URL) npm run test:e2e -- $(E2E_PLAYWRIGHT_ARGS)
 
 # A fresh clone or git worktree has no frontend/node_modules, which surfaces from
 # the e2e targets as a bare `sh: 1: playwright: not found` (exit 127) — after the
