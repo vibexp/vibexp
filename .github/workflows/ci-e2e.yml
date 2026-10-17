@@ -20,7 +20,9 @@ name: CI / E2E
 #              re-adds a project's dependencies to any shard holding one of its
 #              tests, and password-journeys depends on all four other projects,
 #              so sharding it would rerun the whole suite in one shard.
-#   report - merges the per-lane blob reports into one HTML + JSON report.
+#   report - merges the per-lane blob reports into one HTML + JSON report, and
+#            writes the run stats + test-ID manifest (.github/scripts/
+#            e2e-run-stats.sh) to the job summary and the report artifact.
 # Every lane runs the same `make e2e` as a local run; locally, `make e2e` still
 # runs everything on one stack.
 
@@ -232,7 +234,16 @@ jobs:
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/results.json
         run: npx playwright merge-reports --reporter=html,json ./all-blob-reports
 
+      # Run stats in the job summary, plus the sorted test-ID manifest (#1563):
+      # diffing two runs' manifests proves a CI change still runs the same tests.
+      - name: Summarize the run
+        run: |
+          bash .github/scripts/e2e-run-stats.sh frontend/test-results/results.json \
+            frontend/test-results/test-manifest.txt >> "$GITHUB_STEP_SUMMARY"
+
+      # Uploaded even when the summary step fails, so its input is inspectable.
       - name: Upload Playwright report
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-report
