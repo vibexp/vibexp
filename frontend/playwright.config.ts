@@ -1,5 +1,23 @@
 import { defineConfig, devices } from '@playwright/test'
 
+/*
+ * Journeys that change INSTANCE-WIDE state (#1567): the admin settings every
+ * team and every sign-in reads (auth allowlist and providers, the email
+ * provider, the audit-log retention, the search defaults, the site info).
+ * They run in their own project, one at a time, so no other spec runs while
+ * the instance is reconfigured under it; in CI they get a stack of their own.
+ * A journey that writes /admin/settings belongs here (the password journeys
+ * have their own project below). Everything else must touch only the users
+ * and teams it creates, which is what lets the other projects run in parallel.
+ */
+const INSTANCE_JOURNEYS = [
+  '**/journeys/admin-auth-settings.journey.spec.ts',
+  '**/journeys/admin-email-settings.journey.spec.ts',
+  '**/journeys/audit-log.journey.spec.ts',
+  '**/journeys/instance-settings.journey.spec.ts',
+  '**/journeys/site-info.journey.spec.ts',
+]
+
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
@@ -97,9 +115,25 @@ export default defineConfig({
     {
       name: 'journeys',
       testMatch: '**/*.journey.spec.ts',
-      // The password journeys have their own project below.
-      testIgnore: '**/password-*.journey.spec.ts',
+      // The instance-wide and password journeys have their own projects below.
+      testIgnore: ['**/password-*.journey.spec.ts', ...INSTANCE_JOURNEYS],
       retries: process.env.CI ? 2 : 1, // Allow retries for journey tests
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1920, height: 1080 },
+      },
+    },
+
+    /* Instance-wide journeys (#1567): see INSTANCE_JOURNEYS. After the
+     * parallel projects, one at a time. Alone:
+     * `npx playwright test --project=instance-journeys --no-deps [file]`. */
+    {
+      name: 'instance-journeys',
+      testMatch: INSTANCE_JOURNEYS,
+      dependencies: ['chromium', 'smoke', 'journeys', 'features'],
+      fullyParallel: false,
+      workers: 1,
+      retries: process.env.CI ? 2 : 1,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1920, height: 1080 },
@@ -108,9 +142,9 @@ export default defineConfig({
 
     /*
      * Password journeys (#1444): they switch password sign-in, the registration
-     * mode and the instance email provider, which the other journeys also
-     * touch (admin-auth-settings, admin-email-settings). So they run LAST, one
-     * at a time, and put every setting back. Through the project dependencies,
+     * mode and the instance email provider, which the instance-wide journeys
+     * also touch (admin-auth-settings, admin-email-settings). So they run LAST,
+     * after those too, one at a time, and put every setting back. Through the project dependencies,
      * a test that still fails in an earlier project means these do not run at
      * all (reported as "did not run"). To run them on their own, or one of
      * them: `npx playwright test --project=password-journeys --no-deps [file]`.
@@ -118,7 +152,7 @@ export default defineConfig({
     {
       name: 'password-journeys',
       testMatch: '**/password-*.journey.spec.ts',
-      dependencies: ['chromium', 'smoke', 'journeys', 'features'],
+      dependencies: ['instance-journeys'],
       fullyParallel: false,
       workers: 1,
       retries: process.env.CI ? 2 : 1,

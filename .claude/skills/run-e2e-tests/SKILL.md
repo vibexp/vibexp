@@ -30,8 +30,10 @@ embedded SPA), so a red run is a real signal even when the fix is test-side.
   A PR's green smoke check covers 9 critical-path tests, not the suite.
 - **Local and CI run the same tests, split differently.** Locally `make e2e`
   runs the whole suite on one stack. CI (#1562) builds the images once and runs
-  seven lanes, each a `make e2e` on its own stack: six `--shard`s of the
-  chromium/smoke/journeys/features projects, and a `global` lane running
+  eight lanes, each a `make e2e` on its own stack: six `--shard`s of the
+  chromium/smoke/journeys/features projects (4 workers each), an `instance`
+  lane running `--project=instance-journeys --no-deps` (the journeys that
+  write `/admin/settings`, #1567), and a `global` lane running
   `--project=password-journeys --no-deps`. The test set is identical, so a
   disagreement is still a finding, but it can be ordering or shared state:
   within a local run every spec shares one stack. Reproduce one CI lane with

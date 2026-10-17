@@ -67,10 +67,16 @@ A full run builds the stack images once, then runs the suite in parallel lanes,
 each on its own stack (#1562; a PR run has the one `smoke` lane):
 
 - **shard 1..6**: the `chromium`, `smoke`, `journeys` and `features` projects,
-  split with Playwright `--shard`.
-- **global**: the `password-journeys` project with `--no-deps`. Those journeys
-  switch instance-wide settings, and Playwright would otherwise pull all four
-  projects they depend on into whichever shard drew one of them.
+  split with Playwright `--shard`, 4 workers each.
+- **instance**: the `instance-journeys` project with `--no-deps`: the journeys
+  that change instance-wide admin settings (`INSTANCE_JOURNEYS` in
+  `playwright.config.ts`), one at a time.
+- **global**: the `password-journeys` project with `--no-deps`: the journeys
+  that switch password sign-in and the instance email provider, one at a time.
+
+Both of the last two depend on the four parallel projects (so a local
+`make e2e` runs them last), and without `--no-deps` Playwright would pull all
+four into whichever shard drew one of their tests.
 
 Every lane is the same `make e2e` with a few variables set (the Playwright
 arguments, `E2E_UP_FLAGS` and `PLAYWRIGHT_BLOB_REPORT`). To reproduce one lane
@@ -78,6 +84,7 @@ locally:
 
 ```bash
 make e2e E2E_PLAYWRIGHT_ARGS="--project=chromium --project=smoke --project=journeys --project=features --shard=2/6"
+make e2e E2E_PLAYWRIGHT_ARGS="--project=instance-journeys --no-deps"
 make e2e E2E_PLAYWRIGHT_ARGS="--project=password-journeys --no-deps"
 ```
 
@@ -87,10 +94,11 @@ blob reports into one Playwright HTML + JSON report, uploaded as the
 `playwright-report` artifact; a failing lane also uploads its traces/videos as
 `test-results-<lane>`.
 
-The shards run on separate stacks, so they cannot affect each other. Within a
-shard, specs share one stack and run two at a time, as they did before the
-split. Moving every spec that changes **instance-wide** state into the global
-lane is tracked in #1567.
+The lanes run on separate stacks, so they cannot affect each other. Within a
+shard, specs share one stack and run four at a time, which is safe only because
+every spec there touches nothing but the users and teams it creates. **A spec
+that writes an `/admin/settings` singleton must go into `INSTANCE_JOURNEYS`**
+(#1567), or it reconfigures the instance under three other running specs.
 
 ### Quick iteration against the Vite dev server
 
