@@ -3,15 +3,14 @@ import { test as base, expect, type Page } from '@playwright/test'
 /**
  * Shared dev-login implementation.
  *
- * The redesigned sign-in page (shadcn) renders the dev login form inside a
- * collapsed Radix `Collapsible`. `?dev_login=true` only controls whether the
- * component is rendered at all — the form fields (#dev-email / #dev-name) live
- * inside `CollapsibleContent` and stay hidden until the "Development login"
- * trigger is clicked. We therefore expand the collapsible before filling it.
+ * Signs in through the dev-login API rather than the sign-in form (#1565):
+ * `page.request` shares the page's cookie jar, so the httpOnly session cookie
+ * `/auth/dev/login` sets is the page's session, with no sign-in page load,
+ * form fill or redirect to wait for. The sign-in form itself is covered by
+ * auth.spec.ts and the dev-login specs, which drive it directly.
  *
- * Auth itself is an httpOnly session cookie set by `/auth/dev/login` (there is
- * no JWT in localStorage anymore), so we confirm success via the team context
- * being hydrated rather than by reading a token.
+ * There is no JWT in localStorage, so success is confirmed by the team
+ * context being hydrated rather than by reading a token.
  */
 async function performDevLogin(
   page: Page,
@@ -19,51 +18,24 @@ async function performDevLogin(
   name: string,
   options: DevLoginOptions = {}
 ): Promise<void> {
-  // Navigate to login page with dev_login enabled
-  await page.goto('/?dev_login=true')
-
-  // The dev login form is collapsed by default — expand it via its trigger.
-  const trigger = page.getByRole('button', { name: /development login/i })
-  await expect(trigger).toBeVisible()
-  await trigger.click()
-
-  // Wait for the form fields to become actionable inside the expanded panel.
-  await expect(page.locator('#dev-email')).toBeVisible()
-
-  // Fill and submit the dev login form.
-  await page.fill('#dev-email', email)
-  await page.fill('#dev-name', name)
-  // The session cookie is set by this response, before the app's hard
-  // redirect away from the sign-in page.
-  const signedIn = page.waitForResponse(
-    response =>
-      response.url().includes('/api/v1/auth/dev/login') && response.ok(),
-    { timeout: 15000 }
-  )
-  await page.click('button:has-text("Dev login")')
-  await signedIn
-
-  // Wait for redirect to home page, or to the first-run onboarding the
-  // dashboard sends a new user on to. The sign-in page is `/` too
-  // (`/?dev_login=true`), so the query tells the two apart.
-  await page.waitForURL(
-    url =>
-      !url.searchParams.has('dev_login') &&
-      (url.pathname === '/' || url.pathname === ONBOARDING_PATH),
-    { timeout: 15000 }
-  )
+  const response = await page.request.post('/api/v1/auth/dev/login', {
+    data: { email, name },
+    timeout: 15000,
+  })
+  expect(response.ok(), `dev login failed: ${response.status()}`).toBe(true)
 
   if (options.keepOnboarding) {
-    // The onboarding renders outside the team shell, so there is no team
-    // context to wait for: the journey asserts on the flow itself.
+    // A new user landing on the dashboard is sent to the onboarding, which
+    // renders outside the team shell, so there is no team context to wait
+    // for: the journey asserts on the flow itself.
+    await page.goto('/')
     await page.waitForURL(url => url.pathname === ONBOARDING_PATH, {
       timeout: 15000,
     })
     return
   }
 
-  // Before the team wait: the onboarding renders outside the team shell, so
-  // a user the dashboard already sent there would never hydrate a team.
+  // Finishes the new user's onboarding and loads the dashboard.
   await completeOnboarding(page)
 
   // CRITICAL: Wait for team context to be initialized.
@@ -73,7 +45,7 @@ async function performDevLogin(
   // Every login provisions a brand-new user (user + personal team + default
   // project), which under CI load occasionally takes longer than one wait
   // budget — the session cookie is already set at this point, so a single
-  // reload re-triggers the teams fetch without re-submitting the form (#86).
+  // reload re-triggers the teams fetch (#86).
   try {
     await waitForTeamHydration(page)
   } catch {
@@ -83,9 +55,15 @@ async function performDevLogin(
     await page.reload()
     await waitForTeamHydration(page)
   }
+}
 
-  // Give an extra moment for React to process the team context update.
-  await page.waitForTimeout(500)
+/**
+ * A test-user email no other test can produce, including one running at the
+ * same millisecond in another worker (a `Date.now()` stamp can collide, and
+ * two tests would then silently share a user).
+ */
+export function uniqueEmail(prefix = 'playwright_vibexp'): string {
+  return `${prefix}_${crypto.randomUUID()}@example.com`
 }
 
 /** Where the first-run onboarding lives. */
@@ -184,7 +162,7 @@ export const test = base.extend<AuthFixtures>({
    */
   authenticatedPage: [
     async ({ page }, use) => {
-      const testEmail = `playwright_vibexp${Date.now()}@example.com`
+      const testEmail = uniqueEmail()
       await performDevLogin(page, testEmail, 'Playwright Test User')
 
       // Use the authenticated page in the test
@@ -219,7 +197,7 @@ export const test = base.extend<AuthFixtures>({
   freshUserPage: [
     async ({ page }, use) => {
       // Create a unique email for this fresh user
-      const freshEmail = `fresh_user_${Date.now()}@example.com`
+      const freshEmail = uniqueEmail('fresh_user')
       const freshName = `Fresh User ${Date.now()}`
 
       await devLogin(page, freshEmail, freshName)
@@ -240,7 +218,7 @@ export async function devLogin(
   name?: string,
   options: DevLoginOptions = {}
 ): Promise<void> {
-  const testEmail = email || `playwright_vibexp${Date.now()}@example.com`
+  const testEmail = email || uniqueEmail()
   const testName = name || 'Playwright Test User'
   await performDevLogin(page, testEmail, testName, options)
 }
