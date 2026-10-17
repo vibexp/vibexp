@@ -458,7 +458,7 @@ test.describe.serial('Cross-team settings copy journey', () => {
     // spec's own seeding calls (which is where the key was sent).
     expect(
       observedBodies.length,
-      'the response recorder captured nothing — the assertion below would be vacuous'
+      `the response recorder captured nothing — the assertion below would be vacuous (unreadable: ${recorder.unreadable.join(', ') || 'none'})`
     ).toBeGreaterThan(20)
     expect(
       observedBodies.filter(body => body.includes('"has_api_key"')).length,
@@ -468,7 +468,7 @@ test.describe.serial('Cross-team settings copy journey', () => {
     const leaked = observedBodies.filter(body => body.includes(SOURCE_API_KEY))
     expect(
       leaked,
-      `the API key appeared in ${String(leaked.length)} response body/bodies`
+      `the API key appeared in ${String(leaked.length)} response body/bodies (bodies not inspected: ${recorder.unreadable.join(', ') || 'none'})`
     ).toEqual([])
   })
 
