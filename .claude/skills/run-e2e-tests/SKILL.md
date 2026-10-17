@@ -27,11 +27,17 @@ embedded SPA), so a red run is a real signal even when the fix is test-side.
   commit gets a run: a red `main` run can contain several merges, so bisect
   over that range (`git log <last green run's SHA>..<red SHA>`). Anything else
   (a branch, a tag, a re-run) is `gh workflow run ci-e2e.yml -f branch=<ref>`.
+  **If the branch changes `ci-e2e.yml` or `playwright.config.ts` projects, add
+  `--ref <branch>`**: without it the run uses `main`'s workflow (its lanes)
+  against the branch's config, and tests in a project `main` has no lane for
+  run nowhere. The report job's "Check every test ran" step fails such a run.
   A PR's green smoke check covers 9 critical-path tests, not the suite.
 - **Local and CI run the same tests, split differently.** Locally `make e2e`
   runs the whole suite on one stack. CI (#1562) builds the images once and runs
-  seven lanes, each a `make e2e` on its own stack: six `--shard`s of the
-  chromium/smoke/journeys/features projects, and a `global` lane running
+  eight lanes, each a `make e2e` on its own stack: six `--shard`s of the
+  chromium/smoke/journeys/features projects (4 workers each), an `instance`
+  lane running `--project=instance-journeys --no-deps` (the journeys that
+  write `/admin/settings`, #1567), and a `global` lane running
   `--project=password-journeys --no-deps`. The test set is identical, so a
   disagreement is still a finding, but it can be ordering or shared state:
   within a local run every spec shares one stack. Reproduce one CI lane with

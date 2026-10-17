@@ -60,11 +60,12 @@ container (`execInApp`), because its API is not published on the host.
 `--no-deps` (#1562), so they always run and report their own result. Locally,
 `make e2e` runs the whole suite on one stack, and because of the project
 dependencies a test that still fails in any earlier project (chromium, smoke,
-journeys, features) means the password journeys do **not run at all**: the
+journeys, features, then instance-journeys, #1567) means the password journeys
+do **not run at all**: the
 report lists them as "did not run", not as failed. Re-run them with `--no-deps`
 (below) to get their result.
 
-**Running them alone.** The project depends on the other four, so a plain
+**Running them alone.** The project depends on all the others, so a plain
 `npx playwright test e2e/journeys/password-forgot.journey.spec.ts` first runs
 the whole suite, and a test failing elsewhere means the password journeys show
 as "did not run". To run them, or one of them, on their own against a running

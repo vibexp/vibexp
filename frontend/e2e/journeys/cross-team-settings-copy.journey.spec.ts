@@ -330,7 +330,19 @@ test.describe.serial('Cross-team settings copy journey', () => {
     await expect(ownerPage.getByTestId('copy-api-key-field')).toHaveValue(
       `Will be copied from ${SOURCE_TEAM_NAME}`
     )
+    // Wait for the copy itself before reading the destination back: the
+    // provider name is already on screen in the copy dialog, so seeing it
+    // proves nothing, and the read below could beat the write (#1567). Armed
+    // before the click so the response cannot be missed.
+    const copyResponse = ownerPage.waitForResponse(
+      response =>
+        response
+          .url()
+          .includes(`/${destTeamId}/settings/model-providers/copy`) &&
+        response.request().method() === 'POST'
+    )
     await ownerPage.getByRole('button', { name: 'Copy provider' }).click()
+    expect((await copyResponse).ok()).toBe(true)
 
     await expect(
       ownerPage.getByText(MODEL_PROVIDER_NAME, { exact: true })

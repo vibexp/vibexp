@@ -19,11 +19,14 @@ name: CI / E2E
 #            stack (`make e2e E2E_UP_FLAGS=--no-build`), so lanes share no state:
 #            - shard i/N: the chromium, smoke, journeys and features projects,
 #              split by Playwright `--shard`.
+#            - instance: the journeys that change instance-wide admin settings
+#              (#1567), one at a time on a stack of their own.
 #            - global: the password journeys, which switch instance-wide
-#              settings. They run `--no-deps` in a lane of their own: Playwright
-#              re-adds a project's dependencies to any shard holding one of its
-#              tests, and password-journeys depends on all four other projects,
-#              so sharding it would rerun the whole suite in one shard.
+#              auth and email settings.
+#            Both run `--no-deps`: Playwright re-adds a project's dependencies
+#            to any shard holding one of its tests, and these projects depend
+#            on the four parallel ones, so sharding them would rerun the whole
+#            suite in one shard.
 #   report - merges the per-lane blob reports into one HTML + JSON report, and
 #            writes the run stats + test-ID manifest (.github/scripts/
 #            e2e-run-stats.sh) to the job summary and the report artifact.
@@ -79,15 +82,20 @@ jobs:
           EVENT: ${{ github.event_name }}
           # The shard total. The lanes below are generated from it.
           SHARDS: 6
+          # Playwright workers per shard lane. Only specs that touch nothing
+          # but their own users and teams run in the shards (#1567), so this
+          # is bounded by the runner's capacity, not by shared state.
+          SHARD_WORKERS: 4
         run: |
           if [ "$EVENT" = pull_request ]; then
             lanes='[{"lane":"smoke","args":"--project=smoke"}]'
           else
-            lanes=$(jq -cn --argjson n "$SHARDS" \
+            lanes=$(jq -cn --argjson n "$SHARDS" --argjson w "$SHARD_WORKERS" \
               --arg projects '--project=chromium --project=smoke --project=journeys --project=features' '
               [range(1; $n + 1) as $i
-                | {lane: "shard-\($i)", args: "\($projects) --shard=\($i)/\($n)"}]
-              + [{lane: "global", args: "--project=password-journeys --no-deps"}]')
+                | {lane: "shard-\($i)", args: "\($projects) --shard=\($i)/\($n) --workers=\($w)"}]
+              + [{lane: "instance", args: "--project=instance-journeys --no-deps"},
+                 {lane: "global", args: "--project=password-journeys --no-deps"}]')
           fi
           echo "lanes=$lanes" >> "$GITHUB_OUTPUT"
           echo "$lanes" | jq .
@@ -288,6 +296,26 @@ jobs:
         run: |
           bash .github/scripts/e2e-run-stats.sh frontend/test-results/results.json \
             frontend/test-results/test-manifest.txt >> "$GITHUB_STEP_SUMMARY"
+
+      # A full run must run every test the checked-out config defines, exactly
+      # once. A Playwright project no lane selects (a new project without a
+      # lane, or a branch's config run under another ref's workflow) drops its
+      # tests from every lane and still reports green, so compare the merged
+      # report with the config's own list.
+      - name: Check every test ran
+        if: ${{ github.event_name != 'pull_request' }}
+        working-directory: frontend
+        env:
+          CI: 'true'
+        run: |
+          count='[.. | objects | select(has("specs")) | .specs[]? | .tests[]] | length'
+          expected=$(npx playwright test --list --reporter=json | jq "$count")
+          actual=$(jq "$count" test-results/results.json)
+          echo "expected $expected tests, the lanes ran $actual"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::The lanes ran $actual tests but the config defines $expected: a project is not covered by any lane, or covered twice."
+            exit 1
+          fi
 
       # Uploaded even when the summary step fails, so its input is inspectable.
       - name: Upload Playwright report
