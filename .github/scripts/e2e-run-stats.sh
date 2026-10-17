@@ -21,8 +21,12 @@
 # The report job writes the manifest into the artifact as
 # test-results/test-manifest.txt, so an earlier run's needs no re-running.
 #
-# Times are test durations as Playwright reports them (hooks and fixtures
-# included), so per-project numbers are worker-seconds, not wall clock.
+# Times are test durations as Playwright reports them, summed per project, so
+# they are not wall clock. They EXCLUDE the setup of fixtures that carry their
+# own timeout, which the login fixtures do (e2e/fixtures/auth.ts): moving the
+# login from the sign-in form to the API cut a 36-test run from 80s to 53s of
+# wall clock while this sum stayed at ~36s (#1565). Judge a change to fixture
+# cost by the test-phase wall time, not by these sums.
 set -euo pipefail
 
 results="${1:?usage: e2e-run-stats.sh <results.json> [manifest-out]}"
@@ -55,14 +59,14 @@ jq -r "$tests_jq"' as $tests
     "",
     "Retried tests: \([$tests[] | select(.retries > 0)] | length)",
     "",
-    "| Project | Tests | Worker-seconds |",
+    "| Project | Tests | Test seconds |",
     "|---|---:|---:|",
     ($tests | group_by(.project)[]
       | "| \(.[0].project) | \(length) | \([.[].seconds] | add | floor) |"),
     "",
     "<details><summary>Slowest files</summary>",
     "",
-    "| File | Worker-seconds |",
+    "| File | Test seconds |",
     "|---|---:|",
     ($tests | group_by(.file) | map({file: .[0].file, s: ([.[].seconds] | add)})
       | sort_by(-.s)[:10][] | "| \(.file) | \(.s | floor) |"),
