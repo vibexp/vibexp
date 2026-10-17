@@ -297,6 +297,26 @@ jobs:
           bash .github/scripts/e2e-run-stats.sh frontend/test-results/results.json \
             frontend/test-results/test-manifest.txt >> "$GITHUB_STEP_SUMMARY"
 
+      # A full run must run every test the checked-out config defines, exactly
+      # once. A Playwright project no lane selects (a new project without a
+      # lane, or a branch's config run under another ref's workflow) drops its
+      # tests from every lane and still reports green, so compare the merged
+      # report with the config's own list.
+      - name: Check every test ran
+        if: ${{ github.event_name != 'pull_request' }}
+        working-directory: frontend
+        env:
+          CI: 'true'
+        run: |
+          count='[.. | objects | select(has("specs")) | .specs[]? | .tests[]] | length'
+          expected=$(npx playwright test --list --reporter=json | jq "$count")
+          actual=$(jq "$count" test-results/results.json)
+          echo "expected $expected tests, the lanes ran $actual"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::The lanes ran $actual tests but the config defines $expected: a project is not covered by any lane, or covered twice."
+            exit 1
+          fi
+
       # Uploaded even when the summary step fails, so its input is inspectable.
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
