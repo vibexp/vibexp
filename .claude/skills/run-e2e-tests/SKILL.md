@@ -4,7 +4,7 @@ description: >-
   Run the VibeXP Playwright end-to-end suite — locally against a from-source
   combined-image stack (`make e2e`) or in CI (`gh workflow run ci-e2e.yml`), or
   both — then triage every failure to a root cause and file one GitHub issue per
-  cause. Knows the on-demand-only workflow, the dispatch-then-poll recipe, how to
+  cause. Knows the tiered workflow (smoke on PRs, full on main), the dispatch-then-poll recipe, how to
   rerun a single spec against a live stack, and the stale-spec-vs-real-regression
   call. Use when asked to "run e2e", "run the e2e tests", "trigger e2e on main",
   or to check whether the suite still passes after a batch of merges.
@@ -20,11 +20,14 @@ embedded SPA), so a red run is a real signal even when the fix is test-side.
 
 ## Repo-specific facts (do not re-derive)
 
-- **Nothing runs e2e automatically.** `.github/workflows/ci-e2e.yml` is
-  `workflow_dispatch`-only (input `branch`), deliberately: it builds the combined
-  image from source and boots a full stack, too heavy to gate every PR. The
-  consequence is drift — specs break on `main` and stay green-by-absence until
-  someone runs this. Expect stale specs after any batch of route/UI refactors.
+- **What runs automatically (#1564).** `.github/workflows/ci-e2e.yml` runs the
+  `smoke` project on PRs that touch the app or the e2e stack, and the **full**
+  suite on pushes to `main`. `main` runs share one concurrency group that keeps
+  one running and one pending, so during a burst of merges only the newest
+  commit gets a run: a red `main` run can contain several merges, so bisect
+  over that range (`git log <last green run's SHA>..<red SHA>`). Anything else
+  (a branch, a tag, a re-run) is `gh workflow run ci-e2e.yml -f branch=<ref>`.
+  A PR's green smoke check covers 9 critical-path tests, not the suite.
 - **Local and CI run the same tests, split differently.** Locally `make e2e`
   runs the whole suite on one stack. CI (#1562) builds the images once and runs
   seven lanes, each a `make e2e` on its own stack: six `--shard`s of the

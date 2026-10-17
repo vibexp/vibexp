@@ -1,12 +1,16 @@
 name: CI / E2E
 
-# Production-like end-to-end (Playwright) tests, run ON DEMAND only.
-#
-# This is intentionally NOT wired to pull_request/push: the suite builds the
-# combined image from source and boots a full stack (Postgres + fake-gcs +
-# backend serving the embedded SPA), which is too heavy to gate every PR. Run it
-# manually from the Actions tab (or `gh workflow run ci-e2e.yml -f branch=<ref>`)
-# against any branch.
+# Production-like end-to-end (Playwright) tests against the combined image
+# built from source, on a full stack (Postgres + fake-gcs + the backend serving
+# the embedded SPA). Tiered (#1564):
+#   - pull requests touching the app or the e2e stack: the `smoke` project only
+#     (critical paths), so every such PR gets an e2e signal in a few minutes.
+#   - pushes to main: the full suite. Runs queue in one group that keeps at
+#     most one running and one pending: a merge landing while a run is pending
+#     replaces it, so a burst of merges is covered by the run of its newest
+#     commit rather than one run each.
+#   - workflow_dispatch: the full suite against any branch, tag or SHA
+#     (`gh workflow run ci-e2e.yml -f branch=<ref>`).
 #
 # Build once, test in parallel (#1562):
 #   build  - builds the three stack images ONCE, in parallel (buildx, GHA layer
@@ -27,6 +31,22 @@ name: CI / E2E
 # runs everything on one stack.
 
 on:
+  pull_request:
+    # Keep in sync with the push paths below.
+    paths:
+      - 'frontend/**'
+      - 'backend/**'
+      - 'docker-compose.e2e.yml'
+      - 'Makefile'
+      - '.github/workflows/ci-e2e.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'backend/**'
+      - 'docker-compose.e2e.yml'
+      - 'Makefile'
+      - '.github/workflows/ci-e2e.yml'
   workflow_dispatch:
     inputs:
       branch:
@@ -37,9 +57,43 @@ on:
 permissions:
   contents: read
 
+# A newer push to a PR cancels its running smoke run. main runs are never
+# cancelled mid-flight; see the header for how they queue. Dispatches each get
+# their own group.
+concurrency:
+  group: ci-e2e-${{ github.event.pull_request.number || (github.event_name == 'push' && github.ref) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # Which lanes this run has: smoke only on a PR, the full suite otherwise.
+  plan:
+    name: Plan e2e lanes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      lanes: ${{ steps.plan.outputs.lanes }}
+    steps:
+      - name: Choose lanes
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          # The shard total. The lanes below are generated from it.
+          SHARDS: 6
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            lanes='[{"lane":"smoke","args":"--project=smoke"}]'
+          else
+            lanes=$(jq -cn --argjson n "$SHARDS" \
+              --arg projects '--project=chromium --project=smoke --project=journeys --project=features' '
+              [range(1; $n + 1) as $i
+                | {lane: "shard-\($i)", args: "\($projects) --shard=\($i)/\($n)"}]
+              + [{lane: "global", args: "--project=password-journeys --no-deps"}]')
+          fi
+          echo "lanes=$lanes" >> "$GITHUB_OUTPUT"
+          echo "$lanes" | jq .
+
   build:
-    name: Build e2e image ${{ matrix.image }} (${{ inputs.branch }})
+    name: Build e2e image ${{ matrix.image }} (${{ inputs.branch || github.head_ref || github.ref_name }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # One job per image, so the three build in parallel and the slowest (app)
@@ -75,10 +129,22 @@ jobs:
       # from being written on every run. The entry belongs to the ref the
       # workflow runs ON (`gh workflow run --ref`, default main), not to the
       # `branch` input it tests; main's entry is visible to every run.
+      # Pull requests only READ caches (here and in the layer cache below): an
+      # entry a PR saves is visible to that PR alone, so writing one would only
+      # churn the repo's 10GB cache budget and evict main's entries, ci.yml's
+      # Go build cache among them.
       - name: Cache Go build for the app image
-        if: ${{ matrix.image == 'app' }}
+        if: ${{ matrix.image == 'app' && github.event_name != 'pull_request' }}
         id: go-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: go-cache
+          key: e2e-go-${{ hashFiles('backend/go.sum') }}
+          restore-keys: e2e-go-
+
+      - name: Restore Go build for the app image (read-only)
+        if: ${{ matrix.image == 'app' && github.event_name == 'pull_request' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: go-cache
           key: e2e-go-${{ hashFiles('backend/go.sum') }}
@@ -93,7 +159,7 @@ jobs:
               "go-cache/mod": "/go/pkg/mod",
               "go-cache/build": "/root/.cache/go-build"
             }
-          skip-extraction: ${{ steps.go-cache.outputs.cache-hit == 'true' }}
+          skip-extraction: ${{ github.event_name == 'pull_request' || steps.go-cache.outputs.cache-hit == 'true' }}
 
       # Each image has its own GHA cache scope so they never evict each other's
       # layers. The tag matches the `image:` name in docker-compose.e2e.yml,
@@ -107,7 +173,7 @@ jobs:
           tags: vibexp-e2e/${{ matrix.image }}:local
           outputs: type=docker,dest=${{ runner.temp }}/e2e-image-${{ matrix.image }}.tar
           cache-from: type=gha,scope=e2e-${{ matrix.image }}
-          cache-to: type=gha,scope=e2e-${{ matrix.image }},mode=max
+          cache-to: ${{ github.event_name != 'pull_request' && format('type=gha,scope=e2e-{0},mode=max', matrix.image) || '' }}
 
       - name: Upload image
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -117,33 +183,15 @@ jobs:
           retention-days: 1
 
   test:
-    name: E2E ${{ matrix.lane }} (${{ inputs.branch }})
-    needs: build
+    name: E2E ${{ matrix.lane }} (${{ inputs.branch || github.head_ref || github.ref_name }})
+    needs: [plan, build]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       # Let every lane finish, so one failure still reports the whole suite.
       fail-fast: false
-      # Adding a shard means a new lane AND bumping the `/N` total in every
-      # shard's args.
       matrix:
-        lane: [shard-1, shard-2, shard-3, shard-4, shard-5, shard-6, global]
-        include:
-          - lane: shard-1
-            args: --project=chromium --project=smoke --project=journeys --project=features --shard=1/6
-          - lane: shard-2
-            args: --project=chromium --project=smoke --project=journeys --project=features --shard=2/6
-          - lane: shard-3
-            args: --project=chromium --project=smoke --project=journeys --project=features --shard=3/6
-          - lane: shard-4
-            args: --project=chromium --project=smoke --project=journeys --project=features --shard=4/6
-          - lane: shard-5
-            args: --project=chromium --project=smoke --project=journeys --project=features --shard=5/6
-          - lane: shard-6
-            args: --project=chromium --project=smoke --project=journeys --project=features --shard=6/6
-          - lane: global
-            args: --project=password-journeys --no-deps
-
+        include: ${{ fromJSON(needs.plan.outputs.lanes) }}
     steps:
       - name: Checkout ${{ inputs.branch }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -198,7 +246,7 @@ jobs:
           if-no-files-found: ignore
 
   report:
-    name: E2E report (${{ inputs.branch }})
+    name: E2E report (${{ inputs.branch || github.head_ref || github.ref_name }})
     needs: test
     # Skipped lanes (a failed image build) leave nothing to merge.
     if: ${{ !cancelled() && needs.test.result != 'skipped' }}

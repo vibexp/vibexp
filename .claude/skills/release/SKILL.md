@@ -28,9 +28,12 @@ builds and pushes `:X.Y.Z` (+ `:latest` for non-prereleases).
   the version is the **highest published non-prerelease semver** — not merely
   when it is not a prerelease (#747), so a backport never drags `:latest`
   backwards onto an older image.
-- **E2E workflow:** `.github/workflows/ci-e2e.yml` — on-demand only
-  (`workflow_dispatch`, input `branch`). Not wired to PRs. Must be triggered and
-  awaited explicitly (this is a required pre-release gate).
+- **E2E workflow:** `.github/workflows/ci-e2e.yml` — runs the full suite on
+  every push to `main` that touches the app (#1564; a burst of merges is covered
+  by the run of its newest commit), smoke only on PRs, and on demand
+  (`workflow_dispatch`, input `branch`). The pre-release gate is a green **full**
+  run on the exact commit being released: reuse the push run for that SHA if it
+  is green, otherwise dispatch one and await it.
 - **Fast CI:** one consolidated `ci.yml` workflow named **`CI`** (backend +
   frontend + Sonar in one run, #390/#391) runs on push/PR — NOT the old split
   `ci-backend.yml`/`ci-frontend.yml`.
