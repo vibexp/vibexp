@@ -7,6 +7,10 @@
 #   gh run download <run-id> -n playwright-report -D /tmp/e2e-run
 #   bash .github/scripts/e2e-run-stats.sh /tmp/e2e-run/test-results/results.json manifest.txt
 #
+# The manifest is sorted with LC_ALL=C: a locale-aware sort orders titles
+# differently on a runner and a laptop, which would make two identical runs
+# diff.
+#
 # Prints a markdown summary (totals, per-project time, slowest files) to stdout,
 # and writes the test-ID manifest to the second argument: one sorted line per
 # test, `project › file › describe › title`. Diffing two runs' manifests is how
@@ -38,7 +42,7 @@ tests_jq='
 '
 
 if [ -n "$manifest" ]; then
-  jq -r "$tests_jq | .[].id" "$results" | sort > "$manifest"
+  jq -r "$tests_jq | .[].id" "$results" | LC_ALL=C sort > "$manifest"
 fi
 
 jq -r "$tests_jq"' as $tests
