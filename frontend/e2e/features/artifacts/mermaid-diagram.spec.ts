@@ -92,7 +92,8 @@ test.describe('Mermaid diagram rendering', () => {
     const svg = page.locator('.mermaid-container svg')
     await expect(svg).toBeVisible({ timeout: 15000 })
 
-    // The prune runs every 10s; 25s covers two ticks.
+    // The prune runs every 10s; 25s covers two ticks. Elapsed real time is
+    // what this test checks, so this sleep stays (no condition to wait on).
     await page.waitForTimeout(25000)
 
     await expect(svg).toBeVisible()

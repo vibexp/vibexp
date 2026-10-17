@@ -43,15 +43,19 @@ test.describe('Prompt Placeholder Variables', () => {
     const renderedButton = authenticatedPage
       .locator('button:has-text("Rendered")')
       .first()
-    if (await renderedButton.isVisible()) {
-      await renderedButton.click()
-      await authenticatedPage.waitForTimeout(1500)
-    }
-
-    // Fill the placeholder value if the rendered view exposes the input
     const placeholderInput = authenticatedPage
       .locator('input[placeholder*="greeting"]')
       .first()
+    if (await renderedButton.isVisible()) {
+      await renderedButton.click()
+      // The rendered view fetches the placeholders before it shows their
+      // inputs. The input is optional below, so a miss is not a failure here.
+      await placeholderInput
+        .waitFor({ state: 'visible', timeout: 5000 })
+        .catch(() => {})
+    }
+
+    // Fill the placeholder value if the rendered view exposes the input
     const inputExists = await placeholderInput.isVisible().catch(() => false)
 
     if (inputExists) {
@@ -62,7 +66,6 @@ test.describe('Prompt Placeholder Variables', () => {
         .first()
       if (await renderButton.isVisible()) {
         await renderButton.click()
-        await authenticatedPage.waitForTimeout(2000)
       }
     }
 

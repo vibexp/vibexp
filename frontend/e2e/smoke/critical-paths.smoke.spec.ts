@@ -69,7 +69,6 @@ test.describe('Core Feature Smoke Tests', () => {
     await page.locator('[data-testid="prompt-save-button"]').click()
 
     // Verify redirect to prompt detail page
-    await page.waitForTimeout(2000)
     await expect(page).toHaveURL(/\/prompts\/(?!new$)[^/]+$/, {
       timeout: 10000,
     })
@@ -107,7 +106,6 @@ test.describe('Core Feature Smoke Tests', () => {
     await page.locator('button:has-text("Create Artifact")').click()
 
     // Verify redirect to artifact detail page
-    await page.waitForTimeout(2000)
     await expect(page).toHaveURL(/artifacts\/[^/]+\/[^/]+/, { timeout: 10000 })
     await expect(page.locator(`text=${artifactTitle}`).first()).toBeVisible({
       timeout: 10000,
@@ -179,7 +177,6 @@ test.describe('Team Context Smoke Tests', () => {
 
     // If switcher exists, test team switching
     await teamSwitcher.click()
-    await page.waitForTimeout(500)
 
     // Verify team list appears
     // This is a basic smoke test - we just verify the UI responds
@@ -208,9 +205,6 @@ test.describe('Navigation Smoke Tests', () => {
 
       // Verify no critical errors on page
       await expect(page.locator('body')).toBeVisible()
-
-      // Wait briefly between navigations
-      await page.waitForTimeout(200)
     }
   })
 })
