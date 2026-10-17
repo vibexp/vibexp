@@ -296,13 +296,15 @@ export async function switchTeam(page: Page, teamName: string): Promise<void> {
     await teamSwitcher.click()
 
     // Wait for team list to appear
-    await page.waitForTimeout(500)
+    await expect(teamSwitcher).toHaveAttribute('aria-expanded', 'true')
 
     // Click on the desired team
     await page.getByText(teamName, { exact: true }).click()
 
     // Wait for team context to update
-    await page.waitForTimeout(500)
+    await expect(
+      teamSwitcher.locator('[data-testid="current-team-name"]')
+    ).toHaveText(teamName)
   } else {
     throw new Error(
       'Team switcher not found. User may not have multiple teams.'

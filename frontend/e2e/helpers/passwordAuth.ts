@@ -182,10 +182,18 @@ export async function setPolicy(page: Page, policy: AuthPolicy): Promise<void> {
     }
   )
   expect(response.ok(), await response.text()).toBeTruthy()
-  // The server re-reads the policy at most every two seconds
-  // (authPolicyVersionProbeInterval in services/auth_policy_resolver.go), so a
-  // request right after a change can still see the old one.
-  await page.waitForTimeout(2_500)
+  // The server serves the policy from a cache (services/auth_policy_resolver.go).
+  // A write invalidates it in-process (#1485), but other replicas converge only
+  // within the two-second probe interval, so wait until the public sign-in
+  // options report the new policy rather than assuming it is live.
+  await expect
+    .poll(async () => {
+      const providers = await page.request.get('/api/v1/auth/providers')
+      if (!providers.ok()) return undefined
+      return ((await providers.json()) as { password: { enabled: boolean } })
+        .password.enabled
+    })
+    .toBe(policy.password_login_enabled)
 }
 
 export async function emailConfigured(page: Page): Promise<boolean> {

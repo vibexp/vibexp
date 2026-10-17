@@ -29,8 +29,10 @@ test.describe('Memories Feature', () => {
     // Wait for the API response
     await createPromise
 
-    // Wait a bit for navigation to occur
-    await authenticatedPage.waitForTimeout(1000)
+    // Give the post-create redirect to /memories a chance to happen
+    await authenticatedPage
+      .waitForURL(/memories$/, { timeout: 5000 })
+      .catch(() => {})
 
     // Navigate to memories list if not redirected
     if (!authenticatedPage.url().match(/memories$/)) {
@@ -75,7 +77,10 @@ test.describe('Memories Feature', () => {
 
     // Wait for the API response
     await createPromise
-    await authenticatedPage.waitForTimeout(1000)
+    // Give the post-create redirect to /memories a chance to happen
+    await authenticatedPage
+      .waitForURL(/memories$/, { timeout: 5000 })
+      .catch(() => {})
 
     // After creating, should be on memories list page
     if (!authenticatedPage.url().match(/memories$/)) {
@@ -126,7 +131,10 @@ test.describe('Memories Feature', () => {
 
     // Wait for the API response
     await createPromise
-    await authenticatedPage.waitForTimeout(1000)
+    // Give the post-create redirect to /memories a chance to happen
+    await authenticatedPage
+      .waitForURL(/memories$/, { timeout: 5000 })
+      .catch(() => {})
 
     // Navigate to memories list if not already there
     if (!authenticatedPage.url().match(/memories$/)) {
@@ -215,7 +223,10 @@ test.describe('Memories Feature', () => {
 
       // Wait for the API response
       await createPromise
-      await authenticatedPage.waitForTimeout(500)
+      // Let the post-create redirect to /memories settle before navigating on
+      await authenticatedPage
+        .waitForURL(/memories$/, { timeout: 5000 })
+        .catch(() => {})
     }
 
     await authenticatedPage.goto('/memories')
@@ -225,9 +236,16 @@ test.describe('Memories Feature', () => {
       'input[placeholder*="Search memories" i]'
     )
     if ((await searchInput.count()) > 0) {
+      // Search is debounced, so wait for the filtered list request
+      const searchPromise = authenticatedPage.waitForResponse(
+        response =>
+          /\/memories\?/.test(response.url()) &&
+          response.url().includes('search=Alpha') &&
+          response.request().method() === 'GET',
+        { timeout: 10000 }
+      )
       await searchInput.fill('Alpha')
-      // Search is debounced, so wait for the results
-      await authenticatedPage.waitForTimeout(1000)
+      await searchPromise
       // Wait for search results to appear instead of arbitrary timeout
       await expect(authenticatedPage.locator('text=Alpha').first()).toBeVisible(
         { timeout: 5000 }

@@ -34,7 +34,6 @@ test.describe('Journey 4: Prompt Gallery to Custom Prompt', () => {
 
     test('should display 5 category cards', async ({ authenticatedPage }) => {
       await authenticatedPage.goto('/prompt-gallery')
-      await authenticatedPage.waitForTimeout(1000)
 
       // Should see all 5 categories
       await expect(
@@ -54,11 +53,9 @@ test.describe('Journey 4: Prompt Gallery to Custom Prompt', () => {
       authenticatedPage,
     }) => {
       await authenticatedPage.goto('/prompt-gallery')
-      await authenticatedPage.waitForTimeout(1000)
 
       // Click Data Analysis card
       await authenticatedPage.getByText('Data Analysis').click()
-      await authenticatedPage.waitForTimeout(1000)
 
       // Should navigate to category page (URLs use title case with spaces)
       await expect(authenticatedPage).toHaveURL(
@@ -75,11 +72,9 @@ test.describe('Journey 4: Prompt Gallery to Custom Prompt', () => {
       authenticatedPage,
     }) => {
       await authenticatedPage.goto('/prompt-gallery')
-      await authenticatedPage.waitForTimeout(1000)
 
       // Navigate to Data Analysis
       await authenticatedPage.getByText('Data Analysis').click()
-      await authenticatedPage.waitForTimeout(1000)
 
       // Should see at least one prompt (SQL Query Optimization)
       await expect(
@@ -93,13 +88,10 @@ test.describe('Journey 4: Prompt Gallery to Custom Prompt', () => {
       authenticatedPage,
     }) => {
       await authenticatedPage.goto('/prompt-gallery')
-      await authenticatedPage.waitForTimeout(1000)
 
       // Navigate to Data Analysis → SQL Query Optimization
       await authenticatedPage.getByText('Data Analysis').click()
-      await authenticatedPage.waitForTimeout(1000)
       await authenticatedPage.getByText('SQL Query Optimization').click()
-      await authenticatedPage.waitForTimeout(1000)
 
       // Should see prompt heading
       await expect(
@@ -123,25 +115,23 @@ test.describe('Journey 4: Prompt Gallery to Custom Prompt', () => {
       authenticatedPage,
     }) => {
       await authenticatedPage.goto('/prompt-gallery')
-      await authenticatedPage.waitForTimeout(1000)
 
       // Navigate to prompt
       await authenticatedPage.getByText('Data Analysis').click()
-      await authenticatedPage.waitForTimeout(1000)
       await authenticatedPage.getByText('SQL Query Optimization').click()
-      await authenticatedPage.waitForTimeout(1000)
 
       // Click Use This Prompt
       await authenticatedPage
         .getByRole('button', { name: /use this prompt/i })
         .click()
-      await authenticatedPage.waitForTimeout(2000)
 
       // Should redirect to /prompts/new
       await expect(authenticatedPage).toHaveURL('/prompts/new')
 
-      // Should have pre-filled name with "Based on:" prefix
+      // Should have pre-filled name with "Based on:" prefix. inputValue() does
+      // not retry, so first wait for the gallery content to land in the form.
       const nameField = authenticatedPage.getByTestId('prompt-name-input')
+      await expect(nameField).not.toHaveValue('')
       const nameValue = await nameField.inputValue()
       expect(nameValue).toContain('Based on:')
       expect(nameValue).toContain('SQL Query Optimization')
@@ -151,23 +141,22 @@ test.describe('Journey 4: Prompt Gallery to Custom Prompt', () => {
       authenticatedPage,
     }) => {
       await authenticatedPage.goto('/prompt-gallery')
-      await authenticatedPage.waitForTimeout(1000)
 
       // Navigate to SQL Query Optimization
       await authenticatedPage.getByText('Data Analysis').click()
-      await authenticatedPage.waitForTimeout(1000)
       await authenticatedPage.getByText('SQL Query Optimization').click()
-      await authenticatedPage.waitForTimeout(1000)
 
       // Click Use This Prompt
       await authenticatedPage
         .getByRole('button', { name: /use this prompt/i })
         .click()
-      await authenticatedPage.waitForTimeout(2000)
+      await expect(authenticatedPage).toHaveURL('/prompts/new')
 
       // Verify placeholders in content. By test id: the inline name is a
       // textarea too since the create page moved to the reading shell (#1181).
+      // inputValue() does not retry, so wait for the pre-fill first.
       const contentField = authenticatedPage.getByTestId('prompt-body-textarea')
+      await expect(contentField).not.toHaveValue('')
       const content = await contentField.inputValue()
 
       expect(content).toContain('{{query}}')
@@ -182,21 +171,20 @@ test.describe('Journey 4: Prompt Gallery to Custom Prompt', () => {
     }) => {
       // STEP 1: Navigate to gallery and clone prompt
       await authenticatedPage.goto('/prompt-gallery')
-      await authenticatedPage.waitForTimeout(1000)
 
       await authenticatedPage.getByText('Data Analysis').click()
-      await authenticatedPage.waitForTimeout(1000)
 
       await authenticatedPage.getByText('SQL Query Optimization').click()
-      await authenticatedPage.waitForTimeout(1000)
 
       await authenticatedPage
         .getByRole('button', { name: /use this prompt/i })
         .click()
-      await authenticatedPage.waitForTimeout(2000)
+      await expect(authenticatedPage).toHaveURL('/prompts/new')
 
-      // STEP 2: Customize prompt
+      // STEP 2: Customize prompt. Wait for the gallery pre-fill to land first,
+      // or it could overwrite the name typed below.
       const nameField = authenticatedPage.getByTestId('prompt-name-input')
+      await expect(nameField).toHaveValue(/Based on:/)
       await nameField.clear()
       await nameField.fill('My Automated Test Prompt')
 
@@ -214,11 +202,11 @@ test.describe('Journey 4: Prompt Gallery to Custom Prompt', () => {
       // "Save as draft" / "Publish" pair was read off the form's own status,
       // and every other kind already said "Create <singular>".
       await authenticatedPage.getByTestId('prompt-save-button').click()
-      await authenticatedPage.waitForTimeout(3000)
 
       // STEP 5: Verify prompt was saved (redirects to detail page)
       await expect(authenticatedPage).toHaveURL(
-        /\/prompts\/my-automated-test-prompt/
+        /\/prompts\/my-automated-test-prompt/,
+        { timeout: 10000 }
       )
 
       // Should see prompt name as heading
@@ -249,10 +237,8 @@ test.describe('Journey 4: Prompt Gallery to Custom Prompt', () => {
       authenticatedPage,
     }) => {
       await authenticatedPage.goto('/prompt-gallery')
-      await authenticatedPage.waitForTimeout(1000)
 
       await authenticatedPage.getByText('Customer Support').click()
-      await authenticatedPage.waitForTimeout(1000)
 
       await expect(authenticatedPage).toHaveURL(
         /\/prompt-gallery\/Customer%20Support/
@@ -263,10 +249,8 @@ test.describe('Journey 4: Prompt Gallery to Custom Prompt', () => {
       authenticatedPage,
     }) => {
       await authenticatedPage.goto('/prompt-gallery')
-      await authenticatedPage.waitForTimeout(1000)
 
       await authenticatedPage.getByText('Engineering').click()
-      await authenticatedPage.waitForTimeout(1000)
 
       await expect(authenticatedPage).toHaveURL(/\/prompt-gallery\/Engineering/)
     })

@@ -88,7 +88,7 @@ test.describe('Prompt Gallery', () => {
 
       // Navigate to category
       await authenticatedPage.getByText('Marketing').first().click()
-      await authenticatedPage.waitForTimeout(500)
+      await expect(authenticatedPage).toHaveURL(/\/prompt-gallery\/Marketing$/)
 
       // Navigate to prompt
       await authenticatedPage
@@ -133,8 +133,10 @@ test.describe('Prompt Gallery', () => {
         /\/prompt-gallery\/Customer%20Support/
       )
 
-      // Wait for prompts and tags to load
-      await authenticatedPage.waitForTimeout(1000)
+      // Wait for prompts (and so the tags derived from them) to load
+      await expect(
+        authenticatedPage.locator('[data-testid="gallery-prompt-card"]').first()
+      ).toBeVisible()
 
       // Look for tag buttons
       const tagButtons = authenticatedPage.locator('button').filter({
@@ -167,10 +169,17 @@ test.describe('Prompt Gallery', () => {
       // Use search
       const searchInput = authenticatedPage.getByPlaceholder(/Search prompts/i)
       await expect(searchInput).toBeVisible()
+      const responsePromise = authenticatedPage.waitForResponse(
+        response =>
+          response.url().includes('/prompt-gallery/prompts') &&
+          response.url().includes('search=code') &&
+          response.status() === 200,
+        { timeout: 10000 }
+      )
       await searchInput.fill('code')
 
       // Wait for search results
-      await authenticatedPage.waitForTimeout(1000)
+      await responsePromise
 
       // Verify some results appear
       const promptCards = authenticatedPage.locator(
@@ -190,7 +199,9 @@ test.describe('Prompt Gallery', () => {
 
       // Navigate to category and prompt
       await authenticatedPage.getByText('Customer Support').first().click()
-      await authenticatedPage.waitForTimeout(500)
+      await expect(authenticatedPage).toHaveURL(
+        /\/prompt-gallery\/Customer%20Support$/
+      )
       await authenticatedPage
         .locator('[data-testid="gallery-prompt-card"]')
         .first()
@@ -213,7 +224,9 @@ test.describe('Prompt Gallery', () => {
 
       // Navigate to any prompt
       await authenticatedPage.getByText('Engineering').first().click()
-      await authenticatedPage.waitForTimeout(500)
+      await expect(authenticatedPage).toHaveURL(
+        /\/prompt-gallery\/Engineering$/
+      )
       await authenticatedPage
         .locator('[data-testid="gallery-prompt-card"]')
         .first()
@@ -232,7 +245,9 @@ test.describe('Prompt Gallery', () => {
 
       // Navigate to prompt
       await authenticatedPage.getByText('Customer Support').first().click()
-      await authenticatedPage.waitForTimeout(500)
+      await expect(authenticatedPage).toHaveURL(
+        /\/prompt-gallery\/Customer%20Support$/
+      )
       await authenticatedPage
         .locator('[data-testid="gallery-prompt-card"]')
         .first()
@@ -264,12 +279,11 @@ test.describe('Prompt Gallery', () => {
 
       // Navigate to prompt and use it
       await authenticatedPage.getByText('Marketing').first().click()
-      await authenticatedPage.waitForTimeout(500)
+      await expect(authenticatedPage).toHaveURL(/\/prompt-gallery\/Marketing$/)
       await authenticatedPage
         .locator('[data-testid="gallery-prompt-card"]')
         .first()
         .click()
-      await authenticatedPage.waitForTimeout(500)
 
       const usePromptButton = authenticatedPage.getByRole('button', {
         name: /Use This Prompt/i,
@@ -306,12 +320,13 @@ test.describe('Prompt Gallery', () => {
 
       // Navigate and use a prompt
       await authenticatedPage.getByText('Customer Support').first().click()
-      await authenticatedPage.waitForTimeout(500)
+      await expect(authenticatedPage).toHaveURL(
+        /\/prompt-gallery\/Customer%20Support$/
+      )
       await authenticatedPage
         .locator('[data-testid="gallery-prompt-card"]')
         .first()
         .click()
-      await authenticatedPage.waitForTimeout(500)
 
       const usePromptButton = authenticatedPage.getByRole('button', {
         name: /Use This Prompt/i,
@@ -346,12 +361,13 @@ test.describe('Prompt Gallery', () => {
 
       // Navigate and use a prompt
       await authenticatedPage.getByText('Engineering').first().click()
-      await authenticatedPage.waitForTimeout(500)
+      await expect(authenticatedPage).toHaveURL(
+        /\/prompt-gallery\/Engineering$/
+      )
       await authenticatedPage
         .locator('[data-testid="gallery-prompt-card"]')
         .first()
         .click()
-      await authenticatedPage.waitForTimeout(500)
 
       const usePromptButton = authenticatedPage.getByRole('button', {
         name: /Use This Prompt/i,
@@ -457,7 +473,9 @@ test.describe('Prompt Gallery', () => {
 
       // Navigate to prompt detail
       await authenticatedPage.getByText('Customer Support').first().click()
-      await authenticatedPage.waitForTimeout(500)
+      await expect(authenticatedPage).toHaveURL(
+        /\/prompt-gallery\/Customer%20Support$/
+      )
       await authenticatedPage
         .locator('[data-testid="gallery-prompt-card"]')
         .first()
@@ -489,7 +507,9 @@ test.describe('Prompt Gallery', () => {
 
       // Navigate to any prompt
       await authenticatedPage.getByText('Engineering').first().click()
-      await authenticatedPage.waitForTimeout(500)
+      await expect(authenticatedPage).toHaveURL(
+        /\/prompt-gallery\/Engineering$/
+      )
       await authenticatedPage
         .locator('[data-testid="gallery-prompt-card"]')
         .first()

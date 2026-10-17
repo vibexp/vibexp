@@ -119,7 +119,6 @@ test.describe('API Keys Feature', () => {
       await authenticatedPage
         .locator('[data-testid="copy-api-key-button"]')
         .click()
-      await authenticatedPage.waitForTimeout(500)
 
       // Close the modal/dialog
       await authenticatedPage
@@ -164,7 +163,10 @@ test.describe('API Keys Feature', () => {
         .locator('[data-testid="close-api-key-modal-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(500)
+      // Wait for the creation modal to close
+      await expect(
+        authenticatedPage.locator('[data-testid="close-api-key-modal-button"]')
+      ).toBeHidden()
 
       // Verify the API key is displayed in masked format
       const maskedKey = authenticatedPage
@@ -211,7 +213,10 @@ test.describe('API Keys Feature', () => {
         .locator('[data-testid="close-api-key-modal-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(1000)
+      // Wait for the creation modal to close
+      await expect(
+        authenticatedPage.locator('[data-testid="close-api-key-modal-button"]')
+      ).toBeHidden()
 
       // Find the API key row and delete button
       const apiKeyRow = authenticatedPage
@@ -288,14 +293,14 @@ test.describe('API Keys Feature', () => {
         .locator('[data-testid="copy-api-key-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(500)
-
       // Verify the key was actually copied to the clipboard (the icon-only copy
       // button shows a checkmark, not text, so assert on clipboard contents).
-      const clipboard = await authenticatedPage.evaluate(() =>
-        navigator.clipboard.readText()
-      )
-      expect(clipboard).toBe(apiKeyText)
+      // The write is async, so poll until it lands.
+      await expect
+        .poll(() =>
+          authenticatedPage.evaluate(() => navigator.clipboard.readText())
+        )
+        .toBe(apiKeyText)
     })
 
     test('should validate API key name is required', async ({
@@ -345,12 +350,11 @@ test.describe('API Keys Feature', () => {
         .locator('[data-testid="submit-create-api-key-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-
       // Extract the API key
       const apiKeyElement = authenticatedPage.locator(
         '[data-testid="api-key-display"]'
       )
+      await expect(apiKeyElement).toBeVisible({ timeout: 10000 })
       const createdApiKey = (await apiKeyElement.textContent()) || ''
 
       expect(createdApiKey).toMatch(/^vxk_/)
@@ -391,10 +395,9 @@ test.describe('API Keys Feature', () => {
         .locator('[data-testid="submit-create-api-key-button"]')
         .click()
 
-      await authPage.waitForTimeout(2000)
-
       // Extract the API key
       const apiKeyElement = authPage.locator('[data-testid="api-key-display"]')
+      await expect(apiKeyElement).toBeVisible({ timeout: 10000 })
       const testApiKey = (await apiKeyElement.textContent()) || ''
 
       expect(testApiKey).toMatch(/^vxk_/)
@@ -496,7 +499,12 @@ test.describe('API Keys Feature', () => {
           .locator('[data-testid="close-api-key-modal-button"]')
           .click()
 
-        await authenticatedPage.waitForTimeout(500)
+        // Wait for the creation modal to close
+        await expect(
+          authenticatedPage.locator(
+            '[data-testid="close-api-key-modal-button"]'
+          )
+        ).toBeHidden()
       }
 
       // Verify both keys are visible
@@ -527,13 +535,19 @@ test.describe('API Keys Feature', () => {
         .locator('[data-testid="submit-create-api-key-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
+      // Wait for the API key creation modal to appear
+      await expect(
+        authenticatedPage.locator('[data-testid="close-api-key-modal-button"]')
+      ).toBeVisible({ timeout: 10000 })
 
       await authenticatedPage
         .locator('[data-testid="close-api-key-modal-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(1000)
+      // Wait for the creation modal to close
+      await expect(
+        authenticatedPage.locator('[data-testid="close-api-key-modal-button"]')
+      ).toBeHidden()
 
       // Verify created date is displayed
       const createdDate = authenticatedPage
@@ -586,7 +600,10 @@ test.describe('API Keys Feature', () => {
         .locator('[data-testid="close-api-key-modal-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(1000)
+      // Wait for the creation modal to close
+      await expect(
+        authenticatedPage.locator('[data-testid="close-api-key-modal-button"]')
+      ).toBeHidden()
 
       // Verify full key is NOT visible in the list (should be masked)
       const maskedKey = authenticatedPage

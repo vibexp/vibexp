@@ -800,7 +800,7 @@ Some tests may be flaky or fail if:
 
 2. **Dynamic UI Elements**: Some UI elements (buttons, modals) may have varying selectors. Tests use flexible locators (`:has-text()`, multiple selector options) to handle this.
 
-3. **Timing Issues**: Tests include appropriate `waitForTimeout()` calls, but some async operations may need adjustment.
+3. **Timing Issues**: Tests wait on the condition they need (web-first assertions, `waitForResponse`, `expect.poll`) instead of fixed `waitForTimeout()` sleeps (#1566), but a slow async operation may need a longer explicit timeout.
 
 ### Future Improvements
 
