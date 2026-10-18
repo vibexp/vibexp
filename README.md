@@ -258,7 +258,7 @@ Contributions are welcome. Branch off `main`, open a PR, and let CI pass. 💚 *
 
 ## License 📄
 
-[AGPL-3.0-or-later](./LICENSE).
+[MIT](./LICENSE).
 
 <div align="center">
 
