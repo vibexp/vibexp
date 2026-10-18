@@ -6,7 +6,7 @@ import "time"
 // #1510). The retention bounds live here, in the leaf models package, because
 // they are shared by the service validator
 // (services.ValidateInstanceAuditSettings) and the instance_audit_settings
-// CHECK constraint (migration 025). Change them together.
+// CHECK constraint (migration 023_consolidated). Change them together.
 const (
 	// MinAuditRetentionWeeks is the shortest retention an admin can set.
 	MinAuditRetentionWeeks = 1
