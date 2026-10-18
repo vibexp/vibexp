@@ -12,16 +12,17 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
-// Up/down round-trip for migration 025_instance_audit_settings (#1512), on its
-// OWN scratch database: this test migrates DOWN, which would corrupt the shared
+// Up/down round-trip for the instance_audit_settings block of
+// migration 023_consolidated (#1512; originally migration 025), on its OWN
+// scratch database: this test migrates DOWN, which would corrupt the shared
 // integrationDB.
 //
 // Beyond "it applies", it pins the singleton at the database level, the
 // retention CHECK at and just past the Go constants it mirrors, SET NULL on the
 // editor, and that the down migration drops a POPULATED table.
 
-// migration025Previous is the version immediately before 025.
-const migration025Previous = 24
+// migration023Previous is the version immediately before 023.
+const migration023Previous = 22
 
 func validInstanceAuditSettingsRow() map[string]any {
 	return map[string]any{"retention_weeks": models.DefaultAuditRetentionWeeks, "capture_ip_ua": true}
@@ -39,7 +40,7 @@ func instanceAuditSettingsCheckCases() []instanceSettingsCheckCase {
 	}
 }
 
-func TestMigration025_InstanceAuditSettings_UpDownRoundTrip(t *testing.T) {
+func TestMigration023_InstanceAuditSettings_UpDownRoundTrip(t *testing.T) {
 	db, cleanup := newScratchMigrationDB(t)
 	defer cleanup()
 
@@ -51,11 +52,11 @@ func TestMigration025_InstanceAuditSettings_UpDownRoundTrip(t *testing.T) {
 	}
 
 	// 1. The version immediately before this migration: nothing exists yet.
-	require.NoError(t, m.Migrate(migration025Previous), "migrate to the previous version")
-	require.False(t, tableExists(t, db, table), "fixture: the table must not exist before 025")
+	require.NoError(t, m.Migrate(migration023Previous), "migrate to the previous version")
+	require.False(t, tableExists(t, db, table), "fixture: the table must not exist before 023")
 
-	// 2. Apply 025.
-	require.NoError(t, m.Migrate(25), "migrate to 025")
+	// 2. Apply 023.
+	require.NoError(t, m.Migrate(23), "migrate to 023")
 
 	t.Run("it is a singleton", func(t *testing.T) {
 		assert.Equal(t, 0, countRows(t, db, "SELECT count(*) FROM "+table))
@@ -103,13 +104,13 @@ func TestMigration025_InstanceAuditSettings_UpDownRoundTrip(t *testing.T) {
 	// 3. Roll back with the table populated.
 	require.Equal(t, 1, countRows(t, db, "SELECT count(*) FROM "+table),
 		"fixture: the table must hold its row before rolling back")
-	require.NoError(t, m.Migrate(migration025Previous), "migrate down to the previous version")
+	require.NoError(t, m.Migrate(migration023Previous), "migrate down to the previous version")
 	assert.False(t, tableExists(t, db, table), "down must drop the populated table")
 	assert.True(t, tableExists(t, db, "instance_settings_audit"),
-		"rolling back 025 must leave earlier migrations in place")
+		"rolling back 023 must leave earlier migrations in place")
 
 	// 4. Re-apply: an operator who rolls back must be able to roll forward.
-	require.NoError(t, m.Migrate(25), "re-apply 025")
+	require.NoError(t, m.Migrate(23), "re-apply 023")
 	assert.Equal(t, 0, countRows(t, db, "SELECT count(*) FROM "+table), "the re-applied table starts empty")
 	require.NoError(t, insertInstanceSettingsRow(db, table, validInstanceAuditSettingsRow(), nil),
 		"the re-applied table is usable")

@@ -9,29 +9,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Up/down round-trip for migration 024_audit_events (#1511), on its OWN
+// Up/down round-trip for the audit_events block of migration
+// 023_consolidated (#1511; originally migration 024), on its OWN
 // scratch database: this test migrates DOWN, which would corrupt the shared
 // integrationDB.
 
-var migration024AuditIndexes = map[string]string{
+var migrationAuditEventsIndexes = map[string]string{
 	"idx_audit_events_created":           "(created_at DESC, id DESC)",
 	"idx_audit_events_actor_created":     "(actor_user_id, created_at DESC)",
 	"idx_audit_events_team_created":      "(team_id, created_at DESC)",
 	"idx_audit_events_operation_created": "(operation, created_at DESC)",
 }
 
-func TestMigration024_AuditEvents_UpDownRoundTrip(t *testing.T) {
+func TestMigration023_AuditEvents_UpDownRoundTrip(t *testing.T) {
 	db, cleanup := newScratchMigrationDB(t)
 	defer cleanup()
 	m := newMigrator(t, db)
 
-	require.NoError(t, m.Migrate(23), "migrate to 023")
-	require.False(t, tableExists(t, db, "audit_events"), "fixture: the table must not exist before 024")
+	require.NoError(t, m.Migrate(22), "migrate to 022")
+	require.False(t, tableExists(t, db, "audit_events"), "fixture: the table must not exist before 023")
 
-	require.NoError(t, m.Migrate(24), "migrate to 024")
+	require.NoError(t, m.Migrate(23), "migrate to 023")
 	require.True(t, tableExists(t, db, "audit_events"))
 
-	for name, columns := range migration024AuditIndexes {
+	for name, columns := range migrationAuditEventsIndexes {
 		var def string
 		require.NoError(t, db.QueryRow(
 			"SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = $1", name).Scan(&def), name)
@@ -64,12 +65,12 @@ func TestMigration024_AuditEvents_UpDownRoundTrip(t *testing.T) {
 	assert.Equal(t, "{}", metadata)
 
 	// Roll back over a populated log, then re-apply.
-	require.NoError(t, m.Migrate(23), "migrate down to 023")
+	require.NoError(t, m.Migrate(22), "migrate down to 022")
 	assert.False(t, tableExists(t, db, "audit_events"))
-	for name := range migration024AuditIndexes {
+	for name := range migrationAuditEventsIndexes {
 		assert.False(t, indexExists(t, db, name), name)
 	}
 
-	require.NoError(t, m.Migrate(24), "re-apply 024")
+	require.NoError(t, m.Migrate(23), "re-apply 023")
 	assert.True(t, tableExists(t, db, "audit_events"))
 }
