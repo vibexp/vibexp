@@ -689,6 +689,11 @@ func (tc *TestContainer) TeamRepository() repositories.TeamRepository {
 	return tc.TeamRepositoryMock
 }
 
+// KnowledgePulseService is unused by the MCP tool tests.
+func (tc *TestContainer) KnowledgePulseService() services.KnowledgePulseServiceInterface {
+	return nil
+}
+
 // MetadataCatalogService returns the configured metadata-catalog mock, used by
 // the metadata discovery tool.
 func (tc *TestContainer) MetadataCatalogService() services.MetadataCatalogServiceInterface {

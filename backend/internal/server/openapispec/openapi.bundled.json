@@ -167,6 +167,10 @@
       "description": "Team-level configuration, starting with per-team search ranking settings"
     },
     {
+      "name": "KnowledgePulse",
+      "description": "Live, polled view of the team's knowledge being read, written and linked"
+    },
+    {
       "name": "Freshness",
       "description": "Per-team resource freshness rules, evaluation settings, analytics and audit log (epic"
     },
@@ -26996,6 +27000,117 @@
         ]
       }
     },
+    "/api/v1/{team_id}/knowledge-pulse": {
+      "parameters": [
+        {
+          "name": "team_id",
+          "in": "path",
+          "required": true,
+          "description": "Team identifier",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Get the team's knowledge pulse",
+        "description": "Returns reads, writes, new links and feed posts across the team, merged and sorted by time. Without `since`, returns the last 15 minutes plus a snapshot of the knowledge graph. With `since`, returns only newer events, and the snapshot only when `snapshot=1`.\n",
+        "operationId": "getKnowledgePulse",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "description": "The `cursor` of the previous response (RFC 3339).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum events to return. Defaults to 200; values above 500 are capped.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "snapshot",
+            "in": "query",
+            "required": false,
+            "description": "Include the snapshot even when `since` is given.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pulse retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgePulseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid team_id, since or limit",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a member of the team",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to build the pulse",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "KnowledgePulse"
+        ]
+      }
+    },
     "/api/v1/{team_id}/freshness/rules": {
       "parameters": [
         {
@@ -42954,6 +43069,319 @@
             "type": "boolean",
             "description": "True when more distinct values exist than the requested limit returned.",
             "example": false
+          }
+        }
+      },
+      "KnowledgePulseResponse": {
+        "type": "object",
+        "required": [
+          "cursor",
+          "events",
+          "stats_today"
+        ],
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "description": "RFC 3339 timestamp (nanosecond precision) of the newest event returned, or of the window start when no event was returned. Pass it back as `since` on the next poll to receive only newer events.",
+            "example": "2026-10-19T19:30:00.123456Z"
+          },
+          "events": {
+            "type": "array",
+            "description": "Events after `since` (or in the last 15 minutes when `since` is omitted), merged across all sources and sorted by `at`, oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/KnowledgePulseEvent"
+            }
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/KnowledgePulseSnapshot"
+          },
+          "stats_today": {
+            "$ref": "#/components/schemas/KnowledgePulseStats"
+          }
+        }
+      },
+      "KnowledgePulseEventKind": {
+        "type": "string",
+        "enum": [
+          "read",
+          "write",
+          "link",
+          "feed_post"
+        ]
+      },
+      "KnowledgePulseActorType": {
+        "type": "string",
+        "enum": [
+          "user",
+          "agent"
+        ]
+      },
+      "KnowledgePulseSource": {
+        "type": "string",
+        "enum": [
+          "web",
+          "cli",
+          "mcp",
+          "api"
+        ]
+      },
+      "KnowledgePulseResourceType": {
+        "type": "string",
+        "enum": [
+          "memory",
+          "artifact",
+          "prompt",
+          "blueprint",
+          "feed_item"
+        ]
+      },
+      "KnowledgePulseEvent": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "at",
+          "actor",
+          "resource"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Event id, unique across sources (prefixed with the kind).",
+            "example": "read:3f1c2a9e-6b0d-4a52-9d55-0f8a3b2e1c11"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/KnowledgePulseEventKind"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/KnowledgePulseActor"
+          },
+          "resource": {
+            "$ref": "#/components/schemas/KnowledgePulseResourceRef"
+          },
+          "detail": {
+            "$ref": "#/components/schemas/KnowledgePulseEventDetail"
+          }
+        }
+      },
+      "KnowledgePulseActor": {
+        "type": "object",
+        "required": [
+          "type",
+          "id",
+          "name",
+          "source"
+        ],
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/KnowledgePulseActorType"
+          },
+          "id": {
+            "type": "string",
+            "description": "A user's UUID, or a stable `agent:<name>` key for an agent, so the same tool used by different people is one actor."
+          },
+          "name": {
+            "type": "string",
+            "example": "Claude Code"
+          },
+          "source": {
+            "$ref": "#/components/schemas/KnowledgePulseSource"
+          }
+        }
+      },
+      "KnowledgePulseResourceRef": {
+        "type": "object",
+        "required": [
+          "type",
+          "id",
+          "title"
+        ],
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/KnowledgePulseResourceType"
+          },
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "description": "Display title; empty when the resource no longer exists."
+          },
+          "slug": {
+            "type": "string",
+            "description": "Slug for prompts, artifacts and blueprints (used to deep-link)."
+          },
+          "project_id": {
+            "type": "string"
+          }
+        }
+      },
+      "KnowledgePulseRelatedRef": {
+        "type": "object",
+        "required": [
+          "type",
+          "id"
+        ],
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/KnowledgePulseResourceType"
+          },
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        }
+      },
+      "KnowledgePulseEventDetail": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "create",
+              "update"
+            ],
+            "description": "Set on write events."
+          },
+          "relation_type": {
+            "type": "string",
+            "description": "Set on link events, e.g. `supersedes`."
+          },
+          "to": {
+            "$ref": "#/components/schemas/KnowledgePulseRelatedRef"
+          }
+        }
+      },
+      "KnowledgePulseSnapshot": {
+        "type": "object",
+        "required": [
+          "nodes",
+          "edges",
+          "actors"
+        ],
+        "properties": {
+          "nodes": {
+            "type": "array",
+            "description": "The team's most connected and most recently active resources, at most 150, ordered by degree then recent activity.",
+            "items": {
+              "$ref": "#/components/schemas/KnowledgePulseNode"
+            }
+          },
+          "edges": {
+            "type": "array",
+            "description": "Relations whose two endpoints are both in `nodes`.",
+            "items": {
+              "$ref": "#/components/schemas/KnowledgePulseEdge"
+            }
+          },
+          "actors": {
+            "type": "array",
+            "description": "People and agents active in the last 24 hours.",
+            "items": {
+              "$ref": "#/components/schemas/KnowledgePulseSnapshotActor"
+            }
+          }
+        }
+      },
+      "KnowledgePulseNode": {
+        "type": "object",
+        "required": [
+          "type",
+          "id",
+          "title",
+          "degree"
+        ],
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/KnowledgePulseResourceType"
+          },
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "degree": {
+            "type": "integer",
+            "description": "Number of relations the resource takes part in."
+          }
+        }
+      },
+      "KnowledgePulseEdge": {
+        "type": "object",
+        "required": [
+          "from",
+          "to",
+          "relation_type"
+        ],
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "relation_type": {
+            "type": "string"
+          }
+        }
+      },
+      "KnowledgePulseSnapshotActor": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/KnowledgePulseActorType"
+          }
+        }
+      },
+      "KnowledgePulseStats": {
+        "type": "object",
+        "required": [
+          "reads",
+          "writes",
+          "links",
+          "compounding_score"
+        ],
+        "description": "Counts since 00:00 UTC today.",
+        "properties": {
+          "reads": {
+            "type": "integer"
+          },
+          "writes": {
+            "type": "integer"
+          },
+          "links": {
+            "type": "integer"
+          },
+          "compounding_score": {
+            "type": "integer",
+            "description": "New links + new `supersedes` links + updates to resources that already take part in a relation."
           }
         }
       },

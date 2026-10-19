@@ -1,0 +1,78 @@
+# Knowledge Pulse path item — referenced from ../openapi.yaml.
+#
+# One read-only, polled endpoint. Reads are open to any team member: the
+# tenancy middleware is the gate, as for the other team analytics reads.
+
+api-v1-team_id-knowledge-pulse:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team identifier
+      schema:
+        type: string
+        format: uuid
+
+  get:
+    summary: Get the team's knowledge pulse
+    description: >
+      Returns reads, writes, new links and feed posts across the team, merged
+      and sorted by time. Without `since`, returns the last 15 minutes plus a
+      snapshot of the knowledge graph. With `since`, returns only newer events,
+      and the snapshot only when `snapshot=1`.
+    operationId: getKnowledgePulse
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: since
+        in: query
+        required: false
+        description: The `cursor` of the previous response (RFC 3339).
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        description: Maximum events to return. Defaults to 200; values above 500 are capped.
+        schema:
+          type: integer
+      - name: snapshot
+        in: query
+        required: false
+        description: Include the snapshot even when `since` is given.
+        schema:
+          type: boolean
+    responses:
+      '200':
+        description: Pulse retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/KnowledgePulseResponse'
+      '400':
+        description: Invalid team_id, since or limit
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Authentication required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to build the pulse
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - KnowledgePulse

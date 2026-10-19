@@ -318,6 +318,11 @@ func ProvideTeamAISummarySettingsRepository(db *database.DB) repositories.TeamAI
 	return postgres.NewTeamAISummarySettingsRepository(db)
 }
 
+// ProvideKnowledgePulseRepository creates a new KnowledgePulseRepository
+func ProvideKnowledgePulseRepository(db *database.DB) repositories.KnowledgePulseRepository {
+	return postgres.NewKnowledgePulseRepository(db)
+}
+
 // ProvideMetadataCatalogRepository creates a new MetadataCatalogRepository
 func ProvideMetadataCatalogRepository(db *database.DB) repositories.MetadataCatalogRepository {
 	return postgres.NewMetadataCatalogRepository(db)

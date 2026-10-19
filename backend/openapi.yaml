@@ -858,6 +858,38 @@ components:
     MetadataValuesResponse:
       $ref: "./schemas/metadata.yaml#/MetadataValuesResponse"
 
+    # Import Knowledge Pulse schemas
+    KnowledgePulseResponse:
+      $ref: "./schemas/knowledge-pulse.yaml#/KnowledgePulseResponse"
+    KnowledgePulseEventKind:
+      $ref: "./schemas/knowledge-pulse.yaml#/KnowledgePulseEventKind"
+    KnowledgePulseActorType:
+      $ref: "./schemas/knowledge-pulse.yaml#/KnowledgePulseActorType"
+    KnowledgePulseSource:
+      $ref: "./schemas/knowledge-pulse.yaml#/KnowledgePulseSource"
+    KnowledgePulseResourceType:
+      $ref: "./schemas/knowledge-pulse.yaml#/KnowledgePulseResourceType"
+    KnowledgePulseEvent:
+      $ref: "./schemas/knowledge-pulse.yaml#/KnowledgePulseEvent"
+    KnowledgePulseActor:
+      $ref: "./schemas/knowledge-pulse.yaml#/KnowledgePulseActor"
+    KnowledgePulseResourceRef:
+      $ref: "./schemas/knowledge-pulse.yaml#/KnowledgePulseResourceRef"
+    KnowledgePulseRelatedRef:
+      $ref: "./schemas/knowledge-pulse.yaml#/KnowledgePulseRelatedRef"
+    KnowledgePulseEventDetail:
+      $ref: "./schemas/knowledge-pulse.yaml#/KnowledgePulseEventDetail"
+    KnowledgePulseSnapshot:
+      $ref: "./schemas/knowledge-pulse.yaml#/KnowledgePulseSnapshot"
+    KnowledgePulseNode:
+      $ref: "./schemas/knowledge-pulse.yaml#/KnowledgePulseNode"
+    KnowledgePulseEdge:
+      $ref: "./schemas/knowledge-pulse.yaml#/KnowledgePulseEdge"
+    KnowledgePulseSnapshotActor:
+      $ref: "./schemas/knowledge-pulse.yaml#/KnowledgePulseSnapshotActor"
+    KnowledgePulseStats:
+      $ref: "./schemas/knowledge-pulse.yaml#/KnowledgePulseStats"
+
     # Import Resource Freshness schemas (epic #726)
     FreshnessRule:
       $ref: "./schemas/freshness.yaml#/FreshnessRule"
@@ -1694,6 +1726,8 @@ paths:
     $ref: "./paths/team-settings.yaml#/api-v1-team_id-settings-ai-summary"
   /api/v1/{team_id}/settings/audit:
     $ref: "./paths/team-settings.yaml#/api-v1-team_id-settings-audit"
+  /api/v1/{team_id}/knowledge-pulse:
+    $ref: "./paths/knowledge-pulse.yaml#/api-v1-team_id-knowledge-pulse"
   /api/v1/{team_id}/freshness/rules:
     $ref: "./paths/freshness.yaml#/api-v1-team_id-freshness-rules"
   /api/v1/{team_id}/freshness/rules/{rule_id}:
@@ -1860,6 +1894,8 @@ tags:
     description: Discovery of the metadata keys and values in use, backing the metadata filters on the list endpoints
   - name: TeamSettings
     description: Team-level configuration, starting with per-team search ranking settings
+  - name: KnowledgePulse
+    description: Live, polled view of the team's knowledge being read, written and linked
   - name: Freshness
     description: Per-team resource freshness rules, evaluation settings, analytics and audit log (epic #726)
   - name: SiteInfo

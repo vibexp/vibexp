@@ -742,6 +742,7 @@ func (s *Server) setupProtectedRoutes() {
 		s.setupRelationsRoutes(r)
 		s.setupTeamSettingsRoutes(r)
 		s.setupFreshnessRoutes(r)
+		s.setupKnowledgePulseRoutes(r)
 		s.setupMetadataRoutes(r)
 		s.setupEmbeddingProvidersRoutes(r)
 		s.setupBlueprintRoutes(r)

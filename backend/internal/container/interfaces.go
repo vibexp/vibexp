@@ -164,6 +164,8 @@ type Container interface {
 	// FreshnessService manages per-team freshness rules and settings (epic #726).
 	FreshnessService() services.FreshnessServiceInterface
 	MetadataCatalogService() services.MetadataCatalogServiceInterface
+	// KnowledgePulseService builds the team knowledge pulse.
+	KnowledgePulseService() services.KnowledgePulseServiceInterface
 	EnvironmentService() *services.EnvironmentService
 	BackofficeService() services.UsageAndGrowthGetter
 	AdminService() services.AdminServiceInterface

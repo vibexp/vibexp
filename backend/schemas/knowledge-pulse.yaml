@@ -1,0 +1,239 @@
+# Knowledge Pulse schemas — referenced from ../openapi.yaml.
+#
+# A live, polled view of the team's knowledge being read, written and linked
+# (issue #1592). Every event is derived from data the
+# platform already records: resource_access_events (reads),
+# resource_write_events (writes), resource_relations (links) and feed_items
+# (feed posts). Nothing here is persisted.
+
+KnowledgePulseResponse:
+  type: object
+  required:
+    - cursor
+    - events
+    - stats_today
+  properties:
+    cursor:
+      type: string
+      description: >-
+        RFC 3339 timestamp (nanosecond precision) of the newest event returned,
+        or of the window start when no event was returned. Pass it back as
+        `since` on the next poll to receive only newer events.
+      example: "2026-10-19T19:30:00.123456Z"
+    events:
+      type: array
+      description: >-
+        Events after `since` (or in the last 15 minutes when `since` is
+        omitted), merged across all sources and sorted by `at`, oldest first.
+      items:
+        $ref: '#/KnowledgePulseEvent'
+    snapshot:
+      $ref: '#/KnowledgePulseSnapshot'
+    stats_today:
+      $ref: '#/KnowledgePulseStats'
+
+KnowledgePulseEventKind:
+  type: string
+  enum: [read, write, link, feed_post]
+
+KnowledgePulseActorType:
+  type: string
+  enum: [user, agent]
+
+KnowledgePulseSource:
+  type: string
+  enum: [web, cli, mcp, api]
+
+KnowledgePulseResourceType:
+  type: string
+  enum: [memory, artifact, prompt, blueprint, feed_item]
+
+KnowledgePulseEvent:
+  type: object
+  required:
+    - id
+    - kind
+    - at
+    - actor
+    - resource
+  properties:
+    id:
+      type: string
+      description: Event id, unique across sources (prefixed with the kind).
+      example: "read:3f1c2a9e-6b0d-4a52-9d55-0f8a3b2e1c11"
+    kind:
+      $ref: '#/KnowledgePulseEventKind'
+    at:
+      type: string
+      format: date-time
+    actor:
+      $ref: '#/KnowledgePulseActor'
+    resource:
+      $ref: '#/KnowledgePulseResourceRef'
+    detail:
+      $ref: '#/KnowledgePulseEventDetail'
+
+KnowledgePulseActor:
+  type: object
+  required:
+    - type
+    - id
+    - name
+    - source
+  properties:
+    type:
+      $ref: '#/KnowledgePulseActorType'
+    id:
+      type: string
+      description: >-
+        A user's UUID, or a stable `agent:<name>` key for an agent, so the same
+        tool used by different people is one actor.
+    name:
+      type: string
+      example: "Claude Code"
+    source:
+      $ref: '#/KnowledgePulseSource'
+
+KnowledgePulseResourceRef:
+  type: object
+  required:
+    - type
+    - id
+    - title
+  properties:
+    type:
+      $ref: '#/KnowledgePulseResourceType'
+    id:
+      type: string
+    title:
+      type: string
+      description: Display title; empty when the resource no longer exists.
+    slug:
+      type: string
+      description: Slug for prompts, artifacts and blueprints (used to deep-link).
+    project_id:
+      type: string
+
+KnowledgePulseRelatedRef:
+  type: object
+  required:
+    - type
+    - id
+  properties:
+    type:
+      $ref: '#/KnowledgePulseResourceType'
+    id:
+      type: string
+    title:
+      type: string
+    slug:
+      type: string
+
+KnowledgePulseEventDetail:
+  type: object
+  properties:
+    action:
+      type: string
+      enum: [create, update]
+      description: Set on write events.
+    relation_type:
+      type: string
+      description: Set on link events, e.g. `supersedes`.
+    to:
+      $ref: '#/KnowledgePulseRelatedRef'
+
+KnowledgePulseSnapshot:
+  type: object
+  required:
+    - nodes
+    - edges
+    - actors
+  properties:
+    nodes:
+      type: array
+      description: >-
+        The team's most connected and most recently active resources, at most
+        150, ordered by degree then recent activity.
+      items:
+        $ref: '#/KnowledgePulseNode'
+    edges:
+      type: array
+      description: Relations whose two endpoints are both in `nodes`.
+      items:
+        $ref: '#/KnowledgePulseEdge'
+    actors:
+      type: array
+      description: People and agents active in the last 24 hours.
+      items:
+        $ref: '#/KnowledgePulseSnapshotActor'
+
+KnowledgePulseNode:
+  type: object
+  required:
+    - type
+    - id
+    - title
+    - degree
+  properties:
+    type:
+      $ref: '#/KnowledgePulseResourceType'
+    id:
+      type: string
+    title:
+      type: string
+    slug:
+      type: string
+    project_id:
+      type: string
+    degree:
+      type: integer
+      description: Number of relations the resource takes part in.
+
+KnowledgePulseEdge:
+  type: object
+  required:
+    - from
+    - to
+    - relation_type
+  properties:
+    from:
+      type: string
+    to:
+      type: string
+    relation_type:
+      type: string
+
+KnowledgePulseSnapshotActor:
+  type: object
+  required:
+    - id
+    - name
+    - type
+  properties:
+    id:
+      type: string
+    name:
+      type: string
+    type:
+      $ref: '#/KnowledgePulseActorType'
+
+KnowledgePulseStats:
+  type: object
+  required:
+    - reads
+    - writes
+    - links
+    - compounding_score
+  description: Counts since 00:00 UTC today.
+  properties:
+    reads:
+      type: integer
+    writes:
+      type: integer
+    links:
+      type: integer
+    compounding_score:
+      type: integer
+      description: >-
+        New links + new `supersedes` links + updates to resources that already
+        take part in a relation.

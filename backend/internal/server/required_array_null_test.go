@@ -177,6 +177,8 @@ var adHocRequiredArrayAllowlist = map[string]string{
 	"StatusListResponse":                  "generated strict-server type (internal/server/gen/statuses); handler builds via make(...,0) — handlers_statuses.go ListStatuses",
 	"CommentListResponse":                 "generated strict-server type (internal/server/gen/comments); handler builds via make(...,0) — handlers_comments.go toGenCommentListResponse",
 	"RelationListResponse":                "generated strict-server type (internal/server/gen/relations); handler builds via make(...,0) — handlers_relations.go toGenRelationListResponse",
+	"KnowledgePulseResponse":              "generated strict-server type (internal/server/gen/knowledgepulse); handler builds events via make(...,0) — handlers_knowledge_pulse.go toGenKnowledgePulse",
+	"KnowledgePulseSnapshot":              "generated strict-server type (internal/server/gen/knowledgepulse); handler builds nodes/edges/actors via make(...,0) — handlers_knowledge_pulse.go toGenPulseSnapshot",
 	"FreshnessRuleListResponse":           "generated strict-server type (internal/server/gen/freshness); handler builds via make(...,0) — handlers_freshness.go toGenFreshnessRuleListResponse",
 	"FreshnessOverTimeMetricsData":        "generated strict-server type (internal/server/gen/freshness); handler builds counts via make(...,0) — handlers_freshness_metrics.go GetFreshnessOverTimeMetrics",
 	"FreshnessByTypeMetricsData":          "generated strict-server type (internal/server/gen/freshness); handler builds counts via make(...,0) — handlers_freshness_metrics.go GetFreshnessByTypeMetrics",

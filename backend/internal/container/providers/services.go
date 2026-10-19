@@ -759,6 +759,14 @@ func ProvideEmailSenderResolver(
 	return services.NewEmailSenderResolver(repo, instanceRepo, enc, logger)
 }
 
+// ProvideKnowledgePulseService creates the Knowledge Pulse service.
+func ProvideKnowledgePulseService(
+	repo repositories.KnowledgePulseRepository,
+	logger *slog.Logger,
+) services.KnowledgePulseServiceInterface {
+	return services.NewKnowledgePulseService(repo, logger)
+}
+
 // ProvideMetadataCatalogService creates the metadata catalog service, which
 // backs the metadata key/value discovery endpoints (epic #519).
 func ProvideMetadataCatalogService(
