@@ -496,6 +496,10 @@ func (b *BaseMockContainer) MetadataCatalogService() services.MetadataCatalogSer
 	return nil
 }
 
+func (b *BaseMockContainer) KnowledgePulseService() services.KnowledgePulseServiceInterface {
+	return nil
+}
+
 func (b *BaseMockContainer) TeamEmailProviderService() services.TeamEmailProviderServiceInterface {
 	return nil
 }

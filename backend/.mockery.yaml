@@ -62,6 +62,7 @@ packages:
       InstanceAdminPredicate:
       InstanceAdminResolver:
       MemoryServiceInterface:
+      KnowledgePulseServiceInterface:
       MetadataCatalogServiceInterface:
       ModelProvider:
       ModelProviderServiceInterface:
@@ -161,6 +162,7 @@ packages:
       InstanceSiteInfoRepository:
       InstanceAuditSettingsRepository:
       MemoryRepository:
+      KnowledgePulseRepository:
       MetadataCatalogRepository:
       ModelProviderRepository:
       NotificationDeliveryRepository:

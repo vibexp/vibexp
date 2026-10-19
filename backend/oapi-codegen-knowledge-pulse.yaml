@@ -1,0 +1,13 @@
+# oapi-codegen configuration for the Knowledge Pulse read, one more
+# spec-first strict-server package under internal/server/gen.
+#
+# Regenerate with: make backend-generate-openapi-server
+package: knowledgepulsegen
+output: internal/server/gen/knowledgepulse/knowledgepulse.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  include-tags:
+    - KnowledgePulse

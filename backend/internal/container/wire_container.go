@@ -105,6 +105,7 @@ type WireContainer struct {
 	teamSettingsAuditService      services.TeamSettingsAuditServiceInterface
 	freshnessService              services.FreshnessServiceInterface
 	metadataCatalogService        services.MetadataCatalogServiceInterface
+	knowledgePulseService         services.KnowledgePulseServiceInterface
 	environmentService            *services.EnvironmentService
 	backofficeService             services.UsageAndGrowthGetter
 	adminService                  services.AdminServiceInterface
@@ -588,6 +589,11 @@ func (c *WireContainer) FreshnessService() services.FreshnessServiceInterface {
 
 func (c *WireContainer) MetadataCatalogService() services.MetadataCatalogServiceInterface {
 	return c.metadataCatalogService
+}
+
+// KnowledgePulseService returns the Knowledge Pulse service.
+func (c *WireContainer) KnowledgePulseService() services.KnowledgePulseServiceInterface {
+	return c.knowledgePulseService
 }
 
 func (c *WireContainer) SearchService() services.Searcher {

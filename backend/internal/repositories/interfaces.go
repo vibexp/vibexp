@@ -3343,3 +3343,23 @@ type EmbeddingJobRepository interface {
 	// tests that must assert the queue is drained.
 	CountByState(ctx context.Context) (map[string]int64, error)
 }
+
+// KnowledgePulseRepository reads the team's recent knowledge activity for the
+// Knowledge Pulse view: one ListSince per source table, a graph
+// snapshot and today's counts. Every query filters on team_id. ListSince
+// methods return rows strictly after since, oldest first, at most limit.
+type KnowledgePulseRepository interface {
+	ListReadsSince(ctx context.Context, teamID string, since time.Time, limit int) ([]models.PulseReadEvent, error)
+	ListWritesSince(ctx context.Context, teamID string, since time.Time, limit int) ([]models.PulseWriteEvent, error)
+	ListLinksSince(ctx context.Context, teamID string, since time.Time, limit int) ([]models.PulseLinkEvent, error)
+	ListFeedPostsSince(ctx context.Context, teamID string, since time.Time, limit int) ([]models.PulseFeedEvent, error)
+	// GetSnapshot returns at most nodeLimit nodes ranked by degree, then by
+	// reads and writes since activitySince; the edges between them; and the
+	// distinct actors active since activitySince.
+	GetSnapshot(
+		ctx context.Context, teamID string, activitySince time.Time, nodeLimit int,
+	) (*models.PulseSnapshotRaw, error)
+	// GetDayStats counts reads, writes, links, supersedes links and updates to
+	// related resources at or after dayStart.
+	GetDayStats(ctx context.Context, teamID string, dayStart time.Time) (models.PulseDayStats, error)
+}
