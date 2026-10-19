@@ -40,6 +40,7 @@ import { PromptDetail } from '@/pages/prompts/PromptDetail'
 import { PromptEditor } from '@/pages/prompts/PromptEditor'
 import { Prompts } from '@/pages/prompts/Prompts'
 import { PromptVersions } from '@/pages/prompts/PromptVersions'
+import { KnowledgePulse } from '@/pages/pulse/KnowledgePulse'
 import { Search } from '@/pages/search/Search'
 import { AccountSettings } from '@/pages/settings/account/AccountSettings'
 import { APIKeys } from '@/pages/settings/api-keys/APIKeys'
@@ -88,6 +89,7 @@ export function AppRoutes() {
     <Routes>
       <Route index element={<Home />} />
       <Route path="search" element={<Search />} />
+      <Route path="pulse" element={<KnowledgePulse />} />
       <Route path="showcase" element={<Showcase />} />
       <Route path="prompts" element={<Prompts />} />
       <Route path="prompts/new" element={<PromptEditor />} />

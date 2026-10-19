@@ -1,0 +1,132 @@
+/* ==========================================================================
+ * Knowledge Pulse — ring motion
+ *
+ * CSS animations rather than SMIL `<animate>`: an SMIL animation inserted
+ * after the document loaded is timed from document start, so a late pulse
+ * would already be "over" before it rendered. CSS keyframes start when the
+ * element mounts, which is exactly when an event arrives.
+ *
+ * Every colour comes in through `var(--…)` tokens set inline, so light and
+ * dark both work. `prefers-reduced-motion` keeps colour changes but drops
+ * movement.
+ * ========================================================================== */
+
+/* A node glides to its new spot when the ring re-lays out. */
+.kp-node {
+  transition:
+    transform 900ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 300ms ease;
+}
+
+/* A node that just appeared blooms in; `--kp-delay` staggers the first load. */
+.kp-node-body {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: kp-bloom 700ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: var(--kp-delay, 0ms);
+}
+
+.kp-node-dot {
+  transition:
+    fill 400ms ease,
+    r 600ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* The expanding halo of a read / write / link. */
+.kp-halo {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: kp-halo var(--kp-duration, 1600ms) cubic-bezier(0.22, 1, 0.36, 1)
+    forwards;
+}
+
+/* Relation curves morph when the layout shifts and draw in when new. */
+.kp-edge {
+  transition:
+    d 900ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 300ms ease,
+    stroke 400ms ease,
+    stroke-width 300ms ease;
+}
+
+.kp-edge-new {
+  stroke-dasharray: 1;
+  animation: kp-draw 1200ms cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+
+/* Actor → resource flash: travels along the line, then fades. */
+.kp-beam {
+  stroke-dasharray: 0.12 1;
+  animation: kp-beam var(--kp-duration, 1600ms) ease-out forwards;
+}
+
+.kp-actor-dot {
+  transition:
+    fill 300ms ease,
+    r 300ms ease;
+}
+
+@keyframes kp-bloom {
+  from {
+    opacity: 0;
+    transform: scale(0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes kp-halo {
+  from {
+    opacity: 0.95;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(3.2);
+  }
+}
+
+@keyframes kp-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes kp-beam {
+  0% {
+    stroke-dashoffset: 0.12;
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.95;
+  }
+  70% {
+    opacity: 0.8;
+  }
+  100% {
+    stroke-dashoffset: -1;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kp-node,
+  .kp-edge {
+    transition-duration: 0ms;
+  }
+  .kp-node-body,
+  .kp-edge-new,
+  .kp-halo,
+  .kp-beam {
+    animation: none;
+  }
+  .kp-halo,
+  .kp-beam {
+    display: none;
+  }
+}
