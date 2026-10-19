@@ -92,10 +92,7 @@ function LiveStatus({
   }
   const live = playing && !hidden && !error
   return (
-    <span
-      className="text-muted-foreground inline-flex items-center gap-2 text-xs font-medium"
-      role="status"
-    >
+    <output className="text-muted-foreground inline-flex items-center gap-2 text-xs font-medium">
       <span className="relative flex size-2.5">
         {live && (
           <span
@@ -110,7 +107,7 @@ function LiveStatus({
         />
       </span>
       {label}
-    </span>
+    </output>
   )
 }
 
@@ -138,10 +135,9 @@ export function KnowledgePulse() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'Space') return
-      const t = e.target as HTMLElement | null
+      const t = e.target
       if (
-        t &&
-        t !== document.body &&
+        t instanceof Element &&
         t.closest(
           'input,textarea,button,[role=button],select,[contenteditable]'
         )

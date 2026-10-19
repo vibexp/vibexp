@@ -97,6 +97,31 @@ function ensureNode(
   })
 }
 
+/**
+ * Record a link event: make sure its far end is on the ring and add the edge
+ * (bumping both degrees) unless it is already known. Mutates `nodes`, which
+ * the caller has already copied.
+ */
+function applyLink(
+  nodes: Map<string, PulseNode>,
+  edges: PulseEdge[],
+  event: PulseEvent,
+  to: PulseResourceRef
+): PulseEdge[] {
+  ensureNode(nodes, to)
+  const edge: PulseEdge = {
+    from: event.resource.id,
+    to: to.id,
+    relation_type: event.detail?.relation_type ?? 'related',
+  }
+  if (edges.some(e => edgeKey(e) === edgeKey(edge))) return edges
+  for (const id of [edge.from, edge.to]) {
+    const n = nodes.get(id)
+    if (n) nodes.set(id, { ...n, degree: n.degree + 1 })
+  }
+  return [...edges, edge]
+}
+
 function applyEvent(
   state: PulseState,
   event: PulseEvent,
@@ -108,24 +133,11 @@ function applyEvent(
   const nodes = new Map(state.nodes)
   ensureNode(nodes, event.resource)
 
-  let edges = state.edges
   const to = event.detail?.to
-  if (event.kind === 'link' && to) {
-    ensureNode(nodes, to)
-    const edge: PulseEdge = {
-      from: event.resource.id,
-      to: to.id,
-      relation_type: event.detail?.relation_type ?? 'related',
-    }
-    const known = new Set(edges.map(edgeKey))
-    if (!known.has(edgeKey(edge))) {
-      edges = [...edges, edge]
-      for (const id of [edge.from, edge.to]) {
-        const n = nodes.get(id)
-        if (n) nodes.set(id, { ...n, degree: n.degree + 1 })
-      }
-    }
-  }
+  const edges =
+    event.kind === 'link' && to
+      ? applyLink(nodes, state.edges, event, to)
+      : state.edges
 
   const actors = state.actors.has(event.actor.id)
     ? state.actors
