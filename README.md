@@ -30,7 +30,7 @@ The more AI tools you use, the more you lose, and the more your team duplicates:
 
 A short walkthrough of the idea behind VibeXP and how it changes the way you work with AI:
 
-[![VibeXP: the concept (watch on YouTube)](https://img.youtube.com/vi/-9NFGBjoc5g/maxresdefault.jpg)](https://youtu.be/-9NFGBjoc5g)
+https://github.com/user-attachments/assets/c77a7d9a-a457-493c-8e00-b4ebb298eb77
 
 ## How VibeXP solves it ✨
 
