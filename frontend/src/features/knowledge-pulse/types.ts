@@ -1,81 +1,26 @@
+import type { components } from '@vibexp/api-client'
+
 /**
- * Wire shape of `GET /api/v1/{team_id}/knowledge-pulse`.
- *
- * Hand-written until the `@vibexp/api-client` release generated from this
- * spec change is adopted; then switch to its `components['schemas']` types.
- * Until then, keep this in step with `backend/schemas/knowledge-pulse.yaml`.
+ * The `GET /api/v1/{team_id}/knowledge-pulse` wire shapes, under the short
+ * names the feature uses. All generated from `backend/schemas/knowledge-pulse.yaml`.
  */
+type Schemas = components['schemas']
 
-export type PulseEventKind = 'read' | 'write' | 'link' | 'feed_post'
+export type PulseEventKind = Schemas['KnowledgePulseEventKind']
+export type PulseResourceType = Schemas['KnowledgePulseResourceType']
+export type PulseActor = Schemas['KnowledgePulseActor']
+export type PulseEvent = Schemas['KnowledgePulseEvent']
+export type PulseNode = Schemas['KnowledgePulseNode']
+export type PulseEdge = Schemas['KnowledgePulseEdge']
+export type PulseSnapshotActor = Schemas['KnowledgePulseSnapshotActor']
+export type PulseSnapshot = Schemas['KnowledgePulseSnapshot']
+export type PulseStats = Schemas['KnowledgePulseStats']
+export type KnowledgePulseResponse = Schemas['KnowledgePulseResponse']
 
-export type PulseResourceType =
-  'memory' | 'artifact' | 'prompt' | 'blueprint' | 'feed_item'
-
-export interface PulseActor {
-  type: 'user' | 'agent'
-  id: string
-  name: string
-  source?: string
-}
-
-export interface PulseResourceRef {
-  type: PulseResourceType
-  id: string
-  title?: string
-  slug?: string
-  project_id?: string
-}
-
-export interface PulseEvent {
-  id: string
-  kind: PulseEventKind
-  at: string
-  actor: PulseActor
-  resource: PulseResourceRef
-  detail?: {
-    action?: 'create' | 'update'
-    relation_type?: string
-    to?: PulseResourceRef
-  }
-}
-
-export interface PulseNode {
-  type: PulseResourceType
-  id: string
-  title: string
-  slug?: string
-  project_id?: string
-  degree: number
-}
-
-export interface PulseEdge {
-  from: string
-  to: string
-  relation_type: string
-}
-
-export interface PulseSnapshotActor {
-  id: string
-  name: string
-  type: 'user' | 'agent'
-}
-
-export interface PulseSnapshot {
-  nodes: PulseNode[]
-  edges: PulseEdge[]
-  actors: PulseSnapshotActor[]
-}
-
-export interface PulseStats {
-  reads: number
-  writes: number
-  links: number
-  compounding_score: number
-}
-
-export interface KnowledgePulseResponse {
-  cursor: string
-  events: PulseEvent[]
-  snapshot?: PulseSnapshot | null
-  stats_today: PulseStats
-}
+/**
+ * A resource reference as the feature handles it: an event's own resource
+ * (title always set) or a link's far end (title optional).
+ */
+export type PulseResourceRef =
+  | Schemas['KnowledgePulseResourceRef']
+  | (Schemas['KnowledgePulseRelatedRef'] & { project_id?: string })

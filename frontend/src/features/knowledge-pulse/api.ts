@@ -1,10 +1,6 @@
-import { createTimeoutFetch, unwrap } from '@/lib/apiClientGenerated'
-import { getApiBaseUrl } from '@/utils/environment'
+import { generatedClient, unwrap } from '@/lib/apiClientGenerated'
 
 import type { KnowledgePulseResponse } from './types'
-
-const REQUEST_TIMEOUT_MS = 15000
-const timeoutFetch = createTimeoutFetch(REQUEST_TIMEOUT_MS)
 
 export interface PulseQuery {
   /** Cursor from the previous response; omit for the initial load. */
@@ -14,34 +10,23 @@ export interface PulseQuery {
   snapshot?: boolean
 }
 
-/**
- * Typed fetch for the knowledge-pulse endpoint. It stands in for the
- * generated client until the frontend adopts the `@vibexp/api-client` release
- * that includes this path (it publishes automatically once the spec change
- * lands on main); it reuses `unwrap` so errors map exactly like every other
- * service call. Replace it with `generatedClient.GET(...)` then.
- */
+/** One knowledge-pulse poll: the initial load without `since`, a delta with it. */
 export async function fetchKnowledgePulse(
   teamId: string,
   query: PulseQuery = {},
   signal?: AbortSignal
 ): Promise<KnowledgePulseResponse> {
-  const params = new URLSearchParams()
-  if (query.since) params.set('since', query.since)
-  if (query.limit) params.set('limit', String(query.limit))
-  if (query.snapshot) params.set('snapshot', '1')
-  const qs = params.toString()
-  const url = `${getApiBaseUrl()}/${encodeURIComponent(teamId)}/knowledge-pulse${qs ? `?${qs}` : ''}`
-
   return unwrap(
-    (async () => {
-      const response = await timeoutFetch(
-        new Request(url, { credentials: 'include', signal })
-      )
-      const body: unknown = await response.json().catch(() => undefined)
-      return response.ok
-        ? { data: body as KnowledgePulseResponse, response }
-        : { error: body, response }
-    })()
+    generatedClient.GET('/api/v1/{team_id}/knowledge-pulse', {
+      params: {
+        path: { team_id: teamId },
+        query: {
+          since: query.since,
+          limit: query.limit,
+          snapshot: query.snapshot ? true : undefined,
+        },
+      },
+      signal,
+    })
   )
 }

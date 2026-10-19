@@ -1,7 +1,7 @@
 import { RESOURCE_TYPE_SINGULAR } from './pulseTheme'
-import type { PulseEvent } from './types'
+import type { PulseActor, PulseEvent } from './types'
 
-const SOURCE_LABEL: Record<string, string> = {
+const SOURCE_LABEL: Record<PulseActor['source'], string> = {
   mcp: 'MCP',
   cli: 'CLI',
   web: 'the web',
@@ -23,9 +23,10 @@ export interface EventSentence {
  */
 export function describeEvent(event: PulseEvent): EventSentence {
   const title =
-    event.resource.title ?? `a ${RESOURCE_TYPE_SINGULAR[event.resource.type]}`
-  const via = event.actor.source ? SOURCE_LABEL[event.actor.source] : undefined
-  const suffix = via ? `via ${via}` : undefined
+    event.resource.title !== ''
+      ? event.resource.title
+      : `a ${RESOURCE_TYPE_SINGULAR[event.resource.type]}`
+  const suffix = `via ${SOURCE_LABEL[event.actor.source]}`
   switch (event.kind) {
     case 'read':
       return { verb: 'read', object: title, suffix }
