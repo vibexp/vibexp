@@ -69,15 +69,14 @@ func concretePath(p string) string {
 	return b.String()
 }
 
-// allowMethodsContains parses an Access-Control-Allow-Methods header value
-// (a comma-separated, case-insensitive list of HTTP methods) and reports
-// whether it contains the given method as a distinct entry. Avoids the
-// substring-match brittleness of strings.Contains (e.g. "PATCHFOO" matching
-// "PATCH").
-func allowMethodsContains(headerValue, method string) bool {
-	want := strings.ToUpper(method)
+// headerListContains parses a comma-separated header value (e.g.
+// Access-Control-Allow-Methods or Access-Control-Expose-Headers) and reports
+// whether it holds want as a distinct entry, compared case-insensitively.
+// Avoids the substring-match brittleness of strings.Contains (e.g. "PATCHFOO"
+// matching "PATCH").
+func headerListContains(headerValue, want string) bool {
 	for _, raw := range strings.Split(headerValue, ",") {
-		if strings.ToUpper(strings.TrimSpace(raw)) == want {
+		if strings.EqualFold(strings.TrimSpace(raw), want) {
 			return true
 		}
 	}
@@ -117,7 +116,7 @@ func TestCORSPreflightAllowsPATCH(t *testing.T) {
 		t.Errorf("Access-Control-Allow-Origin: got %q want %q", got, corsTestOrigin)
 	}
 	allowMethods := rr.Header().Get("Access-Control-Allow-Methods")
-	if !allowMethodsContains(allowMethods, http.MethodPatch) {
+	if !headerListContains(allowMethods, http.MethodPatch) {
 		t.Errorf("Access-Control-Allow-Methods does not include PATCH: %q", allowMethods)
 	}
 }
@@ -147,18 +146,6 @@ func TestCORSAllowsAllRegisteredMethods(t *testing.T) {
 	if !seenVerbs[http.MethodPatch] {
 		t.Error("expected at least one PATCH route in the router (was the notifications PATCH endpoint removed?)")
 	}
-}
-
-// headerListContains reports whether a comma-separated header value (e.g.
-// Access-Control-Expose-Headers) holds want as a distinct entry, compared
-// case-insensitively.
-func headerListContains(headerValue, want string) bool {
-	for _, raw := range strings.Split(headerValue, ",") {
-		if strings.EqualFold(strings.TrimSpace(raw), want) {
-			return true
-		}
-	}
-	return false
 }
 
 // TestCORSExposesAdminExportHeaders guards #1537: a cross-origin dev SPA must
