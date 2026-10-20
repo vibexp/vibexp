@@ -1,4 +1,6 @@
+import { Activity } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
 import {
@@ -8,6 +10,7 @@ import {
 import { TeamFeedCreationChart } from '@/components/TeamFeedCreationChart'
 import { TeamResourceCreationChart } from '@/components/TeamResourceCreationChart'
 import { TeamResourceCumulativeChart } from '@/components/TeamResourceCumulativeChart'
+import { Button } from '@/components/ui/button'
 import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAuth } from '@/contexts/useAuth'
@@ -246,7 +249,18 @@ export function Home() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title={greeting} className="pb-0" />
+      <PageHeader
+        title={greeting}
+        className="pb-0"
+        actions={
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/pulse">
+              <Activity aria-hidden="true" />
+              Knowledge Pulse
+            </Link>
+          </Button>
+        }
+      />
 
       <OnboardingCard />
 
