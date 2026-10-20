@@ -441,27 +441,27 @@ func TestAuditAPIKeys(t *testing.T) {
 	t.Run("revoked, named as it was before the delete", func(t *testing.T) {
 		srv, keys, rec := newAPIKeyAuditServer(t)
 		keys.EXPECT().GetAPIKeysByUserID(mock.Anything, "u-1").
-			Return([]models.APIKey{{ID: "other"}, {ID: "key-1", Name: "laptop"}}, nil)
-		keys.EXPECT().DeleteAPIKey(mock.Anything, "u-1", "key-1").Return(nil)
+			Return([]models.APIKey{{ID: "other"}, {ID: testAPIKeyID, Name: "laptop"}}, nil)
+		keys.EXPECT().DeleteAPIKey(mock.Anything, "u-1", testAPIKeyID).Return(nil)
 
 		req := apiKeyRequest(http.MethodDelete, "")
-		req = withChiURLParams(req, map[string]string{"id": "key-1"})
+		req = withChiURLParams(req, map[string]string{"id": testAPIKeyID})
 		w := httptest.NewRecorder()
 		srv.handleDeleteAPIKey(w, req)
 		require.Less(t, w.Code, 300, w.Body.String())
 
 		got := rec.only(t)
 		assert.Equal(t, models.AuditOpAuthAPIKeyRevoked, got.event.Operation)
-		assert.Equal(t, "key-1", got.event.ResourceID)
+		assert.Equal(t, testAPIKeyID, got.event.ResourceID)
 		assert.Equal(t, "laptop", got.event.ResourceName)
 	})
 
 	t.Run("a failed delete records nothing", func(t *testing.T) {
 		srv, keys, rec := newAPIKeyAuditServer(t)
 		keys.EXPECT().GetAPIKeysByUserID(mock.Anything, "u-1").Return(nil, assert.AnError)
-		keys.EXPECT().DeleteAPIKey(mock.Anything, "u-1", "key-1").Return(assert.AnError)
+		keys.EXPECT().DeleteAPIKey(mock.Anything, "u-1", testAPIKeyID).Return(assert.AnError)
 
-		req := withChiURLParams(apiKeyRequest(http.MethodDelete, ""), map[string]string{"id": "key-1"})
+		req := withChiURLParams(apiKeyRequest(http.MethodDelete, ""), map[string]string{"id": testAPIKeyID})
 		srv.handleDeleteAPIKey(httptest.NewRecorder(), req)
 
 		assert.Empty(t, rec.events())

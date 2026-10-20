@@ -14,8 +14,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/config"
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
@@ -346,15 +348,21 @@ func TestHandleCreateAPIKey_ServiceError(t *testing.T) {
 	mockContainer.apiKeyService.AssertExpectations(t)
 }
 
+// API key ids for the delete tests: the handler only accepts UUIDs.
+const (
+	testAPIKeyID        = "00000000-0000-4000-8000-000000000001"
+	testUnknownAPIKeyID = "00000000-0000-4000-8000-000000000002"
+)
+
 // TestHandleDeleteAPIKey_Success tests successful API key deletion
 func TestHandleDeleteAPIKey_Success(t *testing.T) {
 	mockContainer := newMockAPIKeyContainer(t)
 
-	mockContainer.apiKeyService.On("DeleteAPIKey", mock.Anything, "user-123", "key-123").
+	mockContainer.apiKeyService.On("DeleteAPIKey", mock.Anything, "user-123", testAPIKeyID).
 		Return(nil)
 
 	srv := createTestAPIKeyServer(mockContainer)
-	req := makeAuthenticatedAPIKeyRequest("DELETE", "/api/v1/api-keys/key-123", nil, "user-123")
+	req := makeAuthenticatedAPIKeyRequest("DELETE", "/api/v1/api-keys/"+testAPIKeyID, nil, "user-123")
 	w := httptest.NewRecorder()
 
 	srv.ServeHTTP(w, req)
@@ -373,11 +381,11 @@ func TestHandleDeleteAPIKey_NotFound(t *testing.T) {
 	// "API key not found or not owned by user", which this error does not
 	// equal — so this test fails against the string-equality code and pins
 	// the errors.Is(repositories.ErrAPIKeyNotFound) 404 branch.
-	mockContainer.apiKeyService.On("DeleteAPIKey", mock.Anything, "user-123", "non-existent").
+	mockContainer.apiKeyService.On("DeleteAPIKey", mock.Anything, "user-123", testUnknownAPIKeyID).
 		Return(repositories.ErrAPIKeyNotFound)
 
 	srv := createTestAPIKeyServer(mockContainer)
-	req := makeAuthenticatedAPIKeyRequest("DELETE", "/api/v1/api-keys/non-existent", nil, "user-123")
+	req := makeAuthenticatedAPIKeyRequest("DELETE", "/api/v1/api-keys/"+testUnknownAPIKeyID, nil, "user-123")
 	w := httptest.NewRecorder()
 
 	srv.ServeHTTP(w, req)
@@ -392,11 +400,11 @@ func TestHandleDeleteAPIKey_NotFound(t *testing.T) {
 func TestHandleDeleteAPIKey_ServiceError(t *testing.T) {
 	mockContainer := newMockAPIKeyContainer(t)
 
-	mockContainer.apiKeyService.On("DeleteAPIKey", mock.Anything, "user-123", "key-123").
+	mockContainer.apiKeyService.On("DeleteAPIKey", mock.Anything, "user-123", testAPIKeyID).
 		Return(errors.New("database error"))
 
 	srv := createTestAPIKeyServer(mockContainer)
-	req := makeAuthenticatedAPIKeyRequest("DELETE", "/api/v1/api-keys/key-123", nil, "user-123")
+	req := makeAuthenticatedAPIKeyRequest("DELETE", "/api/v1/api-keys/"+testAPIKeyID, nil, "user-123")
 	w := httptest.NewRecorder()
 
 	srv.ServeHTTP(w, req)
@@ -419,4 +427,75 @@ func TestHandleDeleteAPIKey_EmptyID(t *testing.T) {
 
 	// Chi router will return 405 (Method Not Allowed) for trailing slash without path parameter
 	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+}
+
+// apiKeyProblem is the subset of a problem+json body that identifies the error.
+type apiKeyProblem struct {
+	Type   string `json:"type"`
+	Title  string `json:"title"`
+	Status int    `json:"status"`
+	Detail string `json:"detail"`
+	Code   string `json:"code"`
+}
+
+func deleteAPIKeyThroughRouter(t *testing.T, mockContainer *MockAPIKeyContainer, path string) (*httptest.ResponseRecorder, *logtest.Recorder, *auditCapture) {
+	t.Helper()
+	logger, logs := logtest.New()
+	srv := createTestAPIKeyServer(mockContainer)
+	srv.logger = logger
+	rec := withAudit(srv)
+
+	// Both routes share the handler (server.go registers it under each prefix).
+	r := chi.NewRouter()
+	r.Delete("/api/v1/api-keys/{id}", srv.handleDeleteAPIKey)
+	r.Delete("/api/v1/settings/api-keys/{id}", srv.handleDeleteAPIKey)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, makeAuthenticatedAPIKeyRequest("DELETE", path, nil, "user-123"))
+	return w, logs, rec
+}
+
+func decodeAPIKeyProblem(t *testing.T, w *httptest.ResponseRecorder) apiKeyProblem {
+	t.Helper()
+	var p apiKeyProblem
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &p), w.Body.String())
+	return p
+}
+
+// TestHandleDeleteAPIKey_NonUUIDIDIsNotFound pins #1534: a non-UUID id used to
+// reach Postgres, fail the uuid cast (22P02) and come back as a 500 logged at
+// ERROR. It must be the same 404 an unknown UUID gets, without touching the
+// service, the activity log or the audit log.
+func TestHandleDeleteAPIKey_NonUUIDIDIsNotFound(t *testing.T) {
+	unknown := newMockAPIKeyContainer(t)
+	unknown.apiKeyService.On("DeleteAPIKey", mock.Anything, "user-123", testUnknownAPIKeyID).
+		Return(repositories.ErrAPIKeyNotFound)
+	unknown.apiKeyService.On("GetAPIKeysByUserID", mock.Anything, "user-123").Return([]models.APIKey{}, nil)
+	wUnknown, unknownLogs, _ := deleteAPIKeyThroughRouter(t, unknown, "/api/v1/api-keys/"+testUnknownAPIKeyID)
+	require.Equal(t, http.StatusNotFound, wUnknown.Code, wUnknown.Body.String())
+	for _, entry := range unknownLogs.AllEntries() {
+		assert.Less(t, entry.Level, slog.LevelError, "unknown UUID logged %q at ERROR", entry.Message)
+	}
+	want := decodeAPIKeyProblem(t, wUnknown)
+
+	for _, prefix := range []string{"/api/v1/api-keys/", "/api/v1/settings/api-keys/"} {
+		for _, id := range []string{"null", "not-a-uuid", "123"} {
+			t.Run(prefix+id, func(t *testing.T) {
+				// No expectations set: any call into the service fails the test.
+				mockContainer := newMockAPIKeyContainer(t)
+				w, logs, rec := deleteAPIKeyThroughRouter(t, mockContainer, prefix+id)
+
+				require.Equal(t, http.StatusNotFound, w.Code, w.Body.String())
+				assert.Equal(t, "application/problem+json", w.Header().Get("Content-Type"))
+				assert.Equal(t, want, decodeAPIKeyProblem(t, w))
+
+				mockContainer.apiKeyService.AssertNotCalled(t, "DeleteAPIKey", mock.Anything, mock.Anything, mock.Anything)
+				mockContainer.apiKeyService.AssertNotCalled(t, "GetAPIKeysByUserID", mock.Anything, mock.Anything)
+				assert.Empty(t, rec.events(), "a rejected delete records no audit event")
+				for _, entry := range logs.AllEntries() {
+					assert.Less(t, entry.Level, slog.LevelError, "entry %q", entry.Message)
+				}
+			})
+		}
+	}
 }
