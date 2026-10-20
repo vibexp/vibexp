@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -164,4 +165,29 @@ func TestAgentHandlers_PermissionDeniedIsForbidden(t *testing.T) {
 
 		assertForbidden(t, w)
 	})
+}
+
+// TestPromptHandlers_CreateProjectErrorsAreBadRequest pins the create
+// handler's project arm: both project errors the service returns map to 400,
+// never 500 (#1540).
+func TestPromptHandlers_CreateProjectErrorsAreBadRequest(t *testing.T) {
+	base := "/api/v1/" + praTeamID + "/prompts"
+
+	for _, msg := range []string{
+		"project not found or does not belong to user",
+		"project does not belong to the specified team",
+	} {
+		t.Run(msg, func(t *testing.T) {
+			prompt := svcmocks.NewMockPromptServiceInterface(t)
+			prompt.EXPECT().CreatePrompt(mock.Anything, praUserID, praTeamID, mock.Anything).
+				Return(nil, errors.New(msg)).Once()
+
+			srv := createTestPromptAgentServer(t, prompt, svcmocks.NewMockAgentServiceInterface(t))
+			w := httptest.NewRecorder()
+			srv.ServeHTTP(w, praRequest(http.MethodPost, base, `{"name":"P","slug":"p","body":"b","project_id":"proj-1"}`))
+
+			require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+			assert.Contains(t, w.Body.String(), "Invalid or inaccessible project")
+		})
+	}
 }

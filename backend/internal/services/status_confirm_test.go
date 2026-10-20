@@ -174,7 +174,7 @@ func statusConfirmCases() []statusConfirmCase {
 
 func promptStatusConfirmCase() statusConfirmCase {
 	newSvc := func(t *testing.T, repo *mocks.MockPromptRepository, catalog *fakeStatusCatalog) *PromptService {
-		svc := createTestPromptService(repo, createTestProjectRepo(t))
+		svc := createTestPromptService(repo, createTestProjectRepoInTeam(t, statusTestTeam))
 		svc.statuses = statusValidator{catalog: catalog}
 		return svc
 	}

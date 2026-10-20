@@ -103,7 +103,7 @@ func newPromptLockHarness(t *testing.T, role models.TeamMemberRole, existing *mo
 
 	projects := repomocks.NewMockProjectRepository(t)
 	projects.EXPECT().GetByID(mock.Anything, lockCaller, mock.Anything).
-		Return(&models.Project{ID: lockProjectID, UserID: lockCaller}, nil).Maybe()
+		Return(&models.Project{ID: lockProjectID, UserID: lockCaller, TeamID: lockTeamID}, nil).Maybe()
 
 	h.svc = services.NewPromptService(services.PromptServiceDeps{
 		Repo: h.repo, RefRepo: h.refs, ProjectRepo: projects,
