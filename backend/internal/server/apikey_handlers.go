@@ -235,23 +235,16 @@ func (s *Server) handleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A non-UUID id can never match a stored key; reject it before it reaches
+	// Postgres, which would fail the uuid cast (22P02) and surface as a 500.
+	if !isValidUUID(apiKeyID) {
+		s.writeDeleteAPIKeyError(w, r, userID, apiKeyID, repositories.ErrAPIKeyNotFound)
+		return
+	}
+
 	keyName := s.apiKeyAuditName(r.Context(), userID, apiKeyID) // gone after the delete
-	err := s.container.APIKeyService().DeleteAPIKey(r.Context(), userID, apiKeyID)
-	if err != nil {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "handleDeleteAPIKey",
-			"user_id", userID,
-			"api_key_id", apiKeyID,
-			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to delete API key")
-		if stderrors.Is(err, repositories.ErrAPIKeyNotFound) {
-			apiErr := errors.NewResourceNotFoundError("api_key", "API key not found")
-			errors.WriteJSONError(w, r, apiErr)
-			return
-		}
-		apiErr := errors.NewInternalError("Failed to delete API key")
-		errors.WriteJSONError(w, r, apiErr)
+	if err := s.container.APIKeyService().DeleteAPIKey(r.Context(), userID, apiKeyID); err != nil {
+		s.writeDeleteAPIKeyError(w, r, userID, apiKeyID, err)
 		return
 	}
 
@@ -271,4 +264,22 @@ func (s *Server) handleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 	s.auditAPIKey(r.Context(), models.AuditOpAuthAPIKeyRevoked, apiKeyID, keyName)
 
 	writeNoContent(w)
+}
+
+// writeDeleteAPIKeyError answers a failed API key delete: a missing key is a
+// 404 logged at INFO (an expected client condition), anything else a 500.
+func (s *Server) writeDeleteAPIKeyError(w http.ResponseWriter, r *http.Request, userID, apiKeyID string, err error) {
+	logger := s.logger.With(
+		"service", serverLogServiceName,
+		"handler", "handleDeleteAPIKey",
+		"user_id", userID,
+		"api_key_id", apiKeyID,
+	)
+	if stderrors.Is(err, repositories.ErrAPIKeyNotFound) {
+		logger.Info("API key not found")
+		errors.WriteJSONError(w, r, errors.NewResourceNotFoundError("api_key", "API key not found"))
+		return
+	}
+	logger.With("error", fmt.Sprintf("%+v", err)).Error("Failed to delete API key")
+	errors.WriteJSONError(w, r, errors.NewInternalError("Failed to delete API key"))
 }
