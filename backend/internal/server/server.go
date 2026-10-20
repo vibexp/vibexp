@@ -276,12 +276,13 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 	// falls through to the package fallback — still structured JSON, just without request_id/trace.
 	r.Use(panicLoggerMiddleware(logger))
 
-	// CORS middleware
+	// CORS middleware. ExposedHeaders includes the admin CSV export headers,
+	// which a cross-origin dev SPA (Vite on another port) must read (#1537).
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   cfg.Server.CORSAllowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		ExposedHeaders:   []string{"Link"},
+		ExposedHeaders:   []string{"Link", "Content-Disposition", "X-Export-Total-Count", "X-Export-Truncated"},
 		AllowCredentials: true,
 		MaxAge:           300, // Maximum value not ignored by any of major browsers
 	}))
