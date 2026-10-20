@@ -194,8 +194,8 @@ func (s *PromptService) CreatePrompt(
 		return nil, err
 	}
 
-	// Validate that the project exists and belongs to the user
-	if err := s.validateProjectOwnership(bgCtx, userID, req.ProjectID); err != nil {
+	// Validate that the project exists and belongs to the prompt's team
+	if err := s.validateProjectInTeam(bgCtx, userID, finalTeamID, req.ProjectID); err != nil {
 		return nil, err
 	}
 
@@ -416,10 +416,10 @@ func (s *PromptService) updatePromptInternal(
 	// Note: team_id cannot be changed via update (removed from UpdatePromptRequest)
 	// Team reassignment is forbidden to prevent cross-team resource moves
 
-	// Validate project ownership if project_id is being updated
+	// Validate the project is in the prompt's team if project_id is being updated
 	if req.ProjectID != nil {
-		if validationErr := s.validateProjectOwnership(bgCtx, userID, *req.ProjectID); validationErr != nil {
-			return nil, validationErr
+		if projErr := s.validateProjectInTeam(bgCtx, userID, existingPrompt.TeamID, *req.ProjectID); projErr != nil {
+			return nil, projErr
 		}
 	}
 
@@ -1157,8 +1157,10 @@ func (s *PromptService) GetUserLabels(userID string) ([]string, error) {
 	return labels, nil
 }
 
-// validateProjectOwnership validates that the project exists and belongs to the user
-func (s *PromptService) validateProjectOwnership(ctx context.Context, userID, projectID string) error {
+// validateProjectInTeam validates that the project exists, is visible to the
+// user, and belongs to the prompt's team. Any member may use any project of
+// the team, as for artifacts, blueprints and memories (#1540).
+func (s *PromptService) validateProjectInTeam(ctx context.Context, userID, teamID, projectID string) error {
 	if projectID == "" {
 		return fmt.Errorf("project_id is required")
 	}
@@ -1174,14 +1176,15 @@ func (s *PromptService) validateProjectOwnership(ctx context.Context, userID, pr
 		return fmt.Errorf("project not found or does not belong to user")
 	}
 
-	if project.UserID != userID {
+	if project.TeamID != teamID {
 		s.logger.With(
 			"user_id", userID,
+			"team_id", teamID,
 			"project_id", projectID,
-			"project_owner_id", project.UserID,
+			"project_team_id", project.TeamID,
 		).
-			Warn("User attempted to use project owned by another user")
-		return fmt.Errorf("project does not belong to user")
+			Warn("User attempted to use project in a different team")
+		return fmt.Errorf("project does not belong to the specified team")
 	}
 
 	return nil

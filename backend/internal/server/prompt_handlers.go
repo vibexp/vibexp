@@ -139,7 +139,7 @@ func (s *Server) createPromptWithErrorHandling(
 
 		// Handle project validation errors
 		if strings.Contains(err.Error(), "project not found") ||
-			strings.Contains(err.Error(), "project does not belong to user") ||
+			strings.Contains(err.Error(), "project does not belong to the specified team") ||
 			strings.Contains(err.Error(), "project_id is required") {
 			writeErrorResponse(w, nil, "validation_error", "Invalid or inaccessible project", http.StatusBadRequest)
 			return nil, false
@@ -325,7 +325,7 @@ func (s *Server) handleUpdatePromptError(err error, req *models.UpdatePromptRequ
 
 	// Handle project validation errors
 	if strings.Contains(err.Error(), "project not found") ||
-		strings.Contains(err.Error(), "project does not belong to user") {
+		strings.Contains(err.Error(), "project does not belong to the specified team") {
 		writeErrorResponse(w, nil, "validation_error", "Invalid or inaccessible project", http.StatusBadRequest)
 		return
 	}

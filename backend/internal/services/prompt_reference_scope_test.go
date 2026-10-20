@@ -147,7 +147,7 @@ func TestCreatePrompt_ResolvesReferencesInTheCreatedPromptsTeam(t *testing.T) {
 	refRepo := mocks.NewMockPromptReferenceRepository(t)
 	projectRepo := mocks.NewMockProjectRepository(t)
 	projectRepo.EXPECT().GetByID(mock.Anything, refScopeAuthor, "project-1").
-		Return(&models.Project{ID: "project-1", UserID: refScopeAuthor}, nil).Once()
+		Return(&models.Project{ID: "project-1", UserID: refScopeAuthor, TeamID: refScopeTeam}, nil).Once()
 	svc := newRefScopeService(repo, refRepo, projectRepo)
 
 	repo.EXPECT().Create(mock.Anything, mock.AnythingOfType("*models.Prompt")).

@@ -42,7 +42,7 @@ func promptServiceForRole(
 
 	projectRepo := mocks.NewMockProjectRepository(t)
 	projectRepo.EXPECT().GetByID(mock.Anything, promptRBACCaller, mock.Anything).
-		Return(&models.Project{ID: "project-1", UserID: promptRBACCaller}, nil).Maybe()
+		Return(&models.Project{ID: "project-1", UserID: promptRBACCaller, TeamID: promptRBACTeamID}, nil).Maybe()
 
 	memberRepo := mocks.NewMockTeamMemberRepository(t)
 	if role == "" {

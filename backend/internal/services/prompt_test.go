@@ -47,11 +47,18 @@ func createTestPromptService(
 }
 
 func createTestProjectRepo(t *testing.T) *mocks.MockProjectRepository {
+	return createTestProjectRepoInTeam(t, "team-123")
+}
+
+// createTestProjectRepoInTeam stubs "project-123", owned by "user-123", as a
+// project of teamID.
+func createTestProjectRepoInTeam(t *testing.T, teamID string) *mocks.MockProjectRepository {
 	mockProjectRepo := mocks.NewMockProjectRepository(t)
 	// Set up default project validation for test user
 	mockProjectRepo.On("GetByID", mock.AnythingOfType("context.backgroundCtx"), "user-123", "project-123").
 		Return(&models.Project{
 			ID:     "project-123",
+			TeamID: teamID,
 			UserID: "user-123",
 			Name:   "Test Project",
 			Slug:   "test-project",
@@ -1112,6 +1119,7 @@ func TestPromptService_PublishesPromptEvents(t *testing.T) {
 			mockProjectRepo.On("GetByID", mock.Anything, "user-123", "project-123").
 				Return(&models.Project{
 					ID:     "project-123",
+					TeamID: "team-123",
 					UserID: "user-123",
 					Name:   "Test Project",
 					Slug:   "test-project",
@@ -1183,6 +1191,7 @@ func TestPromptService_PublishesRenderedBodyInEvents(t *testing.T) {
 		mockProjectRepo.On("GetByID", mock.Anything, "user-123", "project-123").
 			Return(&models.Project{
 				ID:     "project-123",
+				TeamID: "team-123",
 				UserID: "user-123",
 				Name:   "Test Project",
 				Slug:   "test-project",
@@ -1359,6 +1368,7 @@ func TestPromptService_PublishesRenderedBodyInEvents(t *testing.T) {
 		mockProjectRepo.On("GetByID", mock.Anything, "user-123", "project-123").
 			Return(&models.Project{
 				ID:     "project-123",
+				TeamID: "team-123",
 				UserID: "user-123",
 				Name:   "Test Project",
 				Slug:   "test-project",
@@ -1687,7 +1697,7 @@ func TestPromptService_CreatePrompt_MCPExposeTrue(t *testing.T) {
 	}
 
 	mockProjectRepo.On("GetByID", mock.Anything, "user-123", "project-123").
-		Return(&models.Project{ID: "project-123", UserID: "user-123"}, nil)
+		Return(&models.Project{ID: "project-123", UserID: "user-123", TeamID: "team-123"}, nil)
 
 	mockRepo.On("Create", mock.Anything, mock.MatchedBy(func(p *models.Prompt) bool {
 		return p.Name == req.Name && p.MCPExpose
@@ -1737,7 +1747,7 @@ func TestPromptService_CreatePrompt_MCPExposeFalse(t *testing.T) {
 	}
 
 	mockProjectRepo.On("GetByID", mock.Anything, "user-123", "project-123").
-		Return(&models.Project{ID: "project-123", UserID: "user-123"}, nil)
+		Return(&models.Project{ID: "project-123", UserID: "user-123", TeamID: "team-123"}, nil)
 
 	mockRepo.On("Create", mock.Anything, mock.MatchedBy(func(p *models.Prompt) bool {
 		return p.Name == req.Name && !p.MCPExpose
@@ -1786,7 +1796,7 @@ func TestPromptService_CreatePrompt_MCPExposeDefaultsToTrue(t *testing.T) {
 	}
 
 	mockProjectRepo.On("GetByID", mock.Anything, "user-123", "project-123").
-		Return(&models.Project{ID: "project-123", UserID: "user-123"}, nil)
+		Return(&models.Project{ID: "project-123", UserID: "user-123", TeamID: "team-123"}, nil)
 
 	mockRepo.On("Create", mock.Anything, mock.MatchedBy(func(p *models.Prompt) bool {
 		return p.Name == req.Name && p.MCPExpose

@@ -251,7 +251,7 @@ func TestServicesTreatEmptyStatusAsUnchanged(t *testing.T) {
 func TestPromptService_CustomStatus(t *testing.T) {
 	const userID = "user-123" // the owner createTestProjectRepo knows
 	newSvc := func(repo *mocks.MockPromptRepository) *PromptService {
-		svc := createTestPromptService(repo, createTestProjectRepo(t))
+		svc := createTestPromptService(repo, createTestProjectRepoInTeam(t, statusTestTeam))
 		svc.statuses = statusValidator{catalog: newFakeStatusCatalog()}
 		return svc
 	}
