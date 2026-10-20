@@ -1176,7 +1176,7 @@ func (s *PromptService) validateProjectInTeam(ctx context.Context, userID, teamI
 		return fmt.Errorf("project not found or does not belong to user")
 	}
 
-	if project.TeamID != teamID {
+	if !sameUUID(project.TeamID, teamID) {
 		s.logger.With(
 			"user_id", userID,
 			"team_id", teamID,

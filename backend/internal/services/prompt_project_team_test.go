@@ -21,6 +21,9 @@ import (
 // team match is what keeps a prompt in its team.
 
 const (
+	promptProjectTeamUUID     = "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b"
+	promptProjectTeamUUIDCaps = "6F1C2A3B-4D5E-4F60-8A7B-9C0D1E2F3A4B"
+	promptProjectInUUIDTeam   = "project-in-uuid-team"
 	promptProjectTeammate     = "project-of-teammate"
 	promptProjectOtherTeam    = "project-of-other-team"
 	promptProjectMissing      = "project-missing"
@@ -41,14 +44,20 @@ func promptServiceWithProjects(t *testing.T, repo repositories.PromptRepository)
 		Return(&models.Project{
 			ID: promptProjectOtherTeam, TeamID: promptProjectOtherTeamID, UserID: promptRBACCaller,
 		}, nil).Maybe()
+	projectRepo.EXPECT().GetByID(mock.Anything, promptRBACCaller, promptProjectInUUIDTeam).
+		Return(&models.Project{
+			ID: promptProjectInUUIDTeam, TeamID: promptProjectTeamUUID, UserID: promptProjectTeammateUser,
+		}, nil).Maybe()
 	projectRepo.EXPECT().GetByID(mock.Anything, promptRBACCaller, promptProjectMissing).
 		Return(nil, fmt.Errorf("%w: id=%s", repositories.ErrProjectNotFoundForRepo, promptProjectMissing)).Maybe()
 
 	memberRepo := mocks.NewMockTeamMemberRepository(t)
-	memberRepo.EXPECT().GetByTeamAndUser(mock.Anything, promptRBACTeamID, promptRBACCaller).
-		Return(&models.TeamMember{
-			TeamID: promptRBACTeamID, UserID: promptRBACCaller, Role: models.TeamMemberRoleMember,
-		}, nil).Maybe()
+	for _, teamID := range []string{promptRBACTeamID, promptProjectTeamUUIDCaps} {
+		memberRepo.EXPECT().GetByTeamAndUser(mock.Anything, teamID, promptRBACCaller).
+			Return(&models.TeamMember{
+				TeamID: teamID, UserID: promptRBACCaller, Role: models.TeamMemberRoleMember,
+			}, nil).Maybe()
+	}
 
 	refRepo := mocks.NewMockPromptReferenceRepository(t)
 	refRepo.EXPECT().DeleteByPromptID(mock.Anything, mock.Anything).Return(nil).Maybe()
@@ -66,12 +75,16 @@ func promptServiceWithProjects(t *testing.T, repo repositories.PromptRepository)
 func TestPromptService_CreatePrompt_ProjectTeam(t *testing.T) {
 	tests := []struct {
 		name      string
+		teamID    string
 		projectID string
 		wantErr   string
 	}{
-		{"member uses a teammate's project", promptProjectTeammate, ""},
-		{"project of another team", promptProjectOtherTeam, "project does not belong to the specified team"},
-		{"project not found", promptProjectMissing, "project not found"},
+		{"member uses a teammate's project", promptRBACTeamID, promptProjectTeammate, ""},
+		// The path's team id is not normalised, so its spelling may differ
+		// from the stored one.
+		{"team id spelled in upper case", promptProjectTeamUUIDCaps, promptProjectInUUIDTeam, ""},
+		{"project of another team", promptRBACTeamID, promptProjectOtherTeam, "project does not belong to the specified team"},
+		{"project not found", promptRBACTeamID, promptProjectMissing, "project not found"},
 	}
 
 	for _, tc := range tests {
@@ -79,12 +92,12 @@ func TestPromptService_CreatePrompt_ProjectTeam(t *testing.T) {
 			repo := mocks.NewMockPromptRepository(t)
 			if tc.wantErr == "" {
 				repo.EXPECT().Create(mock.Anything, mock.MatchedBy(func(p *models.Prompt) bool {
-					return p.ProjectID == tc.projectID && p.TeamID == promptRBACTeamID
+					return p.ProjectID == tc.projectID && p.TeamID == tc.teamID
 				})).Return(nil).Once()
 			}
 
 			svc := promptServiceWithProjects(t, repo)
-			_, err := svc.CreatePrompt(context.Background(), promptRBACCaller, promptRBACTeamID,
+			_, err := svc.CreatePrompt(context.Background(), promptRBACCaller, tc.teamID,
 				&models.CreatePromptRequest{Name: "P", Slug: "p", Body: "b", ProjectID: tc.projectID})
 
 			if tc.wantErr == "" {
