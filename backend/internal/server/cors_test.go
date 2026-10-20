@@ -148,3 +148,49 @@ func TestCORSAllowsAllRegisteredMethods(t *testing.T) {
 		t.Error("expected at least one PATCH route in the router (was the notifications PATCH endpoint removed?)")
 	}
 }
+
+// headerListContains reports whether a comma-separated header value (e.g.
+// Access-Control-Expose-Headers) holds want as a distinct entry, compared
+// case-insensitively.
+func headerListContains(headerValue, want string) bool {
+	for _, raw := range strings.Split(headerValue, ",") {
+		if strings.EqualFold(strings.TrimSpace(raw), want) {
+			return true
+		}
+	}
+	return false
+}
+
+// TestCORSExposesAdminExportHeaders guards #1537: a cross-origin dev SPA must
+// be able to read the admin CSV export headers, or every export toasts
+// "Exported 0" and never shows the truncation notice. No auth is needed: the
+// CORS middleware writes the header before the route's auth rejects the call.
+func TestCORSExposesAdminExportHeaders(t *testing.T) {
+	srv := newCORSTestServer(t)
+	const exportPath = "/api/v1/admin/users/export"
+
+	t.Run("allowed origin", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, exportPath, nil)
+		req.Header.Set("Origin", corsTestOrigin)
+		rr := httptest.NewRecorder()
+		srv.ServeHTTP(rr, req)
+
+		exposed := rr.Header().Get("Access-Control-Expose-Headers")
+		for _, h := range []string{"Link", "Content-Disposition", "X-Export-Total-Count", "X-Export-Truncated"} {
+			if !headerListContains(exposed, h) {
+				t.Errorf("Access-Control-Expose-Headers %q does not list %s", exposed, h)
+			}
+		}
+	})
+
+	t.Run("disallowed origin", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, exportPath, nil)
+		req.Header.Set("Origin", "https://evil.example.com")
+		rr := httptest.NewRecorder()
+		srv.ServeHTTP(rr, req)
+
+		if got := rr.Header().Get("Access-Control-Expose-Headers"); got != "" {
+			t.Errorf("Access-Control-Expose-Headers for a disallowed origin: got %q want empty", got)
+		}
+	})
+}
