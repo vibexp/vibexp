@@ -203,7 +203,7 @@ func TestBootstrapAdminPassword_ReplacesAnExistingPassword(t *testing.T) {
 	assert.EqualValues(t, 2, root.SessionEpoch)
 }
 
-func putPolicy(passwordLogin bool, confirm bool) map[string]any {
+func putPolicy(passwordLogin, confirm bool) map[string]any {
 	body := map[string]any{"password_login_enabled": passwordLogin, "registration_mode": models.RegistrationModeOpen}
 	if confirm {
 		body["confirm_lockout_risk"] = true
