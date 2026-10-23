@@ -46,6 +46,13 @@ const (
 	PulseResourceFeedItem = "feed_item"
 )
 
+// Agent display names that appear more than once below.
+const (
+	pulseAgentClaudeCode = "Claude Code"
+	pulseAgentVSCode     = "VS Code"
+	pulseAgentVibeXPCLI  = "VibeXP CLI"
+)
+
 // KnowledgePulseServiceInterface builds the team's knowledge pulse.
 type KnowledgePulseServiceInterface interface {
 	GetPulse(ctx context.Context, teamID string, query KnowledgePulseQuery) (*KnowledgePulseResult, error)
@@ -341,7 +348,7 @@ func pulseSourceLabel(source string) string {
 	case PulseSourceMCP:
 		return "MCP client"
 	case PulseSourceCLI:
-		return "VibeXP CLI"
+		return pulseAgentVibeXPCLI
 	default:
 		return "API client"
 	}
@@ -351,18 +358,18 @@ func pulseSourceLabel(source string) string {
 // agent to a display name. Order matters: the first match wins, so the more
 // specific tokens come first.
 var knownAgents = []struct{ token, name string }{
-	{"claude-code", "Claude Code"},
-	{"claude code", "Claude Code"},
-	{"claudecode", "Claude Code"},
+	{"claude-code", pulseAgentClaudeCode},
+	{"claude code", pulseAgentClaudeCode},
+	{"claudecode", pulseAgentClaudeCode},
 	{"cursor", "Cursor"},
 	{"codex", "Codex"},
 	{"copilot", "GitHub Copilot"},
-	{"vscode", "VS Code"},
-	{"visual studio code", "VS Code"},
+	{"vscode", pulseAgentVSCode},
+	{"visual studio code", pulseAgentVSCode},
 	{"windsurf", "Windsurf"},
 	{"gemini", "Gemini CLI"},
-	{"vibexp-cli", "VibeXP CLI"},
-	{"vibexp/", "VibeXP CLI"},
+	{"vibexp-cli", pulseAgentVibeXPCLI},
+	{"vibexp/", pulseAgentVibeXPCLI},
 	{"claude", "Claude"},
 }
 
