@@ -6,7 +6,7 @@
 # provider for AI Summary; it is never part of the shipped combined image.
 #
 # Build context is the repo root (so it can see backend/).
-FROM golang:1.26.9-alpine AS build
+FROM golang:1.26.10-alpine AS build
 WORKDIR /app
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
