@@ -190,9 +190,9 @@ describe('KnowledgePulse page', () => {
     expect(screen.getByText('Live · every 30s')).toBeInTheDocument()
     const calls = mockFetch.mock.calls.length
     await flush(10000)
-    expect(mockFetch.mock.calls.length).toBe(calls)
+    expect(mockFetch.mock.calls).toHaveLength(calls)
     await flush(20000)
-    expect(mockFetch.mock.calls.length).toBe(calls + 1)
+    expect(mockFetch.mock.calls).toHaveLength(calls + 1)
   })
 
   it('Space toggles play, but not while a control has focus', async () => {
@@ -218,7 +218,7 @@ describe('KnowledgePulse page', () => {
     ).toBeInTheDocument()
     const calls = mockFetch.mock.calls.length
     await flush(30000)
-    expect(mockFetch.mock.calls.length).toBe(calls)
+    expect(mockFetch.mock.calls).toHaveLength(calls)
   })
 
   it('reports a failed first load and a failing poll', async () => {
