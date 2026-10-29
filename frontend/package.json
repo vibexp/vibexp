@@ -78,7 +78,7 @@
     "dompurify": "~3.4.17",
     "lucide-react": "~1.44.0",
     "marked": "~18.0.14",
-    "mermaid": "~11.16.1",
+    "mermaid": "~12.2.0",
     "next-themes": "~0.4.6",
     "prismjs": "~1.30.0",
     "react": "~19.3.1",
