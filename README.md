@@ -252,6 +252,8 @@ See [`CLAUDE.md`](./CLAUDE.md) for the full contributor guide and conventions.
 
 Contributions are welcome. Branch off `main`, open a PR, and let CI pass. 💚 **Every PR must link an open issue** — add `Fixes #N` to the description or link one from the Development sidebar (a `pr-linked-issue` check enforces this). The repo also runs stale-issue and project-board automations — see [`CLAUDE.md`](./CLAUDE.md#repository-automations).
 
+**New features need community review first.** A feature request from an outside contributor is labelled `needs-community-review` and stays open for at least 14 days. It gets `ready-for-pr` once at least 3 people other than the author back it, with a 👍/❤️/🚀/🎉 reaction or a comment describing their own use case; the maintainer may also apply `ready-for-pr` at any time. Please don't open a PR for a feature until its issue has `ready-for-pr`: such a PR is not reviewed, it just gets a short "on hold" note and stays open. Bugs, docs, dependency and security fixes are not features and follow the normal flow.
+
 **Always target `main`, including bug fixes.** Patch releases are cut from a `release/X.Y.x` maintenance branch, but fixes land on `main` first and maintainers cherry-pick them onto the line — you never need to open a PR against a release branch. Full process: [Releases and backports](https://vibexp.io/docs/developer-guide/contributing/workflow/#releases-and-backports).
 
 ---
