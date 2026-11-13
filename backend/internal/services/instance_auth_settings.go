@@ -289,6 +289,7 @@ func (s *InstanceAuthSettingsService) CreateProvider(
 		ClientID:    strings.TrimSpace(req.ClientID),
 		IssuerURL:   trimmedOrNil(req.IssuerURL),
 	}
+	row.RolesClaim, row.AdminValues = NormalizeInstanceAuthRoleMapping(req.RolesClaim, req.AdminValues)
 	if err := ValidateInstanceAuthProvider(row); err != nil {
 		return nil, err
 	}
@@ -327,6 +328,9 @@ func (s *InstanceAuthSettingsService) UpdateProvider(
 	next.SortOrder = req.SortOrder
 	next.ClientID = strings.TrimSpace(req.ClientID)
 	next.IssuerURL = trimmedOrNil(req.IssuerURL)
+	if err = applyRoleMappingUpdate(&next, req.RolesClaim, req.AdminValues); err != nil {
+		return nil, err
+	}
 	if err = ValidateInstanceAuthProvider(next); err != nil {
 		return nil, err
 	}
@@ -342,6 +346,23 @@ func (s *InstanceAuthSettingsService) UpdateProvider(
 		return nil, fmt.Errorf("failed to update the auth provider: %w", err)
 	}
 	return s.saved(ctx, &next, version), nil
+}
+
+// applyRoleMappingUpdate applies an update's role mapping to next, which starts
+// as a copy of the stored provider. The two fields travel together: both
+// omitted keeps the stored mapping (a client that predates them, such as an
+// admin UI that does not send them, must not wipe it on every save), and a
+// claim sent without admin_values is rejected rather than guessed at.
+func applyRoleMappingUpdate(next *models.InstanceAuthProvider, rolesClaim *string, adminValues *[]string) error {
+	if adminValues == nil {
+		if rolesClaim != nil {
+			return invalidInstanceAuthProvider("admin_values",
+				"admin_values must be sent together with roles_claim")
+		}
+		return nil
+	}
+	next.RolesClaim, next.AdminValues = NormalizeInstanceAuthRoleMapping(rolesClaim, *adminValues)
+	return nil
 }
 
 // updatedClientSecret returns the ciphertext an update stores. A submitted

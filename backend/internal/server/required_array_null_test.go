@@ -230,6 +230,7 @@ var adHocRequiredArrayAllowlist = map[string]string{
 	"AdminSavedFilters":                   "generated strict-server type (internal/server/gen/admin); presets built via make(...,0) — handlers_admin_saved_filters.go toGenAdminSavedFilters",
 	"AdminAuditEventPage":                 "generated strict-server type (internal/server/gen/admin); items built via make(...,0) — handlers_admin_audit.go toGenAdminAuditEventPage",
 	"AdminAuthProviderList":               "generated strict-server type (internal/server/gen/admin); handler builds providers via make(...,0) — handlers_admin_instance_auth.go ListAdminAuthProviders",
+	"AdminAuthProvider":                   "generated strict-server type (internal/server/gen/admin); admin_values copied through nonNilStrings — handlers_admin_instance_auth.go toGenAdminAuthProvider",
 	"AdminAuthAllowlist":                  "generated strict-server type (internal/server/gen/admin); domains/emails copied through nonNilStrings, or literal empty slices when nothing is stored — handlers_admin_instance_auth.go toGenAdminAuthAllowlist",
 	"AdminAuthAllowlistImpact":            "generated strict-server type (internal/server/gen/admin); sample copied through nonNilStrings — handlers_admin_instance_auth.go PreviewAdminAuthAllowlist",
 	"AdminInstanceAdminList":              "generated strict-server type (internal/server/gen/admin); admins built via make(...,0), root_admins copied through nonNilStrings — handlers_admin_instance_auth.go ListAdminInstanceAdmins",

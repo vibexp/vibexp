@@ -152,6 +152,8 @@ func (a *adminStrictServer) CreateAdminAuthProvider(
 			ClientID:     body.ClientId,
 			ClientSecret: body.ClientSecret,
 			IssuerURL:    body.IssuerUrl,
+			RolesClaim:   body.RolesClaim,
+			AdminValues:  optionalStringList(body.AdminValues),
 			// A null expected_version decodes to nil, like an omitted one.
 			ExpectedVersion: body.ExpectedVersion,
 		})
@@ -185,6 +187,8 @@ func (a *adminStrictServer) UpdateAdminAuthProvider(
 			ClientID:        body.ClientId,
 			ClientSecret:    body.ClientSecret,
 			IssuerURL:       body.IssuerUrl,
+			RolesClaim:      body.RolesClaim,
+			AdminValues:     body.AdminValues,
 			ExpectedVersion: body.ExpectedVersion,
 			Lockout:         lockoutContext(ctx, body.ConfirmLockoutRisk),
 		})
@@ -485,7 +489,8 @@ var (
 	// plus has_client_secret and the client_secret changed/unchanged marker.
 	authProviderAuditSnapshotKeys = []string{
 		"id", "type", "slug", "display_name", "enabled", "sort_order", "client_id", "issuer_url",
-		"has_client_secret", "client_secret", "created_at", "updated_at", "updated_by", authAuditSourceKey,
+		"roles_claim", "admin_values", "has_client_secret", "client_secret", "created_at", "updated_at",
+		"updated_by", authAuditSourceKey,
 	}
 	// authAllowlistAuditSnapshotKeys is models.InstanceAuthAllowlist's JSON shape.
 	authAllowlistAuditSnapshotKeys = []string{
@@ -677,6 +682,14 @@ func (a *adminStrictServer) mapInstanceAdminError(handler string, err error) err
 
 // --- response mapping ---------------------------------------------------------
 
+// optionalStringList is an optional request list's values; nil when omitted.
+func optionalStringList(values *[]string) []string {
+	if values == nil {
+		return nil
+	}
+	return *values
+}
+
 // toGenAdminAuthProvider maps a provider field by field, so a field added to
 // the stored model cannot reach this surface unless it is deliberately added
 // here and to the schema. The client secret has no field to travel in.
@@ -700,6 +713,8 @@ func toGenAdminAuthProvider(view models.InstanceAuthProviderView) (admingen.Admi
 		ClientId:        p.ClientID,
 		HasClientSecret: p.HasClientSecret(),
 		IssuerUrl:       p.IssuerURL,
+		RolesClaim:      p.RolesClaim,
+		AdminValues:     nonNilStrings(p.AdminValues),
 		RedirectUri:     view.RedirectURI,
 		Health: admingen.AdminAuthProviderHealth{
 			Status:    admingen.AdminAuthProviderHealthStatus(view.Health.Status),

@@ -192,6 +192,83 @@ func TestIntegrationInstanceAuthProviders_RejectedWritesRollBack(t *testing.T) {
 	require.NotNil(t, got.IssuerURL, "the rejected update left the row untouched")
 }
 
+// The role mapping (#1643) round-trips byte for byte, is audited, and the
+// CHECKs reject a mapping on google/github and a claim without values.
+func TestIntegrationInstanceAuthProviders_RoleMapping(t *testing.T) {
+	resetInstanceAuthSettings(t)
+	repo := NewInstanceAuthProviderRepository(integrationDB)
+	ctx := context.Background()
+
+	plain := oidcProviderFixture("plain", 0)
+	require.NoError(t, repo.Create(ctx, plain, nil, nil))
+	got, err := repo.Get(ctx, plain.ID)
+	require.NoError(t, err)
+	assert.Nil(t, got.RolesClaim, "a provider created without a mapping reads back off")
+	assert.NotNil(t, got.AdminValues)
+	assert.Empty(t, got.AdminValues)
+
+	claim := "realm_access.roles"
+	mapped := oidcProviderFixture("mapped", 0)
+	mapped.RolesClaim, mapped.AdminValues = &claim, []string{"platform-admins", "VibeXP Admins"}
+	require.NoError(t, repo.Create(ctx, mapped, nil, nil))
+	got, err = repo.GetBySlug(ctx, "mapped")
+	require.NoError(t, err)
+	require.NotNil(t, got.RolesClaim)
+	assert.Equal(t, claim, *got.RolesClaim)
+	assert.Equal(t, []string{"platform-admins", "VibeXP Admins"}, got.AdminValues)
+
+	off := *got
+	off.RolesClaim, off.AdminValues = nil, nil
+	require.NoError(t, repo.Update(ctx, &off, nil, nil))
+	got, err = repo.Get(ctx, mapped.ID)
+	require.NoError(t, err)
+	assert.Nil(t, got.RolesClaim, "an update clears the mapping")
+	assert.Empty(t, got.AdminValues)
+
+	entries := authAuditEntries(t, models.InstanceSettingAuthProviders)
+	require.Len(t, entries, 3)
+	before, after := decodeAuditDoc(t, entries[0].Before), decodeAuditDoc(t, entries[0].After)
+	assert.Equal(t, claim, before["roles_claim"])
+	assert.Equal(t, []any{"platform-admins", "VibeXP Admins"}, before["admin_values"])
+	assert.Nil(t, after["roles_claim"])
+	assert.Equal(t, []any{}, after["admin_values"])
+
+	start := authSettingsVersion(t)
+	google := googleProviderFixture(nil)
+	google.RolesClaim, google.AdminValues = &claim, []string{"admins"}
+	assert.ErrorIs(t, repo.Create(ctx, google, nil, nil), repositories.ErrInstanceAuthProviderInvalid,
+		"only an oidc provider may map roles")
+	google.RolesClaim = nil
+	assert.ErrorIs(t, repo.Create(ctx, google, nil, nil), repositories.ErrInstanceAuthProviderInvalid,
+		"values on a google provider")
+	noValues := oidcProviderFixture("no-values", 0)
+	noValues.RolesClaim = &claim
+	assert.ErrorIs(t, repo.Create(ctx, noValues, nil, nil), repositories.ErrInstanceAuthProviderInvalid,
+		"a claim without values")
+	noClaim := oidcProviderFixture("no-claim", 0)
+	noClaim.AdminValues = []string{"admins"}
+	assert.ErrorIs(t, repo.Create(ctx, noClaim, nil, nil), repositories.ErrInstanceAuthProviderInvalid,
+		"values without a claim")
+	assert.Equal(t, start, authSettingsVersion(t), "rejected writes roll back")
+}
+
+// A row written without the role mapping columns, as every provider stored
+// before migration 024 was, reads back with the mapping off.
+func TestIntegrationInstanceAuthProviders_RowWithoutMappingReadsOff(t *testing.T) {
+	resetInstanceAuthSettings(t)
+	var id string
+	require.NoError(t, integrationDB.QueryRowContext(context.Background(),
+		`INSERT INTO instance_auth_providers (type, slug, display_name, client_id, issuer_url)
+		VALUES ('oidc', 'legacy', 'Legacy', 'client', 'https://sso.example.com') RETURNING id`).Scan(&id))
+
+	got, err := NewInstanceAuthProviderRepository(integrationDB).Get(context.Background(), id)
+
+	require.NoError(t, err)
+	assert.Nil(t, got.RolesClaim)
+	assert.NotNil(t, got.AdminValues)
+	assert.Empty(t, got.AdminValues)
+}
+
 func TestIntegrationInstanceAuthProviders_ExpectedVersion(t *testing.T) {
 	resetInstanceAuthSettings(t)
 	repo := NewInstanceAuthProviderRepository(integrationDB)

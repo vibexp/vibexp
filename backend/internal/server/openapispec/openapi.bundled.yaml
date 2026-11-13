@@ -35529,6 +35529,8 @@ components:
         - client_id
         - has_client_secret
         - issuer_url
+        - roles_claim
+        - admin_values
         - redirect_uri
         - health
         - created_at
@@ -35568,6 +35570,23 @@ components:
           nullable: true
           description: The OIDC issuer URL; null for `google` and `github`.
           example: https://example.okta.com
+        roles_claim:
+          type: string
+          nullable: true
+          description: |
+            The ID token claim that carries the user's roles or groups, as a dotted
+            path (`groups`, `roles`, `realm_access.roles`). Null when the role
+            mapping is off, which it always is for `google` and `github`.
+          example: groups
+        admin_values:
+          type: array
+          items:
+            type: string
+          description: |
+            The `roles_claim` values that make a user an instance admin, compared
+            exactly as stored (case-sensitive). Empty when the role mapping is off.
+          example:
+            - platform-admins
         redirect_uri:
           type: string
           description: |
@@ -35679,6 +35698,31 @@ components:
             Required for `oidc` and rejected for `google` and `github`. An absolute
             `https://` URL (`http://` only for localhost) with no query or fragment.
           example: https://example.okta.com
+        roles_claim:
+          type: string
+          maxLength: 255
+          description: |
+            Optional, `oidc` only. The ID token claim that carries the user's roles
+            or groups, as a dotted path with no whitespace and no empty segment
+            (`groups`, `realm_access.roles`). Requires `admin_values`. Omit it, or
+            send an empty string, to leave the role mapping off.
+          example: groups
+        admin_values:
+          type: array
+          maxItems: 50
+          items:
+            type: string
+            minLength: 1
+            maxLength: 255
+          description: |
+            Optional, `oidc` only, and required (non-empty) when `roles_claim` is
+            set. The claim values that make a user an instance admin. Each is
+            stored and compared exactly as sent (case-sensitive; spaces and hyphens
+            allowed, but no leading or trailing whitespace); exact duplicates are
+            dropped.
+          example:
+            - platform-admins
+            - VibeXP Admins
         expected_version:
           type: integer
           format: int64
@@ -35694,6 +35738,9 @@ components:
         `client_secret` is write-only. Omit it to keep the stored secret; an empty
         string is rejected. It cannot be omitted when `issuer_url` changes: the
         stored secret is only ever kept for the issuer it was saved with.
+
+        The role mapping (`roles_claim`, `admin_values`) is optional and is sent
+        whole or not at all: omit both to keep the stored mapping.
 
         A change that disables the last enabled provider (while password sign-in is
         not a working way in), or the provider the
@@ -35729,6 +35776,29 @@ components:
           type: string
           description: Required for `oidc`, rejected for `google` and `github`.
           example: https://example.okta.com
+        roles_claim:
+          type: string
+          nullable: true
+          maxLength: 255
+          description: |
+            `oidc` only; see `AdminAuthProviderCreate.roles_claim`. Sent together
+            with `admin_values`: a `roles_claim` without `admin_values` is rejected.
+            Null or an empty string, with `admin_values: []`, turns the role
+            mapping off.
+          example: groups
+        admin_values:
+          type: array
+          maxItems: 50
+          items:
+            type: string
+            minLength: 1
+            maxLength: 255
+          description: |
+            `oidc` only; see `AdminAuthProviderCreate.admin_values`. Omit both
+            `roles_claim` and `admin_values` to keep the stored role mapping; send
+            `admin_values` to replace it.
+          example:
+            - platform-admins
         expected_version:
           type: integer
           format: int64

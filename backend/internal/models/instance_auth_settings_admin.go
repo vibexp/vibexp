@@ -65,12 +65,21 @@ type CreateInstanceAuthProviderRequest struct {
 	ClientID     string
 	ClientSecret string
 	IssuerURL    *string
+	// RolesClaim and AdminValues are the optional role mapping; both omitted
+	// means the mapping is off.
+	RolesClaim  *string
+	AdminValues []string
 	// ExpectedVersion, when set, must equal the shared auth settings version.
 	ExpectedVersion *int64
 }
 
 // UpdateInstanceAuthProviderRequest replaces a provider's editable fields; the
 // slug and the type are immutable. A nil ClientSecret keeps the stored one.
+//
+// The role mapping is sent whole or not at all: a nil AdminValues with a nil
+// RolesClaim keeps the stored mapping, a non-nil AdminValues replaces it (an
+// empty list with a nil RolesClaim clears it), and a RolesClaim without
+// AdminValues is rejected.
 type UpdateInstanceAuthProviderRequest struct {
 	DisplayName     string
 	Enabled         bool
@@ -78,6 +87,8 @@ type UpdateInstanceAuthProviderRequest struct {
 	ClientID        string
 	ClientSecret    *string
 	IssuerURL       *string
+	RolesClaim      *string
+	AdminValues     *[]string
 	ExpectedVersion int64
 	Lockout         InstanceAuthLockoutContext
 }

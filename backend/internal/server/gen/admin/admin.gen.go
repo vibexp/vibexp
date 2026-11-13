@@ -1985,6 +1985,10 @@ type AdminAuthPolicyUpdate struct {
 // AdminAuthProvider One sign-in identity provider. The client secret is write-only: it is never
 // returned, and `has_client_secret` reports only whether one is stored.
 type AdminAuthProvider struct {
+	// AdminValues The `roles_claim` values that make a user an instance admin, compared
+	// exactly as stored (case-sensitive). Empty when the role mapping is off.
+	AdminValues []string `json:"admin_values"`
+
 	// ClientId The OAuth client id.
 	ClientId  string    `json:"client_id"`
 	CreatedAt time.Time `json:"created_at"`
@@ -2013,6 +2017,11 @@ type AdminAuthProvider struct {
 	// cannot be changed here.
 	RedirectUri string `json:"redirect_uri"`
 
+	// RolesClaim The ID token claim that carries the user's roles or groups, as a dotted
+	// path (`groups`, `roles`, `realm_access.roles`). Null when the role
+	// mapping is off, which it always is for `google` and `github`.
+	RolesClaim *string `json:"roles_claim"`
+
 	// Slug The provider's url-safe name, used in the sign-in URL. Immutable.
 	Slug string `json:"slug"`
 
@@ -2033,7 +2042,13 @@ type AdminAuthProvider struct {
 // `expected_version` is optional: when present, the create is rejected with
 // 409 unless it equals the current authentication settings `version`.
 type AdminAuthProviderCreate struct {
-	ClientId string `json:"client_id"`
+	// AdminValues Optional, `oidc` only, and required (non-empty) when `roles_claim` is
+	// set. The claim values that make a user an instance admin. Each is
+	// stored and compared exactly as sent (case-sensitive; spaces and hyphens
+	// allowed, but no leading or trailing whitespace); exact duplicates are
+	// dropped.
+	AdminValues *[]string `json:"admin_values,omitempty"`
+	ClientId    string    `json:"client_id"`
 
 	// ClientSecret The OAuth client secret. Stored encrypted and never returned.
 	ClientSecret string `json:"client_secret"`
@@ -2048,6 +2063,12 @@ type AdminAuthProviderCreate struct {
 	// IssuerUrl Required for `oidc` and rejected for `google` and `github`. An absolute
 	// `https://` URL (`http://` only for localhost) with no query or fragment.
 	IssuerUrl *string `json:"issuer_url,omitempty"`
+
+	// RolesClaim Optional, `oidc` only. The ID token claim that carries the user's roles
+	// or groups, as a dotted path with no whitespace and no empty segment
+	// (`groups`, `realm_access.roles`). Requires `admin_values`. Omit it, or
+	// send an empty string, to leave the role mapping off.
+	RolesClaim *string `json:"roles_claim,omitempty"`
 
 	// Slug 1-63 lower-case letters, digits or hyphens, not starting with a hyphen.
 	Slug string `json:"slug"`
@@ -2155,12 +2176,19 @@ type AdminAuthProviderType string
 // string is rejected. It cannot be omitted when `issuer_url` changes: the
 // stored secret is only ever kept for the issuer it was saved with.
 //
+// The role mapping (`roles_claim`, `admin_values`) is optional and is sent
+// whole or not at all: omit both to keep the stored mapping.
+//
 // A change that disables the last enabled provider (while password sign-in is
 // not a working way in), or the provider the
 // calling admin signed in with, is rejected with 409 `lockout_risk` unless
 // `confirm_lockout_risk` is true.
 type AdminAuthProviderUpdate struct {
-	ClientId string `json:"client_id"`
+	// AdminValues `oidc` only; see `AdminAuthProviderCreate.admin_values`. Omit both
+	// `roles_claim` and `admin_values` to keep the stored role mapping; send
+	// `admin_values` to replace it.
+	AdminValues *[]string `json:"admin_values,omitempty"`
+	ClientId    string    `json:"client_id"`
 
 	// ClientSecret A new client secret. Omit to keep the stored one. Never returned.
 	ClientSecret *string `json:"client_secret,omitempty"`
@@ -2175,7 +2203,13 @@ type AdminAuthProviderUpdate struct {
 
 	// IssuerUrl Required for `oidc`, rejected for `google` and `github`.
 	IssuerUrl *string `json:"issuer_url,omitempty"`
-	SortOrder int     `json:"sort_order"`
+
+	// RolesClaim `oidc` only; see `AdminAuthProviderCreate.roles_claim`. Sent together
+	// with `admin_values`: a `roles_claim` without `admin_values` is rejected.
+	// Null or an empty string, with `admin_values: []`, turns the role
+	// mapping off.
+	RolesClaim *string `json:"roles_claim,omitempty"`
+	SortOrder  int     `json:"sort_order"`
 }
 
 // AdminAuthRegistrationMode Who may get an account on this instance. `open`: anyone the access

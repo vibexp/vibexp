@@ -44,9 +44,16 @@ type InstanceAuthProvider struct {
 	ClientID              string                   `json:"client_id" db:"client_id"`
 	ClientSecretEncrypted *string                  `json:"-" db:"client_secret_encrypted"`
 	// IssuerURL is set on exactly the OIDC providers (a database CHECK).
-	IssuerURL *string   `json:"issuer_url,omitempty" db:"issuer_url"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
+	IssuerURL *string `json:"issuer_url,omitempty" db:"issuer_url"`
+	// RolesClaim and AdminValues are the provider's role mapping (#1643): the
+	// ID token claim carrying the user's roles or groups, as a dotted path, and
+	// the claim values that make a user an instance admin, compared exactly.
+	// A nil RolesClaim with no values is the mapping off. Only an OIDC
+	// provider may carry one, and the two are set together (database CHECKs).
+	RolesClaim  *string   `json:"roles_claim" db:"roles_claim"`
+	AdminValues []string  `json:"admin_values" db:"admin_values"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 	// UpdatedBy is the user who last saved the provider; nil for the boot-time
 	// config.yaml import, or once that user has been deleted.
 	UpdatedBy *string `json:"updated_by,omitempty" db:"updated_by"`

@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/lib/pq"
+
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -33,22 +35,26 @@ const instanceAuthProvidersSubject = "instance auth provider"
 // scanInstanceAuthProvider scans them. Each is one literal (not a shared
 // column-list concatenation) so every statement stays a single static string.
 const instanceAuthProviderByID = `SELECT id, type, slug, display_name, enabled, sort_order,
-		client_id, client_secret_encrypted, issuer_url, created_at, updated_at, updated_by
+		client_id, client_secret_encrypted, issuer_url, roles_claim, admin_values,
+		created_at, updated_at, updated_by
 		FROM instance_auth_providers WHERE id = $1`
 
 const instanceAuthProviderBySlug = `SELECT id, type, slug, display_name, enabled, sort_order,
-		client_id, client_secret_encrypted, issuer_url, created_at, updated_at, updated_by
+		client_id, client_secret_encrypted, issuer_url, roles_claim, admin_values,
+		created_at, updated_at, updated_by
 		FROM instance_auth_providers WHERE slug = $1`
 
 const instanceAuthProviderList = `SELECT id, type, slug, display_name, enabled, sort_order,
-		client_id, client_secret_encrypted, issuer_url, created_at, updated_at, updated_by
+		client_id, client_secret_encrypted, issuer_url, roles_claim, admin_values,
+		created_at, updated_at, updated_by
 		FROM instance_auth_providers ORDER BY sort_order, slug`
 
 // instanceAuthProviderInsert creates a provider, in instanceAuthProviderArgs
 // order.
 const instanceAuthProviderInsert = `INSERT INTO instance_auth_providers
-	(type, slug, display_name, enabled, sort_order, client_id, client_secret_encrypted, issuer_url, updated_by)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	(type, slug, display_name, enabled, sort_order, client_id, client_secret_encrypted, issuer_url,
+		roles_claim, admin_values, updated_by)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	RETURNING id, created_at, updated_at`
 
 // instanceAuthProviderAny reports whether any provider is stored.
@@ -59,17 +65,21 @@ const instanceAuthProviderAny = `SELECT EXISTS (SELECT 1 FROM instance_auth_prov
 // reflects the stored row.
 const instanceAuthProviderUpdate = `UPDATE instance_auth_providers
 	SET display_name = $2, enabled = $3, sort_order = $4, client_id = $5,
-		client_secret_encrypted = $6, issuer_url = $7, updated_by = $8,
-		updated_at = CURRENT_TIMESTAMP
+		client_secret_encrypted = $6, issuer_url = $7, roles_claim = $8, admin_values = $9,
+		updated_by = $10, updated_at = CURRENT_TIMESTAMP
 	WHERE id = $1
 	RETURNING type, slug, created_at, updated_at`
 
 const instanceAuthProviderDelete = `DELETE FROM instance_auth_providers WHERE id = $1`
 
+// instanceAuthProviderArgs binds p for instanceAuthProviderInsert. It stores a
+// nil AdminValues as the empty list it reads back as (the column is NOT NULL).
 func instanceAuthProviderArgs(p *models.InstanceAuthProvider) []any {
+	p.AdminValues = nonNilStringArray(p.AdminValues)
 	return []any{
 		p.Type, p.Slug, p.DisplayName, p.Enabled, p.SortOrder,
-		p.ClientID, p.ClientSecretEncrypted, p.IssuerURL, p.UpdatedBy,
+		p.ClientID, p.ClientSecretEncrypted, p.IssuerURL,
+		p.RolesClaim, pq.StringArray(p.AdminValues), p.UpdatedBy,
 	}
 }
 
@@ -77,10 +87,12 @@ func scanInstanceAuthProvider(row rowScanner) (*models.InstanceAuthProvider, err
 	var p models.InstanceAuthProvider
 	if err := row.Scan(
 		&p.ID, &p.Type, &p.Slug, &p.DisplayName, &p.Enabled, &p.SortOrder,
-		&p.ClientID, &p.ClientSecretEncrypted, &p.IssuerURL, &p.CreatedAt, &p.UpdatedAt, &p.UpdatedBy,
+		&p.ClientID, &p.ClientSecretEncrypted, &p.IssuerURL, &p.RolesClaim, (*pq.StringArray)(&p.AdminValues),
+		&p.CreatedAt, &p.UpdatedAt, &p.UpdatedBy,
 	); err != nil {
 		return nil, err
 	}
+	p.AdminValues = nonNilStringArray(p.AdminValues)
 	return &p, nil
 }
 
@@ -146,9 +158,10 @@ func (r *InstanceAuthProviderRepository) Update(
 			if before == nil {
 				return false, repositories.ErrInstanceAuthProviderNotFound
 			}
+			p.AdminValues = nonNilStringArray(p.AdminValues)
 			err := tx.QueryRowContext(ctx, instanceAuthProviderUpdate,
 				p.ID, p.DisplayName, p.Enabled, p.SortOrder, p.ClientID,
-				p.ClientSecretEncrypted, p.IssuerURL, p.UpdatedBy,
+				p.ClientSecretEncrypted, p.IssuerURL, p.RolesClaim, pq.StringArray(p.AdminValues), p.UpdatedBy,
 			).Scan(&p.Type, &p.Slug, &p.CreatedAt, &p.UpdatedAt)
 			if err != nil {
 				return false, mapInstanceAuthProviderWriteError("update", err)
