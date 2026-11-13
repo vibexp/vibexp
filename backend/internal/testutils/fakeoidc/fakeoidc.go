@@ -12,6 +12,7 @@
 package fakeoidc
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -22,7 +23,6 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -109,13 +109,14 @@ func (i *Issuer) SetNonceOverride(nonce string) {
 }
 
 // Authorize runs authURL (an authorization URL pointing at a fake issuer)
-// without a browser and returns the code the issuer redirected back with.
+// without a browser and returns the code the issuer issued for it.
 func Authorize(t testing.TB, authURL string) string {
 	t.Helper()
-	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
-		return http.ErrUseLastResponse
-	}}
-	resp, err := client.Get(authURL)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, authURL, nil)
+	if err != nil {
+		t.Fatalf("fakeoidc: authorize: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("fakeoidc: authorize: %v", err)
 	}
@@ -124,27 +125,31 @@ func Authorize(t testing.TB, authURL string) string {
 			t.Errorf("fakeoidc: authorize: close body: %v", cerr)
 		}
 	}()
-	if resp.StatusCode != http.StatusFound {
+	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("fakeoidc: authorize: status %d", resp.StatusCode)
 	}
-	loc, err := url.Parse(resp.Header.Get("Location"))
-	if err != nil {
-		t.Fatalf("fakeoidc: authorize: redirect: %v", err)
+	var body struct {
+		Code string `json:"code"`
 	}
-	return loc.Query().Get("code")
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("fakeoidc: authorize: decode: %v", err)
+	}
+	return body.Code
 }
 
 // handleAuthorize issues a fresh code for the request, remembering its PKCE
-// challenge and nonce, and redirects to redirect_uri with the code and state.
+// challenge and nonce. Where a real issuer would redirect the browser to
+// redirect_uri with the code and state, this one answers them as JSON: tests
+// drive the callback themselves, and echoing a caller-supplied URL as a
+// redirect would be an open redirect.
 func (i *Issuer) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	if q.Get("client_id") != i.clientID {
 		http.Error(w, "unknown client_id", http.StatusBadRequest)
 		return
 	}
-	redirect, err := url.Parse(q.Get("redirect_uri"))
-	if err != nil || q.Get("redirect_uri") == "" {
-		http.Error(w, "invalid redirect_uri", http.StatusBadRequest)
+	if q.Get("redirect_uri") == "" {
+		http.Error(w, "missing redirect_uri", http.StatusBadRequest)
 		return
 	}
 	b := make([]byte, 16)
@@ -158,15 +163,7 @@ func (i *Issuer) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 		challenge: q.Get("code_challenge"), method: q.Get("code_challenge_method"), nonce: q.Get("nonce"),
 	}
 	i.mu.Unlock()
-
-	back := redirect.Query()
-	back.Set("code", code)
-	back.Set("state", q.Get("state"))
-	redirect.RawQuery = back.Encode()
-	// The client's redirect_uri is echoed as a bare 302: this is a test issuer,
-	// and Authorize reads the code straight off the Location header.
-	w.Header().Set("Location", redirect.String())
-	w.WriteHeader(http.StatusFound)
+	writeJSON(w, map[string]string{"code": code, "state": q.Get("state")})
 }
 
 // redeem returns the nonce to put in code's ID token, or false when the code
