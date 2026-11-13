@@ -176,6 +176,8 @@ type resolverAuthHarness struct {
 	identities *memIdentities
 	gate       *switchableGate
 	enc        services.EncryptionServiceInterface
+	// code is the authorization code the fake issuer issued at the last login.
+	code string
 }
 
 // switchableGate is the registration gate of the harness: open until a test
@@ -257,7 +259,9 @@ func (h *resolverAuthHarness) oidcRow(t *testing.T, id, slug, issuer string, sor
 	}
 }
 
-// login runs GET /auth/login?provider=slug and returns the state and cookie.
+// login runs GET /auth/login?provider=slug, follows the returned authorization
+// URL at the fake issuer (recording the issued code for callback), and returns
+// the state and cookie.
 func (h *resolverAuthHarness) login(t *testing.T, slug string) (string, *http.Cookie) {
 	t.Helper()
 	w := httptest.NewRecorder()
@@ -269,6 +273,7 @@ func (h *resolverAuthHarness) login(t *testing.T, slug string) (string, *http.Co
 	require.NoError(t, err)
 	state := u.Query().Get("state")
 	require.NotEmpty(t, state)
+	h.code = fakeoidc.Authorize(t, resp.URL)
 	for _, c := range w.Result().Cookies() {
 		if c.Name == stateCookieName {
 			return state, c
@@ -281,7 +286,8 @@ func (h *resolverAuthHarness) login(t *testing.T, slug string) (string, *http.Co
 // callback runs GET /auth/callback for state with the state cookie.
 func (h *resolverAuthHarness) callback(t *testing.T, state string, cookie *http.Cookie) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/callback?code=the-code&state="+url.QueryEscape(state), nil)
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/v1/auth/callback?code="+url.QueryEscape(h.code)+"&state="+url.QueryEscape(state), nil)
 	req.AddCookie(cookie)
 	w := httptest.NewRecorder()
 	h.srv.ServeHTTP(w, req)
@@ -600,12 +606,12 @@ func TestResolverAuth_SlugDisabledBetweenLoginAndCallbackRedirects(t *testing.T)
 // survives the signed state cookie round trip.
 func TestResolverAuth_StateCookieCarriesHyphenatedSlug(t *testing.T) {
 	srv := createTestAuthServer(newMockAuthContainer(t))
-	signed := srv.signState("abcdef0123", "corp-sso-eu")
+	signed := srv.signState("abcdef0123", "corp-sso-eu", idp.FlowParams{CodeVerifier: "v", Nonce: "n"})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/callback?state=abcdef0123", nil)
 	req.AddCookie(&http.Cookie{Name: stateCookieName, Value: signed})
 	got, err := srv.validateStateCookie(req, "abcdef0123")
 	require.NoError(t, err)
-	assert.Equal(t, "corp-sso-eu", got)
+	assert.Equal(t, "corp-sso-eu", got.provider)
 }
 
 func TestHandleListProviders_ResolverError(t *testing.T) {
@@ -636,7 +642,7 @@ func TestHandleLogin_ResolverError(t *testing.T) {
 	t.Run("building the login URL fails", func(t *testing.T) {
 		mc := newMockAuthContainer(t)
 		mc.authService.On("EnabledProviders", mock.Anything).Return(providerInfos("corp-sso"), nil)
-		mc.authService.On("GetLoginURL", mock.Anything, mock.Anything, "corp-sso").
+		mc.authService.On("GetLoginURL", mock.Anything, mock.Anything, "corp-sso", mock.Anything).
 			Return("", services.ErrIdentityProvidersUnresolvable)
 		srv := createTestAuthServer(mc)
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/login", nil)
@@ -661,7 +667,7 @@ func TestHandleCallback_ProviderErrors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			mc := newMockAuthContainer(t)
-			mc.authService.On("HandleCallback", mock.Anything, "code-1", "corp-sso").
+			mc.authService.On("HandleCallback", mock.Anything, "code-1", "corp-sso", mock.Anything).
 				Return((*models.User)(nil), (*idp.Tokens)(nil), false, errors.Join(tc.err, errors.New("detail")))
 			srv := createTestAuthServer(mc)
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/callback?code=code-1&state=st4te", nil)

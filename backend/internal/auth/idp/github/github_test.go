@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
 )
@@ -41,7 +42,7 @@ func TestAuthorizeURL(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	raw := p.AuthorizeURL("state-xyz", "", "")
+	raw := p.AuthorizeURL("state-xyz", "", "", idp.FlowParams{})
 	u, err := url.Parse(raw)
 	require.NoError(t, err)
 
@@ -54,10 +55,54 @@ func TestAuthorizeURL(t *testing.T) {
 	assert.Equal(t, "state-xyz", q.Get("state"))
 
 	// redirectURI argument overrides the configured default.
-	raw = p.AuthorizeURL("s", "https://other.example.com/cb", "")
+	raw = p.AuthorizeURL("s", "https://other.example.com/cb", "", idp.FlowParams{})
 	u, err = url.Parse(raw)
 	require.NoError(t, err)
 	assert.Equal(t, "https://other.example.com/cb", u.Query().Get("redirect_uri"))
+}
+
+// TestAuthorizeURL_PKCE pins that a code verifier adds its S256 challenge and
+// that no nonce is ever sent to GitHub, which issues no ID token.
+func TestAuthorizeURL_PKCE(t *testing.T) {
+	p, err := New(Config{ClientID: "id", ClientSecret: "secret"})
+	require.NoError(t, err)
+
+	verifier := oauth2.GenerateVerifier()
+	u, err := url.Parse(p.AuthorizeURL("s", "", "", idp.FlowParams{CodeVerifier: verifier, Nonce: "n-1"}))
+	require.NoError(t, err)
+	q := u.Query()
+	assert.Equal(t, oauth2.S256ChallengeFromVerifier(verifier), q.Get("code_challenge"))
+	assert.Equal(t, "S256", q.Get("code_challenge_method"))
+	assert.False(t, q.Has("nonce"))
+
+	u, err = url.Parse(p.AuthorizeURL("s", "", "", idp.FlowParams{}))
+	require.NoError(t, err)
+	assert.False(t, u.Query().Has("code_challenge"), "no verifier, no challenge")
+	assert.False(t, u.Query().Has("code_challenge_method"))
+}
+
+// TestExchangeCode_SendsCodeVerifier pins that the token request carries the
+// flow's PKCE verifier, and none when the flow has none.
+func TestExchangeCode_SendsCodeVerifier(t *testing.T) {
+	var form url.Values
+	srv := newFakeGitHubServer(t, fakeGitHub{
+		tokenBody:  `{"access_token":"tok","token_type":"bearer"}`,
+		userBody:   `{"id":1,"login":"octocat"}`,
+		emailsBody: `[]`,
+		tokenForm:  &form,
+	})
+	withEndpoints(t, srv.URL)
+	p, err := New(Config{ClientID: "id", ClientSecret: "secret"})
+	require.NoError(t, err)
+
+	_, _, err = p.ExchangeCode(context.Background(), "code", "", idp.FlowParams{CodeVerifier: "the-verifier", Nonce: "n"})
+	require.NoError(t, err)
+	assert.Equal(t, "the-verifier", form.Get("code_verifier"))
+	assert.False(t, form.Has("nonce"))
+
+	_, _, err = p.ExchangeCode(context.Background(), "code", "", idp.FlowParams{})
+	require.NoError(t, err)
+	assert.False(t, form.Has("code_verifier"))
 }
 
 func TestRefresh_Unsupported(t *testing.T) {
@@ -75,12 +120,18 @@ type fakeGitHub struct {
 	tokenBody   string
 	userBody    string
 	emailsBody  string
+	// tokenForm, when set, receives the token request's form.
+	tokenForm *url.Values
 }
 
 func newFakeGitHubServer(t *testing.T, fg fakeGitHub) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
-	mux.HandleFunc("/login/oauth/access_token", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/login/oauth/access_token", func(w http.ResponseWriter, r *http.Request) {
+		if fg.tokenForm != nil {
+			assert.NoError(t, r.ParseForm())
+			*fg.tokenForm = r.PostForm
+		}
 		status := fg.tokenStatus
 		if status == 0 {
 			status = http.StatusOK
@@ -127,7 +178,7 @@ func TestExchangeCode_PrimaryVerifiedEmail(t *testing.T) {
 	p, err := New(Config{ClientID: "id", ClientSecret: "secret", RedirectURL: srv.URL + "/cb"})
 	require.NoError(t, err)
 
-	tokens, claims, err := p.ExchangeCode(context.Background(), "the-code", "")
+	tokens, claims, err := p.ExchangeCode(context.Background(), "the-code", "", idp.FlowParams{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "test-access-token", tokens.AccessToken)
@@ -150,7 +201,7 @@ func TestExchangeCode_NameFallsBackToLogin(t *testing.T) {
 	p, err := New(Config{ClientID: "id", ClientSecret: "secret"})
 	require.NoError(t, err)
 
-	_, claims, err := p.ExchangeCode(context.Background(), "code", "")
+	_, claims, err := p.ExchangeCode(context.Background(), "code", "", idp.FlowParams{})
 	require.NoError(t, err)
 	assert.Equal(t, "ghost", claims.Name)
 }
@@ -166,7 +217,7 @@ func TestExchangeCode_FirstVerifiedWhenNoPrimary(t *testing.T) {
 	p, err := New(Config{ClientID: "id", ClientSecret: "secret"})
 	require.NoError(t, err)
 
-	_, claims, err := p.ExchangeCode(context.Background(), "code", "")
+	_, claims, err := p.ExchangeCode(context.Background(), "code", "", idp.FlowParams{})
 	require.NoError(t, err)
 	assert.Equal(t, "verified@example.com", claims.Email)
 	assert.True(t, claims.EmailVerified)
@@ -181,7 +232,7 @@ func TestExchangeCode_TokenError(t *testing.T) {
 	p, err := New(Config{ClientID: "id", ClientSecret: "secret"})
 	require.NoError(t, err)
 
-	_, _, err = p.ExchangeCode(context.Background(), "bad-code", "")
+	_, _, err = p.ExchangeCode(context.Background(), "bad-code", "", idp.FlowParams{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bad_verification_code")
 }

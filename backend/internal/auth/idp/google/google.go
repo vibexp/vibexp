@@ -54,5 +54,7 @@ func New(ctx context.Context, cfg Config) (idp.IdentityProvider, error) {
 		ClientSecret: cfg.ClientSecret,
 		RedirectURL:  cfg.RedirectURL,
 		Scopes:       []string{"openid", "email", "profile"},
+		// Google-only parameter; the generic OIDC client never sends it.
+		AccessTypeOffline: true,
 	})
 }

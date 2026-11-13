@@ -4,6 +4,7 @@ package oidc
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"time"
 
@@ -23,6 +24,10 @@ type Config struct {
 	ClientSecret string
 	Scopes       []string
 	RedirectURL  string
+	// AccessTypeOffline adds Google's access_type=offline parameter to the
+	// authorization request. It is Google-specific (other issuers may reject
+	// it as unknown), so only the google package sets it.
+	AccessTypeOffline bool
 }
 
 // Validate ensures the configuration is internally consistent before
@@ -50,6 +55,8 @@ type Client struct {
 	provider     *oidc.Provider
 	verifier     *oidc.IDTokenVerifier
 	oauth2Config *oauth2.Config
+	// accessTypeOffline mirrors Config.AccessTypeOffline.
+	accessTypeOffline bool
 }
 
 // New builds a new OIDC Client. It performs OIDC discovery against
@@ -80,6 +87,7 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 			RedirectURL:  cfg.RedirectURL,
 			Scopes:       scopes,
 		},
+		accessTypeOffline: cfg.AccessTypeOffline,
 	}, nil
 }
 
@@ -90,27 +98,47 @@ func (c *Client) Name() idp.ProviderName { return c.name }
 // non-empty it overrides the default RedirectURL configured at construction.
 // The provider parameter is accepted for interface compliance but ignored by
 // the generic OIDC client — provider routing is handled by wrapper
-// implementations (e.g. the Google provider).
-func (c *Client) AuthorizeURL(state, redirectURI, _ string) string {
+// implementations (e.g. the Google provider). A non-empty flow.CodeVerifier
+// adds its PKCE S256 challenge and a non-empty flow.Nonce adds the OIDC nonce;
+// access_type=offline is sent only when the client was built with
+// Config.AccessTypeOffline.
+func (c *Client) AuthorizeURL(state, redirectURI, _ string, flow idp.FlowParams) string {
 	cfg := *c.oauth2Config
 	if redirectURI != "" {
 		cfg.RedirectURL = redirectURI
 	}
-	return cfg.AuthCodeURL(state, oauth2.AccessTypeOffline)
+	var opts []oauth2.AuthCodeOption
+	if flow.CodeVerifier != "" {
+		opts = append(opts, oauth2.S256ChallengeOption(flow.CodeVerifier))
+	}
+	if flow.Nonce != "" {
+		opts = append(opts, oidc.Nonce(flow.Nonce))
+	}
+	if c.accessTypeOffline {
+		opts = append(opts, oauth2.AccessTypeOffline)
+	}
+	return cfg.AuthCodeURL(state, opts...)
 }
 
 // ExchangeCode exchanges an authorization code for tokens and the verified
 // user claims. The ID token signature is verified against the provider's
-// JWKS; if no ID token is returned it falls back to the userinfo endpoint.
+// JWKS and, when flow.Nonce is set, its nonce must equal it (else
+// idp.ErrNonceMismatch); if no ID token is returned it falls back to the
+// userinfo endpoint, where there is no nonce to check. A non-empty
+// flow.CodeVerifier is sent as the PKCE code_verifier.
 func (c *Client) ExchangeCode(
-	ctx context.Context, code, redirectURI string,
+	ctx context.Context, code, redirectURI string, flow idp.FlowParams,
 ) (*idp.Tokens, *idp.Claims, error) {
 	cfg := *c.oauth2Config
 	if redirectURI != "" {
 		cfg.RedirectURL = redirectURI
 	}
 
-	token, err := cfg.Exchange(ctx, code)
+	var opts []oauth2.AuthCodeOption
+	if flow.CodeVerifier != "" {
+		opts = append(opts, oauth2.VerifierOption(flow.CodeVerifier))
+	}
+	token, err := cfg.Exchange(ctx, code, opts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("oidc: exchange code: %w", err)
 	}
@@ -121,7 +149,7 @@ func (c *Client) ExchangeCode(
 		ExpiresAt:    token.Expiry,
 	}
 
-	claims, err := c.claimsFromToken(ctx, &cfg, token)
+	claims, err := c.claimsFromToken(ctx, &cfg, token, flow.Nonce)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -159,12 +187,15 @@ func (c *Client) Refresh(ctx context.Context, refreshToken string) (*idp.Tokens,
 }
 
 func (c *Client) claimsFromToken(
-	ctx context.Context, cfg *oauth2.Config, token *oauth2.Token,
+	ctx context.Context, cfg *oauth2.Config, token *oauth2.Token, nonce string,
 ) (*idp.Claims, error) {
 	if rawIDToken, ok := token.Extra("id_token").(string); ok && rawIDToken != "" {
 		idToken, err := c.verifier.Verify(ctx, rawIDToken)
 		if err != nil {
 			return nil, fmt.Errorf("oidc: verify id token: %w", err)
+		}
+		if err := checkNonce(idToken.Nonce, nonce); err != nil {
+			return nil, err
 		}
 		var raw struct {
 			Sub           string `json:"sub"`
@@ -210,4 +241,17 @@ func (c *Client) claimsFromToken(
 		Name:          raw.Name,
 		Picture:       raw.Picture,
 	}, nil
+}
+
+// checkNonce enforces OpenID Connect Core §3.1.3.7: when the authorization
+// request carried a nonce, the ID token must echo exactly that value. An empty
+// expected nonce (no nonce was sent) checks nothing.
+func checkNonce(got, want string) error {
+	if want == "" {
+		return nil
+	}
+	if got == "" || subtle.ConstantTimeCompare([]byte(got), []byte(want)) != 1 {
+		return fmt.Errorf("oidc: %w", idp.ErrNonceMismatch)
+	}
+	return nil
 }

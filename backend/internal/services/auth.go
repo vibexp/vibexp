@@ -178,8 +178,8 @@ func (as *AuthService) EnabledProviders(ctx context.Context) ([]ProviderInfo, er
 // returns an empty string when no such provider is enabled, so the caller can
 // surface a "provider unavailable" response. Every provider is built with the
 // derived callback URL (config.Config.AuthCallbackURL), so no override is
-// passed here.
-func (as *AuthService) GetLoginURL(ctx context.Context, state, slug string) (string, error) {
+// passed here. flow is forwarded to the provider unchanged.
+func (as *AuthService) GetLoginURL(ctx context.Context, state, slug string, flow idp.FlowParams) (string, error) {
 	reg, err := as.snapshot(ctx)
 	if err != nil {
 		return "", err
@@ -188,15 +188,15 @@ func (as *AuthService) GetLoginURL(ctx context.Context, state, slug string) (str
 	if !ok {
 		return "", nil
 	}
-	return p.AuthorizeURL(state, "", slug), nil
+	return p.AuthorizeURL(state, "", slug, flow), nil
 }
 
 // HandleCallback exchanges the authorization code for tokens using the provider
 // with slug, looks up or creates the user, and returns the user, IDP tokens,
 // and whether they are new. The slug is resolved from the signed state cookie
-// by the HTTP layer.
+// by the HTTP layer, as is flow (the PKCE verifier and nonce of this sign-in).
 func (as *AuthService) HandleCallback(
-	ctx context.Context, code, slug string,
+	ctx context.Context, code, slug string, flow idp.FlowParams,
 ) (*models.User, *idp.Tokens, bool, error) {
 	as.logger.With("provider", slug).Info("Processing OAuth callback")
 
@@ -209,7 +209,7 @@ func (as *AuthService) HandleCallback(
 		return nil, nil, false, fmt.Errorf("%w: %q", ErrIdentityProviderUnavailable, slug)
 	}
 
-	tokens, claims, err := entry.Provider.ExchangeCode(ctx, code, "")
+	tokens, claims, err := entry.Provider.ExchangeCode(ctx, code, "", flow)
 	if err != nil {
 		as.logger.With("error", err).Error("Failed to exchange OAuth token")
 		return nil, nil, false, fmt.Errorf("failed to exchange token: %w", err)

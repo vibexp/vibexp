@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
+	"github.com/vibexp/vibexp/internal/testutils/fakeoidc"
 )
 
 func TestNew_Validation(t *testing.T) {
@@ -56,7 +59,7 @@ func TestNew_WrapsOIDCWithGoogleName(t *testing.T) {
 	assert.Equal(t, idp.ProviderGoogle, p.Name())
 
 	// The wrapper must produce a usable Google authorization URL.
-	authURL := p.AuthorizeURL("state-1", "", "")
+	authURL := p.AuthorizeURL("state-1", "", "", idp.FlowParams{})
 	assert.Contains(t, authURL, srv.URL+"/o/oauth2/v2/auth")
 	assert.Contains(t, authURL, "state=state-1")
 }
@@ -86,5 +89,25 @@ func TestNew_NameAndIssuerOverride(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, idp.ProviderName("google-workspace"), p.Name())
-	assert.Contains(t, p.AuthorizeURL("s", "", ""), srv.URL+"/auth")
+	assert.Contains(t, p.AuthorizeURL("s", "", "", idp.FlowParams{}), srv.URL+"/auth")
+}
+
+// TestAuthorizeURL_OfflineAccessPKCEAndNonce pins that Google keeps
+// access_type=offline (the generic OIDC client no longer sends it) alongside
+// the PKCE challenge and the nonce.
+func TestAuthorizeURL_OfflineAccessPKCEAndNonce(t *testing.T) {
+	iss := fakeoidc.New(t, "test-client-id", "test-client-secret", "sub", "user@example.com")
+	p, err := New(context.Background(), Config{
+		ClientID: "test-client-id", ClientSecret: "test-client-secret", IssuerURL: iss.URL,
+	})
+	require.NoError(t, err)
+
+	verifier := oauth2.GenerateVerifier()
+	u, err := url.Parse(p.AuthorizeURL("s", "", "", idp.FlowParams{CodeVerifier: verifier, Nonce: "n-1"}))
+	require.NoError(t, err)
+	q := u.Query()
+	assert.Equal(t, "offline", q.Get("access_type"))
+	assert.Equal(t, oauth2.S256ChallengeFromVerifier(verifier), q.Get("code_challenge"))
+	assert.Equal(t, "S256", q.Get("code_challenge_method"))
+	assert.Equal(t, "n-1", q.Get("nonce"))
 }

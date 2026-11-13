@@ -12,13 +12,13 @@ type fakeProvider struct {
 	name ProviderName
 }
 
-func (f fakeProvider) Name() ProviderName                 { return f.name }
-func (f fakeProvider) AuthorizeURL(_, _, _ string) string { return string(f.name) }
+func (f fakeProvider) Name() ProviderName                               { return f.name }
+func (f fakeProvider) AuthorizeURL(_, _, _ string, _ FlowParams) string { return string(f.name) }
 func (f fakeProvider) Refresh(context.Context, string) (*Tokens, error) {
 	return nil, nil
 }
 
-func (f fakeProvider) ExchangeCode(context.Context, string, string) (*Tokens, *Claims, error) {
+func (f fakeProvider) ExchangeCode(context.Context, string, string, FlowParams) (*Tokens, *Claims, error) {
 	return nil, nil, nil
 }
 

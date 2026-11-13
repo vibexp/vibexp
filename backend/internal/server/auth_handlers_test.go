@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vibexp/vibexp/internal/auth/idp"
 	sesslib "github.com/vibexp/vibexp/internal/auth/session"
 	"github.com/vibexp/vibexp/internal/config"
 )
@@ -274,7 +275,8 @@ func TestStateSigningAndValidation(t *testing.T) {
 	server := srv
 
 	state := "test-state-value"
-	signed := server.signState(state, "github")
+	flow := idp.FlowParams{CodeVerifier: "verifier-1", Nonce: "nonce-1"}
+	signed := server.signState(state, "github", flow)
 
 	if signed == "" {
 		t.Fatal("Expected non-empty signed state")
@@ -284,12 +286,15 @@ func TestStateSigningAndValidation(t *testing.T) {
 	req := httptest.NewRequest("GET", "/?state="+state, nil)
 	req.AddCookie(&http.Cookie{Name: stateCookieName, Value: signed})
 
-	provider, err := server.validateStateCookie(req, state)
+	bound, err := server.validateStateCookie(req, state)
 	if err != nil {
 		t.Errorf("Expected valid state, got error: %v", err)
 	}
-	if provider != "github" {
-		t.Errorf("Expected provider 'github' recovered from cookie, got %q", provider)
+	if bound.provider != "github" {
+		t.Errorf("Expected provider 'github' recovered from cookie, got %q", bound.provider)
+	}
+	if bound.flow != flow {
+		t.Errorf("Expected flow %+v recovered from cookie, got %+v", flow, bound.flow)
 	}
 
 	// Tampered state should fail

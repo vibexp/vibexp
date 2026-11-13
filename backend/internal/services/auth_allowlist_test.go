@@ -76,11 +76,11 @@ func TestAuthService_UnverifiedRootAdminEmailIsDeniedWhileAllowlistActive(t *tes
 	claims.Email = allowlistRootAdmin
 	claims.EmailVerified = false
 	provider.On("Name").Return(idp.ProviderOIDC)
-	provider.On("ExchangeCode", ctx, "test-auth-code", "").
+	provider.On("ExchangeCode", ctx, "test-auth-code", "", mock.Anything).
 		Return(&idp.Tokens{AccessToken: "test-access-token"}, claims, nil)
 	noAccountYet(repo)
 
-	_, _, _, err := service.HandleCallback(ctx, "test-auth-code", string(idp.ProviderOIDC))
+	_, _, _, err := service.HandleCallback(ctx, "test-auth-code", string(idp.ProviderOIDC), idp.FlowParams{})
 	require.ErrorIs(t, err, ErrAccessRestricted)
 	assert.Equal(t, "unverified_email", denialReason(t, h.logs))
 	repo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)

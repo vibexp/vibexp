@@ -329,14 +329,14 @@ func TestAuthService_HandleCallback_RefusalsAreNotErrors(t *testing.T) {
 			logger, recorder := logtest.New()
 			provider := &idpmocks.MockIdentityProvider{}
 			provider.On("Name").Return(idp.ProviderOIDC)
-			provider.On("ExchangeCode", ctx, "code", "").Return(&idp.Tokens{AccessToken: "a"}, claims, nil)
+			provider.On("ExchangeCode", ctx, "code", "", mock.Anything).Return(&idp.Tokens{AccessToken: "a"}, claims, nil)
 			users := &repo_mocks.MockUserRepository{}
 			noAccountYet(users)
 			svc := NewAuthService(users, &repo_mocks.MockUserIdentityRepository{},
 				newTestRegistry(provider), nil, logger, newStaticAllowlistResolver(logger, tc.allowlist),
 				WithRegistrationGate(&recordingGate{err: tc.gateErr}))
 
-			user, tokens, isNew, err := svc.HandleCallback(ctx, "code", string(idp.ProviderOIDC))
+			user, tokens, isNew, err := svc.HandleCallback(ctx, "code", string(idp.ProviderOIDC), idp.FlowParams{})
 
 			assert.Equal(t, tc.want, err, "returned as is, so the handler can map it to its own code")
 			assert.Nil(t, user)

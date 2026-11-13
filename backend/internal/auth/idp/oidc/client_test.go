@@ -204,13 +204,13 @@ func TestClient_AuthorizeURL_ContainsState(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	url := c.AuthorizeURL("xyz", "", "")
+	url := c.AuthorizeURL("xyz", "", "", idp.FlowParams{})
 	assert.Contains(t, url, "state=xyz")
 	assert.Contains(t, url, "client_id=test-client")
 	assert.Contains(t, url, "http%3A%2F%2Fdefault%2Fcallback")
 
 	// override redirect URI
-	url = c.AuthorizeURL("abc", "http://override/callback", "")
+	url = c.AuthorizeURL("abc", "http://override/callback", "", idp.FlowParams{})
 	assert.Contains(t, url, "http%3A%2F%2Foverride%2Fcallback")
 }
 
@@ -227,7 +227,7 @@ func TestClient_ExchangeCode_VerifiesIDToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	tokens, claims, err := c.ExchangeCode(context.Background(), "any-code", "")
+	tokens, claims, err := c.ExchangeCode(context.Background(), "any-code", "", idp.FlowParams{})
 	require.NoError(t, err)
 	require.NotNil(t, tokens)
 	require.NotNil(t, claims)
@@ -260,7 +260,7 @@ func TestClient_ExchangeCode_FallsBackToUserInfo(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	tokens, claims, err := c.ExchangeCode(context.Background(), "any-code", "")
+	tokens, claims, err := c.ExchangeCode(context.Background(), "any-code", "", idp.FlowParams{})
 	require.NoError(t, err)
 	require.NotNil(t, tokens)
 	require.NotNil(t, claims)
@@ -285,7 +285,7 @@ func TestClient_ExchangeCode_RejectsBadCredentials(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, _, err = c.ExchangeCode(context.Background(), "any-code", "")
+	_, _, err = c.ExchangeCode(context.Background(), "any-code", "", idp.FlowParams{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "exchange code")
 }

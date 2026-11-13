@@ -32,6 +32,26 @@ const (
 // ErrTokenInvalid is returned when an access or ID token cannot be validated.
 var ErrTokenInvalid = errors.New("identity provider: invalid token")
 
+// ErrNonceMismatch is returned by ExchangeCode when the ID token's nonce claim
+// is missing or differs from the nonce sent in the authorization request
+// (OpenID Connect Core §3.1.3.7), i.e. the ID token is not bound to the
+// browser flow that requested it.
+var ErrNonceMismatch = errors.New("identity provider: id token nonce mismatch")
+
+// FlowParams are the per-authorization-request secrets of one sign-in flow.
+// They are generated fresh for every authorization request and must survive
+// the redirect to the identity provider and back, so the callback can hand the
+// same values to ExchangeCode. An empty field disables that protection.
+type FlowParams struct {
+	// CodeVerifier is the PKCE code verifier (RFC 7636). AuthorizeURL sends its
+	// S256 challenge; ExchangeCode sends the verifier itself.
+	CodeVerifier string
+	// Nonce is the OpenID Connect nonce. AuthorizeURL sends it; ExchangeCode
+	// requires the ID token to carry the same value. Providers without an ID
+	// token ignore it.
+	Nonce string
+}
+
 // Tokens represents the tokens returned by an identity provider after a
 // successful authorization code exchange or refresh.
 type Tokens struct {
@@ -65,12 +85,15 @@ type IdentityProvider interface {
 	// The provider hint is forwarded to the identity provider so it can
 	// route the user directly to the correct OAuth connection (e.g.
 	// "GoogleOAuth", "GitHubOAuth"). Implementations that do not support
-	// provider routing should accept and ignore the parameter.
-	AuthorizeURL(state, redirectURI, provider string) string
+	// provider routing should accept and ignore the parameter. flow carries
+	// the PKCE verifier and nonce bound to this authorization request.
+	AuthorizeURL(state, redirectURI, provider string, flow FlowParams) string
 
 	// ExchangeCode exchanges an authorization code for tokens and the
-	// validated user claims (sourced from the ID token or userinfo).
-	ExchangeCode(ctx context.Context, code, redirectURI string) (*Tokens, *Claims, error)
+	// validated user claims (sourced from the ID token or userinfo). flow must
+	// be the FlowParams the authorization URL was built with; a nonce the ID
+	// token does not echo yields ErrNonceMismatch.
+	ExchangeCode(ctx context.Context, code, redirectURI string, flow FlowParams) (*Tokens, *Claims, error)
 
 	// Refresh requests a new set of tokens using the given refresh token.
 	Refresh(ctx context.Context, refreshToken string) (*Tokens, error)
