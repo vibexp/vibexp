@@ -33,6 +33,10 @@ const (
 	auditMetaNewUser  = "new_user"
 	auditMetaBy       = "by"
 	auditMetaTarget   = "target_user"
+	// auditMetaProviderError and auditMetaProviderErrorDescription carry the
+	// sanitised error an identity provider redirected back with (#1642).
+	auditMetaProviderError            = "provider_error"
+	auditMetaProviderErrorDescription = "provider_error_description"
 )
 
 // Who changed a password: the account's owner or an instance admin.
@@ -88,6 +92,10 @@ type auditLoginFailure struct {
 	reason   string
 	email    string
 	userID   string
+	// providerError and providerErrorDescription are the sanitised error the
+	// identity provider redirected back with, when it refused the sign-in.
+	providerError            string
+	providerErrorDescription string
 }
 
 // auditLoginFailed records a refused sign-in. An unknown account is recorded
@@ -101,6 +109,12 @@ func (s *Server) auditLoginFailed(ctx context.Context, f auditLoginFailure) {
 	metadata := map[string]any{auditMetaMethod: f.method, auditMetaReason: f.reason}
 	if f.provider != "" {
 		metadata[auditMetaProvider] = f.provider
+	}
+	if f.providerError != "" {
+		metadata[auditMetaProviderError] = f.providerError
+	}
+	if f.providerErrorDescription != "" {
+		metadata[auditMetaProviderErrorDescription] = f.providerErrorDescription
 	}
 	s.recordAudit(ctx, audit.Event{
 		Operation: models.AuditOpAuthLoginFailed, Outcome: models.AuditOutcomeFailure,

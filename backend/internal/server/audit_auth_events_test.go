@@ -251,6 +251,75 @@ func TestAuditOIDC_Failures(t *testing.T) {
 	}
 }
 
+func TestAuditOIDC_ProviderError(t *testing.T) {
+	t.Run("access denied with a description", func(t *testing.T) {
+		srv, rec := newOIDCAuditServer(t)
+
+		srv.handleProviderError(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil),
+			"okta", "access_denied", "User is not assigned to the client application.")
+
+		got := rec.only(t)
+		assert.Equal(t, models.AuditOpAuthLoginFailed, got.event.Operation)
+		assert.Equal(t, models.AuditOutcomeFailure, got.event.Outcome)
+		assert.Equal(t, map[string]any{
+			auditMetaMethod:                   auditAuthMethodOIDC,
+			auditMetaProvider:                 "okta",
+			auditMetaReason:                   callbackErrorProviderAccessDenied,
+			auditMetaProviderError:            "access_denied",
+			auditMetaProviderErrorDescription: "User is not assigned to the client application.",
+		}, got.event.Metadata)
+		assert.Nil(t, got.event.Actor.UserID)
+	})
+
+	t.Run("other error without a description", func(t *testing.T) {
+		srv, rec := newOIDCAuditServer(t)
+
+		srv.handleProviderError(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil),
+			"google", "server_error", "")
+
+		got := rec.only(t)
+		assert.Equal(t, callbackErrorProviderSignInFailed, got.event.Metadata[auditMetaReason])
+		assert.Equal(t, "server_error", got.event.Metadata[auditMetaProviderError])
+		assert.NotContains(t, got.event.Metadata, auditMetaProviderErrorDescription)
+	})
+
+	t.Run("nothing usable left after sanitising", func(t *testing.T) {
+		srv, rec := newOIDCAuditServer(t)
+
+		srv.handleProviderError(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil),
+			"google", "\x00\u00e9", "\n\t")
+
+		got := rec.only(t)
+		assert.Equal(t, callbackErrorProviderSignInFailed, got.event.Metadata[auditMetaReason])
+		assert.NotContains(t, got.event.Metadata, auditMetaProviderError)
+		assert.NotContains(t, got.event.Metadata, auditMetaProviderErrorDescription)
+	})
+}
+
+func TestSanitizeProviderError(t *testing.T) {
+	cases := map[string]struct {
+		in   string
+		max  int
+		want string
+	}{
+		"plain code":              {"access_denied", 64, "access_denied"},
+		"empty":                   {"", 64, ""},
+		"quote and backslash":     {`a"b\c`, 64, "abc"},
+		"control characters":      {"line\none\r\ttwo\x00", 64, "lineonetwo"},
+		"html survives as text":   {"<script>&x=1</script>", 64, "<script>&x=1</script>"},
+		"multibyte dropped whole": {"caf\u00e9 \u65e5\u672c ok", 64, "caf  ok"},
+		"surrounding spaces":      {"  server_error  ", 64, "server_error"},
+		"capped":                  {strings.Repeat("a", 300), 256, strings.Repeat("a", 256)},
+		"cap after filtering":     {"\u00e9\u00e9abc", 2, "ab"},
+		"only disallowed":         {"\u00e9\n", 64, ""},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.want, sanitizeProviderError(tc.in, tc.max))
+		})
+	}
+}
+
 func TestAuditOIDC_UnresolvableProvidersIsNotASignInAttempt(t *testing.T) {
 	srv, rec := newOIDCAuditServer(t)
 

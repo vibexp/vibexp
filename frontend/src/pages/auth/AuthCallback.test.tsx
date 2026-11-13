@@ -133,6 +133,36 @@ describe('AuthCallback', () => {
     expect(mockHardRedirect).toHaveBeenCalledWith('/login')
   })
 
+  it('shows a no-access page when the identity provider denies the sign-in', () => {
+    renderCallback('?error=provider_access_denied')
+
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByText('No access')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Your account does not have access. Contact your administrator.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Authentication failed')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /back to sign in/i }))
+    expect(mockHardRedirect).toHaveBeenCalledWith('/login')
+  })
+
+  it('shows a generic provider failure for any other provider error', () => {
+    renderCallback('?error=provider_sign_in_failed')
+
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByText('Sign-in failed')).toBeInTheDocument()
+    expect(
+      screen.getByText(/could not complete the sign-in/i)
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Authentication failed')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /back to sign in/i }))
+    expect(mockHardRedirect).toHaveBeenCalledWith('/login')
+  })
+
   it('keeps the generic message for an unknown error code', () => {
     renderCallback('?error=access_denied')
 

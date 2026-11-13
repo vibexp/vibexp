@@ -77,6 +77,27 @@ const (
 	// in the authorization request (#1641).
 	callbackFailureNonceMismatch = "nonce_mismatch"
 
+	// callbackErrorProviderAccessDenied is the SPA callback error code for a
+	// sign-in the identity provider itself refused with error=access_denied
+	// (RFC 6749 section 4.1.2.1), typically an organisation SSO account not
+	// assigned to the application (#1642). Mirrored by
+	// PROVIDER_ACCESS_DENIED_CODE in the frontend.
+	callbackErrorProviderAccessDenied = "provider_access_denied"
+
+	// callbackErrorProviderSignInFailed is the SPA callback error code for any
+	// other error the identity provider redirected back with (#1642). Mirrored
+	// by PROVIDER_SIGN_IN_FAILED_CODE in the frontend.
+	callbackErrorProviderSignInFailed = "provider_sign_in_failed"
+
+	// providerErrorAccessDenied is the RFC 6749 error code a provider sends
+	// when the resource owner or the authorization server denied the request.
+	providerErrorAccessDenied = "access_denied"
+
+	// providerErrorMaxLen and providerErrorDescriptionMaxLen cap the provider's
+	// error and error_description before they reach a log line or the audit log.
+	providerErrorMaxLen            = 64
+	providerErrorDescriptionMaxLen = 256
+
 	// stateCookieMaxAge is 10 minutes — enough for a human to complete the
 	// identity-provider login flow and be redirected back to the callback.
 	stateCookieMaxAge = 10 * 60 // 10 minutes in seconds
@@ -246,16 +267,23 @@ func (s *Server) resolveLoginProvider(r *http.Request, requested string) (string
 // handleCallback validates the CSRF state cookie, recovers the provider bound
 // to it, exchanges the authorization code via that provider, looks up or
 // creates the user, writes the session cookie, and redirects the browser to
-// the frontend home page.
+// the frontend home page. When the provider redirects back with error instead
+// (RFC 6749 section 4.1.2.1), the state is still validated and cleared, no code
+// is exchanged, and the browser is sent to the SPA with a provider_* code (see
+// handleProviderError).
 //
 // GET /api/v1/auth/callback
 func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 	s.logAuthRequest("handleCallback", "OAuth callback", r)
 
-	code := r.URL.Query().Get("code")
-	stateParam := r.URL.Query().Get("state")
+	query := r.URL.Query()
+	code := query.Get("code")
+	stateParam := query.Get("state")
+	// A provider that refuses the sign-in redirects back with error instead of
+	// code (RFC 6749 section 4.1.2.1). It wins when both are present.
+	providerErr := query.Get("error")
 
-	if code == "" {
+	if code == "" && providerErr == "" {
 		s.logAuthError("handleCallback", "Authorization code is required", nil)
 		apiErr := errors.NewBadRequestError("Authorization code is required")
 		errors.WriteJSONError(w, r, apiErr)
@@ -275,6 +303,11 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 	s.clearStateCookie(w)
 
 	provider := bound.provider
+	if providerErr != "" {
+		s.handleProviderError(w, r, provider, providerErr, query.Get("error_description"))
+		return
+	}
+
 	user, idpTokens, isNewUser, err := s.container.AuthService().HandleCallback(r.Context(), code, provider, bound.flow)
 	if err != nil {
 		s.handleCallbackFailure(w, r, stateParam, provider, err)
@@ -358,11 +391,65 @@ func (s *Server) handleCallbackFailure(w http.ResponseWriter, r *http.Request, s
 // redirectCallbackError records a failed login under code and sends the browser
 // to the SPA's callback page with ?error=<code>.
 func (s *Server) redirectCallbackError(w http.ResponseWriter, r *http.Request, provider, code string) {
+	s.redirectCallbackFailure(w, r, auditLoginFailure{method: auditAuthMethodOIDC, provider: provider, reason: code})
+}
+
+// redirectCallbackFailure records the failed login f under its reason and
+// sends the browser to the SPA's callback page with ?error=<reason>. The
+// reason is always one of the callbackError* constants, never provider text.
+func (s *Server) redirectCallbackFailure(w http.ResponseWriter, r *http.Request, f auditLoginFailure) {
 	if s.metrics != nil {
-		s.metrics.RecordUserLoginFailed(r.Context(), code)
+		s.metrics.RecordUserLoginFailed(r.Context(), f.reason)
 	}
-	s.auditLoginFailed(r.Context(), auditLoginFailure{method: auditAuthMethodOIDC, provider: provider, reason: code})
-	http.Redirect(w, r, s.config.Frontend.BaseURL+"/auth/callback?error="+code, http.StatusFound)
+	s.auditLoginFailed(r.Context(), f)
+	http.Redirect(w, r, s.config.Frontend.BaseURL+"/auth/callback?error="+f.reason, http.StatusFound)
+}
+
+// handleProviderError answers a callback on which the identity provider
+// refused the sign-in (#1642): access_denied gets its own SPA code, any other
+// provider error the generic one. The provider's error and description are
+// sanitised before they reach the log and the audit event, and never reach the
+// redirect URL or the metric label.
+func (s *Server) handleProviderError(
+	w http.ResponseWriter, r *http.Request, provider, providerErr, description string,
+) {
+	failure := auditLoginFailure{
+		method:                   auditAuthMethodOIDC,
+		provider:                 provider,
+		reason:                   callbackErrorProviderSignInFailed,
+		providerError:            sanitizeProviderError(providerErr, providerErrorMaxLen),
+		providerErrorDescription: sanitizeProviderError(description, providerErrorDescriptionMaxLen),
+	}
+	logger := s.logger.With(
+		"service", serverLogServiceName,
+		"handler", "handleCallback",
+		"provider", provider,
+		"provider_error", failure.providerError,
+		"provider_error_description", failure.providerErrorDescription,
+	)
+	if providerErr == providerErrorAccessDenied {
+		failure.reason = callbackErrorProviderAccessDenied
+		logger.Info("Identity provider denied the sign-in")
+	} else {
+		logger.Warn("Identity provider returned an error to the callback")
+	}
+	s.redirectCallbackFailure(w, r, failure)
+}
+
+// sanitizeProviderError keeps only the characters RFC 6749 allows in an error
+// or error_description (%x20-21 / %x23-5B / %x5D-7E: printable ASCII without
+// '"' and '\'), trims surrounding spaces and caps the result at maxLen bytes.
+// Every kept character is one byte, so the cap never splits a rune.
+func sanitizeProviderError(value string, maxLen int) string {
+	value = strings.TrimSpace(value)
+	var b strings.Builder
+	for i := 0; i < len(value) && b.Len() < maxLen; i++ {
+		c := value[i]
+		if c >= 0x20 && c <= 0x7E && c != '"' && c != '\\' {
+			b.WriteByte(c)
+		}
+	}
+	return strings.TrimSpace(b.String())
 }
 
 func (s *Server) handleCallbackSuccess(
