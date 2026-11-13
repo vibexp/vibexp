@@ -121,6 +121,40 @@ export const IDENTITY_DISCONNECTED_ERROR: AuthErrorView = {
 }
 
 /**
+ * Stable code the callback redirects with
+ * (`/auth/callback?error=provider_access_denied`) when the identity provider
+ * itself refused the sign-in with `error=access_denied`, typically because the
+ * account is not assigned to this application in the organisation's SSO
+ * (#1642). Mirrors `callbackErrorProviderAccessDenied` in
+ * `backend/internal/server/auth_handlers.go`.
+ */
+export const PROVIDER_ACCESS_DENIED_CODE = 'provider_access_denied'
+
+export const PROVIDER_ACCESS_DENIED_ERROR: AuthErrorView = {
+  title: 'No access',
+  description: 'Your account does not have access. Contact your administrator.',
+  actionLabel: BACK_TO_SIGN_IN,
+  actionHref: '/login',
+}
+
+/**
+ * Stable code the callback redirects with
+ * (`/auth/callback?error=provider_sign_in_failed`) when the identity provider
+ * redirected back with any other error (#1642). The provider's own error text
+ * is never shown. Mirrors `callbackErrorProviderSignInFailed` in
+ * `backend/internal/server/auth_handlers.go`.
+ */
+export const PROVIDER_SIGN_IN_FAILED_CODE = 'provider_sign_in_failed'
+
+export const PROVIDER_SIGN_IN_FAILED_ERROR: AuthErrorView = {
+  title: 'Sign-in failed',
+  description:
+    'Your sign-in provider could not complete the sign-in. Try again, or contact your administrator if it keeps happening.',
+  actionLabel: BACK_TO_SIGN_IN,
+  actionHref: '/login',
+}
+
+/**
  * Map the `?error=` query param on `/auth/callback` to the alert to render.
  * Unknown and absent codes fall through to {@link GENERIC_AUTH_ERROR}.
  */
@@ -139,6 +173,12 @@ export function mapAuthCallbackError(code: string | null): AuthErrorView {
   }
   if (code === IDENTITY_DISCONNECTED_CODE) {
     return IDENTITY_DISCONNECTED_ERROR
+  }
+  if (code === PROVIDER_ACCESS_DENIED_CODE) {
+    return PROVIDER_ACCESS_DENIED_ERROR
+  }
+  if (code === PROVIDER_SIGN_IN_FAILED_CODE) {
+    return PROVIDER_SIGN_IN_FAILED_ERROR
   }
   return GENERIC_AUTH_ERROR
 }

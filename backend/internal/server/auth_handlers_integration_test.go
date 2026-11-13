@@ -414,6 +414,7 @@ func TestHandleCallback_MissingCode(t *testing.T) {
 	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
 }
 
 // TestHandleCallback_InvalidState tests callback with invalid state
@@ -480,6 +481,143 @@ func TestHandleCallback_AccessRestricted(t *testing.T) {
 
 	specconformance.AssertConformsToSpec(t, req, w)
 	mockContainer.authService.AssertExpectations(t)
+}
+
+// providerErrorCallback serves a callback carrying the provider's error (and,
+// when set, its description) with a valid state cookie for "test-state".
+func providerErrorCallback(t *testing.T, srv *Server, rawQuery string) (*http.Request, *httptest.ResponseRecorder) {
+	t.Helper()
+	req := httptest.NewRequest("GET", "/api/v1/auth/callback?"+rawQuery, nil)
+	req.AddCookie(buildStateCookie(t, srv, "test-state", "oidc"))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	return req, w
+}
+
+// assertStateClearedNoSession checks that a refused callback expired the state
+// cookie and issued no session.
+func assertStateClearedNoSession(t *testing.T, w *httptest.ResponseRecorder) {
+	t.Helper()
+	stateCleared := false
+	for _, c := range w.Result().Cookies() {
+		assert.NotEqual(t, sesslib.CookieName, c.Name, "no session cookie on a provider refusal")
+		if c.Name == stateCookieName && c.MaxAge < 0 {
+			stateCleared = true
+		}
+	}
+	assert.True(t, stateCleared, "the state cookie is cleared")
+}
+
+// loginFailedReason returns the reason label of the single vx_user_login_failed
+// data point.
+func loginFailedReason(t *testing.T, rm *metricdata.ResourceMetrics) string {
+	t.Helper()
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != "vx_user_login_failed" {
+				continue
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			require.True(t, ok)
+			require.Len(t, sum.DataPoints, 1)
+			reason, _ := sum.DataPoints[0].Attributes.Value("reason")
+			return reason.AsString()
+		}
+	}
+	t.Fatal("vx_user_login_failed not recorded")
+	return ""
+}
+
+// TestHandleCallback_ProviderAccessDenied tests that a provider refusal with
+// error=access_denied redirects to the SPA with its own code, clears the state
+// cookie, issues no session and never exchanges a code (#1642).
+func TestHandleCallback_ProviderAccessDenied(t *testing.T) {
+	mockContainer, testMetrics, reader := setupAuthTestWithMetrics(t)
+	srv := createTestAuthServer(mockContainer)
+	srv.metrics = testMetrics
+
+	req, w := providerErrorCallback(t, srv,
+		"error=access_denied&error_description=User+is+not+assigned&state=test-state")
+
+	assert.Equal(t, http.StatusFound, w.Code)
+	assert.Equal(t, "http://localhost:5173/auth/callback?error=provider_access_denied",
+		w.Header().Get("Location"))
+	assertStateClearedNoSession(t, w)
+	mockContainer.authService.AssertNotCalled(t, "HandleCallback", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+
+	rm := collectMetricsForAuthHandler(t, reader)
+	assertCounterValueForAuthHandler(t, rm, "vx_user_login_failed", 1)
+	assert.Equal(t, callbackErrorProviderAccessDenied, loginFailedReason(t, rm))
+
+	specconformance.AssertConformsToSpec(t, req, w)
+}
+
+// TestHandleCallback_ProviderOtherError tests that any other provider error
+// maps to the generic code, and that nothing the provider sent reaches the
+// redirect URL.
+func TestHandleCallback_ProviderOtherError(t *testing.T) {
+	for _, providerErr := range []string{"server_error", "invalid_scope", "temporarily_unavailable", "made_up"} {
+		t.Run(providerErr, func(t *testing.T) {
+			mockContainer, testMetrics, reader := setupAuthTestWithMetrics(t)
+			srv := createTestAuthServer(mockContainer)
+			srv.metrics = testMetrics
+
+			req, w := providerErrorCallback(t, srv, "error="+providerErr+
+				"&error_description=%3Cscript%3Ealert(1)%3C%2Fscript%3E%26x%3D1%0Anext&state=test-state")
+
+			assert.Equal(t, http.StatusFound, w.Code)
+			location := w.Header().Get("Location")
+			assert.Equal(t, "http://localhost:5173/auth/callback?error=provider_sign_in_failed", location)
+			assert.NotContains(t, location, providerErr)
+			assert.NotContains(t, location, "script")
+			assertStateClearedNoSession(t, w)
+			mockContainer.authService.AssertNotCalled(t, "HandleCallback", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+			assert.Equal(t, callbackErrorProviderSignInFailed,
+				loginFailedReason(t, collectMetricsForAuthHandler(t, reader)))
+
+			specconformance.AssertConformsToSpec(t, req, w)
+		})
+	}
+}
+
+// TestHandleCallback_ProviderErrorInvalidState tests that a provider error
+// without our state cookie keeps today's 401 and records nothing.
+func TestHandleCallback_ProviderErrorInvalidState(t *testing.T) {
+	mockContainer, testMetrics, reader := setupAuthTestWithMetrics(t)
+	srv := createTestAuthServer(mockContainer)
+	srv.metrics = testMetrics
+	rec := withAudit(srv)
+
+	req := httptest.NewRequest("GET", "/api/v1/auth/callback?error=access_denied&state=tampered-state", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Empty(t, w.Header().Get("Location"))
+	assert.Empty(t, rec.events(), "an unauthenticated ?error= writes no audit event")
+	var rm metricdata.ResourceMetrics
+	require.NoError(t, reader.Collect(context.Background(), &rm))
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			assert.NotEqual(t, "vx_user_login_failed", m.Name, "an unauthenticated ?error= is not counted")
+		}
+	}
+	specconformance.AssertConformsToSpec(t, req, w)
+}
+
+// TestHandleCallback_CodeAndErrorBoth tests that error wins over code: the
+// refusal is honoured and no code is exchanged.
+func TestHandleCallback_CodeAndErrorBoth(t *testing.T) {
+	mockContainer := newMockAuthContainer(t)
+	srv := createTestAuthServer(mockContainer)
+
+	req, w := providerErrorCallback(t, srv, "code=test-auth-code&error=access_denied&state=test-state")
+
+	assert.Equal(t, http.StatusFound, w.Code)
+	assert.Equal(t, "http://localhost:5173/auth/callback?error=provider_access_denied",
+		w.Header().Get("Location"))
+	mockContainer.authService.AssertNotCalled(t, "HandleCallback", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	specconformance.AssertConformsToSpec(t, req, w)
 }
 
 // TestHandleLogout_ClearsSessionCookie tests that logout clears the session cookie

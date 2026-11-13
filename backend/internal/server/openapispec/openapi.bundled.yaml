@@ -282,11 +282,33 @@ paths:
       parameters:
         - name: code
           in: query
-          required: true
-          description: Authorization code returned by the identity provider after user authentication
+          required: false
+          description: |
+            Authorization code returned by the identity provider after user
+            authentication. Present on success; absent when the provider refused
+            the sign-in and sent `error` instead.
           schema:
             type: string
             example: 01ABCDEF1234567890
+        - name: error
+          in: query
+          required: false
+          description: |
+            Error code the identity provider redirected back with instead of
+            `code` (RFC 6749 section 4.1.2.1), e.g. `access_denied`. Takes
+            precedence over `code` when both are present.
+          schema:
+            type: string
+            example: access_denied
+        - name: error_description
+          in: query
+          required: false
+          description: |
+            Human-readable detail the identity provider may send with `error`.
+            It is logged and recorded in the audit log, sanitised and capped,
+            and never shown to the user or echoed into the redirect.
+          schema:
+            type: string
         - name: state
           in: query
           required: false
@@ -317,7 +339,11 @@ paths:
             invitation (and is not a root instance admin), to
             `/auth/callback?error=registration_closed`: no account is created.
             When the account is suspended, to
-            `/auth/callback?error=account_suspended`.
+            `/auth/callback?error=account_suspended`. When the identity provider
+            itself refused the sign-in with `error=access_denied`, to
+            `/auth/callback?error=provider_access_denied`; with any other
+            `error`, to `/auth/callback?error=provider_sign_in_failed`. The
+            provider's own error text never appears in the redirect.
           headers:
             Location:
               description: |
@@ -325,7 +351,8 @@ paths:
                 or /auth/callback?error=<code> when the sign-in is refused, where
                 <code> is one of access_restricted, provider_unavailable,
                 email_not_verified, existing_sign_in_required,
-                registration_closed or account_suspended.
+                registration_closed, account_suspended, provider_access_denied
+                or provider_sign_in_failed.
               schema:
                 type: string
                 format: uri
@@ -334,13 +361,13 @@ paths:
               schema:
                 type: string
         '400':
-          description: Authorization code is missing
+          description: Neither `code` nor `error` is present
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: Invalid or expired CSRF state cookie
+          description: Invalid or expired CSRF state cookie (also when `error` is present)
           content:
             application/problem+json:
               schema:

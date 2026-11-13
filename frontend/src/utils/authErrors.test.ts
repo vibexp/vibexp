@@ -16,6 +16,10 @@ import {
   mapSignInError,
   PASSWORD_SIGN_IN_FAILED_MESSAGE,
   passwordSignInErrorMessage,
+  PROVIDER_ACCESS_DENIED_CODE,
+  PROVIDER_ACCESS_DENIED_ERROR,
+  PROVIDER_SIGN_IN_FAILED_CODE,
+  PROVIDER_SIGN_IN_FAILED_ERROR,
   REGISTRATION_CLOSED_CODE,
   REGISTRATION_CLOSED_ERROR,
 } from './authErrors'
@@ -58,6 +62,24 @@ describe('mapAuthCallbackError', () => {
       REGISTRATION_CLOSED_ERROR
     )
     expect(REGISTRATION_CLOSED_ERROR.actionHref).toBe('/login')
+  })
+
+  it('maps provider_access_denied to the no-access view', () => {
+    expect(PROVIDER_ACCESS_DENIED_CODE).toBe('provider_access_denied')
+    expect(mapAuthCallbackError(PROVIDER_ACCESS_DENIED_CODE)).toEqual(
+      PROVIDER_ACCESS_DENIED_ERROR
+    )
+    expect(PROVIDER_ACCESS_DENIED_ERROR.title).toBe('No access')
+    expect(PROVIDER_ACCESS_DENIED_ERROR.actionHref).toBe('/login')
+  })
+
+  it('maps provider_sign_in_failed to the generic provider view', () => {
+    expect(PROVIDER_SIGN_IN_FAILED_CODE).toBe('provider_sign_in_failed')
+    expect(mapAuthCallbackError(PROVIDER_SIGN_IN_FAILED_CODE)).toEqual(
+      PROVIDER_SIGN_IN_FAILED_ERROR
+    )
+    expect(PROVIDER_SIGN_IN_FAILED_ERROR.title).toBe('Sign-in failed')
+    expect(PROVIDER_SIGN_IN_FAILED_ERROR.actionHref).toBe('/login')
   })
 
   it('maps access_restricted to the restriction view', () => {
