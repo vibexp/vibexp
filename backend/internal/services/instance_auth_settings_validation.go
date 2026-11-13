@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
@@ -54,7 +56,8 @@ const maxInstanceAuthDomainLength = 253
 // same rules for the admin API (#1238) and the boot-time import (#1232): a
 // known type, a url-safe slug, a display name and client id, and an issuer URL
 // on exactly the OIDC providers — an absolute https:// URL (http:// only for
-// localhost / 127.0.0.1) with no query or fragment. It does not inspect the
+// localhost / 127.0.0.1) with no query or fragment, and a role mapping only on
+// OIDC providers (validateInstanceAuthRoleMapping). It does not inspect the
 // client secret, which is ciphertext by the time a provider reaches storage.
 func ValidateInstanceAuthProvider(p models.InstanceAuthProvider) error {
 	if !p.Type.Valid() {
@@ -70,7 +73,119 @@ func ValidateInstanceAuthProvider(p models.InstanceAuthProvider) error {
 	if strings.TrimSpace(p.ClientID) == "" {
 		return invalidInstanceAuthProvider("client_id", "client_id is required")
 	}
-	return validateInstanceAuthIssuerURL(p.Type, p.IssuerURL)
+	if err := validateInstanceAuthIssuerURL(p.Type, p.IssuerURL); err != nil {
+		return err
+	}
+	return validateInstanceAuthRoleMapping(p.Type, p.RolesClaim, p.AdminValues)
+}
+
+// Bounds of a provider's role mapping (#1643). The API spec publishes the same
+// numbers (schemas/admin.yaml); change both together. The entry cap is checked
+// on the submitted list, before exact duplicates are dropped, so it means what
+// the spec's maxItems says.
+const (
+	maxInstanceAuthRolesClaimLength = 255
+	maxInstanceAuthAdminValues      = 50
+	maxInstanceAuthAdminValueLength = 255
+)
+
+// NormalizeInstanceAuthRoleMapping is the stored form of a submitted role
+// mapping: the claim trimmed, with a blank claim meaning the mapping is off
+// (nil), and the admin values de-duplicated exactly (case-sensitive), keeping
+// the first occurrence's position. Values are never trimmed or case-folded, so
+// a stored value is byte for byte what was entered; whitespace around one is
+// rejected by validation instead. The returned slice is never nil. It fails only
+// when more values are submitted than the cap allows, counted before duplicates
+// are dropped.
+func NormalizeInstanceAuthRoleMapping(rolesClaim *string, adminValues []string) (*string, []string, error) {
+	if len(adminValues) > maxInstanceAuthAdminValues {
+		return nil, nil, tooManyInstanceAuthAdminValues(len(adminValues))
+	}
+	values := make([]string, 0, len(adminValues))
+	seen := make(map[string]struct{}, len(adminValues))
+	for _, value := range adminValues {
+		if _, dup := seen[value]; dup {
+			continue
+		}
+		seen[value] = struct{}{}
+		values = append(values, value)
+	}
+	return trimmedOrNil(rolesClaim), values, nil
+}
+
+func tooManyInstanceAuthAdminValues(n int) error {
+	return invalidInstanceAuthProvider("admin_values",
+		"admin_values must have at most %d entries, got %d", maxInstanceAuthAdminValues, n)
+}
+
+// validateInstanceAuthRoleMapping checks a normalized role mapping: only an
+// OIDC provider may carry one, admin_values is non-empty exactly when
+// roles_claim is set, the claim is a well-formed dotted path and each value is
+// a bounded, non-blank string with no surrounding whitespace. The database
+// holds the oidc-only and claim-iff-values rules as CHECKs (migration 024).
+func validateInstanceAuthRoleMapping(
+	providerType models.InstanceAuthProviderType, rolesClaim *string, adminValues []string,
+) error {
+	if providerType != models.InstanceAuthProviderOIDC {
+		if rolesClaim != nil {
+			return invalidInstanceAuthProvider("roles_claim", "roles_claim is only allowed for oidc providers")
+		}
+		if len(adminValues) > 0 {
+			return invalidInstanceAuthProvider("admin_values", "admin_values is only allowed for oidc providers")
+		}
+		return nil
+	}
+	if rolesClaim == nil {
+		if len(adminValues) > 0 {
+			return invalidInstanceAuthProvider("admin_values", "admin_values requires roles_claim")
+		}
+		return nil
+	}
+	if err := validateInstanceAuthRolesClaim(*rolesClaim); err != nil {
+		return err
+	}
+	return validateInstanceAuthAdminValues(adminValues)
+}
+
+// validateInstanceAuthRolesClaim checks a claim path. The grammar is
+// deliberately permissive: a URL-namespaced claim (https://example.com/roles)
+// contains dots too, so only a structurally broken path is rejected.
+func validateInstanceAuthRolesClaim(claim string) error {
+	if claim == "" || utf8.RuneCountInString(claim) > maxInstanceAuthRolesClaimLength {
+		return invalidInstanceAuthProvider("roles_claim",
+			"roles_claim must be 1-%d characters", maxInstanceAuthRolesClaimLength)
+	}
+	if strings.IndexFunc(claim, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) >= 0 {
+		return invalidInstanceAuthProvider("roles_claim",
+			"roles_claim must not contain whitespace or control characters, got %q", claim)
+	}
+	if strings.HasPrefix(claim, ".") || strings.HasSuffix(claim, ".") || strings.Contains(claim, "..") {
+		return invalidInstanceAuthProvider("roles_claim",
+			"roles_claim must be a dotted path with no empty segment, got %q", claim)
+	}
+	return nil
+}
+
+// validateInstanceAuthAdminValues checks the admin values of a set claim.
+func validateInstanceAuthAdminValues(values []string) error {
+	if len(values) == 0 {
+		return invalidInstanceAuthProvider("admin_values", "admin_values is required when roles_claim is set")
+	}
+	if len(values) > maxInstanceAuthAdminValues {
+		return tooManyInstanceAuthAdminValues(len(values))
+	}
+	for _, value := range values {
+		if strings.TrimSpace(value) == "" || utf8.RuneCountInString(value) > maxInstanceAuthAdminValueLength {
+			return invalidInstanceAuthProvider("admin_values",
+				"each admin_values entry must be 1-%d characters and not blank, got %q",
+				maxInstanceAuthAdminValueLength, value)
+		}
+		if strings.TrimSpace(value) != value {
+			return invalidInstanceAuthProvider("admin_values",
+				"admin_values entries must not start or end with whitespace, got %q", value)
+		}
+	}
+	return nil
 }
 
 // validateInstanceAuthIssuerURL enforces "issuer URL iff OIDC" and the URL's

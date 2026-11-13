@@ -63,7 +63,7 @@ var authTestSecretSentinel = strings.Repeat("z", 6) + "-auth-secret-sentinel"
 // Anything else appearing is a leak.
 var authProviderKeys = []string{
 	"id", "type", "slug", "display_name", "enabled", "sort_order", "client_id", "has_client_secret",
-	"issuer_url", "redirect_uri", "health", "health.status", "health.last_error", "health.checked_at",
+	"issuer_url", "roles_claim", "admin_values", "redirect_uri", "health", "health.status", "health.last_error", "health.checked_at",
 	"created_at", "updated_at", "updated_by_user_id",
 }
 
@@ -587,6 +587,8 @@ func TestAdminAuthProviders_CreateAndList(t *testing.T) {
 	assert.True(t, p.Enabled, "enabled defaults to true")
 	assert.Zero(t, p.SortOrder)
 	assert.True(t, p.HasClientSecret)
+	assert.Nil(t, p.RolesClaim, "the role mapping is off unless set")
+	assert.Contains(t, rr.Body.String(), `"admin_values":[]`)
 	assert.Equal(t, authTestCallbackURL, p.RedirectUri)
 	assert.Equal(t, admingen.AdminAuthProviderHealthStatusHealthy, p.Health.Status)
 	require.NotNil(t, p.UpdatedByUserId)
@@ -715,6 +717,120 @@ func TestAdminAuthProviders_UpdateKeepsOrReplacesTheSecret(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	assert.Equal(t, replacement, f.storedSecret(t, "okta"))
 	assertBodyExcludes(t, rr.Body.Bytes(), replacement)
+}
+
+func TestAdminAuthProviders_RoleMappingRoundTrip(t *testing.T) {
+	f := newAuthSettingsFixture(t)
+	body := oidcProviderBody("okta")
+	body["roles_claim"] = "groups"
+	body["admin_values"] = []string{"platform-admins", "VibeXP Admins", "platform-admins"}
+
+	rr := f.serve(t, asRoot, http.MethodPost, authProvidersPath, body)
+
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+	var saved admingen.AdminAuthProviderSaved
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &saved))
+	require.NotNil(t, saved.Provider.RolesClaim)
+	assert.Equal(t, "groups", *saved.Provider.RolesClaim)
+	assert.Equal(t, []string{"platform-admins", "VibeXP Admins"}, saved.Provider.AdminValues,
+		"values round-trip byte for byte, exact duplicates dropped")
+	path := authProvidersPath + "/" + saved.Provider.Id.String()
+
+	// A PUT that omits both fields keeps the stored mapping.
+	update := f.updateBody(t, "okta")
+	update["display_name"] = "Renamed"
+	rr = f.serve(t, asRoot, http.MethodPut, path, update)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"admin_values":["platform-admins","VibeXP Admins"]`)
+
+	// Changing it.
+	update = f.updateBody(t, "okta")
+	update["roles_claim"] = "realm_access.roles"
+	update["admin_values"] = []string{"VibeXP Admins"}
+	rr = f.serve(t, asRoot, http.MethodPut, path, update)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Equal(t, "realm_access.roles", *f.store.Provider("okta").RolesClaim)
+
+	// The audit API surfaces both fields in the snapshots.
+	rr = f.serve(t, asRoot, http.MethodGet, authAuditPath+"?setting=auth_providers", nil)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var page admingen.AdminInstanceSettingsAuditPage
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &page))
+	require.NotEmpty(t, page.Entries)
+	assert.Equal(t, "groups", (*page.Entries[0].Before)["roles_claim"])
+	assert.Equal(t, "realm_access.roles", (*page.Entries[0].After)["roles_claim"])
+	assert.Equal(t, []any{"VibeXP Admins"}, (*page.Entries[0].After)["admin_values"])
+
+	// Clearing it: a null claim with an empty list.
+	update = f.updateBody(t, "okta")
+	update["roles_claim"] = nil
+	update["admin_values"] = []string{}
+	rr = f.serve(t, asRoot, http.MethodPut, path, update)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"roles_claim":null`)
+	assert.Contains(t, rr.Body.String(), `"admin_values":[]`)
+	assert.Nil(t, f.store.Provider("okta").RolesClaim)
+}
+
+func TestAdminAuthProviders_RoleMappingRejections(t *testing.T) {
+	githubBody := func() map[string]any {
+		b := oidcProviderBody("github")
+		b["type"] = "github"
+		delete(b, "issuer_url")
+		return b
+	}
+	cases := []struct {
+		name      string
+		body      func() map[string]any
+		wantField string
+	}{
+		{name: "a claim on a github provider", wantField: "roles_claim", body: func() map[string]any {
+			b := githubBody()
+			b["roles_claim"], b["admin_values"] = "groups", []string{"admins"}
+			return b
+		}},
+		{name: "values on a github provider", wantField: "admin_values", body: func() map[string]any {
+			b := githubBody()
+			b["admin_values"] = []string{"admins"}
+			return b
+		}},
+		{name: "a claim without values", wantField: "admin_values", body: func() map[string]any {
+			b := oidcProviderBody("okta")
+			b["roles_claim"] = "groups"
+			return b
+		}},
+		{name: "a malformed claim", wantField: "roles_claim", body: func() map[string]any {
+			b := oidcProviderBody("okta")
+			b["roles_claim"], b["admin_values"] = "realm..roles", []string{"admins"}
+			return b
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newAuthSettingsFixture(t)
+			version := f.store.Version()
+
+			rr := f.serve(t, asRoot, http.MethodPost, authProvidersPath, tc.body())
+
+			require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+			assert.Equal(t, []string{tc.wantField}, validationFields(t, rr))
+			assert.Equal(t, version, f.store.Version(), "nothing was written")
+		})
+	}
+
+	t.Run("an update sending a claim without values", func(t *testing.T) {
+		f := newAuthSettingsFixture(t)
+		id := f.createProvider(t, oidcProviderBody("okta"))
+		version := f.store.Version()
+		body := f.updateBody(t, "okta")
+		body["roles_claim"] = "groups"
+
+		rr := f.serve(t, asRoot, http.MethodPut, authProvidersPath+"/"+id, body)
+
+		require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+		assert.Equal(t, []string{"admin_values"}, validationFields(t, rr))
+		assert.Equal(t, version, f.store.Version(), "nothing was written")
+	})
 }
 
 func TestAdminAuthProviders_UpdateRejections(t *testing.T) {

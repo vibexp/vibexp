@@ -158,3 +158,130 @@ func TestValidateInstanceAuthAllowlist_RejectsInvalidEntries(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateInstanceAuthProvider_RoleMapping(t *testing.T) {
+	tooMany := make([]string, 51)
+	for i := range tooMany {
+		tooMany[i] = "group-" + strings.Repeat("x", i+1)
+	}
+	tests := []struct {
+		name   string
+		mutate func(p *models.InstanceAuthProvider)
+		field  string // "" = valid
+	}{
+		{"no mapping", func(*models.InstanceAuthProvider) {}, ""},
+		{"a flat claim", func(p *models.InstanceAuthProvider) {
+			p.RolesClaim, p.AdminValues = strPtr("groups"), []string{"platform-admins"}
+		}, ""},
+		{"a nested claim", func(p *models.InstanceAuthProvider) {
+			p.RolesClaim, p.AdminValues = strPtr("realm_access.roles"), []string{"VibeXP Admins"}
+		}, ""},
+		{"a URL-namespaced claim", func(p *models.InstanceAuthProvider) {
+			p.RolesClaim, p.AdminValues = strPtr("https://example.com/roles"), []string{"admin"}
+		}, ""},
+		{"a 255-character claim", func(p *models.InstanceAuthProvider) {
+			p.RolesClaim, p.AdminValues = strPtr(strings.Repeat("c", 255)), []string{"admin"}
+		}, ""},
+		{"50 values of 255 characters", func(p *models.InstanceAuthProvider) {
+			p.RolesClaim, p.AdminValues = strPtr("groups"), tooMany[:50]
+			p.AdminValues[0] = strings.Repeat("v", 255)
+		}, ""},
+		{"google with a claim", func(p *models.InstanceAuthProvider) {
+			p.Type, p.Slug, p.IssuerURL = models.InstanceAuthProviderGoogle, "google", nil
+			p.RolesClaim, p.AdminValues = strPtr("groups"), []string{"admin"}
+		}, "roles_claim"},
+		{"github with values only", func(p *models.InstanceAuthProvider) {
+			p.Type, p.Slug, p.IssuerURL = models.InstanceAuthProviderGitHub, "github", nil
+			p.AdminValues = []string{"admin"}
+		}, "admin_values"},
+		{"a claim without values", func(p *models.InstanceAuthProvider) { p.RolesClaim = strPtr("groups") }, "admin_values"},
+		{"a claim with an empty list", func(p *models.InstanceAuthProvider) {
+			p.RolesClaim, p.AdminValues = strPtr("groups"), []string{}
+		}, "admin_values"},
+		{"values without a claim", func(p *models.InstanceAuthProvider) { p.AdminValues = []string{"admin"} }, "admin_values"},
+		{"a leading dot", func(p *models.InstanceAuthProvider) {
+			p.RolesClaim, p.AdminValues = strPtr(".roles"), []string{"admin"}
+		}, "roles_claim"},
+		{"a trailing dot", func(p *models.InstanceAuthProvider) {
+			p.RolesClaim, p.AdminValues = strPtr("roles."), []string{"admin"}
+		}, "roles_claim"},
+		{"an empty segment", func(p *models.InstanceAuthProvider) {
+			p.RolesClaim, p.AdminValues = strPtr("realm..roles"), []string{"admin"}
+		}, "roles_claim"},
+		{"a space in the claim", func(p *models.InstanceAuthProvider) {
+			p.RolesClaim, p.AdminValues = strPtr("my roles"), []string{"admin"}
+		}, "roles_claim"},
+		{"a control character in the claim", func(p *models.InstanceAuthProvider) {
+			p.RolesClaim, p.AdminValues = strPtr("roles\x00"), []string{"admin"}
+		}, "roles_claim"},
+		{"an empty claim", func(p *models.InstanceAuthProvider) {
+			p.RolesClaim, p.AdminValues = strPtr(""), []string{"admin"}
+		}, "roles_claim"},
+		{"a 256-character claim", func(p *models.InstanceAuthProvider) {
+			p.RolesClaim, p.AdminValues = strPtr(strings.Repeat("c", 256)), []string{"admin"}
+		}, "roles_claim"},
+		{"51 values", func(p *models.InstanceAuthProvider) {
+			p.RolesClaim, p.AdminValues = strPtr("groups"), tooMany
+		}, "admin_values"},
+		{"a 256-character value", func(p *models.InstanceAuthProvider) {
+			p.RolesClaim, p.AdminValues = strPtr("groups"), []string{strings.Repeat("v", 256)}
+		}, "admin_values"},
+		{"an empty value", func(p *models.InstanceAuthProvider) {
+			p.RolesClaim, p.AdminValues = strPtr("groups"), []string{"admin", ""}
+		}, "admin_values"},
+		{"a blank value", func(p *models.InstanceAuthProvider) {
+			p.RolesClaim, p.AdminValues = strPtr("groups"), []string{"  "}
+		}, "admin_values"},
+		{"a value with surrounding whitespace", func(p *models.InstanceAuthProvider) {
+			p.RolesClaim, p.AdminValues = strPtr("groups"), []string{" admins"}
+		}, "admin_values"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := validOIDCProvider()
+			tc.mutate(&p)
+
+			err := services.ValidateInstanceAuthProvider(p)
+			if tc.field == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorIs(t, err, services.ErrInvalidInstanceAuthProvider)
+			var fieldErr *services.SettingsFieldError
+			require.True(t, errors.As(err, &fieldErr), "the error names its field")
+			assert.Equal(t, []string{tc.field}, fieldErr.Fields)
+		})
+	}
+}
+
+func TestNormalizeInstanceAuthRoleMapping(t *testing.T) {
+	claim, values, err := services.NormalizeInstanceAuthRoleMapping(strPtr("  realm_access.roles "),
+		[]string{"a", "A", "a", "VibeXP Admins", "platform-admins", "VibeXP Admins"})
+	require.NoError(t, err)
+	require.NotNil(t, claim)
+	assert.Equal(t, "realm_access.roles", *claim, "the claim is trimmed")
+	assert.Equal(t, []string{"a", "A", "VibeXP Admins", "platform-admins"}, values,
+		"exact duplicates are dropped in first-occurrence order, case and spaces kept")
+
+	claim, values, err = services.NormalizeInstanceAuthRoleMapping(strPtr("  "), nil)
+	require.NoError(t, err)
+	assert.Nil(t, claim, "a blank claim turns the mapping off")
+	assert.NotNil(t, values)
+	assert.Empty(t, values)
+
+	claim, values, err = services.NormalizeInstanceAuthRoleMapping(nil, []string{" padded "})
+	require.NoError(t, err)
+	assert.Nil(t, claim)
+	assert.Equal(t, []string{" padded "}, values, "values are never trimmed; validation rejects them instead")
+
+	dupes := make([]string, 51)
+	for i := range dupes {
+		dupes[i] = "admins"
+	}
+	_, _, err = services.NormalizeInstanceAuthRoleMapping(strPtr("groups"), dupes)
+	require.ErrorIs(t, err, services.ErrInvalidInstanceAuthProvider,
+		"the cap counts the submitted list, before duplicates are dropped")
+	var fieldErr *services.SettingsFieldError
+	require.ErrorAs(t, err, &fieldErr)
+	assert.Equal(t, []string{"admin_values"}, fieldErr.Fields)
+}

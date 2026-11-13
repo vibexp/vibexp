@@ -393,6 +393,100 @@ func TestInstanceAuthSettings_UpdateProvider_Rejections(t *testing.T) {
 	assert.Equal(t, saved.Version, f.store.Version(), "nothing was written")
 }
 
+func TestInstanceAuthSettings_RoleMapping(t *testing.T) {
+	ctx := context.Background()
+	claim := " groups "
+	values := []string{"platform-admins", "VibeXP Admins", "platform-admins"}
+
+	t.Run("create stores the normalized mapping and audits it", func(t *testing.T) {
+		f := newAuthSettingsFixture(t)
+		req := oidcCreate("okta")
+		req.RolesClaim, req.AdminValues = &claim, values
+
+		saved := f.create(t, req)
+
+		p := saved.Provider.Provider
+		require.NotNil(t, p.RolesClaim)
+		assert.Equal(t, "groups", *p.RolesClaim)
+		assert.Equal(t, []string{"platform-admins", "VibeXP Admins"}, p.AdminValues)
+		after := string(f.store.AuditEntries(models.InstanceSettingAuthProviders)[0].After)
+		assert.Contains(t, after, `"roles_claim":"groups"`)
+		assert.Contains(t, after, `"admin_values":["platform-admins","VibeXP Admins"]`)
+	})
+
+	t.Run("create without a mapping leaves it off", func(t *testing.T) {
+		f := newAuthSettingsFixture(t)
+
+		p := f.create(t, oidcCreate("okta")).Provider.Provider
+
+		assert.Nil(t, p.RolesClaim)
+		assert.NotNil(t, p.AdminValues)
+		assert.Empty(t, p.AdminValues)
+	})
+
+	t.Run("update sets, keeps, changes and clears it", func(t *testing.T) {
+		f := newAuthSettingsFixture(t)
+		saved := f.create(t, oidcCreate("okta"))
+		id := saved.Provider.Provider.ID
+
+		set := updateOf(saved.Provider.Provider, saved.Version)
+		set.RolesClaim, set.AdminValues = &claim, &values
+		updated, err := f.svc.UpdateProvider(ctx, authSettingsRootID, id, set)
+		require.NoError(t, err)
+		assert.Equal(t, "groups", *f.store.Provider("okta").RolesClaim)
+
+		keep := updateOf(updated.Provider.Provider, updated.Version)
+		keep.RolesClaim, keep.AdminValues = nil, nil
+		keep.DisplayName = "Renamed"
+		updated, err = f.svc.UpdateProvider(ctx, authSettingsRootID, id, keep)
+		require.NoError(t, err)
+		stored := f.store.Provider("okta")
+		assert.Equal(t, "groups", *stored.RolesClaim, "omitting both fields keeps the mapping")
+		assert.Equal(t, []string{"platform-admins", "VibeXP Admins"}, stored.AdminValues)
+
+		nested := "realm_access.roles"
+		change := updateOf(updated.Provider.Provider, updated.Version)
+		change.RolesClaim, change.AdminValues = &nested, &[]string{"admins"}
+		updated, err = f.svc.UpdateProvider(ctx, authSettingsRootID, id, change)
+		require.NoError(t, err)
+		assert.Equal(t, nested, *f.store.Provider("okta").RolesClaim)
+		assert.Equal(t, []string{"admins"}, f.store.Provider("okta").AdminValues)
+
+		off := updateOf(updated.Provider.Provider, updated.Version)
+		off.RolesClaim, off.AdminValues = nil, &[]string{}
+		updated, err = f.svc.UpdateProvider(ctx, authSettingsRootID, id, off)
+		require.NoError(t, err)
+		assert.Nil(t, f.store.Provider("okta").RolesClaim)
+		assert.Empty(t, f.store.Provider("okta").AdminValues)
+		assert.Equal(t, saved.Version+4, updated.Version, "every change bumps the version")
+	})
+
+	t.Run("update rejects a claim sent without admin_values", func(t *testing.T) {
+		f := newAuthSettingsFixture(t)
+		saved := f.create(t, oidcCreate("okta"))
+		req := updateOf(saved.Provider.Provider, saved.Version)
+		req.RolesClaim = &claim
+
+		_, err := f.svc.UpdateProvider(ctx, authSettingsRootID, saved.Provider.Provider.ID, req)
+
+		require.ErrorIs(t, err, ErrInvalidInstanceAuthProvider)
+		assert.Equal(t, "admin_values", settingsFieldOf(t, err))
+		assert.Equal(t, saved.Version, f.store.Version(), "nothing was written")
+	})
+
+	t.Run("a github provider rejects a mapping", func(t *testing.T) {
+		f := newAuthSettingsFixture(t)
+		req := oidcCreate("github")
+		req.Type, req.IssuerURL = models.InstanceAuthProviderGitHub, nil
+		req.RolesClaim, req.AdminValues = &claim, values
+
+		_, err := f.svc.CreateProvider(ctx, authSettingsRootID, req)
+
+		require.ErrorIs(t, err, ErrInvalidInstanceAuthProvider)
+		assert.Equal(t, "roles_claim", settingsFieldOf(t, err))
+	})
+}
+
 func TestCheckAuthLockoutRisk(t *testing.T) {
 	rows := func(enabled ...bool) []*models.InstanceAuthProvider {
 		out := make([]*models.InstanceAuthProvider, 0, len(enabled))

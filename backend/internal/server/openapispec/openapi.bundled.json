@@ -49197,6 +49197,8 @@
           "client_id",
           "has_client_secret",
           "issuer_url",
+          "roles_claim",
+          "admin_values",
           "redirect_uri",
           "health",
           "created_at",
@@ -49245,6 +49247,22 @@
             "nullable": true,
             "description": "The OIDC issuer URL; null for `google` and `github`.",
             "example": "https://example.okta.com"
+          },
+          "roles_claim": {
+            "type": "string",
+            "nullable": true,
+            "description": "The ID token claim that carries the user's roles or groups, as a dotted\npath (`groups`, `roles`, `realm_access.roles`). Null when the role\nmapping is off, which it always is for `google` and `github`.\n",
+            "example": "groups"
+          },
+          "admin_values": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The `roles_claim` values that make a user an instance admin, compared\nexactly as stored (case-sensitive). Empty when the role mapping is off.\n",
+            "example": [
+              "platform-admins"
+            ]
           },
           "redirect_uri": {
             "type": "string",
@@ -49365,6 +49383,26 @@
             "description": "Required for `oidc` and rejected for `google` and `github`. An absolute\n`https://` URL (`http://` only for localhost) with no query or fragment.\n",
             "example": "https://example.okta.com"
           },
+          "roles_claim": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Optional, `oidc` only. The ID token claim that carries the user's roles\nor groups, as a dotted path with no whitespace and no empty segment\n(`groups`, `realm_access.roles`). Requires `admin_values`. Omit it, or\nsend an empty string, to leave the role mapping off.\n",
+            "example": "groups"
+          },
+          "admin_values": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            },
+            "description": "Optional, `oidc` only, and required (non-empty) when `roles_claim` is\nset. The claim values that make a user an instance admin. Each is\nstored and compared exactly as sent (case-sensitive; spaces and hyphens\nallowed, but no leading or trailing whitespace); exact duplicates are\ndropped.\n",
+            "example": [
+              "platform-admins",
+              "VibeXP Admins"
+            ]
+          },
           "expected_version": {
             "type": "integer",
             "format": "int64",
@@ -49375,7 +49413,7 @@
       },
       "AdminAuthProviderUpdate": {
         "type": "object",
-        "description": "A whole replacement of a provider's editable fields; `type` and `slug` are\nimmutable and are rejected as unknown fields. `display_name`, `enabled`,\n`sort_order`, `client_id` and `expected_version` are required.\n\n`client_secret` is write-only. Omit it to keep the stored secret; an empty\nstring is rejected. It cannot be omitted when `issuer_url` changes: the\nstored secret is only ever kept for the issuer it was saved with.\n\nA change that disables the last enabled provider (while password sign-in is\nnot a working way in), or the provider the\ncalling admin signed in with, is rejected with 409 `lockout_risk` unless\n`confirm_lockout_risk` is true.\n",
+        "description": "A whole replacement of a provider's editable fields; `type` and `slug` are\nimmutable and are rejected as unknown fields. `display_name`, `enabled`,\n`sort_order`, `client_id` and `expected_version` are required.\n\n`client_secret` is write-only. Omit it to keep the stored secret; an empty\nstring is rejected. It cannot be omitted when `issuer_url` changes: the\nstored secret is only ever kept for the issuer it was saved with.\n\nThe role mapping (`roles_claim`, `admin_values`) is optional and is sent\nwhole or not at all: omit both to keep the stored mapping.\n\nA change that disables the last enabled provider (while password sign-in is\nnot a working way in), or the provider the\ncalling admin signed in with, is rejected with 409 `lockout_risk` unless\n`confirm_lockout_risk` is true.\n",
         "additionalProperties": false,
         "required": [
           "display_name",
@@ -49412,6 +49450,26 @@
             "type": "string",
             "description": "Required for `oidc`, rejected for `google` and `github`.",
             "example": "https://example.okta.com"
+          },
+          "roles_claim": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255,
+            "description": "`oidc` only; see `AdminAuthProviderCreate.roles_claim`. Sent together\nwith `admin_values`: a `roles_claim` without `admin_values` is rejected.\nNull or an empty string, with `admin_values: []`, turns the role\nmapping off.\n",
+            "example": "groups"
+          },
+          "admin_values": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            },
+            "description": "`oidc` only; see `AdminAuthProviderCreate.admin_values`. Omit both\n`roles_claim` and `admin_values` to keep the stored role mapping; send\n`admin_values` to replace it.\n",
+            "example": [
+              "platform-admins"
+            ]
           },
           "expected_version": {
             "type": "integer",
