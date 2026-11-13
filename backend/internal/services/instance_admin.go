@@ -149,6 +149,10 @@ type InstanceAdminResolver interface {
 	// RemoveProviderAdmins removes every provider-sourced admin of providerID,
 	// auditing one demotion with reason per user; the actor comes from ctx.
 	RemoveProviderAdmins(ctx context.Context, providerID, providerSlug, reason string) error
+	// RecordProviderAdminDemotions audits one demotion with reason for each of
+	// userIDs, whose rows a provider delete already removed by cascade; the
+	// actor comes from ctx.
+	RecordProviderAdminDemotions(ctx context.Context, providerSlug, reason string, userIDs []string)
 }
 
 // InstanceAdminService implements InstanceAdminResolver. Grant lookups are not
@@ -414,13 +418,20 @@ func (s *InstanceAdminService) RemoveProviderAdmins(
 	if err != nil {
 		return err
 	}
+	s.RecordProviderAdminDemotions(ctx, providerSlug, reason, userIDs)
+	return nil
+}
+
+// RecordProviderAdminDemotions implements InstanceAdminResolver.
+func (s *InstanceAdminService) RecordProviderAdminDemotions(
+	ctx context.Context, providerSlug, reason string, userIDs []string,
+) {
 	for _, userID := range userIDs {
 		s.logger.Info("Provider-sourced instance admin demoted",
 			"user_id", userID, "provider", providerSlug, "reason", reason)
 		s.recordProviderAdminChange(ctx, models.AuditOpAuthInstanceAdminDemoted, nil, userID, "",
 			map[string]any{"provider_slug": providerSlug, "reason": reason})
 	}
-	return nil
 }
 
 // recordProviderAdminChange audits one promotion or demotion of userID. A nil

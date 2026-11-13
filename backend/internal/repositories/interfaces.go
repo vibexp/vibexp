@@ -2600,8 +2600,8 @@ type InstanceAdminRepository interface {
 // InstanceProviderAdminRepository defines the data access operations for
 // provider-sourced instance admins (#1644): one row per (user, provider) whose
 // last sign-in through the provider matched its role mapping. Only the role
-// mapping writes it. Rows of a disabled provider are kept but every read below
-// leaves them out, since they grant nothing.
+// mapping writes it. Rows of a disabled provider, or of one whose mapping was
+// cleared, are kept but every read below leaves them out: they grant nothing.
 type InstanceProviderAdminRepository interface {
 	// Upsert records userID as an admin of providerID with the matched value
 	// and reports whether the row is new (false when it was refreshed).
@@ -2611,11 +2611,12 @@ type InstanceProviderAdminRepository interface {
 	// DeleteByProvider removes every row of providerID and returns the user ids
 	// it removed.
 	DeleteByProvider(ctx context.Context, providerID string) ([]string, error)
-	// IsProviderAdmin reports whether userID holds a row of an enabled provider.
+	// IsProviderAdmin reports whether userID holds a row of an enabled, mapped
+	// provider.
 	IsProviderAdmin(ctx context.Context, userID string) (bool, error)
-	// List returns every row of an enabled provider, with the provider's slug.
+	// List returns every row of an enabled, mapped provider, with its slug.
 	List(ctx context.Context) ([]*models.InstanceProviderAdmin, error)
-	// ListByUser returns userID's rows of the enabled providers.
+	// ListByUser returns userID's rows of the enabled, mapped providers.
 	ListByUser(ctx context.Context, userID string) ([]*models.InstanceProviderAdmin, error)
 }
 

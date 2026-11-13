@@ -20,6 +20,8 @@ func createProviderAdminProvider(t *testing.T, slug string, enabled bool) *model
 	t.Helper()
 	p := oidcProviderFixture(slug, 0)
 	p.Enabled = enabled
+	claim := "groups"
+	p.RolesClaim, p.AdminValues = &claim, []string{"platform-admins", "ops"}
 	ciphertext := providerCiphertext
 	p.ClientSecretEncrypted = &ciphertext
 	require.NoError(t, NewInstanceAuthProviderRepository(integrationDB).Create(context.Background(), p, nil, nil))
@@ -126,4 +128,31 @@ func TestIntegrationInstanceProviderAdmins_Cascades(t *testing.T) {
 	var left int
 	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT count(*) FROM instance_provider_admins").Scan(&left))
 	assert.Zero(t, left, "deleting the provider removes its rows")
+}
+
+// TestIntegrationInstanceProviderAdmins_ClearedMappingGrantsNothing pins that a
+// row outliving its provider's mapping (written by a sign-in in flight while
+// the mapping was cleared) is no admin grant and is not listed.
+func TestIntegrationInstanceProviderAdmins_ClearedMappingGrantsNothing(t *testing.T) {
+	resetInstanceAuthSettings(t)
+	repo := NewInstanceProviderAdminRepository(integrationDB)
+	providers := NewInstanceAuthProviderRepository(integrationDB)
+	ctx := context.Background()
+	keycloak := createProviderAdminProvider(t, "keycloak", true)
+	alice := insertTestUser(t)
+
+	keycloak.RolesClaim, keycloak.AdminValues = nil, nil
+	require.NoError(t, providers.Update(ctx, keycloak, nil, nil))
+	_, err := repo.Upsert(ctx, alice, keycloak.ID, "platform-admins")
+	require.NoError(t, err)
+
+	isAdmin, err := repo.IsProviderAdmin(ctx, alice)
+	require.NoError(t, err)
+	assert.False(t, isAdmin)
+	list, err := repo.List(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, list)
+	byUser, err := repo.ListByUser(ctx, alice)
+	require.NoError(t, err)
+	assert.Empty(t, byUser)
 }

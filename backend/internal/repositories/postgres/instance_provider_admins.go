@@ -36,14 +36,17 @@ const instanceProviderAdminDelete = `DELETE FROM instance_provider_admins
 const instanceProviderAdminDeleteByProvider = `DELETE FROM instance_provider_admins
 	WHERE provider_id = $1 RETURNING user_id`
 
-const instanceProviderAdminIsAdmin = `SELECT EXISTS (
-	SELECT 1 FROM instance_provider_admins a
-	JOIN instance_auth_providers p ON p.id = a.provider_id AND p.enabled
-	WHERE a.user_id = $1)`
+// liveProviderAdmins joins a row to its provider only while that provider is
+// enabled and still has a role mapping: a row left behind by a cleared mapping
+// (a sign-in that was in flight while it was cleared) grants nothing.
+const liveProviderAdmins = `FROM instance_provider_admins a
+	JOIN instance_auth_providers p
+		ON p.id = a.provider_id AND p.enabled AND p.roles_claim IS NOT NULL`
 
-const instanceProviderAdminSelect = `SELECT a.user_id, a.provider_id, p.slug, a.matched_value, a.evaluated_at
-	FROM instance_provider_admins a
-	JOIN instance_auth_providers p ON p.id = a.provider_id AND p.enabled`
+const instanceProviderAdminIsAdmin = `SELECT EXISTS (SELECT 1 ` + liveProviderAdmins + ` WHERE a.user_id = $1)`
+
+const instanceProviderAdminSelect = `SELECT a.user_id, a.provider_id, p.slug, a.matched_value, a.evaluated_at ` +
+	liveProviderAdmins
 
 const instanceProviderAdminList = instanceProviderAdminSelect +
 	` ORDER BY p.sort_order, p.slug, a.evaluated_at, a.user_id`
@@ -95,7 +98,8 @@ func (r *InstanceProviderAdminRepository) DeleteByProvider(ctx context.Context, 
 		instanceProviderAdminDeleteByProvider, providerID)
 }
 
-// IsProviderAdmin reports whether userID holds a row of an enabled provider.
+// IsProviderAdmin reports whether userID holds a row of an enabled, mapped
+// provider.
 func (r *InstanceProviderAdminRepository) IsProviderAdmin(ctx context.Context, userID string) (bool, error) {
 	var isAdmin bool
 	if err := r.db.QueryRowContext(ctx, instanceProviderAdminIsAdmin, userID).Scan(&isAdmin); err != nil {
@@ -104,13 +108,13 @@ func (r *InstanceProviderAdminRepository) IsProviderAdmin(ctx context.Context, u
 	return isAdmin, nil
 }
 
-// List returns the rows of the enabled providers.
+// List returns the rows of the enabled, mapped providers.
 func (r *InstanceProviderAdminRepository) List(ctx context.Context) ([]*models.InstanceProviderAdmin, error) {
 	return queryAdminRows(ctx, r.db, "provider-sourced instance admins", scanInstanceProviderAdmin,
 		instanceProviderAdminList)
 }
 
-// ListByUser returns userID's rows of the enabled providers.
+// ListByUser returns userID's rows of the enabled, mapped providers.
 func (r *InstanceProviderAdminRepository) ListByUser(
 	ctx context.Context, userID string,
 ) ([]*models.InstanceProviderAdmin, error) {

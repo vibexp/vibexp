@@ -360,30 +360,48 @@ func (s *InstanceAuthSettingsService) UpdateProvider(
 	if err = s.guardOwnAdminStatus(ctx, actorUserID, existing, &next, req.Lockout); err != nil {
 		return nil, err
 	}
-	if existing.RolesClaim != nil && next.RolesClaim == nil {
-		if err = s.removeProviderAdmins(ctx, existing, ProviderAdminDemotedMappingCleared); err != nil {
-			return nil, err
-		}
-	}
 
 	if err = s.deps.Providers.Update(ctx, &next, optionalActor(actorUserID), &version); err != nil {
 		return nil, fmt.Errorf("failed to update the auth provider: %w", err)
 	}
+	if existing.RolesClaim != nil && next.RolesClaim == nil {
+		s.removeProviderAdmins(ctx, existing)
+	}
 	return s.saved(ctx, &next, version), nil
 }
 
-// removeProviderAdmins removes the provider-sourced admins of provider before
-// its mapping is cleared or the provider deleted (#1644). It runs before that
-// write so a write that then fails leaves a mapping still in place, which
-// re-promotes its admins at their next sign-in; the reverse order could leave
-// admins behind a mapping that no longer exists.
-func (s *InstanceAuthSettingsService) removeProviderAdmins(
-	ctx context.Context, provider *models.InstanceAuthProvider, reason string,
-) error {
-	if err := s.deps.Admins.RemoveProviderAdmins(ctx, provider.ID, provider.Slug, reason); err != nil {
-		return fmt.Errorf("failed to remove the provider's instance admins: %w", err)
+// removeProviderAdmins removes the provider-sourced admins of provider once
+// its mapping has been cleared (#1644), auditing each demotion. It runs after
+// the write, so only a demotion that happened is audited. Their admin status
+// already ended with the write, because a row grants admin only while its
+// provider has a mapping, so a failure here leaves inert rows behind: it is
+// logged, not returned for a change that has been saved.
+func (s *InstanceAuthSettingsService) removeProviderAdmins(ctx context.Context, provider *models.InstanceAuthProvider) {
+	err := s.deps.Admins.RemoveProviderAdmins(ctx, provider.ID, provider.Slug, ProviderAdminDemotedMappingCleared)
+	if err != nil {
+		s.deps.Logger.Error("Failed to remove the instance admins of a cleared role mapping",
+			"provider", provider.Slug, "error", err)
 	}
-	return nil
+}
+
+// providerAdminIDs returns the users provider's role mapping currently makes
+// admins, read before the provider is deleted, since the cascade removes their
+// rows silently.
+func (s *InstanceAuthSettingsService) providerAdminIDs(ctx context.Context, providerID string) ([]string, error) {
+	if s.deps.ProviderAdmins == nil {
+		return nil, nil
+	}
+	rows, err := s.deps.ProviderAdmins.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the provider's instance admins: %w", err)
+	}
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if row.ProviderID == providerID {
+			ids = append(ids, row.UserID)
+		}
+	}
+	return ids, nil
 }
 
 // guardOwnAdminStatus refuses, unless confirmed, a change to current that
@@ -483,20 +501,21 @@ func (s *InstanceAuthSettingsService) DeleteProvider(
 	if err != nil {
 		return err
 	}
-	if err := s.guardProviderChange(ctx, rows, id, false, req.Lockout); err != nil {
+	if err = s.guardProviderChange(ctx, rows, id, false, req.Lockout); err != nil {
 		return err
 	}
-	if err := s.guardOwnAdminStatus(ctx, actorUserID, existing, nil, req.Lockout); err != nil {
+	if err = s.guardOwnAdminStatus(ctx, actorUserID, existing, nil, req.Lockout); err != nil {
 		return err
 	}
-	// The cascade would remove the rows too, but silently: removing them here
-	// audits each demotion.
-	if err := s.removeProviderAdmins(ctx, existing, ProviderAdminDemotedProviderDeleted); err != nil {
+	demoted, err := s.providerAdminIDs(ctx, id)
+	if err != nil {
 		return err
 	}
-	if err := s.deps.Providers.Delete(ctx, id, optionalActor(actorUserID), &version); err != nil {
+	if err = s.deps.Providers.Delete(ctx, id, optionalActor(actorUserID), &version); err != nil {
 		return fmt.Errorf("failed to delete the auth provider: %w", err)
 	}
+	// The delete cascaded to the provider's admin rows; audit each demotion.
+	s.deps.Admins.RecordProviderAdminDemotions(ctx, existing.Slug, ProviderAdminDemotedProviderDeleted, demoted)
 	return nil
 }
 

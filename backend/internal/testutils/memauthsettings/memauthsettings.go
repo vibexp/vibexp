@@ -605,8 +605,8 @@ func (r providerAdminRepo) ListByUser(_ context.Context, userID string) ([]*mode
 	return r.enabledRows(func(a *models.InstanceProviderAdmin) bool { return a.UserID == userID })
 }
 
-// enabledRows returns copies of the rows of enabled providers that keep
-// accepts, with the provider slug filled in.
+// enabledRows returns copies of the rows of enabled, mapped providers that
+// keep accepts, with the provider slug filled in.
 func (r providerAdminRepo) enabledRows(
 	keep func(*models.InstanceProviderAdmin) bool,
 ) ([]*models.InstanceProviderAdmin, error) {
@@ -618,7 +618,9 @@ func (r providerAdminRepo) enabledRows(
 	out := make([]*models.InstanceProviderAdmin, 0)
 	for _, a := range r.s.providerAdmins {
 		idx := slices.IndexFunc(r.s.providers,
-			func(p *models.InstanceAuthProvider) bool { return p.ID == a.ProviderID && p.Enabled })
+			func(p *models.InstanceAuthProvider) bool {
+				return p.ID == a.ProviderID && p.Enabled && p.RolesClaim != nil
+			})
 		if idx < 0 || !keep(a) {
 			continue
 		}

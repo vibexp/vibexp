@@ -2,12 +2,14 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 )
 
 // Provider-sourced admins in the auth settings (#1644): clearing a provider's
@@ -230,4 +232,71 @@ func TestInstanceAuthSettings_ListAdmins_ReportsProviderAdmins(t *testing.T) {
 	assert.Equal(t, "okta", got.ProviderSlug)
 	assert.Equal(t, "platform-admins", got.MatchedValue)
 	assert.Empty(t, list.Admins)
+}
+
+// failingProviderWrites refuses every provider update and delete.
+type failingProviderWrites struct {
+	repositories.InstanceAuthProviderRepository
+}
+
+func (failingProviderWrites) Update(context.Context, *models.InstanceAuthProvider, *string, *int64) error {
+	return errors.New("db down")
+}
+
+func (failingProviderWrites) Delete(context.Context, string, *string, *int64) error {
+	return errors.New("db down")
+}
+
+func TestInstanceAuthSettings_AFailedWriteDemotesNobody(t *testing.T) {
+	f := newAuthSettingsFixture(t)
+	p := f.mappedProvider(t, "okta")
+	f.promote(t, authSettingsMemberID, p)
+	f.svc.deps.Providers = failingProviderWrites{f.store.Providers()}
+
+	_, err := f.svc.UpdateProvider(context.Background(), authSettingsRootID, p.ID,
+		withMapping(updateOf(*p, f.store.Version()), nil, []string{}))
+	require.Error(t, err)
+	err = f.svc.DeleteProvider(context.Background(), authSettingsRootID, p.ID, models.DeleteInstanceAuthProviderRequest{})
+	require.Error(t, err)
+
+	assert.Empty(t, f.events.got, "no demotion is audited for a change that did not land")
+	assert.True(t, f.memberIsAdmin(t))
+}
+
+// TestInstanceAuthSettings_ARowWrittenAfterTheClearGrantsNothing covers a
+// sign-in that read the mapping before it was cleared and records its match
+// after: the row is inert, so the clear still ends the admin status.
+func TestInstanceAuthSettings_ARowWrittenAfterTheClearGrantsNothing(t *testing.T) {
+	f := newAuthSettingsFixture(t)
+	p := f.mappedProvider(t, "okta")
+
+	_, err := f.svc.UpdateProvider(context.Background(), authSettingsRootID, p.ID,
+		withMapping(updateOf(*p, f.store.Version()), nil, []string{}))
+	require.NoError(t, err)
+	f.promote(t, authSettingsMemberID, p)
+
+	assert.False(t, f.memberIsAdmin(t))
+	list, err := f.svc.ListAdmins(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, list.ProviderAdmins)
+}
+
+func TestInstanceAuthSettings_ClearingTheMappingLogsACleanupFailure(t *testing.T) {
+	f := newAuthSettingsFixture(t)
+	p := f.mappedProvider(t, "okta")
+	f.promote(t, authSettingsMemberID, p)
+	f.svc.deps.Admins = failingAdminRemoval{f.admins}
+
+	_, err := f.svc.UpdateProvider(context.Background(), authSettingsRootID, p.ID,
+		withMapping(updateOf(*p, f.store.Version()), nil, []string{}))
+
+	require.NoError(t, err, "the saved change is not reported as failed")
+	assert.False(t, f.memberIsAdmin(t), "the cleared mapping already ended the admin status")
+}
+
+// failingAdminRemoval fails RemoveProviderAdmins.
+type failingAdminRemoval struct{ InstanceAdminResolver }
+
+func (failingAdminRemoval) RemoveProviderAdmins(context.Context, string, string, string) error {
+	return errors.New("db down")
 }
