@@ -318,7 +318,7 @@ func TestHandleLogin_Success(t *testing.T) {
 	mockContainer.authService.On("EnabledProviders", mock.Anything).Return(providerInfos("oidc"), nil)
 	mockContainer.authService.On("GetLoginURL", mock.Anything, mock.MatchedBy(func(state string) bool {
 		return state != ""
-	}), "oidc").Return(expectedLoginURL, nil)
+	}), "oidc", freshLoginFlow()).Return(expectedLoginURL, nil)
 
 	srv := createTestAuthServer(mockContainer)
 	req := httptest.NewRequest("GET", "/api/v1/auth/login", nil)
@@ -366,7 +366,7 @@ func TestHandleCallback_Success(t *testing.T) {
 		ExpiresAt:    time.Now().Add(time.Hour),
 	}
 
-	mockContainer.authService.On("HandleCallback", mock.Anything, "test-auth-code", "oidc").
+	mockContainer.authService.On("HandleCallback", mock.Anything, "test-auth-code", "oidc", testFlow).
 		Return(expectedUser, expectedTokens, false, nil)
 	mockAuthActivityOIDC(mockContainer, expectedUser.ID)
 
@@ -434,7 +434,7 @@ func TestHandleCallback_InvalidState(t *testing.T) {
 func TestHandleCallback_OAuthFailure(t *testing.T) {
 	mockContainer := newMockAuthContainer(t)
 
-	mockContainer.authService.On("HandleCallback", mock.Anything, "invalid-code", "oidc").
+	mockContainer.authService.On("HandleCallback", mock.Anything, "invalid-code", "oidc", mock.Anything).
 		Return((*models.User)(nil), (*idp.Tokens)(nil), false, errors.New("exchange failed"))
 
 	srv := createTestAuthServer(mockContainer)
@@ -457,7 +457,7 @@ func TestHandleCallback_OAuthFailure(t *testing.T) {
 func TestHandleCallback_AccessRestricted(t *testing.T) {
 	mockContainer := newMockAuthContainer(t)
 
-	mockContainer.authService.On("HandleCallback", mock.Anything, "test-auth-code", "oidc").
+	mockContainer.authService.On("HandleCallback", mock.Anything, "test-auth-code", "oidc", testFlow).
 		Return((*models.User)(nil), (*idp.Tokens)(nil), false, services.ErrAccessRestricted)
 
 	srv := createTestAuthServer(mockContainer)
@@ -743,10 +743,20 @@ func TestFlexibleAuthMiddleware_NoAuth_Returns401(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-// Helper: builds a signed state cookie (state + provider) for the test server
+// testFlow is the PKCE verifier and nonce buildStateCookie binds to the cookie.
+var testFlow = idp.FlowParams{CodeVerifier: "test-verifier", Nonce: "test-nonce"}
+
+// freshLoginFlow matches the FlowParams handleLogin generates: a PKCE verifier
+// and a nonce, both present.
+func freshLoginFlow() any {
+	return mock.MatchedBy(func(f idp.FlowParams) bool { return f.CodeVerifier != "" && f.Nonce != "" })
+}
+
+// Helper: builds a signed state cookie (state + provider + testFlow) for the
+// test server
 func buildStateCookie(t *testing.T, srv *Server, state, provider string) *http.Cookie {
 	t.Helper()
-	signedState := srv.signState(state, provider)
+	signedState := srv.signState(state, provider, testFlow)
 	return &http.Cookie{
 		Name:  stateCookieName,
 		Value: signedState,
@@ -870,6 +880,7 @@ func TestHandleLogin_ProviderQueryParam_Allowed(t *testing.T) {
 				mock.Anything,
 				mock.MatchedBy(func(state string) bool { return state != "" }),
 				tt.provider,
+				freshLoginFlow(),
 			).Return(expectedLoginURL, nil)
 
 			srv := createTestAuthServer(mockContainer)
@@ -896,6 +907,7 @@ func TestHandleLogin_SingleProviderDefaults(t *testing.T) {
 		mock.Anything,
 		mock.MatchedBy(func(state string) bool { return state != "" }),
 		"google",
+		freshLoginFlow(),
 	).Return("https://idp.example.com/authorize?state=x", nil)
 
 	srv := createTestAuthServer(mockContainer)
@@ -931,7 +943,7 @@ func TestHandleLogin_ProviderQueryParam_Rejected(t *testing.T) {
 			srv.ServeHTTP(w, req)
 
 			assert.Equal(t, http.StatusBadRequest, w.Code)
-			mockContainer.authService.AssertNotCalled(t, "GetLoginURL", mock.Anything, mock.Anything, mock.Anything)
+			mockContainer.authService.AssertNotCalled(t, "GetLoginURL", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 		})
 	}
 }

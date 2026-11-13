@@ -20,14 +20,17 @@ type AuthServiceInterface interface {
 	// could not be resolved.
 	EnabledProviders(ctx context.Context) ([]ProviderInfo, error)
 	// GetLoginURL returns the authorization URL for the provider with slug, or
-	// an empty string when no such provider is enabled.
-	GetLoginURL(ctx context.Context, state, slug string) (string, error)
+	// an empty string when no such provider is enabled. flow carries the PKCE
+	// verifier and nonce generated for this sign-in.
+	GetLoginURL(ctx context.Context, state, slug string, flow idp.FlowParams) (string, error)
 	// HandleCallback exchanges the authorization code using the provider with
 	// slug, looks up/creates the user, and returns the user, IDP tokens, and
 	// whether the user is newly created. An unknown or disabled slug returns
 	// ErrIdentityProviderUnavailable; a failure to resolve the providers
-	// returns ErrIdentityProvidersUnresolvable.
-	HandleCallback(ctx context.Context, code, slug string) (*models.User, *idp.Tokens, bool, error)
+	// returns ErrIdentityProvidersUnresolvable. flow must be the FlowParams
+	// GetLoginURL was given; an ID token whose nonce does not match yields an
+	// error wrapping idp.ErrNonceMismatch.
+	HandleCallback(ctx context.Context, code, slug string, flow idp.FlowParams) (*models.User, *idp.Tokens, bool, error)
 	// RefreshTokens exchanges a refresh token for new access/refresh tokens
 	// using the provider with slug (the one the session was issued by).
 	RefreshTokens(ctx context.Context, provider, refreshToken string) (*idp.Tokens, error)

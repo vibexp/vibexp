@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	stderrors "errors"
@@ -12,6 +13,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"golang.org/x/oauth2"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	sesslib "github.com/vibexp/vibexp/internal/auth/session"
@@ -65,6 +68,15 @@ const (
 	// Mirrored by REGISTRATION_CLOSED_CODE in the frontend.
 	callbackErrorRegistrationClosed = "registration_closed"
 
+	// callbackFailureIDPAuthFailed is the audit/metric reason of a callback
+	// the identity provider exchange failed for.
+	callbackFailureIDPAuthFailed = "idp_auth_failed"
+
+	// callbackFailureNonceMismatch is the audit/metric reason of a callback
+	// whose ID token carried a missing or different nonce than the one sent
+	// in the authorization request (#1641).
+	callbackFailureNonceMismatch = "nonce_mismatch"
+
 	// stateCookieMaxAge is 10 minutes — enough for a human to complete the
 	// identity-provider login flow and be redirected back to the callback.
 	stateCookieMaxAge = 10 * 60 // 10 minutes in seconds
@@ -105,7 +117,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	state, err := generateRandomState()
+	state, flow, err := newLoginFlow()
 	if err != nil {
 		s.logger.With(
 			"service", serverLogServiceName,
@@ -118,16 +130,18 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authURL, urlErr := s.loginURL(r, state, provider)
+	authURL, urlErr := s.loginURL(r, state, provider, flow)
 	if urlErr != nil {
 		errors.WriteJSONError(w, r, urlErr)
 		return
 	}
 
-	// Sign the (state, provider) pair to create a tamper-evident cookie value.
-	// Binding the provider into the signature stops a caller from completing
-	// the callback under a different provider than it started with.
-	s.writeStateCookie(w, s.signState(state, provider))
+	// Sign (state, provider, verifier, nonce) into a tamper-evident cookie
+	// value. Binding the provider stops a caller from completing the callback
+	// under a different provider than it started with; the PKCE verifier and
+	// nonce ride along so the callback can prove the code and ID token belong
+	// to this browser's flow.
+	s.writeStateCookie(w, s.signState(state, provider, flow))
 
 	s.logger.With(
 		"service", serverLogServiceName,
@@ -142,8 +156,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 // loginURL returns the authorization URL of provider for state, or the APIError
 // to answer with: 503 when the providers cannot be read or the provider is
 // (no longer) enabled.
-func (s *Server) loginURL(r *http.Request, state, provider string) (string, *errors.APIError) {
-	authURL, err := s.container.AuthService().GetLoginURL(r.Context(), state, provider)
+func (s *Server) loginURL(
+	r *http.Request, state, provider string, flow idp.FlowParams,
+) (string, *errors.APIError) {
+	authURL, err := s.container.AuthService().GetLoginURL(r.Context(), state, provider, flow)
 	if err != nil {
 		s.logAuthError("handleLogin", logIdentityProvidersResolveFailed, err)
 		return "", errors.NewServiceUnavailableError(msgIdentityProvidersUnavailable)
@@ -246,8 +262,8 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate CSRF state cookie and recover the provider bound to it.
-	provider, err := s.validateStateCookie(r, stateParam)
+	// Validate CSRF state cookie and recover the provider and flow bound to it.
+	bound, err := s.validateStateCookie(r, stateParam)
 	if err != nil {
 		s.logAuthError("handleCallback", "State validation failed", err)
 		apiErr := errors.NewAuthInvalidError("Invalid or expired state parameter")
@@ -258,7 +274,8 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 	// Clear state cookie
 	s.clearStateCookie(w)
 
-	user, idpTokens, isNewUser, err := s.container.AuthService().HandleCallback(r.Context(), code, provider)
+	provider := bound.provider
+	user, idpTokens, isNewUser, err := s.container.AuthService().HandleCallback(r.Context(), code, provider, bound.flow)
 	if err != nil {
 		s.handleCallbackFailure(w, r, stateParam, provider, err)
 		return
@@ -321,11 +338,17 @@ func (s *Server) handleCallbackFailure(w http.ResponseWriter, r *http.Request, s
 		"state", state,
 	).Error("Failed to handle OAuth callback")
 
+	// An ID token not bound to this flow's nonce (replayed or injected) gets
+	// the same response as any other IdP failure, but its own audit reason.
+	reason := callbackFailureIDPAuthFailed
+	if stderrors.Is(err, idp.ErrNonceMismatch) {
+		reason = callbackFailureNonceMismatch
+	}
 	if s.metrics != nil {
-		s.metrics.RecordUserLoginFailed(r.Context(), "idp_auth_failed")
+		s.metrics.RecordUserLoginFailed(r.Context(), reason)
 	}
 	s.auditLoginFailed(r.Context(), auditLoginFailure{
-		method: auditAuthMethodOIDC, provider: provider, reason: "idp_auth_failed",
+		method: auditAuthMethodOIDC, provider: provider, reason: reason,
 	})
 
 	apiErr := errors.NewIDPAuthError("Identity provider authentication failed")
@@ -754,15 +777,45 @@ func generateRandomState() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// signState binds the CSRF state and the chosen provider into a single
-// tamper-evident cookie value of the form "<state>:<provider>.<signature>".
-// The signature is an HMAC-SHA256 over the "<state>:<provider>" payload, so
-// neither the state nor the provider can be altered without detection. The
-// signing key is derived from the session manager's master key with a
-// domain-separation tag, ensuring it is independent of the AES-GCM
+// newLoginFlow generates the per-sign-in secrets: the CSRF state, a PKCE code
+// verifier (RFC 7636, 32 random bytes) and an OIDC nonce (32 random bytes,
+// unpadded base64url). None of them contains ':' or '.', the separators of
+// the signed state cookie.
+func newLoginFlow() (string, idp.FlowParams, error) {
+	state, err := generateRandomState()
+	if err != nil {
+		return "", idp.FlowParams{}, err
+	}
+	nonce := make([]byte, 32)
+	if _, err := rand.Read(nonce); err != nil {
+		return "", idp.FlowParams{}, err
+	}
+	return state, idp.FlowParams{
+		CodeVerifier: oauth2.GenerateVerifier(),
+		Nonce:        base64.RawURLEncoding.EncodeToString(nonce),
+	}, nil
+}
+
+// boundFlow is what a valid state cookie carries back to the callback: the
+// provider the flow started with and its PKCE verifier and nonce.
+type boundFlow struct {
+	provider string
+	flow     idp.FlowParams
+}
+
+// stateCookieFields is the number of ':'-separated fields in the signed
+// payload: state, provider, code verifier, nonce.
+const stateCookieFields = 4
+
+// signState binds the CSRF state, the chosen provider and the flow's PKCE
+// verifier and nonce into a single tamper-evident cookie value of the form
+// "<state>:<provider>:<verifier>:<nonce>.<signature>". The signature is an
+// HMAC-SHA256 over that payload, so none of the fields can be altered without
+// detection. The signing key is derived from the session manager's master key
+// with a domain-separation tag, ensuring it is independent of the AES-GCM
 // session-encryption key (per NIST SP 800-108 key-separation guidance).
-func (s *Server) signState(state, provider string) string {
-	payload := state + ":" + provider
+func (s *Server) signState(state, provider string, flow idp.FlowParams) string {
+	payload := strings.Join([]string{state, provider, flow.CodeVerifier, flow.Nonce}, ":")
 	mac := hmac.New(sha256.New, s.stateMACKey())
 	// hmac.Hash.Write never returns an error.
 	_, _ = mac.Write([]byte(payload))
@@ -782,17 +835,18 @@ func (s *Server) stateMACKey() []byte {
 
 // validateStateCookie verifies the vx_state cookie: the HMAC signature must
 // be valid and the embedded state must equal the state echoed back by the
-// identity provider. On success it returns the provider name bound to the
-// cookie at login time.
-func (s *Server) validateStateCookie(r *http.Request, state string) (string, error) {
+// identity provider. On success it returns the provider name, PKCE verifier
+// and nonce bound to the cookie at login time. A payload that does not have
+// exactly four fields (e.g. a cookie minted before PKCE) is rejected.
+func (s *Server) validateStateCookie(r *http.Request, state string) (boundFlow, error) {
 	cookie, err := r.Cookie(stateCookieName)
 	if err != nil {
-		return "", fmt.Errorf("state cookie missing: %w", err)
+		return boundFlow{}, fmt.Errorf("state cookie missing: %w", err)
 	}
 
 	dot := strings.LastIndex(cookie.Value, ".")
 	if dot < 0 {
-		return "", fmt.Errorf("state cookie malformed")
+		return boundFlow{}, fmt.Errorf("state cookie malformed")
 	}
 	payload, gotSig := cookie.Value[:dot], cookie.Value[dot+1:]
 
@@ -801,14 +855,20 @@ func (s *Server) validateStateCookie(r *http.Request, state string) (string, err
 	_, _ = mac.Write([]byte(payload))
 	expectedSig := hex.EncodeToString(mac.Sum(nil))
 	if !hmac.Equal([]byte(gotSig), []byte(expectedSig)) {
-		return "", fmt.Errorf("state cookie signature mismatch")
+		return boundFlow{}, fmt.Errorf("state cookie signature mismatch")
 	}
 
-	gotState, provider, found := strings.Cut(payload, ":")
-	if !found || gotState != state {
-		return "", fmt.Errorf("state cookie mismatch")
+	fields := strings.Split(payload, ":")
+	if len(fields) != stateCookieFields {
+		return boundFlow{}, fmt.Errorf("state cookie malformed")
 	}
-	return provider, nil
+	if fields[0] != state {
+		return boundFlow{}, fmt.Errorf("state cookie mismatch")
+	}
+	return boundFlow{
+		provider: fields[1],
+		flow:     idp.FlowParams{CodeVerifier: fields[2], Nonce: fields[3]},
+	}, nil
 }
 
 func (s *Server) logAuthRequest(handler, description string, r *http.Request) {

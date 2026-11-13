@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -230,6 +231,7 @@ func TestAuditOIDC_Failures(t *testing.T) {
 		"unverified email":  {services.ErrEmailNotVerified, callbackErrorEmailNotVerified},
 		"registration off":  {services.ErrRegistrationClosed, callbackErrorRegistrationClosed},
 		"provider failure":  {assert.AnError, "idp_auth_failed"},
+		"nonce mismatch":    {fmt.Errorf("failed to exchange token: %w", idp.ErrNonceMismatch), "nonce_mismatch"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

@@ -84,9 +84,9 @@ func (_c *MockAuthServiceInterface_EnabledProviders_Call) RunAndReturn(run func(
 	return _c
 }
 
-// GetLoginURL provides a mock function with given fields: ctx, state, slug
-func (_m *MockAuthServiceInterface) GetLoginURL(ctx context.Context, state string, slug string) (string, error) {
-	ret := _m.Called(ctx, state, slug)
+// GetLoginURL provides a mock function with given fields: ctx, state, slug, flow
+func (_m *MockAuthServiceInterface) GetLoginURL(ctx context.Context, state string, slug string, flow idp.FlowParams) (string, error) {
+	ret := _m.Called(ctx, state, slug, flow)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetLoginURL")
@@ -94,17 +94,17 @@ func (_m *MockAuthServiceInterface) GetLoginURL(ctx context.Context, state strin
 
 	var r0 string
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) (string, error)); ok {
-		return rf(ctx, state, slug)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, idp.FlowParams) (string, error)); ok {
+		return rf(ctx, state, slug, flow)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) string); ok {
-		r0 = rf(ctx, state, slug)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, idp.FlowParams) string); ok {
+		r0 = rf(ctx, state, slug, flow)
 	} else {
 		r0 = ret.Get(0).(string)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
-		r1 = rf(ctx, state, slug)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, idp.FlowParams) error); ok {
+		r1 = rf(ctx, state, slug, flow)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -121,13 +121,14 @@ type MockAuthServiceInterface_GetLoginURL_Call struct {
 //   - ctx context.Context
 //   - state string
 //   - slug string
-func (_e *MockAuthServiceInterface_Expecter) GetLoginURL(ctx interface{}, state interface{}, slug interface{}) *MockAuthServiceInterface_GetLoginURL_Call {
-	return &MockAuthServiceInterface_GetLoginURL_Call{Call: _e.mock.On("GetLoginURL", ctx, state, slug)}
+//   - flow idp.FlowParams
+func (_e *MockAuthServiceInterface_Expecter) GetLoginURL(ctx interface{}, state interface{}, slug interface{}, flow interface{}) *MockAuthServiceInterface_GetLoginURL_Call {
+	return &MockAuthServiceInterface_GetLoginURL_Call{Call: _e.mock.On("GetLoginURL", ctx, state, slug, flow)}
 }
 
-func (_c *MockAuthServiceInterface_GetLoginURL_Call) Run(run func(ctx context.Context, state string, slug string)) *MockAuthServiceInterface_GetLoginURL_Call {
+func (_c *MockAuthServiceInterface_GetLoginURL_Call) Run(run func(ctx context.Context, state string, slug string, flow idp.FlowParams)) *MockAuthServiceInterface_GetLoginURL_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(idp.FlowParams))
 	})
 	return _c
 }
@@ -137,7 +138,7 @@ func (_c *MockAuthServiceInterface_GetLoginURL_Call) Return(_a0 string, _a1 erro
 	return _c
 }
 
-func (_c *MockAuthServiceInterface_GetLoginURL_Call) RunAndReturn(run func(context.Context, string, string) (string, error)) *MockAuthServiceInterface_GetLoginURL_Call {
+func (_c *MockAuthServiceInterface_GetLoginURL_Call) RunAndReturn(run func(context.Context, string, string, idp.FlowParams) (string, error)) *MockAuthServiceInterface_GetLoginURL_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -201,9 +202,9 @@ func (_c *MockAuthServiceInterface_GetUserByID_Call) RunAndReturn(run func(conte
 	return _c
 }
 
-// HandleCallback provides a mock function with given fields: ctx, code, slug
-func (_m *MockAuthServiceInterface) HandleCallback(ctx context.Context, code string, slug string) (*models.User, *idp.Tokens, bool, error) {
-	ret := _m.Called(ctx, code, slug)
+// HandleCallback provides a mock function with given fields: ctx, code, slug, flow
+func (_m *MockAuthServiceInterface) HandleCallback(ctx context.Context, code string, slug string, flow idp.FlowParams) (*models.User, *idp.Tokens, bool, error) {
+	ret := _m.Called(ctx, code, slug, flow)
 
 	if len(ret) == 0 {
 		panic("no return value specified for HandleCallback")
@@ -213,33 +214,33 @@ func (_m *MockAuthServiceInterface) HandleCallback(ctx context.Context, code str
 	var r1 *idp.Tokens
 	var r2 bool
 	var r3 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*models.User, *idp.Tokens, bool, error)); ok {
-		return rf(ctx, code, slug)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, idp.FlowParams) (*models.User, *idp.Tokens, bool, error)); ok {
+		return rf(ctx, code, slug, flow)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) *models.User); ok {
-		r0 = rf(ctx, code, slug)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, idp.FlowParams) *models.User); ok {
+		r0 = rf(ctx, code, slug, flow)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.User)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string) *idp.Tokens); ok {
-		r1 = rf(ctx, code, slug)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, idp.FlowParams) *idp.Tokens); ok {
+		r1 = rf(ctx, code, slug, flow)
 	} else {
 		if ret.Get(1) != nil {
 			r1 = ret.Get(1).(*idp.Tokens)
 		}
 	}
 
-	if rf, ok := ret.Get(2).(func(context.Context, string, string) bool); ok {
-		r2 = rf(ctx, code, slug)
+	if rf, ok := ret.Get(2).(func(context.Context, string, string, idp.FlowParams) bool); ok {
+		r2 = rf(ctx, code, slug, flow)
 	} else {
 		r2 = ret.Get(2).(bool)
 	}
 
-	if rf, ok := ret.Get(3).(func(context.Context, string, string) error); ok {
-		r3 = rf(ctx, code, slug)
+	if rf, ok := ret.Get(3).(func(context.Context, string, string, idp.FlowParams) error); ok {
+		r3 = rf(ctx, code, slug, flow)
 	} else {
 		r3 = ret.Error(3)
 	}
@@ -256,13 +257,14 @@ type MockAuthServiceInterface_HandleCallback_Call struct {
 //   - ctx context.Context
 //   - code string
 //   - slug string
-func (_e *MockAuthServiceInterface_Expecter) HandleCallback(ctx interface{}, code interface{}, slug interface{}) *MockAuthServiceInterface_HandleCallback_Call {
-	return &MockAuthServiceInterface_HandleCallback_Call{Call: _e.mock.On("HandleCallback", ctx, code, slug)}
+//   - flow idp.FlowParams
+func (_e *MockAuthServiceInterface_Expecter) HandleCallback(ctx interface{}, code interface{}, slug interface{}, flow interface{}) *MockAuthServiceInterface_HandleCallback_Call {
+	return &MockAuthServiceInterface_HandleCallback_Call{Call: _e.mock.On("HandleCallback", ctx, code, slug, flow)}
 }
 
-func (_c *MockAuthServiceInterface_HandleCallback_Call) Run(run func(ctx context.Context, code string, slug string)) *MockAuthServiceInterface_HandleCallback_Call {
+func (_c *MockAuthServiceInterface_HandleCallback_Call) Run(run func(ctx context.Context, code string, slug string, flow idp.FlowParams)) *MockAuthServiceInterface_HandleCallback_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(idp.FlowParams))
 	})
 	return _c
 }
@@ -272,7 +274,7 @@ func (_c *MockAuthServiceInterface_HandleCallback_Call) Return(_a0 *models.User,
 	return _c
 }
 
-func (_c *MockAuthServiceInterface_HandleCallback_Call) RunAndReturn(run func(context.Context, string, string) (*models.User, *idp.Tokens, bool, error)) *MockAuthServiceInterface_HandleCallback_Call {
+func (_c *MockAuthServiceInterface_HandleCallback_Call) RunAndReturn(run func(context.Context, string, string, idp.FlowParams) (*models.User, *idp.Tokens, bool, error)) *MockAuthServiceInterface_HandleCallback_Call {
 	_c.Call.Return(run)
 	return _c
 }

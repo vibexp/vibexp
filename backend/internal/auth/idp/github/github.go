@@ -18,6 +18,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/oauth2"
+
 	"github.com/vibexp/vibexp/internal/auth/idp"
 )
 
@@ -97,8 +99,9 @@ func (p *provider) Name() idp.ProviderName { return p.name }
 // AuthorizeURL builds the GitHub authorization-code URL. If redirectURI is
 // non-empty it overrides the configured RedirectURL. The provider hint is
 // accepted for interface compliance but unused — GitHub has a single OAuth
-// surface and does not route by connection.
-func (p *provider) AuthorizeURL(state, redirectURI, _ string) string {
+// surface and does not route by connection. A non-empty flow.CodeVerifier adds
+// its PKCE S256 challenge; flow.Nonce is ignored, as GitHub issues no ID token.
+func (p *provider) AuthorizeURL(state, redirectURI, _ string, flow idp.FlowParams) string {
 	redirect := p.redirectURL
 	if redirectURI != "" {
 		redirect = redirectURI
@@ -108,6 +111,10 @@ func (p *provider) AuthorizeURL(state, redirectURI, _ string) string {
 	q.Set("redirect_uri", redirect)
 	q.Set("scope", strings.Join(p.scopes, " "))
 	q.Set("state", state)
+	if flow.CodeVerifier != "" {
+		q.Set("code_challenge", oauth2.S256ChallengeFromVerifier(flow.CodeVerifier))
+		q.Set("code_challenge_method", "S256")
+	}
 	return authorizeURL + "?" + q.Encode()
 }
 
@@ -139,16 +146,17 @@ type githubEmail struct {
 }
 
 // ExchangeCode exchanges the authorization code for an access token, then
-// loads the user profile and verified primary email to build idp.Claims.
+// loads the user profile and verified primary email to build idp.Claims. A
+// non-empty flow.CodeVerifier is sent as the PKCE code_verifier.
 func (p *provider) ExchangeCode(
-	ctx context.Context, code, redirectURI string,
+	ctx context.Context, code, redirectURI string, flow idp.FlowParams,
 ) (*idp.Tokens, *idp.Claims, error) {
 	redirect := p.redirectURL
 	if redirectURI != "" {
 		redirect = redirectURI
 	}
 
-	accessToken, err := p.exchange(ctx, code, redirect)
+	accessToken, err := p.exchange(ctx, code, redirect, flow.CodeVerifier)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -195,13 +203,16 @@ func (p *provider) Refresh(_ context.Context, _ string) (*idp.Tokens, error) {
 	return nil, fmt.Errorf("github: token refresh is not supported")
 }
 
-func (p *provider) exchange(ctx context.Context, code, redirect string) (string, error) {
+func (p *provider) exchange(ctx context.Context, code, redirect, codeVerifier string) (string, error) {
 	form := url.Values{}
 	form.Set("client_id", p.clientID)
 	form.Set("client_secret", p.clientSecret)
 	form.Set("code", code)
 	if redirect != "" {
 		form.Set("redirect_uri", redirect)
+	}
+	if codeVerifier != "" {
+		form.Set("code_verifier", codeVerifier)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, exchangeURL, strings.NewReader(form.Encode()))

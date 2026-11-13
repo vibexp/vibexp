@@ -22,17 +22,17 @@ func (_m *MockIdentityProvider) EXPECT() *MockIdentityProvider_Expecter {
 	return &MockIdentityProvider_Expecter{mock: &_m.Mock}
 }
 
-// AuthorizeURL provides a mock function with given fields: state, redirectURI, provider
-func (_m *MockIdentityProvider) AuthorizeURL(state string, redirectURI string, provider string) string {
-	ret := _m.Called(state, redirectURI, provider)
+// AuthorizeURL provides a mock function with given fields: state, redirectURI, provider, flow
+func (_m *MockIdentityProvider) AuthorizeURL(state string, redirectURI string, provider string, flow idp.FlowParams) string {
+	ret := _m.Called(state, redirectURI, provider, flow)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AuthorizeURL")
 	}
 
 	var r0 string
-	if rf, ok := ret.Get(0).(func(string, string, string) string); ok {
-		r0 = rf(state, redirectURI, provider)
+	if rf, ok := ret.Get(0).(func(string, string, string, idp.FlowParams) string); ok {
+		r0 = rf(state, redirectURI, provider, flow)
 	} else {
 		r0 = ret.Get(0).(string)
 	}
@@ -49,13 +49,14 @@ type MockIdentityProvider_AuthorizeURL_Call struct {
 //   - state string
 //   - redirectURI string
 //   - provider string
-func (_e *MockIdentityProvider_Expecter) AuthorizeURL(state interface{}, redirectURI interface{}, provider interface{}) *MockIdentityProvider_AuthorizeURL_Call {
-	return &MockIdentityProvider_AuthorizeURL_Call{Call: _e.mock.On("AuthorizeURL", state, redirectURI, provider)}
+//   - flow idp.FlowParams
+func (_e *MockIdentityProvider_Expecter) AuthorizeURL(state interface{}, redirectURI interface{}, provider interface{}, flow interface{}) *MockIdentityProvider_AuthorizeURL_Call {
+	return &MockIdentityProvider_AuthorizeURL_Call{Call: _e.mock.On("AuthorizeURL", state, redirectURI, provider, flow)}
 }
 
-func (_c *MockIdentityProvider_AuthorizeURL_Call) Run(run func(state string, redirectURI string, provider string)) *MockIdentityProvider_AuthorizeURL_Call {
+func (_c *MockIdentityProvider_AuthorizeURL_Call) Run(run func(state string, redirectURI string, provider string, flow idp.FlowParams)) *MockIdentityProvider_AuthorizeURL_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string))
+		run(args[0].(string), args[1].(string), args[2].(string), args[3].(idp.FlowParams))
 	})
 	return _c
 }
@@ -65,14 +66,14 @@ func (_c *MockIdentityProvider_AuthorizeURL_Call) Return(_a0 string) *MockIdenti
 	return _c
 }
 
-func (_c *MockIdentityProvider_AuthorizeURL_Call) RunAndReturn(run func(string, string, string) string) *MockIdentityProvider_AuthorizeURL_Call {
+func (_c *MockIdentityProvider_AuthorizeURL_Call) RunAndReturn(run func(string, string, string, idp.FlowParams) string) *MockIdentityProvider_AuthorizeURL_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// ExchangeCode provides a mock function with given fields: ctx, code, redirectURI
-func (_m *MockIdentityProvider) ExchangeCode(ctx context.Context, code string, redirectURI string) (*idp.Tokens, *idp.Claims, error) {
-	ret := _m.Called(ctx, code, redirectURI)
+// ExchangeCode provides a mock function with given fields: ctx, code, redirectURI, flow
+func (_m *MockIdentityProvider) ExchangeCode(ctx context.Context, code string, redirectURI string, flow idp.FlowParams) (*idp.Tokens, *idp.Claims, error) {
+	ret := _m.Called(ctx, code, redirectURI, flow)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ExchangeCode")
@@ -81,27 +82,27 @@ func (_m *MockIdentityProvider) ExchangeCode(ctx context.Context, code string, r
 	var r0 *idp.Tokens
 	var r1 *idp.Claims
 	var r2 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*idp.Tokens, *idp.Claims, error)); ok {
-		return rf(ctx, code, redirectURI)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, idp.FlowParams) (*idp.Tokens, *idp.Claims, error)); ok {
+		return rf(ctx, code, redirectURI, flow)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) *idp.Tokens); ok {
-		r0 = rf(ctx, code, redirectURI)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, idp.FlowParams) *idp.Tokens); ok {
+		r0 = rf(ctx, code, redirectURI, flow)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*idp.Tokens)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string) *idp.Claims); ok {
-		r1 = rf(ctx, code, redirectURI)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, idp.FlowParams) *idp.Claims); ok {
+		r1 = rf(ctx, code, redirectURI, flow)
 	} else {
 		if ret.Get(1) != nil {
 			r1 = ret.Get(1).(*idp.Claims)
 		}
 	}
 
-	if rf, ok := ret.Get(2).(func(context.Context, string, string) error); ok {
-		r2 = rf(ctx, code, redirectURI)
+	if rf, ok := ret.Get(2).(func(context.Context, string, string, idp.FlowParams) error); ok {
+		r2 = rf(ctx, code, redirectURI, flow)
 	} else {
 		r2 = ret.Error(2)
 	}
@@ -118,13 +119,14 @@ type MockIdentityProvider_ExchangeCode_Call struct {
 //   - ctx context.Context
 //   - code string
 //   - redirectURI string
-func (_e *MockIdentityProvider_Expecter) ExchangeCode(ctx interface{}, code interface{}, redirectURI interface{}) *MockIdentityProvider_ExchangeCode_Call {
-	return &MockIdentityProvider_ExchangeCode_Call{Call: _e.mock.On("ExchangeCode", ctx, code, redirectURI)}
+//   - flow idp.FlowParams
+func (_e *MockIdentityProvider_Expecter) ExchangeCode(ctx interface{}, code interface{}, redirectURI interface{}, flow interface{}) *MockIdentityProvider_ExchangeCode_Call {
+	return &MockIdentityProvider_ExchangeCode_Call{Call: _e.mock.On("ExchangeCode", ctx, code, redirectURI, flow)}
 }
 
-func (_c *MockIdentityProvider_ExchangeCode_Call) Run(run func(ctx context.Context, code string, redirectURI string)) *MockIdentityProvider_ExchangeCode_Call {
+func (_c *MockIdentityProvider_ExchangeCode_Call) Run(run func(ctx context.Context, code string, redirectURI string, flow idp.FlowParams)) *MockIdentityProvider_ExchangeCode_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(idp.FlowParams))
 	})
 	return _c
 }
@@ -134,7 +136,7 @@ func (_c *MockIdentityProvider_ExchangeCode_Call) Return(_a0 *idp.Tokens, _a1 *i
 	return _c
 }
 
-func (_c *MockIdentityProvider_ExchangeCode_Call) RunAndReturn(run func(context.Context, string, string) (*idp.Tokens, *idp.Claims, error)) *MockIdentityProvider_ExchangeCode_Call {
+func (_c *MockIdentityProvider_ExchangeCode_Call) RunAndReturn(run func(context.Context, string, string, idp.FlowParams) (*idp.Tokens, *idp.Claims, error)) *MockIdentityProvider_ExchangeCode_Call {
 	_c.Call.Return(run)
 	return _c
 }

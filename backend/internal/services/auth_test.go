@@ -305,10 +305,12 @@ func TestAuthService_GetLoginURL(t *testing.T) {
 	expectedURL := "https://idp.example.com/authorize?state=test-state&client_id=" + testOAuthClientID
 	// The registry keys the mock under "oidc"; GetLoginURL resolves it and
 	// forwards the provider name to AuthorizeURL. The redirect override is empty
-	// so the provider uses its own configured redirect URI.
-	mockIDP.On("AuthorizeURL", "test-state", "", "oidc").Return(expectedURL)
+	// so the provider uses its own configured redirect URI. The flow's PKCE
+	// verifier and nonce are forwarded unchanged.
+	flow := idp.FlowParams{CodeVerifier: "verifier-1", Nonce: "nonce-1"}
+	mockIDP.On("AuthorizeURL", "test-state", "", "oidc", flow).Return(expectedURL)
 
-	url, err := service.GetLoginURL(context.Background(), "test-state", "oidc")
+	url, err := service.GetLoginURL(context.Background(), "test-state", "oidc", flow)
 	require.NoError(t, err)
 	assert.NotEmpty(t, url)
 	assert.Equal(t, expectedURL, url)
@@ -323,10 +325,10 @@ func TestAuthService_GetLoginURL_UnknownProvider_ReturnsEmpty(t *testing.T) {
 
 	// "github" is not in the registry (only "oidc" is) → empty URL, and
 	// AuthorizeURL is never called.
-	got, err := service.GetLoginURL(context.Background(), "some-state", "github")
+	got, err := service.GetLoginURL(context.Background(), "some-state", "github", idp.FlowParams{})
 	require.NoError(t, err)
 	assert.Empty(t, got)
-	mockIDP.AssertNotCalled(t, "AuthorizeURL", mock.Anything, mock.Anything, mock.Anything)
+	mockIDP.AssertNotCalled(t, "AuthorizeURL", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestAuthService_EnabledProviders(t *testing.T) {
@@ -387,6 +389,8 @@ func TestAuthService_HandleCallback(t *testing.T) {
 	}
 	testClaims := createTestClaims()
 	testProvider := string(idp.ProviderOIDC)
+	// The flow is forwarded to ExchangeCode unchanged.
+	testFlow := idp.FlowParams{CodeVerifier: "verifier-1", Nonce: "nonce-1"}
 
 	tests := []struct {
 		name           string
@@ -402,7 +406,7 @@ func TestAuthService_HandleCallback(t *testing.T) {
 			allowedEmails: []string{"test@example.com"},
 			setupMocks: func(mockRepo *repo_mocks.MockUserRepository, mockIDP *idpmocks.MockIdentityProvider) {
 				mockIDP.On("Name").Return(idp.ProviderOIDC)
-				mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "").
+				mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "", testFlow).
 					Return(testTokens, testClaims, nil)
 
 				mockRepo.On("GetByIDPSubject", context.Background(), testProvider, "oidc-sub-123").
@@ -450,7 +454,7 @@ func TestAuthService_HandleCallback(t *testing.T) {
 				}
 
 				mockIDP.On("Name").Return(idp.ProviderOIDC)
-				mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "").
+				mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "", mock.Anything).
 					Return(testTokens, testClaims, nil)
 
 				mockRepo.On("GetByIDPSubject", context.Background(), testProvider, "oidc-sub-123").
@@ -474,7 +478,7 @@ func TestAuthService_HandleCallback(t *testing.T) {
 			code:          "invalid-code",
 			allowedEmails: []string{"test@example.com"},
 			setupMocks: func(mockRepo *repo_mocks.MockUserRepository, mockIDP *idpmocks.MockIdentityProvider) {
-				mockIDP.On("ExchangeCode", context.Background(), "invalid-code", "").
+				mockIDP.On("ExchangeCode", context.Background(), "invalid-code", "", mock.Anything).
 					Return(nil, nil, fmt.Errorf("invalid authorization code"))
 			},
 			expectError: true,
@@ -485,7 +489,7 @@ func TestAuthService_HandleCallback(t *testing.T) {
 			allowedEmails: []string{"test@example.com"},
 			setupMocks: func(mockRepo *repo_mocks.MockUserRepository, mockIDP *idpmocks.MockIdentityProvider) {
 				mockIDP.On("Name").Return(idp.ProviderOIDC)
-				mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "").
+				mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "", mock.Anything).
 					Return(testTokens, testClaims, nil)
 
 				mockRepo.On("GetByIDPSubject", context.Background(), testProvider, "oidc-sub-123").
@@ -507,7 +511,7 @@ func TestAuthService_HandleCallback(t *testing.T) {
 			tt.setupMocks(mockRepo, mockIDP)
 
 			ctx := context.Background()
-			user, tokens, _, err := service.HandleCallback(ctx, tt.code, string(idp.ProviderOIDC))
+			user, tokens, _, err := service.HandleCallback(ctx, tt.code, string(idp.ProviderOIDC), testFlow)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -542,12 +546,12 @@ func TestAuthService_HandleCallback_AccessRestricted(t *testing.T) {
 		ExpiresAt:    time.Now().Add(time.Hour),
 	}
 	mockIDP.On("Name").Return(idp.ProviderOIDC)
-	mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "").
+	mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "", mock.Anything).
 		Return(testTokens, createTestClaims(), nil)
 	noAccountYet(mockRepo)
 
 	user, tokens, isNewUser, err := service.HandleCallback(
-		context.Background(), "test-auth-code", string(idp.ProviderOIDC))
+		context.Background(), "test-auth-code", string(idp.ProviderOIDC), idp.FlowParams{})
 
 	assert.ErrorIs(t, err, ErrAccessRestricted)
 	assert.Equal(t, ErrAccessRestricted, err, "a denial is returned as is, not wrapped as a failure")
@@ -610,7 +614,7 @@ func TestAuthService_HandleCallback_EmailVerifiedWithAllowlist(t *testing.T) {
 				ExpiresAt:    time.Now().Add(time.Hour),
 			}
 			mockIDP.On("Name").Return(idp.ProviderOIDC)
-			mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "").
+			mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "", mock.Anything).
 				Return(testTokens, claims, nil)
 
 			if tt.expectDenied {
@@ -623,7 +627,7 @@ func TestAuthService_HandleCallback_EmailVerifiedWithAllowlist(t *testing.T) {
 			}
 
 			user, _, _, err := service.HandleCallback(
-				context.Background(), "test-auth-code", string(idp.ProviderOIDC))
+				context.Background(), "test-auth-code", string(idp.ProviderOIDC), idp.FlowParams{})
 
 			if tt.expectDenied {
 				assert.ErrorIs(t, err, ErrAccessRestricted, tt.rationale)
@@ -678,12 +682,12 @@ func TestAuthService_HandleCallback_DenialLogsDistinctReason(t *testing.T) {
 			claims.EmailVerified = tt.emailVerified
 
 			mockIDP.On("Name").Return(idp.ProviderOIDC)
-			mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "").
+			mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "", mock.Anything).
 				Return(&idp.Tokens{AccessToken: "test-access-token"}, claims, nil)
 			noAccountYet(mockRepo)
 
 			_, _, _, err := service.HandleCallback(
-				context.Background(), "test-auth-code", string(idp.ProviderOIDC))
+				context.Background(), "test-auth-code", string(idp.ProviderOIDC), idp.FlowParams{})
 
 			require.ErrorIs(t, err, ErrAccessRestricted)
 			assert.Equal(t, tt.expectedReason, denialReason(t, recorder))
@@ -1042,9 +1046,9 @@ func TestAuthService_ResolverFailureIsUnresolvable(t *testing.T) {
 
 	_, err := svc.EnabledProviders(ctx)
 	assert.ErrorIs(t, err, ErrIdentityProvidersUnresolvable)
-	_, err = svc.GetLoginURL(ctx, "s", "corp-sso")
+	_, err = svc.GetLoginURL(ctx, "s", "corp-sso", idp.FlowParams{})
 	assert.ErrorIs(t, err, ErrIdentityProvidersUnresolvable)
-	_, _, _, err = svc.HandleCallback(ctx, "code", "corp-sso")
+	_, _, _, err = svc.HandleCallback(ctx, "code", "corp-sso", idp.FlowParams{})
 	assert.ErrorIs(t, err, ErrIdentityProvidersUnresolvable)
 	_, err = svc.RefreshTokens(ctx, "corp-sso", "tok")
 	assert.ErrorIs(t, err, ErrIdentityProvidersUnresolvable)
@@ -1055,11 +1059,11 @@ func TestAuthService_UnknownSlugIsUnavailable(t *testing.T) {
 	svc := newResolverAuthService(&repo_mocks.MockUserRepository{}, staticIDPResolver{reg: idp.NewRegistry(p)})
 	ctx := context.Background()
 
-	_, _, _, err := svc.HandleCallback(ctx, "code", "partner-sso")
+	_, _, _, err := svc.HandleCallback(ctx, "code", "partner-sso", idp.FlowParams{})
 	assert.ErrorIs(t, err, ErrIdentityProviderUnavailable)
 	_, err = svc.RefreshTokens(ctx, "partner-sso", "tok")
 	assert.ErrorIs(t, err, ErrIdentityProviderUnavailable)
-	p.AssertNotCalled(t, "ExchangeCode", mock.Anything, mock.Anything, mock.Anything)
+	p.AssertNotCalled(t, "ExchangeCode", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 // TestAuthService_HandleCallback_PersistsSlug covers multi-OIDC identity: the
@@ -1070,7 +1074,7 @@ func TestAuthService_HandleCallback_PersistsSlug(t *testing.T) {
 	for _, slug := range []string{"corp-sso", "google"} {
 		t.Run(slug, func(t *testing.T) {
 			p := slugProvider(slug)
-			p.On("ExchangeCode", mock.Anything, "code", "").Return(&idp.Tokens{AccessToken: "a"}, claims, nil)
+			p.On("ExchangeCode", mock.Anything, "code", "", mock.Anything).Return(&idp.Tokens{AccessToken: "a"}, claims, nil)
 			repo := &repo_mocks.MockUserRepository{}
 			repo.On("GetByIDPSubject", mock.Anything, slug, "sub-1").Return(nil, repositories.ErrUserNotFound)
 			repo.On("GetByEmail", mock.Anything, mock.Anything).Return(nil, repositories.ErrUserNotFound).Maybe()
@@ -1080,7 +1084,7 @@ func TestAuthService_HandleCallback_PersistsSlug(t *testing.T) {
 			reg := idp.NewRegistryFromEntries(idp.Entry{Provider: p, Type: idp.ProviderOIDC, DisplayName: "SSO"})
 			svc := newResolverAuthService(repo, staticIDPResolver{reg: reg})
 
-			user, _, isNew, err := svc.HandleCallback(context.Background(), "code", slug)
+			user, _, isNew, err := svc.HandleCallback(context.Background(), "code", slug, idp.FlowParams{})
 			require.NoError(t, err)
 			assert.True(t, isNew)
 			assert.Equal(t, slug, *user.IDPProvider)
@@ -1096,7 +1100,7 @@ func TestAuthService_HandleCallback_PersistsSlug(t *testing.T) {
 func TestAuthService_HandleCallback_GoogleTypeKeepsLegacyFallback(t *testing.T) {
 	claims := &idp.Claims{Subject: "g-1", Email: "g@example.com", EmailVerified: true}
 	p := slugProvider("google-workspace")
-	p.On("ExchangeCode", mock.Anything, "code", "").Return(&idp.Tokens{AccessToken: "a"}, claims, nil)
+	p.On("ExchangeCode", mock.Anything, "code", "", mock.Anything).Return(&idp.Tokens{AccessToken: "a"}, claims, nil)
 	repo := &repo_mocks.MockUserRepository{}
 	repo.On("GetByIDPSubject", mock.Anything, "google-workspace", "g-1").Return(nil, repositories.ErrUserNotFound)
 	repo.On("GetByEmail", mock.Anything, mock.Anything).Return(nil, repositories.ErrUserNotFound).Maybe()
@@ -1108,7 +1112,7 @@ func TestAuthService_HandleCallback_GoogleTypeKeepsLegacyFallback(t *testing.T) 
 	reg := idp.NewRegistryFromEntries(idp.Entry{Provider: p, Type: idp.ProviderGoogle, DisplayName: "Google"})
 	svc := newResolverAuthService(repo, staticIDPResolver{reg: reg})
 
-	_, _, _, err := svc.HandleCallback(context.Background(), "code", "google-workspace")
+	_, _, _, err := svc.HandleCallback(context.Background(), "code", "google-workspace", idp.FlowParams{})
 	require.NoError(t, err)
 	repo.AssertExpectations(t)
 }
@@ -1804,13 +1808,13 @@ func TestAuthService_HandleCallback_EmailNotVerifiedIsNotLoggedAsAnError(t *test
 	ctx := context.Background()
 	claims := &idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: false}
 	mockIDP := &idpmocks.MockIdentityProvider{}
-	mockIDP.On("ExchangeCode", ctx, "code", "").Return(&idp.Tokens{AccessToken: "a"}, claims, nil)
+	mockIDP.On("ExchangeCode", ctx, "code", "", mock.Anything).Return(&idp.Tokens{AccessToken: "a"}, claims, nil)
 	users := &repo_mocks.MockUserRepository{}
 	users.On("GetByIDPSubject", ctx, string(idp.ProviderOIDC), "sub-new").Return(nil, repositories.ErrUserNotFound)
 	users.On("GetByEmail", ctx, "ada@example.com").Return(&models.User{ID: "user-1", Email: "ada@example.com"}, nil)
 	service, recorder := createTestAuthServiceWithRecorder(users, mockIDP, nil)
 
-	user, tokens, isNew, err := service.HandleCallback(ctx, "code", string(idp.ProviderOIDC))
+	user, tokens, isNew, err := service.HandleCallback(ctx, "code", string(idp.ProviderOIDC), idp.FlowParams{})
 
 	require.ErrorIs(t, err, ErrEmailNotVerified)
 	assert.Equal(t, ErrEmailNotVerified, err, "returned as is, not wrapped as a failure")

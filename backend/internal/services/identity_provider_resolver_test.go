@@ -233,7 +233,7 @@ func TestIDPResolver_AddAndDisableTakeEffectOnNextResolve(t *testing.T) {
 	assert.Equal(t, []string{"github", "corp-sso"}, slugs(reg), "the new provider appears, in sort order")
 	e, _ := reg.Entry("github")
 	assert.Equal(t, idp.ProviderGitHub, e.Type)
-	assert.Contains(t, e.Provider.AuthorizeURL("s", "", ""), "redirect_uri="+url.QueryEscape(idpTestCallbackURL),
+	assert.Contains(t, e.Provider.AuthorizeURL("s", "", "", idp.FlowParams{}), "redirect_uri="+url.QueryEscape(idpTestCallbackURL),
 		"providers are built with the derived callback URL")
 
 	// Disable the OIDC one.
