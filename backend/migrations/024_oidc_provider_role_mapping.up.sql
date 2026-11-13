@@ -7,7 +7,8 @@
 -- is off, which is what every existing provider reads back as.
 --
 -- Storage only: nothing evaluates the mapping yet (#1644), so sign-in
--- behaviour is unchanged. The checks mirror services.ValidateInstanceAuthRoleMapping;
+-- behaviour is unchanged. The checks mirror services.validateInstanceAuthRoleMapping
+-- (internal/services/instance_auth_settings_validation.go);
 -- change both together.
 
 ALTER TABLE instance_auth_providers

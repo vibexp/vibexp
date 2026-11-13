@@ -289,8 +289,12 @@ func (s *InstanceAuthSettingsService) CreateProvider(
 		ClientID:    strings.TrimSpace(req.ClientID),
 		IssuerURL:   trimmedOrNil(req.IssuerURL),
 	}
-	row.RolesClaim, row.AdminValues = NormalizeInstanceAuthRoleMapping(req.RolesClaim, req.AdminValues)
-	if err := ValidateInstanceAuthProvider(row); err != nil {
+	var err error
+	row.RolesClaim, row.AdminValues, err = NormalizeInstanceAuthRoleMapping(req.RolesClaim, req.AdminValues)
+	if err != nil {
+		return nil, err
+	}
+	if err = ValidateInstanceAuthProvider(row); err != nil {
 		return nil, err
 	}
 	encrypted, err := s.encryptClientSecret(req.ClientSecret)
@@ -361,8 +365,9 @@ func applyRoleMappingUpdate(next *models.InstanceAuthProvider, rolesClaim *strin
 		}
 		return nil
 	}
-	next.RolesClaim, next.AdminValues = NormalizeInstanceAuthRoleMapping(rolesClaim, *adminValues)
-	return nil
+	var err error
+	next.RolesClaim, next.AdminValues, err = NormalizeInstanceAuthRoleMapping(rolesClaim, *adminValues)
+	return err
 }
 
 // updatedClientSecret returns the ciphertext an update stores. A submitted

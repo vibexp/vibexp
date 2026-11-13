@@ -255,19 +255,33 @@ func TestValidateInstanceAuthProvider_RoleMapping(t *testing.T) {
 }
 
 func TestNormalizeInstanceAuthRoleMapping(t *testing.T) {
-	claim, values := services.NormalizeInstanceAuthRoleMapping(strPtr("  realm_access.roles "),
+	claim, values, err := services.NormalizeInstanceAuthRoleMapping(strPtr("  realm_access.roles "),
 		[]string{"a", "A", "a", "VibeXP Admins", "platform-admins", "VibeXP Admins"})
+	require.NoError(t, err)
 	require.NotNil(t, claim)
 	assert.Equal(t, "realm_access.roles", *claim, "the claim is trimmed")
 	assert.Equal(t, []string{"a", "A", "VibeXP Admins", "platform-admins"}, values,
 		"exact duplicates are dropped in first-occurrence order, case and spaces kept")
 
-	claim, values = services.NormalizeInstanceAuthRoleMapping(strPtr("  "), nil)
+	claim, values, err = services.NormalizeInstanceAuthRoleMapping(strPtr("  "), nil)
+	require.NoError(t, err)
 	assert.Nil(t, claim, "a blank claim turns the mapping off")
 	assert.NotNil(t, values)
 	assert.Empty(t, values)
 
-	claim, values = services.NormalizeInstanceAuthRoleMapping(nil, []string{" padded "})
+	claim, values, err = services.NormalizeInstanceAuthRoleMapping(nil, []string{" padded "})
+	require.NoError(t, err)
 	assert.Nil(t, claim)
 	assert.Equal(t, []string{" padded "}, values, "values are never trimmed; validation rejects them instead")
+
+	dupes := make([]string, 51)
+	for i := range dupes {
+		dupes[i] = "admins"
+	}
+	_, _, err = services.NormalizeInstanceAuthRoleMapping(strPtr("groups"), dupes)
+	require.ErrorIs(t, err, services.ErrInvalidInstanceAuthProvider,
+		"the cap counts the submitted list, before duplicates are dropped")
+	var fieldErr *services.SettingsFieldError
+	require.ErrorAs(t, err, &fieldErr)
+	assert.Equal(t, []string{"admin_values"}, fieldErr.Fields)
 }

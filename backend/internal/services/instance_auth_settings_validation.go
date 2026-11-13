@@ -80,7 +80,9 @@ func ValidateInstanceAuthProvider(p models.InstanceAuthProvider) error {
 }
 
 // Bounds of a provider's role mapping (#1643). The API spec publishes the same
-// numbers (schemas/admin.yaml); change both together.
+// numbers (schemas/admin.yaml); change both together. The entry cap is checked
+// on the submitted list, before exact duplicates are dropped, so it means what
+// the spec's maxItems says.
 const (
 	maxInstanceAuthRolesClaimLength = 255
 	maxInstanceAuthAdminValues      = 50
@@ -92,8 +94,13 @@ const (
 // (nil), and the admin values de-duplicated exactly (case-sensitive), keeping
 // the first occurrence's position. Values are never trimmed or case-folded, so
 // a stored value is byte for byte what was entered; whitespace around one is
-// rejected by validation instead. The returned slice is never nil.
-func NormalizeInstanceAuthRoleMapping(rolesClaim *string, adminValues []string) (*string, []string) {
+// rejected by validation instead. The returned slice is never nil. It fails only
+// when more values are submitted than the cap allows, counted before duplicates
+// are dropped.
+func NormalizeInstanceAuthRoleMapping(rolesClaim *string, adminValues []string) (*string, []string, error) {
+	if len(adminValues) > maxInstanceAuthAdminValues {
+		return nil, nil, tooManyInstanceAuthAdminValues(len(adminValues))
+	}
 	values := make([]string, 0, len(adminValues))
 	seen := make(map[string]struct{}, len(adminValues))
 	for _, value := range adminValues {
@@ -103,7 +110,12 @@ func NormalizeInstanceAuthRoleMapping(rolesClaim *string, adminValues []string) 
 		seen[value] = struct{}{}
 		values = append(values, value)
 	}
-	return trimmedOrNil(rolesClaim), values
+	return trimmedOrNil(rolesClaim), values, nil
+}
+
+func tooManyInstanceAuthAdminValues(n int) error {
+	return invalidInstanceAuthProvider("admin_values",
+		"admin_values must have at most %d entries, got %d", maxInstanceAuthAdminValues, n)
 }
 
 // validateInstanceAuthRoleMapping checks a normalized role mapping: only an
@@ -160,8 +172,7 @@ func validateInstanceAuthAdminValues(values []string) error {
 		return invalidInstanceAuthProvider("admin_values", "admin_values is required when roles_claim is set")
 	}
 	if len(values) > maxInstanceAuthAdminValues {
-		return invalidInstanceAuthProvider("admin_values",
-			"admin_values must have at most %d entries, got %d", maxInstanceAuthAdminValues, len(values))
+		return tooManyInstanceAuthAdminValues(len(values))
 	}
 	for _, value := range values {
 		if strings.TrimSpace(value) == "" || utf8.RuneCountInString(value) > maxInstanceAuthAdminValueLength {
