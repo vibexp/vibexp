@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/vibexp/vibexp/internal/auth/session"
@@ -39,6 +40,11 @@ const (
 	// AuthLockoutPasswordOnlyAccounts is switching password login off while
 	// accounts exist whose only sign-in method is a password.
 	AuthLockoutPasswordOnlyAccounts = "password_only_accounts"
+	// AuthLockoutOwnAdminStatus is a provider change that takes away the
+	// caller's own instance admin status when it comes only from that
+	// provider's role mapping (#1644): clearing the mapping, deleting or
+	// disabling the provider, or dropping the value the caller matched.
+	AuthLockoutOwnAdminStatus = "own_admin_status"
 )
 
 // ErrAuthLockoutRisk is returned when a provider or policy change could lock
@@ -80,6 +86,8 @@ func (e *ErrAuthLockoutRisk) reasonText(reason string) string {
 		return "this change switches off the only sign-in method that works"
 	case AuthLockoutOwnMethod:
 		return "this change switches off password sign-in, which your own session used"
+	case AuthLockoutOwnAdminStatus:
+		return "this change removes your own instance admin status, which comes only from this provider's role mapping"
 	case AuthLockoutPasswordOnlyAccounts:
 		if e.PasswordOnlyAccounts == 1 {
 			return "this change leaves 1 account, whose only sign-in method is a password, unable to sign in"
@@ -155,7 +163,8 @@ type InstanceAuthSettingsServiceInterface interface {
 	// decides who may reach it.
 	BootstrapAdminPassword(ctx context.Context, email, plaintext string) (*RootAdminPasswordResult, error)
 
-	// ListAdmins returns the root admins' emails and the DB-granted admins.
+	// ListAdmins returns the root admins' emails, the DB-granted admins and
+	// the provider-sourced admins of the enabled providers.
 	ListAdmins(ctx context.Context) (*models.InstanceAdminList, error)
 	// GrantAdmin makes an existing user an instance admin. actingUserID must be
 	// a root admin (ErrInstanceAdminNotRoot), checked before the target is
@@ -173,7 +182,10 @@ type InstanceAuthSettingsDeps struct {
 	Policies   repositories.InstanceAuthPolicyRepository
 	Versions   repositories.InstanceAuthSettingsVersionRepository
 	Grants     repositories.InstanceAdminRepository
-	Users      repositories.UserRepository
+	// ProviderAdmins holds the provider-sourced admins (#1644); nil lists none
+	// and skips the own_admin_status guard.
+	ProviderAdmins repositories.InstanceProviderAdminRepository
+	Users          repositories.UserRepository
 	// Resolver reports provider health and runs provider tests.
 	Resolver IdentityProviderResolver
 	// AllowlistResolver previews a candidate allowlist's impact.
@@ -345,11 +357,78 @@ func (s *InstanceAuthSettingsService) UpdateProvider(
 	if err = s.guardProviderChange(ctx, rows, id, next.Enabled, req.Lockout); err != nil {
 		return nil, err
 	}
+	if err = s.guardOwnAdminStatus(ctx, actorUserID, existing, &next, req.Lockout); err != nil {
+		return nil, err
+	}
+	if existing.RolesClaim != nil && next.RolesClaim == nil {
+		if err = s.removeProviderAdmins(ctx, existing, ProviderAdminDemotedMappingCleared); err != nil {
+			return nil, err
+		}
+	}
 
 	if err = s.deps.Providers.Update(ctx, &next, optionalActor(actorUserID), &version); err != nil {
 		return nil, fmt.Errorf("failed to update the auth provider: %w", err)
 	}
 	return s.saved(ctx, &next, version), nil
+}
+
+// removeProviderAdmins removes the provider-sourced admins of provider before
+// its mapping is cleared or the provider deleted (#1644). It runs before that
+// write so a write that then fails leaves a mapping still in place, which
+// re-promotes its admins at their next sign-in; the reverse order could leave
+// admins behind a mapping that no longer exists.
+func (s *InstanceAuthSettingsService) removeProviderAdmins(
+	ctx context.Context, provider *models.InstanceAuthProvider, reason string,
+) error {
+	if err := s.deps.Admins.RemoveProviderAdmins(ctx, provider.ID, provider.Slug, reason); err != nil {
+		return fmt.Errorf("failed to remove the provider's instance admins: %w", err)
+	}
+	return nil
+}
+
+// guardOwnAdminStatus refuses, unless confirmed, a change to current that
+// takes away the caller's own instance admin status (AuthLockoutOwnAdminStatus,
+// #1644). next is the provider after the change; nil for a delete. It applies
+// only when the caller holds a provider-sourced row of this provider and no
+// other source: not a verified root admin, no manual grant, no row of another
+// enabled provider. A change to admin_values is judged on the value the caller
+// last matched, though it takes effect only at their next sign-in.
+func (s *InstanceAuthSettingsService) guardOwnAdminStatus(
+	ctx context.Context, actorUserID string, current, next *models.InstanceAuthProvider,
+	caller models.InstanceAuthLockoutContext,
+) error {
+	if caller.Confirmed || actorUserID == "" || s.deps.ProviderAdmins == nil {
+		return nil
+	}
+	rows, err := s.deps.ProviderAdmins.ListByUser(ctx, actorUserID)
+	if err != nil {
+		return fmt.Errorf("failed to read the caller's provider-sourced admin status: %w", err)
+	}
+	idx := slices.IndexFunc(rows, func(r *models.InstanceProviderAdmin) bool { return r.ProviderID == current.ID })
+	if idx < 0 || len(rows) > 1 || !removesProviderAdmin(next, rows[idx].MatchedValue) {
+		return nil
+	}
+	granted, err := s.deps.Grants.IsGranted(ctx, actorUserID)
+	if err != nil {
+		return fmt.Errorf("failed to read the caller's instance admin grant: %w", err)
+	}
+	if granted {
+		return nil
+	}
+	actor, err := s.deps.Users.GetByID(ctx, actorUserID)
+	if err != nil {
+		return fmt.Errorf("failed to look up the caller: %w", err)
+	}
+	if s.deps.Admins.IsVerifiedRootAdmin(actor) {
+		return nil
+	}
+	return &ErrAuthLockoutRisk{Reason: AuthLockoutOwnAdminStatus}
+}
+
+// removesProviderAdmin reports whether the provider after a change (nil when
+// deleted) no longer makes an admin of a user who matched matchedValue.
+func removesProviderAdmin(next *models.InstanceAuthProvider, matchedValue string) bool {
+	return next == nil || !next.Enabled || next.RolesClaim == nil || !slices.Contains(next.AdminValues, matchedValue)
 }
 
 // applyRoleMappingUpdate applies an update's role mapping to next, which starts
@@ -400,11 +479,19 @@ func (s *InstanceAuthSettingsService) DeleteProvider(
 	if err != nil {
 		return err
 	}
-	rows, _, err := s.providerAmong(ctx, id)
+	rows, existing, err := s.providerAmong(ctx, id)
 	if err != nil {
 		return err
 	}
 	if err := s.guardProviderChange(ctx, rows, id, false, req.Lockout); err != nil {
+		return err
+	}
+	if err := s.guardOwnAdminStatus(ctx, actorUserID, existing, nil, req.Lockout); err != nil {
+		return err
+	}
+	// The cascade would remove the rows too, but silently: removing them here
+	// audits each demotion.
+	if err := s.removeProviderAdmins(ctx, existing, ProviderAdminDemotedProviderDeleted); err != nil {
 		return err
 	}
 	if err := s.deps.Providers.Delete(ctx, id, optionalActor(actorUserID), &version); err != nil {
@@ -767,7 +854,42 @@ func (s *InstanceAuthSettingsService) ListAdmins(ctx context.Context) (*models.I
 		}
 		admins = append(admins, instanceAdminView(grant, user))
 	}
-	return &models.InstanceAdminList{RootAdmins: s.deps.Admins.RootAdminEmails(), Admins: admins}, nil
+	providerAdmins, listErr := s.listProviderAdmins(ctx)
+	if listErr != nil {
+		return nil, listErr
+	}
+	return &models.InstanceAdminList{
+		RootAdmins: s.deps.Admins.RootAdminEmails(), Admins: admins, ProviderAdmins: providerAdmins,
+	}, nil
+}
+
+// listProviderAdmins returns the provider-sourced admins of the enabled
+// providers with the users they name. A row whose user was deleted between the
+// two reads is left out.
+func (s *InstanceAuthSettingsService) listProviderAdmins(
+	ctx context.Context,
+) ([]models.InstanceProviderAdminView, error) {
+	if s.deps.ProviderAdmins == nil {
+		return []models.InstanceProviderAdminView{}, nil
+	}
+	rows, err := s.deps.ProviderAdmins.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the provider-sourced instance admins: %w", err)
+	}
+	views := make([]models.InstanceProviderAdminView, 0, len(rows))
+	for _, row := range rows {
+		user, err := s.deps.Users.GetByID(ctx, row.UserID)
+		if errors.Is(err, repositories.ErrUserNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to look up instance admin %s: %w", row.UserID, err)
+		}
+		views = append(views, models.InstanceProviderAdminView{
+			InstanceProviderAdmin: *row, Email: user.Email, Name: user.Name,
+		})
+	}
+	return views, nil
 }
 
 func instanceAdminView(grant *models.InstanceAdminGrant, user *models.User) models.InstanceAdminView {

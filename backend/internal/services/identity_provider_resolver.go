@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -369,7 +370,20 @@ func (r *identityProviderResolver) buildRow(
 	if err != nil {
 		return idp.Entry{}, err
 	}
-	return idp.Entry{Provider: provider, Type: idp.ProviderName(row.Type), DisplayName: row.DisplayName}, nil
+	return idp.Entry{
+		Provider: provider, Type: idp.ProviderName(row.Type), DisplayName: row.DisplayName,
+		ProviderID: row.ID, RoleMapping: roleMappingOf(row),
+	}, nil
+}
+
+// roleMappingOf returns row's role mapping (#1644), or nil when it is off. Only
+// an oidc provider may carry one (a database CHECK); the type is checked here
+// too so a mapping can never reach a provider with fixed claims.
+func roleMappingOf(row *models.InstanceAuthProvider) *idp.RoleMapping {
+	if row.Type != models.InstanceAuthProviderOIDC || row.RolesClaim == nil || *row.RolesClaim == "" {
+		return nil
+	}
+	return &idp.RoleMapping{Claim: *row.RolesClaim, AdminValues: slices.Clone(row.AdminValues)}
 }
 
 // secretFor returns plaintextSecret when set, and the decrypted stored secret

@@ -2672,6 +2672,8 @@ AdminAuditOperation:
     - auth.mcp_consent.granted
     - auth.mcp_consent.denied
     - auth.mcp_grant.revoked
+    - auth.instance_admin.promoted
+    - auth.instance_admin.demoted
     - team.created
     - team.updated
     - team.deleted
@@ -2748,6 +2750,8 @@ AdminAuditOperation:
     - AdminAuditOperationAuthMCPConsentGranted
     - AdminAuditOperationAuthMCPConsentDenied
     - AdminAuditOperationAuthMCPGrantRevoked
+    - AdminAuditOperationAuthInstanceAdminPromoted
+    - AdminAuditOperationAuthInstanceAdminDemoted
     - AdminAuditOperationTeamCreated
     - AdminAuditOperationTeamUpdated
     - AdminAuditOperationTeamDeleted
@@ -4865,16 +4869,64 @@ AdminInstanceAdmin:
       type: string
       format: date-time
 
+AdminInstanceProviderAdmin:
+  type: object
+  description: |
+    One instance admin sourced from a sign-in provider's role mapping: the
+    user's last sign-in through the provider carried a claim value listed in
+    its `admin_values`. Only the mapping changes it.
+  additionalProperties: false
+  required:
+    - user_id
+    - email
+    - name
+    - provider_id
+    - provider_slug
+    - matched_value
+    - evaluated_at
+  properties:
+    user_id:
+      type: string
+      format: uuid
+    email:
+      type: string
+      example: "ada@example.com"
+    name:
+      type: string
+      nullable: true
+      description: The admin's display name, when set.
+      example: "Ada Admin"
+    provider_id:
+      type: string
+      format: uuid
+    provider_slug:
+      type: string
+      description: The slug of the sign-in provider whose role mapping made the user an admin.
+      example: "keycloak"
+    matched_value:
+      type: string
+      description: The `admin_values` entry the user's claim matched at their last sign-in.
+      example: "platform-admins"
+    evaluated_at:
+      type: string
+      format: date-time
+      description: When the mapping last made the user an admin (their last sign-in through the provider).
+
 AdminInstanceAdminList:
   type: object
   description: |
-    The instance's admins. `root_admins` are the emails named in config.yaml's
-    `auth.instance_admins`: read-only here, they cannot be granted or revoked.
-    `admins` are the users granted in the database, oldest first.
+    The instance's admins, by source. `root_admins` are the emails named in
+    config.yaml's `auth.instance_admins`: read-only here, they cannot be granted
+    or revoked. `admins` are the users granted in the database, oldest first.
+    `provider_admins` are the users made admins by an enabled sign-in
+    provider's role mapping; only the mapping changes them, so they cannot be
+    granted or revoked here either. A user may appear under more than one
+    source.
   additionalProperties: false
   required:
     - root_admins
     - admins
+    - provider_admins
   properties:
     root_admins:
       type: array
@@ -4886,6 +4938,11 @@ AdminInstanceAdminList:
       type: array
       items:
         $ref: '#/AdminInstanceAdmin'
+    provider_admins:
+      type: array
+      description: The provider-sourced admins, ordered by provider.
+      items:
+        $ref: '#/AdminInstanceProviderAdmin'
 
 AdminInstanceAdminGrant:
   type: object

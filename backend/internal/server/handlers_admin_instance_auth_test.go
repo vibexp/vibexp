@@ -277,6 +277,9 @@ type authSettingsFixture struct {
 	policyResolver    services.AuthPolicyResolver
 	allowlistResolver services.AccessAllowlistResolver
 	passwords         *servicesmocks.MockPasswordAuthServiceInterface
+	// admins is the real instance admin resolver, provider-sourced admins
+	// included (#1644).
+	admins *services.InstanceAdminService
 }
 
 // authSettingsContainer adds the setup-mode service to the admin mock
@@ -316,7 +319,9 @@ func newAuthSettingsFixture(t *testing.T) *authSettingsFixture {
 
 	f := &authSettingsFixture{store: memauthsettings.New(), users: newAuthTestUsers(), enc: enc}
 	f.resolver = &stubIDPResolver{store: f.store}
-	admins := services.NewInstanceAdminService([]string{authTestRootEmail}, f.store.Grants(), f.users, logger)
+	admins := services.NewInstanceAdminService([]string{authTestRootEmail}, f.store.Grants(), f.users, logger,
+		services.WithProviderAdmins(f.store.ProviderAdmins(), nil))
+	f.admins = admins
 	f.creds = &memCredentialCounts{users: f.users, hashes: map[string]string{}}
 	f.events = &recordingPublisher{}
 	f.wayIn = services.NewAuthWayIn(services.AuthWayInDeps{
@@ -375,6 +380,7 @@ func newAuthSettingsFixture(t *testing.T) *authSettingsFixture {
 			Policies:          f.store.Policy(),
 			Versions:          f.store.Versions(),
 			Grants:            f.store.Grants(),
+			ProviderAdmins:    f.store.ProviderAdmins(),
 			Users:             f.users,
 			Resolver:          f.resolver,
 			AllowlistResolver: allowlistResolver,
@@ -1147,7 +1153,7 @@ func TestAdminInstanceAdmins_GrantListRevoke(t *testing.T) {
 
 	rr := f.serve(t, asRoot, http.MethodGet, authAdminsPath, nil)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	assert.JSONEq(t, `{"root_admins":["`+authTestRootEmail+`"],"admins":[]}`, rr.Body.String())
+	assert.JSONEq(t, `{"root_admins":["`+authTestRootEmail+`"],"admins":[],"provider_admins":[]}`, rr.Body.String())
 
 	rr = f.serve(t, asRoot, http.MethodPost, authAdminsPath, map[string]any{"user_id": authTestDBAdminID})
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -1174,6 +1180,55 @@ func TestAdminInstanceAdmins_GrantListRevoke(t *testing.T) {
 	rr = f.serve(t, asRoot, http.MethodDelete, authAdminsPath+"/"+authTestMemberID, nil)
 	require.Equal(t, http.StatusNotFound, rr.Code, "no grant left to revoke: "+rr.Body.String())
 	assert.Len(t, f.store.AuditEntries(models.InstanceSettingInstanceAdmins), 3, "two grants and one revoke")
+}
+
+// TestAdminInstanceAdmins_ProviderSourced pins the admin API over a
+// provider-sourced admin (#1644): it is an admin (the admin routes answer it),
+// the list reports it with its provider, and a manual grant or revoke is a 409
+// naming the provider.
+func TestAdminInstanceAdmins_ProviderSourced(t *testing.T) {
+	f := newAuthSettingsFixture(t)
+	ctx := context.Background()
+	issuer, claim := authTestIssuer, "groups"
+	provider := &models.InstanceAuthProvider{
+		Type: models.InstanceAuthProviderOIDC, Slug: "keycloak", DisplayName: "Keycloak", Enabled: true,
+		ClientID: "client", IssuerURL: &issuer, RolesClaim: &claim, AdminValues: []string{"platform-admins"},
+	}
+	require.NoError(t, f.store.Providers().Create(ctx, provider, nil, nil))
+
+	rr := f.serve(t, asMember, http.MethodGet, authAdminsPath, nil)
+	require.Equal(t, http.StatusNotFound, rr.Code, "not an admin yet: "+rr.Body.String())
+
+	member, err := f.users.GetByID(ctx, authTestMemberID)
+	require.NoError(t, err)
+	matched := "platform-admins"
+	require.NoError(t, f.admins.SyncProviderAdmin(ctx, member, provider.ID, provider.Slug, &matched))
+
+	rr = f.serve(t, asMember, http.MethodGet, authAdminsPath, nil)
+	require.Equal(t, http.StatusOK, rr.Code, "a provider-sourced admin reaches the admin API: "+rr.Body.String())
+	var list admingen.AdminInstanceAdminList
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &list))
+	assert.Empty(t, list.Admins)
+	require.Len(t, list.ProviderAdmins, 1)
+	got := list.ProviderAdmins[0]
+	assert.Equal(t, authTestMemberID, got.UserId.String())
+	assert.Equal(t, authTestMemberEmail, got.Email)
+	assert.Equal(t, provider.ID, got.ProviderId.String())
+	assert.Equal(t, "keycloak", got.ProviderSlug)
+	assert.Equal(t, "platform-admins", got.MatchedValue)
+
+	for _, req := range []struct {
+		method, path string
+		body         any
+	}{
+		{http.MethodPost, authAdminsPath, map[string]any{"user_id": authTestMemberID}},
+		{http.MethodDelete, authAdminsPath + "/" + authTestMemberID, nil},
+	} {
+		rr = f.serve(t, asRoot, req.method, req.path, req.body)
+		require.Equal(t, http.StatusConflict, rr.Code, req.method+": "+rr.Body.String())
+		assert.Contains(t, rr.Body.String(), `\"keycloak\"`, "the problem names the provider")
+	}
+	assert.Empty(t, f.store.AuditEntries(models.InstanceSettingInstanceAdmins), "no grant was written")
 }
 
 func TestAdminInstanceAdmins_Rejections(t *testing.T) {

@@ -97,6 +97,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideInstanceAuthSetupRepository,
 	providers.ProvideInstanceAuthSettingsVersionRepository,
 	providers.ProvideInstanceAdminRepository,
+	providers.ProvideInstanceProviderAdminRepository,
 	providers.ProvideTeamAISummarySettingsRepository,
 	providers.ProvideMetadataCatalogRepository,
 	providers.ProvideTeamRepository,

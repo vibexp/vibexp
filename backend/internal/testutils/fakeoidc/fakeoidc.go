@@ -53,6 +53,7 @@ type Issuer struct {
 	mu            sync.Mutex
 	grants        map[string]grant
 	nonceOverride *string
+	extraClaims   map[string]any
 }
 
 // grant is what the authorization endpoint recorded for one issued code.
@@ -106,6 +107,21 @@ func (i *Issuer) SetNonceOverride(nonce string) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.nonceOverride = &nonce
+}
+
+// SetClaim makes every ID token minted from now on carry the claim name with
+// value; a nil value removes it again.
+func (i *Issuer) SetClaim(name string, value any) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.extraClaims == nil {
+		i.extraClaims = map[string]any{}
+	}
+	if value == nil {
+		delete(i.extraClaims, name)
+		return
+	}
+	i.extraClaims[name] = value
 }
 
 // Authorize runs authURL (an authorization URL pointing at a fake issuer)
@@ -242,6 +258,11 @@ func (i *Issuer) handleToken(w http.ResponseWriter, r *http.Request) {
 	if nonce != "" {
 		claims["nonce"] = nonce
 	}
+	i.mu.Lock()
+	for name, value := range i.extraClaims {
+		claims[name] = value
+	}
+	i.mu.Unlock()
 	tok := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	tok.Header["kid"] = keyID
 	signed, err := tok.SignedString(i.key)

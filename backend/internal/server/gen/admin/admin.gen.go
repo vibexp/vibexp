@@ -85,6 +85,8 @@ const (
 	AdminAuditOperationAuthAPIKeyRevoked                  AdminAuditOperation = "auth.api_key.revoked"
 	AdminAuditOperationAuthIdentityLinked                 AdminAuditOperation = "auth.identity.linked"
 	AdminAuditOperationAuthIdentityUnlinked               AdminAuditOperation = "auth.identity.unlinked"
+	AdminAuditOperationAuthInstanceAdminDemoted           AdminAuditOperation = "auth.instance_admin.demoted"
+	AdminAuditOperationAuthInstanceAdminPromoted          AdminAuditOperation = "auth.instance_admin.promoted"
 	AdminAuditOperationAuthLocalCredentialChanged         AdminAuditOperation = "auth.password.changed"
 	AdminAuditOperationAuthLocalCredentialRemoved         AdminAuditOperation = "auth.password.removed"
 	AdminAuditOperationAuthLocalCredentialResetLinkIssued AdminAuditOperation = "auth.password.reset_link_issued"
@@ -180,6 +182,10 @@ func (e AdminAuditOperation) Valid() bool {
 	case AdminAuditOperationAuthIdentityLinked:
 		return true
 	case AdminAuditOperationAuthIdentityUnlinked:
+		return true
+	case AdminAuditOperationAuthInstanceAdminDemoted:
+		return true
+	case AdminAuditOperationAuthInstanceAdminPromoted:
 		return true
 	case AdminAuditOperationAuthLocalCredentialChanged:
 		return true
@@ -2569,11 +2575,18 @@ type AdminInstanceAdminGrant struct {
 	UserId *openapi_types.UUID  `json:"user_id,omitempty"`
 }
 
-// AdminInstanceAdminList The instance's admins. `root_admins` are the emails named in config.yaml's
-// `auth.instance_admins`: read-only here, they cannot be granted or revoked.
-// `admins` are the users granted in the database, oldest first.
+// AdminInstanceAdminList The instance's admins, by source. `root_admins` are the emails named in
+// config.yaml's `auth.instance_admins`: read-only here, they cannot be granted
+// or revoked. `admins` are the users granted in the database, oldest first.
+// `provider_admins` are the users made admins by an enabled sign-in
+// provider's role mapping; only the mapping changes them, so they cannot be
+// granted or revoked here either. A user may appear under more than one
+// source.
 type AdminInstanceAdminList struct {
 	Admins []AdminInstanceAdmin `json:"admins"`
+
+	// ProviderAdmins The provider-sourced admins, ordered by provider.
+	ProviderAdmins []AdminInstanceProviderAdmin `json:"provider_admins"`
 
 	// RootAdmins The root admins' normalized emails, sorted.
 	RootAdmins []string `json:"root_admins"`
@@ -2728,6 +2741,27 @@ type AdminInstanceEmailTestRequest struct {
 
 	// Settings Per-type non-secret settings. Exactly the block matching `provider_type` may be present; a block belonging to another type is rejected rather than ignored. SendGrid has no block — its only configuration is its API key, which is the secret.
 	Settings *TeamEmailProviderSettings `json:"settings,omitempty"`
+}
+
+// AdminInstanceProviderAdmin One instance admin sourced from a sign-in provider's role mapping: the
+// user's last sign-in through the provider carried a claim value listed in
+// its `admin_values`. Only the mapping changes it.
+type AdminInstanceProviderAdmin struct {
+	Email string `json:"email"`
+
+	// EvaluatedAt When the mapping last made the user an admin (their last sign-in through the provider).
+	EvaluatedAt time.Time `json:"evaluated_at"`
+
+	// MatchedValue The `admin_values` entry the user's claim matched at their last sign-in.
+	MatchedValue string `json:"matched_value"`
+
+	// Name The admin's display name, when set.
+	Name       *string            `json:"name"`
+	ProviderId openapi_types.UUID `json:"provider_id"`
+
+	// ProviderSlug The slug of the sign-in provider whose role mapping made the user an admin.
+	ProviderSlug string             `json:"provider_slug"`
+	UserId       openapi_types.UUID `json:"user_id"`
 }
 
 // AdminInstanceSearchLimits The hard bounds the search values are validated against, for form validation.

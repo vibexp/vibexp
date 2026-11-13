@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -26,9 +27,12 @@ type Store struct {
 	allowlist *models.InstanceAuthAllowlist
 	policy    *models.InstanceAuthPolicy
 	grants    []*models.InstanceAdminGrant
-	audit     []*models.InstanceSettingsAuditEntry
-	clock     time.Time
-	nextID    int
+	// providerAdmins are the provider-sourced admins (#1644), without the
+	// provider slug, which reads fill in from providers.
+	providerAdmins []*models.InstanceProviderAdmin
+	audit          []*models.InstanceSettingsAuditEntry
+	clock          time.Time
+	nextID         int
 
 	// Outside answers the allowlist's CountUsersOutside; nil counts nobody.
 	Outside func(domains, emails, exempt []string) (count int, sample []string)
@@ -57,6 +61,12 @@ func (s *Store) Versions() repositories.InstanceAuthSettingsVersionRepository {
 
 // Grants is the store's InstanceAdminRepository.
 func (s *Store) Grants() repositories.InstanceAdminRepository { return grantRepo{s: s} }
+
+// ProviderAdmins is the store's InstanceProviderAdminRepository. Deleting a
+// provider removes its rows, as the database cascade does.
+func (s *Store) ProviderAdmins() repositories.InstanceProviderAdminRepository {
+	return providerAdminRepo{s: s}
+}
 
 // AuditLog is the store's InstanceSettingsAuditRepository.
 func (s *Store) AuditLog() repositories.InstanceSettingsAuditRepository { return auditRepo{s: s} }
@@ -298,6 +308,8 @@ func (r providerRepo) Delete(_ context.Context, id string, actor *string, expect
 			continue
 		}
 		r.s.providers = append(r.s.providers[:i], r.s.providers[i+1:]...)
+		r.s.providerAdmins = slices.DeleteFunc(r.s.providerAdmins,
+			func(a *models.InstanceProviderAdmin) bool { return a.ProviderID == id })
 		r.s.version++
 		r.s.record(models.InstanceSettingAuthProviders, models.InstanceSettingsAuditActionDelete, actor,
 			providerSnapshot(p, ""), nil)
@@ -526,6 +538,95 @@ func (r grantRepo) Revoke(_ context.Context, userID string, actor *string) error
 		return nil
 	}
 	return repositories.ErrInstanceAdminNotFound
+}
+
+// --- provider-sourced admins -------------------------------------------------
+
+type providerAdminRepo struct{ s *Store }
+
+func (r providerAdminRepo) Upsert(_ context.Context, userID, providerID, matchedValue string) (bool, error) {
+	r.s.mu.Lock()
+	defer r.s.mu.Unlock()
+	if r.s.Err != nil {
+		return false, r.s.Err
+	}
+	for _, a := range r.s.providerAdmins {
+		if a.UserID == userID && a.ProviderID == providerID {
+			a.MatchedValue, a.EvaluatedAt = matchedValue, r.s.tick()
+			return false, nil
+		}
+	}
+	r.s.providerAdmins = append(r.s.providerAdmins, &models.InstanceProviderAdmin{
+		UserID: userID, ProviderID: providerID, MatchedValue: matchedValue, EvaluatedAt: r.s.tick(),
+	})
+	return true, nil
+}
+
+func (r providerAdminRepo) Delete(_ context.Context, userID, providerID string) (bool, error) {
+	r.s.mu.Lock()
+	defer r.s.mu.Unlock()
+	if r.s.Err != nil {
+		return false, r.s.Err
+	}
+	before := len(r.s.providerAdmins)
+	r.s.providerAdmins = slices.DeleteFunc(r.s.providerAdmins, func(a *models.InstanceProviderAdmin) bool {
+		return a.UserID == userID && a.ProviderID == providerID
+	})
+	return len(r.s.providerAdmins) < before, nil
+}
+
+func (r providerAdminRepo) DeleteByProvider(_ context.Context, providerID string) ([]string, error) {
+	r.s.mu.Lock()
+	defer r.s.mu.Unlock()
+	if r.s.Err != nil {
+		return nil, r.s.Err
+	}
+	removed := make([]string, 0)
+	r.s.providerAdmins = slices.DeleteFunc(r.s.providerAdmins, func(a *models.InstanceProviderAdmin) bool {
+		if a.ProviderID != providerID {
+			return false
+		}
+		removed = append(removed, a.UserID)
+		return true
+	})
+	return removed, nil
+}
+
+func (r providerAdminRepo) IsProviderAdmin(ctx context.Context, userID string) (bool, error) {
+	rows, err := r.ListByUser(ctx, userID)
+	return len(rows) > 0, err
+}
+
+func (r providerAdminRepo) List(context.Context) ([]*models.InstanceProviderAdmin, error) {
+	return r.enabledRows(func(*models.InstanceProviderAdmin) bool { return true })
+}
+
+func (r providerAdminRepo) ListByUser(_ context.Context, userID string) ([]*models.InstanceProviderAdmin, error) {
+	return r.enabledRows(func(a *models.InstanceProviderAdmin) bool { return a.UserID == userID })
+}
+
+// enabledRows returns copies of the rows of enabled providers that keep
+// accepts, with the provider slug filled in.
+func (r providerAdminRepo) enabledRows(
+	keep func(*models.InstanceProviderAdmin) bool,
+) ([]*models.InstanceProviderAdmin, error) {
+	r.s.mu.Lock()
+	defer r.s.mu.Unlock()
+	if r.s.Err != nil {
+		return nil, r.s.Err
+	}
+	out := make([]*models.InstanceProviderAdmin, 0)
+	for _, a := range r.s.providerAdmins {
+		idx := slices.IndexFunc(r.s.providers,
+			func(p *models.InstanceAuthProvider) bool { return p.ID == a.ProviderID && p.Enabled })
+		if idx < 0 || !keep(a) {
+			continue
+		}
+		c := *a
+		c.ProviderSlug = r.s.providers[idx].Slug
+		out = append(out, &c)
+	}
+	return out, nil
 }
 
 // --- audit log ----------------------------------------------------------------

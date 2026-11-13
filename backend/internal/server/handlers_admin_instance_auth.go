@@ -406,9 +406,19 @@ func (a *adminStrictServer) ListAdminInstanceAdmins(
 		}
 		admins = append(admins, admin)
 	}
+	// make(...,0): `provider_admins` is a required array on a generated type.
+	providerAdmins := make([]admingen.AdminInstanceProviderAdmin, 0, len(list.ProviderAdmins))
+	for i := range list.ProviderAdmins {
+		admin, err := toGenAdminInstanceProviderAdmin(&list.ProviderAdmins[i])
+		if err != nil {
+			return nil, a.adminInternalError(handler, err)
+		}
+		providerAdmins = append(providerAdmins, admin)
+	}
 	return admingen.ListAdminInstanceAdmins200JSONResponse{
-		RootAdmins: nonNilStrings(list.RootAdmins),
-		Admins:     admins,
+		RootAdmins:     nonNilStrings(list.RootAdmins),
+		Admins:         admins,
+		ProviderAdmins: providerAdmins,
 	}, nil
 }
 
@@ -651,13 +661,14 @@ func (a *adminStrictServer) mapInstanceAuthError(handler, invalidMsg string, err
 }
 
 // mapInstanceAdminError turns a grant or revoke error into its HTTP shape: a
-// non-root actor is a 403, an unknown user or a missing grant a 404, a root
-// target a 409, a malformed or suspended target a 400, and anything else a
-// logged 500.
+// non-root actor is a 403, an unknown user or a missing grant a 404, a root or
+// provider-sourced target a 409, a malformed or suspended target a 400, and
+// anything else a logged 500.
 func (a *adminStrictServer) mapInstanceAdminError(handler string, err error) error {
 	var (
 		notRoot    *services.ErrInstanceAdminNotRoot
 		targetRoot *services.ErrInstanceAdminTargetIsRoot
+		sourced    *services.ErrInstanceAdminTargetIsProviderSourced
 		invalid    *services.ErrInstanceAdminTargetInvalid
 		notGranted *services.ErrInstanceAdminNotGranted
 	)
@@ -668,6 +679,8 @@ func (a *adminStrictServer) mapInstanceAdminError(handler string, err error) err
 		return apierrors.NewForbiddenError(notRoot.Error())
 	case errors.As(err, &targetRoot):
 		return adminConflictError(targetRoot.Error())
+	case errors.As(err, &sourced):
+		return adminConflictError(sourced.Error())
 	case errors.As(err, &invalid):
 		if invalid.IsUnknownUser() {
 			return apierrors.NewResourceNotFoundError("user", "")
@@ -790,5 +803,28 @@ func toGenAdminInstanceAdmin(view *models.InstanceAdminView) (admingen.AdminInst
 		Name:            optionalString(view.Name),
 		GrantedByUserId: grantedBy,
 		GrantedAt:       view.GrantedAt,
+	}, nil
+}
+
+// toGenAdminInstanceProviderAdmin maps a provider-sourced admin field by field.
+func toGenAdminInstanceProviderAdmin(
+	view *models.InstanceProviderAdminView,
+) (admingen.AdminInstanceProviderAdmin, error) {
+	userID, err := parseAdminUUID("user", view.UserID)
+	if err != nil {
+		return admingen.AdminInstanceProviderAdmin{}, err
+	}
+	providerID, err := parseAdminUUID(authProviderResource, view.ProviderID)
+	if err != nil {
+		return admingen.AdminInstanceProviderAdmin{}, err
+	}
+	return admingen.AdminInstanceProviderAdmin{
+		UserId:       userID,
+		Email:        view.Email,
+		Name:         optionalString(view.Name),
+		ProviderId:   providerID,
+		ProviderSlug: view.ProviderSlug,
+		MatchedValue: view.MatchedValue,
+		EvaluatedAt:  view.EvaluatedAt,
 	}, nil
 }

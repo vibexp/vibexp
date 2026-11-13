@@ -47,6 +47,8 @@ type AuthServiceDeps struct {
 	Audit audit.Recorder
 	// Methods records and reports disconnected identities (#1460).
 	Methods repositories.SignInMethodRepository
+	// Admins applies a provider's role mapping at sign-in (#1644).
+	Admins services.InstanceAdminResolver
 }
 
 // ProvideAuthService creates a new AuthService. An unverified account claimed
@@ -60,6 +62,7 @@ func ProvideAuthService(deps AuthServiceDeps) services.AuthServiceInterface {
 		services.WithRegistrationGate(deps.Gate),
 		services.WithAuditRecorder(deps.Audit),
 		services.WithDisconnectedIdentities(deps.Methods),
+		services.WithProviderAdminSync(deps.Admins),
 		services.WithUnverifiedAccountClaimHook(
 			services.NewUnverifiedAccountCleanup(deps.AccountTokens, deps.APIAccess, deps.Notifier, deps.Logger)))
 }
@@ -627,14 +630,18 @@ func ProvideInstanceEmailProviderService(
 }
 
 // ProvideInstanceAdminResolver creates the instance admin resolver (#1233):
-// root admins come from auth.instance_admins, DB admins from instance_admins.
+// root admins come from auth.instance_admins, DB admins from instance_admins,
+// provider-sourced admins from instance_provider_admins (#1644).
 func ProvideInstanceAdminResolver(
 	cfg *config.Config,
 	grants repositories.InstanceAdminRepository,
+	providerAdmins repositories.InstanceProviderAdminRepository,
 	userRepo repositories.UserRepository,
+	recorder audit.Recorder,
 	logger *slog.Logger,
 ) services.InstanceAdminResolver {
-	return services.NewInstanceAdminService(cfg.Auth.InstanceAdmins, grants, userRepo, logger)
+	return services.NewInstanceAdminService(cfg.Auth.InstanceAdmins, grants, userRepo, logger,
+		services.WithProviderAdmins(providerAdmins, recorder))
 }
 
 // ProvideSetupModeService creates the authentication setup-mode service
@@ -980,6 +987,7 @@ type InstanceAuthSettingsServiceDeps struct {
 	Policies          repositories.InstanceAuthPolicyRepository
 	Versions          repositories.InstanceAuthSettingsVersionRepository
 	Grants            repositories.InstanceAdminRepository
+	ProviderAdmins    repositories.InstanceProviderAdminRepository
 	UserRepo          repositories.UserRepository
 	Resolver          services.IdentityProviderResolver
 	AllowlistResolver services.AccessAllowlistResolver
@@ -1006,6 +1014,7 @@ func ProvideInstanceAuthSettingsService(
 		Policies:          deps.Policies,
 		Versions:          deps.Versions,
 		Grants:            deps.Grants,
+		ProviderAdmins:    deps.ProviderAdmins,
 		Users:             deps.UserRepo,
 		Resolver:          deps.Resolver,
 		AllowlistResolver: deps.AllowlistResolver,

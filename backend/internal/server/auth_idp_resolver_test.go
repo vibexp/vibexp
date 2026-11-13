@@ -176,8 +176,31 @@ type resolverAuthHarness struct {
 	identities *memIdentities
 	gate       *switchableGate
 	enc        services.EncryptionServiceInterface
+	// admins records each role mapping evaluation sign-in applies (#1644).
+	admins *recordingAdminSync
 	// code is the authorization code the fake issuer issued at the last login.
 	code string
+}
+
+// recordingAdminSync records the matched value (nil for no match) of every
+// role mapping evaluation, by provider id.
+type recordingAdminSync struct {
+	mu    sync.Mutex
+	calls []adminSyncCall
+}
+
+type adminSyncCall struct {
+	providerID, slug string
+	matched          *string
+}
+
+func (r *recordingAdminSync) SyncProviderAdmin(
+	_ context.Context, _ *models.User, providerID, providerSlug string, matched *string,
+) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls = append(r.calls, adminSyncCall{providerID: providerID, slug: providerSlug, matched: matched})
+	return nil
 }
 
 // switchableGate is the registration gate of the harness: open until a test
@@ -222,7 +245,7 @@ func newResolverAuthHarnessWithGate(t *testing.T, gate services.RegistrationGate
 	logger := slog.New(slog.DiscardHandler)
 	h := &resolverAuthHarness{
 		providers: &memAuthProviders{}, users: &memUsersByIDP{}, identities: &memIdentities{},
-		gate: &switchableGate{}, enc: enc,
+		gate: &switchableGate{}, enc: enc, admins: &recordingAdminSync{},
 	}
 	if gate == nil {
 		gate = h.gate
@@ -237,7 +260,7 @@ func newResolverAuthHarnessWithGate(t *testing.T, gate services.RegistrationGate
 	})
 	auth := services.NewAuthService(h.users, h.identities, resolver, nil, logger,
 		staticAllowlistResolver(nil, nil), // open access
-		services.WithRegistrationGate(gate))
+		services.WithRegistrationGate(gate), services.WithProviderAdminSync(h.admins))
 
 	mc := newMockAuthContainer(t)
 	mc.activityService.On("RecordAuthActivity",
@@ -748,4 +771,42 @@ func TestRefresh_ResolverErrorKeepsSession(t *testing.T) {
 
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 	assert.False(t, sessionCleared(w), "a database hiccup must not sign the user out")
+}
+
+// TestResolverAuth_RoleMappingFollowsTheIDTokenClaim signs in through a real
+// OIDC client against the fake issuer: a mapped provider's nested claim is
+// evaluated at each sign-in and the result handed to the admin sync, while a
+// provider without a mapping evaluates nothing (#1644).
+func TestResolverAuth_RoleMappingFollowsTheIDTokenClaim(t *testing.T) {
+	h := newResolverAuthHarness(t)
+	iss := fakeoidc.New(t, rtClientID, rtClientSecret, rtSubject, "a@example.com")
+	plain := fakeoidc.New(t, rtClientID, rtClientSecret, "other-subject", "b@example.com")
+	mapped := h.oidcRow(t, "id-mapped", "corp-sso", iss.URL, 0)
+	claim := "realm_access.roles"
+	mapped.RolesClaim, mapped.AdminValues = &claim, []string{"platform-admins"}
+	h.providers.replace(mapped, h.oidcRow(t, "id-plain", "partner-sso", plain.URL, 1))
+
+	signIn := func(slug string) {
+		t.Helper()
+		state, cookie := h.login(t, slug)
+		w := h.callback(t, state, cookie)
+		require.Equal(t, http.StatusFound, w.Code, w.Body.String())
+		assert.Equal(t, "http://localhost:5173/", w.Header().Get("Location"))
+	}
+
+	iss.SetClaim("realm_access", map[string]any{"roles": []string{"dev", "platform-admins"}})
+	signIn("corp-sso")
+	iss.SetClaim("realm_access", map[string]any{"roles": []string{"dev"}})
+	signIn("corp-sso")
+	plain.SetClaim("realm_access", map[string]any{"roles": []string{"platform-admins"}})
+	signIn("partner-sso")
+
+	h.admins.mu.Lock()
+	defer h.admins.mu.Unlock()
+	require.Len(t, h.admins.calls, 2, "only the mapped provider is evaluated")
+	assert.Equal(t, "id-mapped", h.admins.calls[0].providerID)
+	assert.Equal(t, "corp-sso", h.admins.calls[0].slug)
+	require.NotNil(t, h.admins.calls[0].matched)
+	assert.Equal(t, "platform-admins", *h.admins.calls[0].matched)
+	assert.Nil(t, h.admins.calls[1].matched, "a sign-in without the value demotes")
 }

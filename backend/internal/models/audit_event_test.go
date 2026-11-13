@@ -47,6 +47,7 @@ func TestAllAuditOperations_CoversTheEpic(t *testing.T) {
 		"auth.identity.linked", "auth.identity.unlinked",
 		"auth.mcp_client.registered", "auth.mcp_consent.granted",
 		"auth.mcp_consent.denied", "auth.mcp_grant.revoked",
+		"auth.instance_admin.promoted", "auth.instance_admin.demoted",
 		"team.created", "team.updated", "team.deleted",
 		"team.invite.sent", "team.invite.accepted", "team.invite.rejected", "team.invite.revoked",
 		"team.member.added", "team.member.role_changed", "team.member.removed",

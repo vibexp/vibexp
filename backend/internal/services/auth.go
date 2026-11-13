@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
+	"github.com/vibexp/vibexp/internal/auth/rolemapping"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services/audit"
@@ -37,6 +38,22 @@ type AuthService struct {
 	// audit records session revocations and identity links (#1514); nil
 	// records nothing.
 	audit audit.Recorder
+	// providerAdmins applies a provider's role mapping at sign-in (#1644); nil
+	// applies none.
+	providerAdmins ProviderAdminSyncer
+}
+
+// ProviderAdminSyncer applies one evaluation of a provider's role mapping
+// (InstanceAdminResolver.SyncProviderAdmin). It is the narrow slice of the
+// instance admin resolver the sign-in path needs.
+type ProviderAdminSyncer interface {
+	SyncProviderAdmin(ctx context.Context, user *models.User, providerID, providerSlug string, matched *string) error
+}
+
+// WithProviderAdminSync makes sign-in apply each provider's role mapping
+// through syncer (#1644).
+func WithProviderAdminSync(syncer ProviderAdminSyncer) AuthServiceOption {
+	return func(as *AuthService) { as.providerAdmins = syncer }
 }
 
 // WithAuditRecorder makes the service record session revocations and the
@@ -245,12 +262,39 @@ func (as *AuthService) HandleCallback(
 		return nil, nil, false, fmt.Errorf("failed to create or update user: %w", err)
 	}
 
+	if err := as.applyRoleMapping(ctx, user, slug, entry, claims); err != nil {
+		as.logger.With("user_id", user.ID, "idp", slug, "error", err).
+			Error("Failed to apply the provider's role mapping")
+		return nil, nil, false, fmt.Errorf("failed to apply the provider's role mapping: %w", err)
+	}
+
 	as.logger.With(
 		"user_id", user.ID,
 		"email", user.Email,
 	).Info("Authentication completed successfully")
 
 	return user, tokens, isNewUser, nil
+}
+
+// applyRoleMapping evaluates the provider's role mapping against the sign-in's
+// verified claims and records the result (#1644). With no mapping it reads and
+// writes nothing. A failure fails the sign-in, so a promotion the identity
+// provider has withdrawn never survives a sign-in that could not record it.
+// The claim set itself is never logged.
+func (as *AuthService) applyRoleMapping(
+	ctx context.Context, user *models.User, slug string, entry idp.Entry, claims *idp.Claims,
+) error {
+	if entry.RoleMapping == nil || as.providerAdmins == nil {
+		return nil
+	}
+	var matched *string
+	value, ok := rolemapping.Evaluate(claims.Raw, entry.RoleMapping.Claim, entry.RoleMapping.AdminValues)
+	if ok {
+		matched = &value
+	}
+	as.logger.With("user_id", user.ID, "provider", slug, "matched", ok, "matched_value", value).
+		Info("Evaluated the provider's role mapping")
+	return as.providerAdmins.SyncProviderAdmin(ctx, user, entry.ProviderID, slug, matched)
 }
 
 // RefreshTokens refreshes the access token using the provider with slug. The

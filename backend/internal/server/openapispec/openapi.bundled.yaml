@@ -16251,7 +16251,15 @@ paths:
         has a password), or the provider the calling admin's session was issued by, is rejected with 409
         `lockout_risk` (the problem's `metadata.reason` is `no_enabled_provider` or
         `own_provider`, and `metadata.reasons` is that one reason as a list) unless
-        the body sets `confirm_lockout_risk: true`.
+        the body sets `confirm_lockout_risk: true`. So is, with reason
+        `own_admin_status`, a change that takes away the calling admin's own
+        instance admin status when it comes only from this provider's role
+        mapping: clearing the mapping, disabling the provider, or dropping the
+        `admin_values` entry they last matched.
+
+        Clearing the role mapping (`roles_claim` null with empty `admin_values`)
+        removes every admin the mapping made, in the same request, recording an
+        `auth.instance_admin.demoted` audit event for each.
         Instance admin or a first-run setup session; every other request receives 404.
       operationId: updateAdminAuthProvider
       tags:
@@ -16322,6 +16330,11 @@ paths:
         or the provider the calling admin's session was issued by, is rejected with 409 `lockout_risk`
         (the problem's `metadata.reason` names the case, and `metadata.reasons` is
         that one reason as a list) unless `confirm_lockout_risk=true` is passed.
+        So is, with reason `own_admin_status`, deleting the provider whose role
+        mapping is the calling admin's only source of instance admin status.
+
+        Deleting the provider removes every admin its role mapping made, recording
+        an `auth.instance_admin.demoted` audit event for each.
         Instance admin or a first-run setup session; every other request receives 404.
       operationId: deleteAdminAuthProvider
       tags:
@@ -16733,7 +16746,8 @@ paths:
       summary: List the instance admins
       description: |
         Returns the root admins (the emails named in config.yaml's
-        `auth.instance_admins`, read-only) and the admins granted in the database.
+        `auth.instance_admins`, read-only), the admins granted in the database,
+        and the admins made by an enabled sign-in provider's role mapping.
         Instance-admin only (a setup session is not admitted); non-admin and unauthenticated requests receive 404.
       operationId: listAdminInstanceAdmins
       tags:
@@ -16809,7 +16823,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Conflict — the user is a root admin, whose access comes from config.yaml
+          description: |
+            Conflict — the user is a root admin, whose access comes from config.yaml,
+            or an admin through a sign-in provider's role mapping (the problem names
+            the provider), which only that mapping can change
           content:
             application/problem+json:
               schema:
@@ -16864,7 +16881,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Conflict — the user is a root admin, whose access comes from config.yaml
+          description: |
+            Conflict — the user is a root admin, whose access comes from config.yaml,
+            or an admin through a sign-in provider's role mapping with no grant to
+            revoke (the problem names the provider), which only that mapping can change
           content:
             application/problem+json:
               schema:
@@ -34048,6 +34068,8 @@ components:
         - auth.mcp_consent.granted
         - auth.mcp_consent.denied
         - auth.mcp_grant.revoked
+        - auth.instance_admin.promoted
+        - auth.instance_admin.demoted
         - team.created
         - team.updated
         - team.deleted
@@ -34122,6 +34144,8 @@ components:
         - AdminAuditOperationAuthMCPConsentGranted
         - AdminAuditOperationAuthMCPConsentDenied
         - AdminAuditOperationAuthMCPGrantRevoked
+        - AdminAuditOperationAuthInstanceAdminPromoted
+        - AdminAuditOperationAuthInstanceAdminDemoted
         - AdminAuditOperationTeamCreated
         - AdminAuditOperationTeamUpdated
         - AdminAuditOperationTeamDeleted
@@ -36174,13 +36198,18 @@ components:
     AdminInstanceAdminList:
       type: object
       description: |
-        The instance's admins. `root_admins` are the emails named in config.yaml's
-        `auth.instance_admins`: read-only here, they cannot be granted or revoked.
-        `admins` are the users granted in the database, oldest first.
+        The instance's admins, by source. `root_admins` are the emails named in
+        config.yaml's `auth.instance_admins`: read-only here, they cannot be granted
+        or revoked. `admins` are the users granted in the database, oldest first.
+        `provider_admins` are the users made admins by an enabled sign-in
+        provider's role mapping; only the mapping changes them, so they cannot be
+        granted or revoked here either. A user may appear under more than one
+        source.
       additionalProperties: false
       required:
         - root_admins
         - admins
+        - provider_admins
       properties:
         root_admins:
           type: array
@@ -36193,6 +36222,53 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AdminInstanceAdmin'
+        provider_admins:
+          type: array
+          description: The provider-sourced admins, ordered by provider.
+          items:
+            $ref: '#/components/schemas/AdminInstanceProviderAdmin'
+    AdminInstanceProviderAdmin:
+      type: object
+      description: |
+        One instance admin sourced from a sign-in provider's role mapping: the
+        user's last sign-in through the provider carried a claim value listed in
+        its `admin_values`. Only the mapping changes it.
+      additionalProperties: false
+      required:
+        - user_id
+        - email
+        - name
+        - provider_id
+        - provider_slug
+        - matched_value
+        - evaluated_at
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          example: ada@example.com
+        name:
+          type: string
+          nullable: true
+          description: The admin's display name, when set.
+          example: Ada Admin
+        provider_id:
+          type: string
+          format: uuid
+        provider_slug:
+          type: string
+          description: The slug of the sign-in provider whose role mapping made the user an admin.
+          example: keycloak
+        matched_value:
+          type: string
+          description: The `admin_values` entry the user's claim matched at their last sign-in.
+          example: platform-admins
+        evaluated_at:
+          type: string
+          format: date-time
+          description: When the mapping last made the user an admin (their last sign-in through the provider).
     AdminInstanceAdminGrant:
       type: object
       description: |

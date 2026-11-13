@@ -233,7 +233,7 @@ var adHocRequiredArrayAllowlist = map[string]string{
 	"AdminAuthProvider":                   "generated strict-server type (internal/server/gen/admin); admin_values copied through nonNilStrings — handlers_admin_instance_auth.go toGenAdminAuthProvider",
 	"AdminAuthAllowlist":                  "generated strict-server type (internal/server/gen/admin); domains/emails copied through nonNilStrings, or literal empty slices when nothing is stored — handlers_admin_instance_auth.go toGenAdminAuthAllowlist",
 	"AdminAuthAllowlistImpact":            "generated strict-server type (internal/server/gen/admin); sample copied through nonNilStrings — handlers_admin_instance_auth.go PreviewAdminAuthAllowlist",
-	"AdminInstanceAdminList":              "generated strict-server type (internal/server/gen/admin); admins built via make(...,0), root_admins copied through nonNilStrings — handlers_admin_instance_auth.go ListAdminInstanceAdmins",
+	"AdminInstanceAdminList":              "generated strict-server type (internal/server/gen/admin); admins and provider_admins built via make(...,0), root_admins copied through nonNilStrings — handlers_admin_instance_auth.go ListAdminInstanceAdmins",
 	"RecentCommentListResponse":           "generated strict-server type (internal/server/gen/comments); handler builds via make(...,0) — handlers_comments.go toGenRecentComments",
 	"ActivityListResponse":                "activities-pkg wire type wrapped in a data-envelope map; slices always make(...,0) — services/activities/service.go",
 	"ActivityStatsResponse":               "activities-pkg wire type wrapped in a data-envelope map; slices always make(...,0) — services/activities/service.go",

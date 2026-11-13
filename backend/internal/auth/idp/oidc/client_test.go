@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
+	"maps"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -29,6 +30,10 @@ type fakeIssuer struct {
 	clients     map[string]string // clientID -> clientSecret
 	subject     string
 	omitIDToken bool // when true, /token returns no id_token (forces userinfo fallback)
+	// idTokenExtra and userInfoExtra are added to the ID token's claims and the
+	// userinfo response.
+	idTokenExtra  map[string]any
+	userInfoExtra map[string]any
 }
 
 const (
@@ -138,6 +143,7 @@ func (f *fakeIssuer) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 		"name":           "Test User",
 		"picture":        "https://example.com/p.png",
 	}
+	maps.Copy(body, f.userInfoExtra)
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -156,6 +162,7 @@ func (f *fakeIssuer) signIDToken(clientID, email, name, picture string) (string,
 		"name":           name,
 		"picture":        picture,
 	}
+	maps.Copy(claims, f.idTokenExtra)
 	tok := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	tok.Header["kid"] = f.keyID
 	return tok.SignedString(f.key)
@@ -270,6 +277,54 @@ func TestClient_ExchangeCode_FallsBackToUserInfo(t *testing.T) {
 	assert.Equal(t, "test@example.com", claims.Email)
 	assert.True(t, claims.EmailVerified)
 	assert.Equal(t, "Test User", claims.Name)
+}
+
+// TestClient_ExchangeCode_ExposesTheVerifiedClaimSet pins that Claims.Raw is
+// the claim set the canonical claims came from (#1644): the ID token's when
+// there is one, so a claim only userinfo carries is not read, and userinfo's
+// otherwise.
+func TestClient_ExchangeCode_ExposesTheVerifiedClaimSet(t *testing.T) {
+	roles := map[string]any{"roles": []any{"platform-admins"}}
+	for name, omitIDToken := range map[string]bool{"id token": false, "userinfo fallback": true} {
+		t.Run(name, func(t *testing.T) {
+			f := newFakeIssuer(t, "subject-raw")
+			f.omitIDToken = omitIDToken
+			f.idTokenExtra = map[string]any{"realm_access": roles, "source": "id_token"}
+			f.userInfoExtra = map[string]any{"realm_access": roles, "source": "userinfo"}
+			defer f.close()
+			c, err := New(context.Background(), Config{
+				Name: "corp", IssuerURL: f.server.URL, ClientID: testClientID, ClientSecret: testClientSecret,
+				RedirectURL: "http://localhost/callback",
+			})
+			require.NoError(t, err)
+
+			_, claims, err := c.ExchangeCode(context.Background(), "any-code", "", idp.FlowParams{})
+			require.NoError(t, err)
+
+			want := "id_token"
+			if omitIDToken {
+				want = "userinfo"
+			}
+			assert.Equal(t, want, claims.Raw["source"])
+			assert.Equal(t, roles, claims.Raw["realm_access"])
+			assert.Equal(t, "subject-raw", claims.Raw["sub"])
+		})
+	}
+
+	t.Run("a claim only userinfo carries is not read beside an id token", func(t *testing.T) {
+		f := newFakeIssuer(t, "subject-raw")
+		f.userInfoExtra = map[string]any{"groups": []any{"platform-admins"}}
+		defer f.close()
+		c, err := New(context.Background(), Config{
+			Name: "corp", IssuerURL: f.server.URL, ClientID: testClientID, ClientSecret: testClientSecret,
+			RedirectURL: "http://localhost/callback",
+		})
+		require.NoError(t, err)
+
+		_, claims, err := c.ExchangeCode(context.Background(), "any-code", "", idp.FlowParams{})
+		require.NoError(t, err)
+		assert.NotContains(t, claims.Raw, "groups")
+	})
 }
 
 func TestClient_ExchangeCode_RejectsBadCredentials(t *testing.T) {

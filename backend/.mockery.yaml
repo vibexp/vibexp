@@ -157,6 +157,7 @@ packages:
       InstanceAuthSetupRepository:
       InstanceAuthSettingsVersionRepository:
       InstanceEmailProviderRepository:
+      InstanceProviderAdminRepository:
       InstanceSearchSettingsRepository:
       InstanceSettingsAuditRepository:
       InstanceSiteInfoRepository:
