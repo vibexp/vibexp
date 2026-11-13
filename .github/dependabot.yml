@@ -3,8 +3,12 @@
 # Every range in frontend/package.json is `~` (patch-only), so patched releases
 # are already permitted by the manifest; nothing ever resolved them, because the
 # lockfile only moved when an unrelated feature PR happened to add a dependency.
-# That is how five fixable advisories accumulated unnoticed. Weekly grouped PRs
-# make that drift visible and reviewable instead of invisible.
+# That is how five fixable advisories accumulated unnoticed. Grouped PRs make
+# that drift visible and reviewable instead of invisible.
+#
+# Schedule: the 1st and 15th of each month (#1633). Weekly runs across three
+# ecosystems produced ~28 PRs a month; security updates ignore this schedule
+# and still open immediately.
 #
 # Every PR here carries `no-issue-needed`: .github/workflows/pr-linked-issue.yml
 # requires a linked open issue and honours exactly that label as its escape
@@ -14,18 +18,18 @@
 # Grouping policy, in three tiers by how much individual review each bump earns:
 #   - development minor + patch  -> ONE PR per ecosystem (tooling churn, little
 #     review value individually; CI lint/type-check/test is the real gate)
-#   - production patch           -> ONE PR per ecosystem (advisory and bugfix
-#     drift, exactly the class that accumulated in #547)
-#   - production minor, and any major -> ungrouped, so each gets its own review
-#     and its own revert.
+#   - production minor + patch   -> ONE PR per ecosystem (advisory and bugfix
+#     drift, exactly the class that accumulated in #547; minors joined the
+#     group in #1633 to cut PR volume)
+#   - any major -> ungrouped, so each gets its own review and its own revert.
 version: 2
 
 updates:
   - package-ecosystem: npm
     directory: /frontend
     schedule:
-      interval: weekly
-      day: monday
+      interval: cron
+      cronjob: "0 6 1,15 * *"
     open-pull-requests-limit: 5
     labels:
       - dependencies
@@ -39,16 +43,17 @@ updates:
         update-types:
           - minor
           - patch
-      frontend-production-patches:
+      frontend-production-dependencies:
         dependency-type: production
         update-types:
+          - minor
           - patch
 
   - package-ecosystem: gomod
     directory: /backend
     schedule:
-      interval: weekly
-      day: monday
+      interval: cron
+      cronjob: "0 6 1,15 * *"
     open-pull-requests-limit: 5
     labels:
       - dependencies
@@ -65,8 +70,8 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      interval: cron
+      cronjob: "0 6 1,15 * *"
     open-pull-requests-limit: 5
     labels:
       - dependencies
