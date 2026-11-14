@@ -26,6 +26,55 @@ func (_m *MockAuthServiceInterface) EXPECT() *MockAuthServiceInterface_Expecter 
 	return &MockAuthServiceInterface_Expecter{mock: &_m.Mock}
 }
 
+// ApplyRefreshedRoleMapping provides a mock function with given fields: ctx, slug, userID, claims
+func (_m *MockAuthServiceInterface) ApplyRefreshedRoleMapping(ctx context.Context, slug string, userID string, claims *idp.Claims) error {
+	ret := _m.Called(ctx, slug, userID, claims)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ApplyRefreshedRoleMapping")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, *idp.Claims) error); ok {
+		r0 = rf(ctx, slug, userID, claims)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockAuthServiceInterface_ApplyRefreshedRoleMapping_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ApplyRefreshedRoleMapping'
+type MockAuthServiceInterface_ApplyRefreshedRoleMapping_Call struct {
+	*mock.Call
+}
+
+// ApplyRefreshedRoleMapping is a helper method to define mock.On call
+//   - ctx context.Context
+//   - slug string
+//   - userID string
+//   - claims *idp.Claims
+func (_e *MockAuthServiceInterface_Expecter) ApplyRefreshedRoleMapping(ctx interface{}, slug interface{}, userID interface{}, claims interface{}) *MockAuthServiceInterface_ApplyRefreshedRoleMapping_Call {
+	return &MockAuthServiceInterface_ApplyRefreshedRoleMapping_Call{Call: _e.mock.On("ApplyRefreshedRoleMapping", ctx, slug, userID, claims)}
+}
+
+func (_c *MockAuthServiceInterface_ApplyRefreshedRoleMapping_Call) Run(run func(ctx context.Context, slug string, userID string, claims *idp.Claims)) *MockAuthServiceInterface_ApplyRefreshedRoleMapping_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(*idp.Claims))
+	})
+	return _c
+}
+
+func (_c *MockAuthServiceInterface_ApplyRefreshedRoleMapping_Call) Return(_a0 error) *MockAuthServiceInterface_ApplyRefreshedRoleMapping_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockAuthServiceInterface_ApplyRefreshedRoleMapping_Call) RunAndReturn(run func(context.Context, string, string, *idp.Claims) error) *MockAuthServiceInterface_ApplyRefreshedRoleMapping_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // EnabledProviders provides a mock function with given fields: ctx
 func (_m *MockAuthServiceInterface) EnabledProviders(ctx context.Context) ([]services.ProviderInfo, error) {
 	ret := _m.Called(ctx)

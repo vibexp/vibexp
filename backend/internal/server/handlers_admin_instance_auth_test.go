@@ -1202,7 +1202,8 @@ func TestAdminInstanceAdmins_ProviderSourced(t *testing.T) {
 	member, err := f.users.GetByID(ctx, authTestMemberID)
 	require.NoError(t, err)
 	matched := "platform-admins"
-	require.NoError(t, f.admins.SyncProviderAdmin(ctx, member, provider.ID, provider.Slug, &matched))
+	require.NoError(t, f.admins.SyncProviderAdmin(ctx, member, provider.ID, provider.Slug, &matched,
+		services.ProviderAdminTriggerSignIn))
 
 	rr = f.serve(t, asMember, http.MethodGet, authAdminsPath, nil)
 	require.Equal(t, http.StatusOK, rr.Code, "a provider-sourced admin reaches the admin API: "+rr.Body.String())

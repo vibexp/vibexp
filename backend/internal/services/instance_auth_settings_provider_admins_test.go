@@ -38,7 +38,8 @@ func (f *authSettingsFixture) promote(t *testing.T, userID string, provider *mod
 	user, err := f.users.GetByID(context.Background(), userID)
 	require.NoError(t, err)
 	matched := "platform-admins"
-	require.NoError(t, f.admins.SyncProviderAdmin(context.Background(), user, provider.ID, provider.Slug, &matched))
+	require.NoError(t, f.admins.SyncProviderAdmin(context.Background(), user, provider.ID, provider.Slug, &matched,
+		ProviderAdminTriggerSignIn))
 	f.events.got = nil
 }
 

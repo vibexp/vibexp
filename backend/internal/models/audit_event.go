@@ -133,7 +133,8 @@ const (
 	// AuditOpAuthInstanceAdminPromoted and AuditOpAuthInstanceAdminDemoted are a
 	// sign-in provider's role mapping making a user an instance admin or
 	// removing that (#1644). Metadata: provider_slug, plus matched_value on a
-	// promotion and reason on a demotion.
+	// promotion and reason on a demotion; a demotion or promotion by the
+	// mapping itself also carries trigger, sign_in or refresh (#1648).
 	AuditOpAuthInstanceAdminPromoted AuditOperation = "auth.instance_admin.promoted"
 	AuditOpAuthInstanceAdminDemoted  AuditOperation = "auth.instance_admin.demoted"
 )

@@ -31,6 +31,11 @@ import (
 // .RefreshIfDue), which holds across replicas: concurrent requests on one due
 // session wait for the first, then find the row refreshed and reuse it, so a
 // rotated refresh token is never presented twice.
+//
+// A refresh that went through re-applies the provider's role mapping to the
+// refreshed claims (#1648), after the rotated tokens are stored and the lock
+// released, and before the handler runs: a demotion at the identity provider
+// takes effect on the very request that triggered the refresh.
 
 // defaultSessionRecheckInterval applies when the configured interval is not
 // positive, which config validation rejects; it covers a zero-value Config.
@@ -78,7 +83,7 @@ func (s *Server) refreshDue(sess *sesslib.Session, now time.Time) bool {
 //
 // A refused refresh deletes the row, clears the cookie, answers 401 and is
 // audited; an unreachable provider answers 503 with Retry-After and keeps the
-// session.
+// session, as does a refresh whose role mapping could not be re-applied.
 func (s *Server) refreshIfDue(
 	w http.ResponseWriter, r *http.Request, sess *sesslib.Session, logger *slog.Logger,
 ) bool {
@@ -96,39 +101,61 @@ func (s *Server) refreshIfDue(
 
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), sessionRefreshTimeout)
 	defer cancel()
+	var claims *idp.Claims
 	refreshed, err := store.RefreshIfDue(ctx, sess,
 		func(locked *sesslib.Session) bool { return s.refreshDue(locked, time.Now()) },
 		func(ctx context.Context, locked *sesslib.Session) (*idp.Tokens, error) {
-			return s.refreshAtProvider(ctx, locked, log)
+			tokens, refreshedClaims, refreshErr := s.refreshAtProvider(ctx, locked, log)
+			claims = refreshedClaims
+			return tokens, refreshErr
 		})
 	if err != nil {
 		s.answerRefreshFailure(w, r, sess, err, log)
 		return false
 	}
-	if refreshed {
-		if writeErr := s.sessionManager.Write(w, sess); writeErr != nil {
-			log.With("error", writeErr).Warn("Failed to rewrite refreshed session cookie")
-		}
+	if !refreshed {
+		return true
 	}
-	return true
+	if writeErr := s.sessionManager.Write(w, sess); writeErr != nil {
+		log.With("error", writeErr).Warn("Failed to rewrite refreshed session cookie")
+	}
+	return s.applyRefreshedRoleMapping(ctx, w, r, sess, claims, log)
 }
 
-// refreshAtProvider calls the session's identity provider and classifies a
-// failure: a transient one wraps errSessionRefreshTransient, anything else,
-// including a refresh that answers for another subject, wraps
-// services.ErrSessionRefreshRejected so the row is deleted.
+// applyRefreshedRoleMapping re-applies the role mapping of the session's
+// provider to the claims of the refresh that just went through (#1648) and
+// reports whether the request may go on. The rotated tokens are already
+// stored, so a failure cannot cost the session a refresh token: it answers 503
+// with Retry-After and keeps the session.
+func (s *Server) applyRefreshedRoleMapping(
+	ctx context.Context, w http.ResponseWriter, r *http.Request, sess *sesslib.Session, claims *idp.Claims,
+	log *slog.Logger,
+) bool {
+	err := s.container.AuthService().ApplyRefreshedRoleMapping(ctx, sess.Provider, sess.UserID, claims)
+	if err == nil {
+		return true
+	}
+	s.answerRefreshFailure(w, r, sess, fmt.Errorf("%w: role mapping: %w", errSessionRefreshTransient, err), log)
+	return false
+}
+
+// refreshAtProvider calls the session's identity provider, returns the tokens
+// and claims it answered with, and classifies a failure: a transient one wraps
+// errSessionRefreshTransient, anything else, including a refresh that answers
+// for another subject, wraps services.ErrSessionRefreshRejected so the row is
+// deleted.
 func (s *Server) refreshAtProvider(
 	ctx context.Context, sess *sesslib.Session, log *slog.Logger,
-) (*idp.Tokens, error) {
+) (*idp.Tokens, *idp.Claims, error) {
 	tokens, claims, err := s.container.AuthService().RefreshTokens(ctx, sess.Provider, sess.RefreshToken)
 	if err != nil {
 		if isTransientRefreshError(err) {
-			return nil, fmt.Errorf("%w: %w", errSessionRefreshTransient, err)
+			return nil, nil, fmt.Errorf("%w: %w", errSessionRefreshTransient, err)
 		}
-		return nil, fmt.Errorf("%w: %w", services.ErrSessionRefreshRejected, err)
+		return nil, nil, fmt.Errorf("%w: %w", services.ErrSessionRefreshRejected, err)
 	}
 	if claims != nil && sess.IDPSubject != "" && claims.Subject != sess.IDPSubject {
-		return nil, fmt.Errorf("%w: %w", services.ErrSessionRefreshRejected, errRefreshSubjectMismatch)
+		return nil, nil, fmt.Errorf("%w: %w", services.ErrSessionRefreshRejected, errRefreshSubjectMismatch)
 	}
 	if tokens.RefreshToken == "" {
 		// A rotating provider returns a new refresh token on rotation. Empty
@@ -136,9 +163,9 @@ func (s *Server) refreshAtProvider(
 		// kept, and the next refresh may fail with it.
 		log.Warn("Refresh response missing new refresh_token; subsequent refreshes may fail")
 	}
-	// The claims are the provider's current view of the user; acting on them
-	// (the role mapping on refresh) is #1648.
-	return tokens, nil
+	// The claims are the provider's current view of the user; refreshIfDue
+	// re-applies the role mapping to them once the tokens are stored (#1648).
+	return tokens, claims, nil
 }
 
 // answerRefreshFailure writes the response for a failed locked refresh.

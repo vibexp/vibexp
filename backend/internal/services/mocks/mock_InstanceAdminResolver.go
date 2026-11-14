@@ -456,17 +456,17 @@ func (_c *MockInstanceAdminResolver_RootAdminEmails_Call) RunAndReturn(run func(
 	return _c
 }
 
-// SyncProviderAdmin provides a mock function with given fields: ctx, user, providerID, providerSlug, matched
-func (_m *MockInstanceAdminResolver) SyncProviderAdmin(ctx context.Context, user *models.User, providerID string, providerSlug string, matched *string) error {
-	ret := _m.Called(ctx, user, providerID, providerSlug, matched)
+// SyncProviderAdmin provides a mock function with given fields: ctx, user, providerID, providerSlug, matched, trigger
+func (_m *MockInstanceAdminResolver) SyncProviderAdmin(ctx context.Context, user *models.User, providerID string, providerSlug string, matched *string, trigger string) error {
+	ret := _m.Called(ctx, user, providerID, providerSlug, matched, trigger)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SyncProviderAdmin")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *models.User, string, string, *string) error); ok {
-		r0 = rf(ctx, user, providerID, providerSlug, matched)
+	if rf, ok := ret.Get(0).(func(context.Context, *models.User, string, string, *string, string) error); ok {
+		r0 = rf(ctx, user, providerID, providerSlug, matched, trigger)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -485,13 +485,14 @@ type MockInstanceAdminResolver_SyncProviderAdmin_Call struct {
 //   - providerID string
 //   - providerSlug string
 //   - matched *string
-func (_e *MockInstanceAdminResolver_Expecter) SyncProviderAdmin(ctx interface{}, user interface{}, providerID interface{}, providerSlug interface{}, matched interface{}) *MockInstanceAdminResolver_SyncProviderAdmin_Call {
-	return &MockInstanceAdminResolver_SyncProviderAdmin_Call{Call: _e.mock.On("SyncProviderAdmin", ctx, user, providerID, providerSlug, matched)}
+//   - trigger string
+func (_e *MockInstanceAdminResolver_Expecter) SyncProviderAdmin(ctx interface{}, user interface{}, providerID interface{}, providerSlug interface{}, matched interface{}, trigger interface{}) *MockInstanceAdminResolver_SyncProviderAdmin_Call {
+	return &MockInstanceAdminResolver_SyncProviderAdmin_Call{Call: _e.mock.On("SyncProviderAdmin", ctx, user, providerID, providerSlug, matched, trigger)}
 }
 
-func (_c *MockInstanceAdminResolver_SyncProviderAdmin_Call) Run(run func(ctx context.Context, user *models.User, providerID string, providerSlug string, matched *string)) *MockInstanceAdminResolver_SyncProviderAdmin_Call {
+func (_c *MockInstanceAdminResolver_SyncProviderAdmin_Call) Run(run func(ctx context.Context, user *models.User, providerID string, providerSlug string, matched *string, trigger string)) *MockInstanceAdminResolver_SyncProviderAdmin_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*models.User), args[2].(string), args[3].(string), args[4].(*string))
+		run(args[0].(context.Context), args[1].(*models.User), args[2].(string), args[3].(string), args[4].(*string), args[5].(string))
 	})
 	return _c
 }
@@ -501,7 +502,7 @@ func (_c *MockInstanceAdminResolver_SyncProviderAdmin_Call) Return(_a0 error) *M
 	return _c
 }
 
-func (_c *MockInstanceAdminResolver_SyncProviderAdmin_Call) RunAndReturn(run func(context.Context, *models.User, string, string, *string) error) *MockInstanceAdminResolver_SyncProviderAdmin_Call {
+func (_c *MockInstanceAdminResolver_SyncProviderAdmin_Call) RunAndReturn(run func(context.Context, *models.User, string, string, *string, string) error) *MockInstanceAdminResolver_SyncProviderAdmin_Call {
 	_c.Call.Return(run)
 	return _c
 }

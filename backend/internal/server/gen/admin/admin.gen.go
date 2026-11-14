@@ -2747,15 +2747,15 @@ type AdminInstanceEmailTestRequest struct {
 }
 
 // AdminInstanceProviderAdmin One instance admin sourced from a sign-in provider's role mapping: the
-// user's last sign-in through the provider carried a claim value listed in
-// its `admin_values`. Only the mapping changes it.
+// claims of the user's last sign-in or session refresh through the provider
+// carried a value listed in its `admin_values`. Only the mapping changes it.
 type AdminInstanceProviderAdmin struct {
 	Email string `json:"email"`
 
-	// EvaluatedAt When the mapping last made the user an admin (their last sign-in through the provider).
+	// EvaluatedAt When the role mapping was last evaluated for the user (their last sign-in or session refresh through the provider).
 	EvaluatedAt time.Time `json:"evaluated_at"`
 
-	// MatchedValue The `admin_values` entry the user's claim matched at their last sign-in.
+	// MatchedValue The `admin_values` entry the user's claim matched at the last evaluation of the role mapping (sign-in or session refresh).
 	MatchedValue string `json:"matched_value"`
 
 	// Name The admin's display name, when set.

@@ -158,8 +158,8 @@ type InstanceAdminGrant struct {
 }
 
 // InstanceProviderAdmin is one provider-sourced instance admin (#1644): the
-// user's last sign-in through the provider carried a claim value listed in the
-// provider's AdminValues. Only the role mapping writes it, and it grants admin
+// claims of the user's last sign-in or session refresh (#1648) through the
+// provider carried a value listed in the provider's AdminValues. Only the role mapping writes it, and it grants admin
 // only while the provider is enabled.
 type InstanceProviderAdmin struct {
 	UserID       string `json:"user_id" db:"user_id"`
