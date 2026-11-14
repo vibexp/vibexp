@@ -481,14 +481,16 @@ func (s *Server) handleCallbackSuccess(
 		s.metrics.RecordUserLoginSuccessful(r.Context())
 	}
 
-	// Write session cookie
+	// Store the session and write the cookie that names it
 	if s.sessionManager != nil {
-		if err := s.sessionManager.Write(w, newProviderSession(user, tokens, provider)); err != nil {
-			s.logger.With("error", err).Error("Failed to write session cookie")
+		cookie, err := s.newSessionCookie(r.Context(), newProviderSession(user, tokens, provider))
+		if err != nil {
+			s.logger.With("error", err).Error("Failed to create session")
 			apiErr := errors.NewInternalError("Failed to create session")
 			errors.WriteJSONError(w, r, apiErr)
 			return
 		}
+		http.SetCookie(w, cookie)
 	}
 
 	// A root admin signing in through a provider proves sign-in works: it ends
@@ -570,7 +572,9 @@ func (s *Server) rejectSuspendedSignIn(
 	return true
 }
 
-// handleLogout clears the session cookie and returns a JSON confirmation.
+// handleLogout ends the cookie's session, deleting its server-side row so no
+// copy of the cookie authenticates again (#1646), clears the session cookie and
+// returns a JSON confirmation.
 //
 // POST /api/v1/auth/logout
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -580,7 +584,10 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	).Info("Logout request received")
 
 	if s.sessionManager != nil {
-		s.recordLogout(r)
+		if sess, err := s.sessionManager.Read(r); err == nil {
+			s.recordLogout(r, sess)
+			s.deleteSession(r.Context(), sess)
+		}
 		s.sessionManager.Clear(w)
 	}
 	// If sessionManager is nil there is no encrypted cookie that could
@@ -592,17 +599,20 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 // recordLogout records the auth_logout activity for the session being ended
 // (#1428). The logout route is public, so the user is taken from the cookie
-// itself, and only a cookie that would still authenticate counts: the account
-// may sign in, the cookie's epoch is the user's current one, and a session with
-// no refresh token has not expired. Anything else signs nobody out and records
+// itself, and only a cookie that would still authenticate counts: its row
+// exists (#1646; a legacy cookie has none), the account may sign in, the
+// cookie's epoch is the user's current one, and a session with no refresh token
+// has not expired. Anything else signs nobody out and records
 // nothing. That keeps a revoked or expired copy of a cookie from writing
 // activity rows in its user's name, however often it is replayed.
 //
 // An expired session that has a refresh token is recorded: whether it would
 // still authenticate depends on a provider round trip that logout does not make.
-func (s *Server) recordLogout(r *http.Request) {
-	sess, err := s.sessionManager.Read(r)
-	if err != nil || sess.UserID == "" {
+func (s *Server) recordLogout(r *http.Request, sess *sesslib.Session) {
+	if sess.UserID == "" {
+		return
+	}
+	if !sess.IsLegacy() && s.loadSession(r.Context(), sess) != nil {
 		return
 	}
 	if sess.IsSliding() && sess.IsExpired() {
@@ -845,12 +855,14 @@ func (s *Server) handleDevLoginSuccess(w http.ResponseWriter, r *http.Request, u
 			Epoch:           user.SessionEpoch,
 		}
 		sess.StartSliding(now)
-		if err := s.sessionManager.Write(w, sess); err != nil {
-			s.logger.With("error", err).Error("Failed to write dev session cookie")
+		cookie, err := s.newSessionCookie(r.Context(), sess)
+		if err != nil {
+			s.logger.With("error", err).Error("Failed to create dev session")
 			apiErr := errors.NewInternalError("Failed to create session")
 			errors.WriteJSONError(w, r, apiErr)
 			return
 		}
+		http.SetCookie(w, cookie)
 	}
 
 	writeOK(w, user, s.logger)

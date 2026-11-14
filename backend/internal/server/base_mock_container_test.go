@@ -436,6 +436,13 @@ func (b *BaseMockContainer) AccountTokenService() services.AccountTokenServiceIn
 	return nil
 }
 
+// SessionStore returns a real session store over an in-memory repository
+// shared by every test: since #1646 every cookie sign-in and every cookie
+// request goes through it, so a nil default would reject them all.
+func (b *BaseMockContainer) SessionStore() services.SessionStoreInterface {
+	return sharedTestSessionStore
+}
+
 // InvitationRegistrationService returns nil; the suite that exercises the
 // public invitation operations installs its own.
 func (b *BaseMockContainer) InvitationRegistrationService() services.InvitationRegistrationServiceInterface {

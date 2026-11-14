@@ -54,14 +54,10 @@ func newEpochFixture(t *testing.T, epoch int64) *epochFixture {
 	return &epochFixture{srv: createTestAuthServer(c), container: c, epoch: current}
 }
 
-// cookieFor encrypts sess into a request cookie.
+// cookieFor stores sess, as a sign-in does, and returns its request cookie.
 func (f *epochFixture) cookieFor(t *testing.T, sess *sesslib.Session) *http.Cookie {
 	t.Helper()
-	rec := httptest.NewRecorder()
-	require.NoError(t, f.srv.sessionManager.Write(rec, sess))
-	c := sessionCookieIn(rec)
-	require.NotNil(t, c, "session cookie not written")
-	return c
+	return storedSessionCookie(t, f.srv, sess)
 }
 
 // sessionCookieIn returns the vx_session cookie a response set, or nil.
@@ -281,7 +277,10 @@ func TestSlidingSession_ReissuedAtMostOnceADay(t *testing.T) {
 
 		assert.False(t, called)
 		assert.Equal(t, http.StatusUnauthorized, rec.Code)
-		assert.Nil(t, sessionCookieIn(rec), "an expired session must not be revived")
+		// Its row is past its expiry, so the cookie is cleared (#1646).
+		c := sessionCookieIn(rec)
+		require.NotNil(t, c)
+		assert.Negative(t, c.MaxAge, "an expired session must not be revived")
 	})
 
 	t.Run("a revoked session is not extended", func(t *testing.T) {
@@ -345,9 +344,11 @@ func TestGitHubShapedSession(t *testing.T) {
 		// cookie never authenticated, so nothing is taken away; the user signs
 		// in again and gets a sliding session.
 		f := newEpochFixture(t, 0)
-		legacy := &sesslib.Session{UserID: epochUserID, AccessToken: "gho_token", Provider: "github"}
+		legacy := legacySessionCookie(t, map[string]any{
+			"user_id": epochUserID, "access_token": "gho_token", "provider": "github",
+		})
 
-		rec, _, called := f.requireAuth(t, f.cookieFor(t, legacy))
+		rec, _, called := f.requireAuth(t, legacy)
 
 		assert.False(t, called)
 		assert.Equal(t, http.StatusUnauthorized, rec.Code)
@@ -480,6 +481,7 @@ func TestRevokeOtherSessions(t *testing.T) {
 		req.AddCookie(kept)
 		sess, err := f.srv.sessionManager.Read(req)
 		require.NoError(t, err)
+		require.NoError(t, f.srv.loadSession(context.Background(), sess), "the tokens are in the row")
 		assert.Equal(t, "new-refresh-token", sess.RefreshToken)
 		assert.Equal(t, "new-at", sess.AccessToken)
 		assert.WithinDuration(t, newExpiry, sess.ExpiresAt, time.Second)
@@ -604,11 +606,8 @@ func TestHandleLogout_RecordsLogoutActivity(t *testing.T) {
 			Return(&models.User{ID: epochUserID, Status: models.UserStatusSuspended}, nil)
 		c.userRepository = users
 		srv := createTestAuthServer(c)
-		minted := httptest.NewRecorder()
-		require.NoError(t, srv.sessionManager.Write(minted, slidingSession(0, time.Hour)))
-
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
-		req.AddCookie(sessionCookieIn(minted))
+		req.AddCookie(storedSessionCookie(t, srv, slidingSession(0, time.Hour)))
 		rec := httptest.NewRecorder()
 		srv.ServeHTTP(rec, req)
 

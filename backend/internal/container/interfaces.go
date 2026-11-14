@@ -127,6 +127,10 @@ type Container interface {
 	// first password or reset a forgotten one (#1432).
 	AccountTokenService() services.AccountTokenServiceInterface
 	InvitationRegistrationService() services.InvitationRegistrationServiceInterface
+	// SessionStore keeps the server-side rows of cookie sessions, which hold
+	// the identity-provider tokens (#1646). Nil when no encryption key is
+	// configured.
+	SessionStore() services.SessionStoreInterface
 	// AccountLinkMailer emails one-time account links: the forgot-password
 	// request and the setup link (#1433).
 	AccountLinkMailer() services.AccountLinkMailerInterface

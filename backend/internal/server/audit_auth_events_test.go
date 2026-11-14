@@ -384,12 +384,14 @@ func TestAuditLogout(t *testing.T) {
 	srv, rec := newOIDCAuditServer(t)
 	sess := &sesslib.Session{UserID: "u-1", AuthMethod: sesslib.AuthMethodPassword}
 	sess.StartSliding(time.Now())
-	cookie, err := srv.sessionManager.Cookie(sess)
+	cookie, err := srv.newSessionCookie(context.Background(), sess)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
 	req.AddCookie(cookie)
-	srv.recordLogout(req)
+	read, err := srv.sessionManager.Read(req)
+	require.NoError(t, err)
+	srv.recordLogout(req, read)
 
 	got := rec.only(t)
 	assert.Equal(t, models.AuditOpAuthLogout, got.event.Operation)
@@ -412,12 +414,14 @@ func TestAuditLogout_DoesNotShareTheActivityMap(t *testing.T) {
 	rec := withAudit(srv)
 	sess := &sesslib.Session{UserID: "u-1", AuthMethod: sesslib.AuthMethodDev, Provider: "github"}
 	sess.StartSliding(time.Now())
-	cookie, err := srv.sessionManager.Cookie(sess)
+	cookie, err := srv.newSessionCookie(context.Background(), sess)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
 	req.AddCookie(cookie)
-	srv.recordLogout(req)
+	read, err := srv.sessionManager.Read(req)
+	require.NoError(t, err)
+	srv.recordLogout(req, read)
 
 	assert.Equal(t, map[string]any{auditMetaMethod: sesslib.AuthMethodDev, auditMetaProvider: "github"},
 		rec.only(t).event.Metadata)
@@ -425,7 +429,10 @@ func TestAuditLogout_DoesNotShareTheActivityMap(t *testing.T) {
 
 func TestAuditLogout_UnusableCookieRecordsNothing(t *testing.T) {
 	srv, rec := newOIDCAuditServer(t)
-	srv.recordLogout(httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
+	srv.recordLogout(req, &sesslib.Session{})
+	// A session whose server-side row is gone signs nobody out either (#1646).
+	srv.recordLogout(req, &sesslib.Session{ID: "no-such-session", UserID: "u-1", AuthMethod: sesslib.AuthMethodDev})
 	assert.Empty(t, rec.events())
 }
 

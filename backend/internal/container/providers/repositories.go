@@ -23,6 +23,12 @@ func ProvideAccountTokenRepository(db *database.DB) repositories.AccountTokenRep
 	return postgres.NewAccountTokenRepository(db)
 }
 
+// ProvideUserSessionRepository creates the repository of server-side cookie
+// sessions (#1646).
+func ProvideUserSessionRepository(db *database.DB) repositories.UserSessionRepository {
+	return postgres.NewUserSessionRepository(db)
+}
+
 // ProvideUserIdentityRepository creates a new UserIdentityRepository
 func ProvideUserIdentityRepository(db *database.DB) repositories.UserIdentityRepository {
 	return postgres.NewUserIdentityRepository(db)

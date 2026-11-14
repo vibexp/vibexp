@@ -1,7 +1,9 @@
 // Package session provides AES-GCM encrypted httpOnly cookie session management.
 // The session cookie name is "vx_session" and carries an encrypted JSON payload
-// containing the user's access token, refresh token, expiry, IDP subject,
-// internal user ID, sign-in method and time, and session epoch.
+// containing the session id, expiry, IDP subject, internal user ID, provider,
+// sign-in method and time, and session epoch. The identity-provider access and
+// refresh tokens are not in the cookie: they live in the session's server-side
+// row (#1646), and a Session holds them only in memory, once loaded.
 package session
 
 import (
@@ -29,9 +31,12 @@ const (
 
 	// cookieMaxAge is the max-age for the cookie of a session that carries a
 	// refresh token (24 hours). The cookie lifetime is deliberately generous;
-	// actual session validity is governed by the access/refresh token expiry in
-	// the payload.
+	// actual session validity is governed by the access/refresh token expiry.
 	cookieMaxAge = 24 * 60 * 60 // 24 hours in seconds
+
+	// refreshableLifetime is cookieMaxAge as a duration: how long a session with
+	// a refresh token stays stored after it was last written (EndsAt).
+	refreshableLifetime = cookieMaxAge * time.Second
 
 	// SlidingLifetime is how long a sliding session (one with no refresh token,
 	// see Session.IsSliding) stays valid after it was last issued (#1428).
@@ -78,12 +83,22 @@ var ErrCookieTooLarge = errors.New("session: encoded session exceeds maximum coo
 // concrete error instead of silently dropping the cookie.
 const maxCookieValueBytes = 3500
 
-// Session represents the decrypted payload stored inside the session cookie.
+// Session is a cookie session: the payload of the session cookie plus, once
+// loaded from the session's server-side row, its identity-provider tokens.
 type Session struct {
-	// AccessToken is the IDP-issued access token.
-	AccessToken string `json:"access_token"`
-	// RefreshToken is the IDP-issued refresh token (may be empty for short-lived sessions).
-	RefreshToken string `json:"refresh_token"`
+	// ID is the opaque, random session id (unpadded base64url). It names the
+	// session's server-side row, which stores only its SHA-256. Empty for a
+	// cookie minted before #1646 (see IsLegacy) and for a session not yet
+	// stored.
+	ID string `json:"sid,omitempty"`
+	// AccessToken is the IDP-issued access token. It is never written to the
+	// cookie (Cookie drops it); a cookie minted before #1646 still carries it,
+	// which is why it decodes.
+	AccessToken string `json:"access_token,omitempty"`
+	// RefreshToken is the IDP-issued refresh token (empty for a sliding
+	// session). Like AccessToken it lives in the server-side row, not the
+	// cookie.
+	RefreshToken string `json:"refresh_token,omitempty"`
 	// ExpiresAt is when the access token expires.
 	ExpiresAt time.Time `json:"expires_at"`
 	// IDPSubject is the stable, unique provider-specific user identifier.
@@ -108,6 +123,13 @@ type Session struct {
 	// user row, which is how a user's sessions are revoked. A session minted
 	// before #1428 has no epoch and decodes as 0, the column's default.
 	Epoch int64 `json:"epoch,omitempty"`
+}
+
+// IsLegacy reports whether the session was decoded from a cookie minted before
+// sessions were stored server-side (#1646): it has no session id, and its
+// tokens, if any, came from the cookie itself.
+func (s *Session) IsLegacy() bool {
+	return s.ID == ""
 }
 
 // IsExpired returns true when the access token has passed its expiry. A zero
@@ -152,6 +174,17 @@ func (s *Session) Slide(now time.Time) bool {
 	}
 	s.ExpiresAt = now.Add(SlidingLifetime)
 	return true
+}
+
+// EndsAt returns when a session written at now stops authenticating: a sliding
+// session's own expiry, or refreshableLifetime from now for a session kept
+// alive by a refresh token. It is the cookie's Max-Age as an instant, so the
+// server-side row and the cookie expire together.
+func (s *Session) EndsAt(now time.Time) time.Time {
+	if s.IsSliding() {
+		return s.ExpiresAt
+	}
+	return now.Add(refreshableLifetime)
 }
 
 // maxAge returns the Max-Age of the cookie that carries the session.
@@ -234,10 +267,15 @@ func (m *Manager) Read(r *http.Request) (*Session, error) {
 // it. Write is the usual way to set it; a handler with no ResponseWriter of its
 // own (a generated strict-server operation returns its headers as data) sends
 // Cookie(...).String() as the Set-Cookie header instead.
+//
+// The identity-provider tokens are left out: they belong in the session's
+// server-side row (#1646), so the cookie never carries them.
 func (m *Manager) Cookie(s *Session) (*http.Cookie, error) {
-	// #nosec G117 - AccessToken is the session payload; it is encrypted with AES-GCM before
-	// being written to the cookie. The token never touches the wire in plaintext.
-	payload, err := json.Marshal(s)
+	wire := *s
+	wire.AccessToken, wire.RefreshToken = "", ""
+	// #nosec G117 -- the token fields were cleared just above; the payload
+	// carries no token, and is AES-GCM encrypted besides.
+	payload, err := json.Marshal(&wire)
 	if err != nil {
 		return nil, fmt.Errorf("session: marshal session: %w", err)
 	}
