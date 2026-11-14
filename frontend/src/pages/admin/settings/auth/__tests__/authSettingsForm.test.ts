@@ -1,4 +1,5 @@
 import {
+  adminValuesOf,
   allowlistImpactSentence,
   availableProviderTypes,
   emptyProviderForm,
@@ -13,6 +14,8 @@ import {
   nextSortOrder,
   normalizeAllowlistEntries,
   redirectUriFor,
+  roleMappingOf,
+  rolesClaimError,
   sameAllowlistEntries,
   sortProviders,
   toProviderCreate,
@@ -117,6 +120,183 @@ describe('validateProviderForm', () => {
     expect(
       validateProviderForm({ ...form, client_secret: 'new' }, stored)
     ).toEqual({})
+  })
+})
+
+describe('role mapping (#1645)', () => {
+  const oidc = {
+    ...emptyProviderForm('oidc'),
+    slug: 'okta',
+    display_name: 'Okta',
+    client_id: 'abc',
+    client_secret: 's3cret',
+    issuer_url: 'https://example.okta.com',
+  }
+  const mapped = provider({
+    roles_claim: 'groups',
+    admin_values: ['platform-admins', 'VibeXP Admins'],
+  })
+
+  it('keeps each value exactly, one per line, dropping blanks and duplicates', () => {
+    expect(
+      adminValuesOf(
+        'platform-admins\n\n  VibeXP Admins \r\nplatform-admins\nplatform-Admins'
+      )
+    ).toEqual(['platform-admins', 'VibeXP Admins', 'platform-Admins'])
+  })
+
+  it('turns the mapping off with a blank claim', () => {
+    expect(roleMappingOf({ roles_claim: ' ', admin_values: 'x' })).toEqual({
+      roles_claim: null,
+      admin_values: [],
+    })
+    expect(
+      roleMappingOf({ roles_claim: ' realm_access.roles ', admin_values: 'a' })
+    ).toEqual({ roles_claim: 'realm_access.roles', admin_values: ['a'] })
+  })
+
+  it('accepts a dotted or URL-namespaced claim path only', () => {
+    expect(rolesClaimError('groups')).toBeNull()
+    expect(rolesClaimError('realm_access.roles')).toBeNull()
+    expect(rolesClaimError('https://example.com/roles')).toBeNull()
+    expect(rolesClaimError('realm_access..roles')).toMatch(/dotted path/)
+    expect(rolesClaimError('.groups')).toMatch(/dotted path/)
+    expect(rolesClaimError('my groups')).toMatch(/spaces/)
+    expect(rolesClaimError('g'.repeat(256))).toMatch(/at most 255/)
+  })
+
+  it('needs a claim and values together, and is optional', () => {
+    expect(validateProviderForm(oidc, null)).toEqual({})
+    expect(
+      validateProviderForm({ ...oidc, roles_claim: 'groups' }, null)
+    ).toEqual({
+      admin_values: 'Enter at least one value that makes a user an admin.',
+    })
+    expect(
+      validateProviderForm({ ...oidc, admin_values: 'platform-admins' }, null)
+    ).toEqual({ roles_claim: 'Enter the claim that carries these values.' })
+    expect(
+      validateProviderForm(
+        { ...oidc, roles_claim: 'groups', admin_values: 'platform-admins' },
+        null
+      )
+    ).toEqual({})
+  })
+
+  it('caps the number and length of the values', () => {
+    const many = Array.from({ length: 51 }, (_, i) => `g${String(i)}`)
+    expect(
+      validateProviderForm(
+        { ...oidc, roles_claim: 'groups', admin_values: many.join('\n') },
+        null
+      ).admin_values
+    ).toBe('Enter at most 50 values.')
+    expect(
+      validateProviderForm(
+        { ...oidc, roles_claim: 'groups', admin_values: 'a'.repeat(256) },
+        null
+      ).admin_values
+    ).toMatch(/at most 255 characters/)
+  })
+
+  it('never judges a mapping on Google or GitHub', () => {
+    const form = {
+      ...emptyProviderForm('google'),
+      client_id: 'abc',
+      client_secret: 'x',
+      admin_values: 'stale',
+    }
+    expect(validateProviderForm(form, null)).toEqual({})
+    expect(toProviderCreate(form, 0, 1)).not.toHaveProperty('admin_values')
+  })
+
+  it('round-trips a stored mapping through the form', () => {
+    const form = toProviderForm(mapped)
+    expect(form.roles_claim).toBe('groups')
+    expect(form.admin_values).toBe('platform-admins\nVibeXP Admins')
+    expect(roleMappingOf(form)).toEqual({
+      roles_claim: 'groups',
+      admin_values: ['platform-admins', 'VibeXP Admins'],
+    })
+  })
+
+  it('creates a provider with its mapping, and without one when blank', () => {
+    expect(
+      toProviderCreate(
+        {
+          ...oidc,
+          roles_claim: 'groups',
+          admin_values: 'platform-admins\nVibeXP Admins',
+        },
+        0,
+        1
+      )
+    ).toMatchObject({
+      roles_claim: 'groups',
+      admin_values: ['platform-admins', 'VibeXP Admins'],
+    })
+    const plain = toProviderCreate(oidc, 0, 1)
+    expect(plain).not.toHaveProperty('roles_claim')
+    expect(plain).not.toHaveProperty('admin_values')
+  })
+
+  it('sends a set or edited mapping on update', () => {
+    const set = toProviderUpdate(
+      provider(),
+      {
+        ...toProviderForm(provider()),
+        roles_claim: 'groups',
+        admin_values: 'platform-admins',
+      },
+      4,
+      false
+    )
+    expect(set).toMatchObject({
+      roles_claim: 'groups',
+      admin_values: ['platform-admins'],
+    })
+    const edited = toProviderUpdate(
+      mapped,
+      { ...toProviderForm(mapped), admin_values: 'VibeXP Admins' },
+      4,
+      false
+    )
+    expect(edited).toMatchObject({
+      roles_claim: 'groups',
+      admin_values: ['VibeXP Admins'],
+    })
+  })
+
+  it('clears the mapping with a null claim and no values', () => {
+    const body = toProviderUpdate(
+      mapped,
+      { ...toProviderForm(mapped), roles_claim: '', admin_values: '' },
+      4,
+      false
+    )
+    expect(body.roles_claim).toBeNull()
+    expect(body.admin_values).toEqual([])
+  })
+
+  it('omits an untouched mapping, so the stored one is kept', () => {
+    const unchanged = toProviderUpdate(mapped, toProviderForm(mapped), 4, false)
+    const toggled = toProviderUpdate(mapped, { enabled: false }, 4, false)
+    const moved = toProviderUpdate(mapped, { sort_order: 3 }, 4, false)
+    for (const body of [unchanged, toggled, moved]) {
+      expect(body).not.toHaveProperty('roles_claim')
+      expect(body).not.toHaveProperty('admin_values')
+    }
+  })
+
+  it('never sends a mapping for a Google provider', () => {
+    const body = toProviderUpdate(
+      google,
+      { ...toProviderForm(google), roles_claim: 'groups', admin_values: 'x' },
+      4,
+      false
+    )
+    expect(body).not.toHaveProperty('roles_claim')
+    expect(body).not.toHaveProperty('admin_values')
   })
 })
 
@@ -349,11 +529,16 @@ describe('lockout risk', () => {
   it('explains each reason differently', () => {
     const none = lockoutRiskCopy('no_enabled_provider')
     const own = lockoutRiskCopy('own_provider')
+    const admin = lockoutRiskCopy('own_admin_status')
     const other = lockoutRiskCopy('something_new')
     expect(none.description).toMatch(/no sign-in provider is enabled/)
     expect(own.description).toMatch(/cannot sign in through it again/)
+    expect(admin.title).toBe('This removes your own admin access')
+    expect(admin.description).toMatch(/only through this provider's role/)
     expect(other.title).toBe('This change could lock you out')
-    expect(new Set([none.title, own.title, other.title]).size).toBe(3)
+    expect(
+      new Set([none.title, own.title, admin.title, other.title]).size
+    ).toBe(4)
   })
 
   it('counts the password-only accounts in the title', () => {

@@ -63,6 +63,7 @@ beforeEach(() => {
         granted_at: '2026-10-01T10:00:00Z',
       },
     ],
+    provider_admins: [],
   })
   service.listAudit.mockResolvedValue({ entries: [], next_cursor: null })
   service.getPolicy.mockResolvedValue(policy())

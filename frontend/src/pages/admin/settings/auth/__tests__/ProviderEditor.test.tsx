@@ -335,3 +335,129 @@ describe('ProviderEditor: editing a provider', () => {
     })
   })
 })
+
+describe('ProviderEditor: role mapping (#1645)', () => {
+  const mapped = provider({
+    roles_claim: 'groups',
+    admin_values: ['platform-admins', 'VibeXP Admins'],
+  })
+
+  beforeEach(() => {
+    service.updateProvider.mockResolvedValue({ provider: mapped, version: 8 })
+  })
+
+  it('is offered for OIDC only', async () => {
+    const user = await renderEditor([])
+    expect(screen.queryByTestId('provider-role-mapping')).toBeNull()
+    await user.click(screen.getByRole('radio', { name: 'GitHub' }))
+    expect(screen.queryByTestId('provider-role-mapping')).toBeNull()
+    expect(screen.queryByLabelText('Roles claim')).toBeNull()
+
+    await user.click(screen.getByRole('radio', { name: 'OpenID Connect' }))
+    expect(screen.getByTestId('provider-role-mapping')).toBeVisible()
+    expect(screen.getByLabelText('Roles claim')).toHaveValue('')
+    expect(screen.getByLabelText('Admin values')).toHaveValue('')
+    expect(screen.getByText('realm_access.roles')).toBeVisible()
+  })
+
+  it('is absent when editing a Google provider', async () => {
+    await renderEditor([google], 'google')
+    expect(screen.queryByTestId('provider-role-mapping')).toBeNull()
+  })
+
+  it('shows the stored mapping, one value per line', async () => {
+    await renderEditor([mapped], 'okta')
+    expect(screen.getByLabelText('Roles claim')).toHaveValue('groups')
+    expect(screen.getByLabelText('Admin values')).toHaveValue(
+      'platform-admins\nVibeXP Admins'
+    )
+  })
+
+  it('sets a mapping on a provider that had none', async () => {
+    const stored = provider()
+    const user = await renderEditor([stored], 'okta')
+    await user.type(screen.getByLabelText('Roles claim'), 'realm_access.roles')
+    await user.type(
+      screen.getByLabelText('Admin values'),
+      'platform-admins{Enter}VibeXP Admins'
+    )
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(onDone).toHaveBeenCalledTimes(1)
+    })
+    expect(service.updateProvider.mock.calls[0][1]).toMatchObject({
+      roles_claim: 'realm_access.roles',
+      admin_values: ['platform-admins', 'VibeXP Admins'],
+    })
+  })
+
+  it('clears the mapping', async () => {
+    const user = await renderEditor([mapped], 'okta')
+    await user.clear(screen.getByLabelText('Roles claim'))
+    await user.clear(screen.getByLabelText('Admin values'))
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(onDone).toHaveBeenCalledTimes(1)
+    })
+    const body = service.updateProvider.mock.calls[0][1]
+    expect(body.roles_claim).toBeNull()
+    expect(body.admin_values).toEqual([])
+  })
+
+  it('keeps the stored mapping on an edit that leaves it alone', async () => {
+    const user = await renderEditor([mapped], 'okta')
+    await user.type(screen.getByLabelText('Display name'), '!')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(onDone).toHaveBeenCalledTimes(1)
+    })
+    const body = service.updateProvider.mock.calls[0][1]
+    expect(body).not.toHaveProperty('roles_claim')
+    expect(body).not.toHaveProperty('admin_values')
+  })
+
+  it('blocks values without a claim', async () => {
+    const user = await renderEditor([provider()], 'okta')
+    await user.type(screen.getByLabelText('Admin values'), 'platform-admins')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(
+      screen.getByText('Enter the claim that carries these values.')
+    ).toBeVisible()
+    expect(screen.getByLabelText('Roles claim')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+    expect(service.updateProvider).not.toHaveBeenCalled()
+  })
+
+  it('puts server errors on the claim and the values', async () => {
+    service.updateProvider.mockRejectedValue(
+      apiError(400, 'VALIDATION_FAILED', {
+        validation_errors: [
+          { field: 'roles_claim', message: 'roles_claim is not allowed' },
+          { field: 'admin_values', message: 'admin_values is not allowed' },
+        ],
+      })
+    )
+    const user = await renderEditor([mapped], 'okta')
+    await user.type(screen.getByLabelText('Admin values'), '{Enter}ops')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(await screen.findByText('roles_claim is not allowed')).toBeVisible()
+    expect(screen.getByText('admin_values is not allowed')).toBeVisible()
+    expect(screen.getByLabelText('Admin values')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+    expect(screen.queryByTestId('provider-form-error')).toBeNull()
+
+    // Editing a field clears only that field's server message.
+    await user.type(screen.getByLabelText('Admin values'), 's')
+    expect(screen.queryByText('admin_values is not allowed')).toBeNull()
+    expect(screen.getByText('roles_claim is not allowed')).toBeVisible()
+  })
+})

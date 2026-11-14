@@ -90,6 +90,14 @@ export const AUDIT_OPERATIONS: Record<AuditOperation, AuditOperationInfo> = {
   'auth.mcp_consent.granted': { label: 'MCP access granted', group: 'auth' },
   'auth.mcp_consent.denied': { label: 'MCP access denied', group: 'auth' },
   'auth.mcp_grant.revoked': { label: 'MCP access revoked', group: 'auth' },
+  'auth.instance_admin.promoted': {
+    label: 'Admin via identity provider',
+    group: 'auth',
+  },
+  'auth.instance_admin.demoted': {
+    label: 'Identity provider admin removed',
+    group: 'auth',
+  },
   'team.created': { label: 'Team created', group: 'team' },
   'team.updated': { label: 'Team updated', group: 'team' },
   'team.deleted': { label: 'Team deleted', group: 'team' },

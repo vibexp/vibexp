@@ -2,7 +2,10 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import {
+  type AdminAuthProvider,
   type AdminInstanceAdmin,
+  type AdminInstanceAdminList,
+  type AdminInstanceProviderAdmin,
   authSettingsService,
 } from '@/services/authSettingsService'
 
@@ -19,7 +22,7 @@ vi.mock('@/services/authSettingsService', () => ({
 }))
 
 import { InstanceAdminsSection } from '../InstanceAdminsSection'
-import { apiError } from './fixtures'
+import { apiError, provider } from './fixtures'
 
 const service = vi.mocked(authSettingsService)
 const onChanged = vi.fn()
@@ -32,11 +35,41 @@ const ada: AdminInstanceAdmin = {
   granted_at: '2026-10-01T10:00:00Z',
 }
 
-const list = { root_admins: ['root@example.com'], admins: [ada] }
+const list: AdminInstanceAdminList = {
+  root_admins: ['root@example.com'],
+  admins: [ada],
+  provider_admins: [],
+}
 
-async function renderSection(canManage: boolean, admins = list) {
+const keycloak = provider({
+  id: '44444444-4444-4444-8444-444444444444',
+  slug: 'keycloak',
+  display_name: 'Company SSO',
+})
+
+const grace: AdminInstanceProviderAdmin = {
+  user_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  email: 'grace@example.com',
+  name: 'Grace',
+  provider_id: keycloak.id,
+  provider_slug: 'keycloak',
+  matched_value: 'VibeXP Admins',
+  evaluated_at: '2026-11-01T10:00:00Z',
+}
+
+async function renderSection(
+  canManage: boolean,
+  admins: AdminInstanceAdminList = list,
+  providers?: AdminAuthProvider[]
+) {
   service.listAdmins.mockResolvedValue(admins)
-  render(<InstanceAdminsSection canManage={canManage} onChanged={onChanged} />)
+  render(
+    <InstanceAdminsSection
+      canManage={canManage}
+      providers={providers}
+      onChanged={onChanged}
+    />
+  )
   await screen.findByTestId('auth-admins-section')
   return userEvent.setup()
 }
@@ -46,18 +79,85 @@ beforeEach(() => {
 })
 
 describe('InstanceAdminsSection', () => {
-  it('lists root admins read-only with a config badge, then the grants', async () => {
+  it('lists root admins read-only with their source, then the grants', async () => {
     await renderSection(true)
     const root = within(screen.getByTestId('auth-root-admin'))
     expect(root.getByText('root@example.com')).toBeVisible()
-    expect(root.getByText('config')).toBeVisible()
+    expect(root.getByText('Server configuration')).toBeVisible()
     // A root admin comes from the server configuration: nothing to remove.
     expect(root.queryByRole('button')).toBeNull()
 
     const granted = within(screen.getByTestId('auth-db-admin'))
     expect(granted.getByText('Ada Admin')).toBeVisible()
     expect(granted.getByText('ada@example.com')).toBeVisible()
-    expect(granted.queryByText('config')).toBeNull()
+    expect(granted.getByText('Granted')).toBeVisible()
+    expect(granted.queryByText('Server configuration')).toBeNull()
+  })
+
+  it('lists provider-sourced admins read-only, naming the provider (#1645)', async () => {
+    await renderSection(true, { ...list, provider_admins: [grace] }, [keycloak])
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+    const row = screen.getByTestId('auth-provider-admin')
+    const sourced = within(row)
+    expect(sourced.getByText('Grace')).toBeVisible()
+    expect(sourced.getByText('grace@example.com')).toBeVisible()
+    expect(sourced.getByText('Identity provider')).toBeVisible()
+    expect(sourced.getByText('VibeXP Admins')).toBeVisible()
+    expect(row).toHaveTextContent('via Company SSO')
+    expect(row).toHaveTextContent(
+      'Managed by Company SSO: change it at the identity provider or in the role mapping.'
+    )
+    // Only the mapping changes it, so there is nothing to remove.
+    expect(sourced.queryByRole('button')).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'Remove grace@example.com' })
+    ).toBeNull()
+  })
+
+  it('falls back to the provider slug without the providers list', async () => {
+    await renderSection(true, { ...list, provider_admins: [grace] })
+    expect(screen.getByTestId('auth-provider-admin')).toHaveTextContent(
+      'via keycloak'
+    )
+  })
+
+  it('keeps Remove on the grant of a user the mapping also made an admin', async () => {
+    const both: AdminInstanceProviderAdmin = {
+      ...grace,
+      user_id: ada.user_id,
+      email: ada.email,
+      name: ada.name,
+    }
+    await renderSection(true, { ...list, provider_admins: [both] }, [keycloak])
+    expect(
+      within(screen.getByTestId('auth-db-admin')).getByRole('button', {
+        name: 'Remove ada@example.com',
+      })
+    ).toBeVisible()
+    expect(
+      within(screen.getByTestId('auth-provider-admin')).queryByRole('button')
+    ).toBeNull()
+  })
+
+  it('shows the server message when a grant targets a provider-sourced admin', async () => {
+    service.grantAdmin.mockRejectedValue(
+      apiError(409, 'CONFLICT', {
+        detail: 'grace@example.com is an instance admin through keycloak',
+      })
+    )
+    const user = await renderSection(true, {
+      ...list,
+      provider_admins: [grace],
+    })
+    await user.type(
+      screen.getByLabelText('Grant instance admin to'),
+      'grace@example.com'
+    )
+    await user.click(screen.getByRole('button', { name: 'Grant' }))
+    expect(await screen.findByTestId('auth-admins-error')).toHaveTextContent(
+      'grace@example.com is an instance admin through keycloak'
+    )
+    expect(onChanged).not.toHaveBeenCalled()
   })
 
   it('renders no grant or revoke control for a non-root admin', async () => {
@@ -81,7 +181,7 @@ describe('InstanceAdminsSection', () => {
   })
 
   it('says so when nobody has been granted', async () => {
-    await renderSection(true, { root_admins: ['root@example.com'], admins: [] })
+    await renderSection(true, { ...list, admins: [] })
     expect(screen.getByTestId('auth-admins-empty')).toBeVisible()
   })
 

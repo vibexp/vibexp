@@ -32,6 +32,8 @@ export type AdminAuthAllowlistImpact =
 export type AdminInstanceAdmin = components['schemas']['AdminInstanceAdmin']
 export type AdminInstanceAdminList =
   components['schemas']['AdminInstanceAdminList']
+export type AdminInstanceProviderAdmin =
+  components['schemas']['AdminInstanceProviderAdmin']
 export type AdminInstanceAdminGrant =
   components['schemas']['AdminInstanceAdminGrant']
 export type AdminAuthSettingsAuditSetting =

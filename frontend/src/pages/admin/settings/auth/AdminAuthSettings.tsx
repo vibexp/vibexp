@@ -42,6 +42,7 @@ export function AdminAuthSettings() {
       <AllowlistSection onSaved={reloadProviders} />
       <InstanceAdminsSection
         canManage={user?.is_root_instance_admin === true}
+        providers={providers.providers}
         onChanged={recordChange}
       />
       <AuthAuditSection refreshKey={auditKey} />
