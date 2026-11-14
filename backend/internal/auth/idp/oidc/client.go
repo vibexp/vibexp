@@ -186,39 +186,57 @@ func (c *Client) Refresh(ctx context.Context, refreshToken string) (*idp.Tokens,
 	return tokens, nil
 }
 
+// claimsFromToken reads the claims from the verified ID token, or from userinfo
+// when the token response carried none.
 func (c *Client) claimsFromToken(
 	ctx context.Context, cfg *oauth2.Config, token *oauth2.Token, nonce string,
 ) (*idp.Claims, error) {
 	if rawIDToken, ok := token.Extra("id_token").(string); ok && rawIDToken != "" {
-		idToken, err := c.verifier.Verify(ctx, rawIDToken)
-		if err != nil {
-			return nil, fmt.Errorf("oidc: verify id token: %w", err)
-		}
-		if err := checkNonce(idToken.Nonce, nonce); err != nil {
-			return nil, err
-		}
-		var raw struct {
-			Sub           string `json:"sub"`
-			Email         string `json:"email"`
-			EmailVerified bool   `json:"email_verified"`
-			Name          string `json:"name"`
-			Picture       string `json:"picture"`
-		}
-		if err := idToken.Claims(&raw); err != nil {
-			return nil, fmt.Errorf("oidc: decode id token claims: %w", err)
-		}
-		if raw.Sub == "" {
-			return nil, fmt.Errorf("oidc: id token missing subject")
-		}
-		return &idp.Claims{
-			Subject:       raw.Sub,
-			Email:         raw.Email,
-			EmailVerified: raw.EmailVerified,
-			Name:          raw.Name,
-			Picture:       raw.Picture,
-		}, nil
+		return c.idTokenClaims(ctx, rawIDToken, nonce)
 	}
+	return c.userInfoClaims(ctx, cfg, token)
+}
 
+// idTokenClaims verifies rawIDToken, checks its nonce and returns its claims.
+func (c *Client) idTokenClaims(ctx context.Context, rawIDToken, nonce string) (*idp.Claims, error) {
+	idToken, err := c.verifier.Verify(ctx, rawIDToken)
+	if err != nil {
+		return nil, fmt.Errorf("oidc: verify id token: %w", err)
+	}
+	if err = checkNonce(idToken.Nonce, nonce); err != nil {
+		return nil, err
+	}
+	var raw struct {
+		Sub           string `json:"sub"`
+		Email         string `json:"email"`
+		EmailVerified bool   `json:"email_verified"`
+		Name          string `json:"name"`
+		Picture       string `json:"picture"`
+	}
+	if err = idToken.Claims(&raw); err != nil {
+		return nil, fmt.Errorf("oidc: decode id token claims: %w", err)
+	}
+	if raw.Sub == "" {
+		return nil, fmt.Errorf("oidc: id token missing subject")
+	}
+	var all map[string]any
+	if err = idToken.Claims(&all); err != nil {
+		return nil, fmt.Errorf("oidc: decode id token claims: %w", err)
+	}
+	return &idp.Claims{
+		Subject:       raw.Sub,
+		Email:         raw.Email,
+		EmailVerified: raw.EmailVerified,
+		Name:          raw.Name,
+		Picture:       raw.Picture,
+		Raw:           all,
+	}, nil
+}
+
+// userInfoClaims returns the claims of the userinfo endpoint.
+func (c *Client) userInfoClaims(
+	ctx context.Context, cfg *oauth2.Config, token *oauth2.Token,
+) (*idp.Claims, error) {
 	userInfo, err := c.provider.UserInfo(ctx, cfg.TokenSource(ctx, token))
 	if err != nil {
 		return nil, fmt.Errorf("oidc: fetch userinfo: %w", err)
@@ -228,11 +246,15 @@ func (c *Client) claimsFromToken(
 		Name          string `json:"name"`
 		Picture       string `json:"picture"`
 	}
-	if err := userInfo.Claims(&raw); err != nil {
+	if err = userInfo.Claims(&raw); err != nil {
 		return nil, fmt.Errorf("oidc: decode userinfo claims: %w", err)
 	}
 	if userInfo.Subject == "" {
 		return nil, fmt.Errorf("oidc: userinfo missing subject")
+	}
+	var all map[string]any
+	if err = userInfo.Claims(&all); err != nil {
+		return nil, fmt.Errorf("oidc: decode userinfo claims: %w", err)
 	}
 	return &idp.Claims{
 		Subject:       userInfo.Subject,
@@ -240,6 +262,7 @@ func (c *Client) claimsFromToken(
 		EmailVerified: raw.EmailVerified,
 		Name:          raw.Name,
 		Picture:       raw.Picture,
+		Raw:           all,
 	}, nil
 }
 

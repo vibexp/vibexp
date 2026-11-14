@@ -102,6 +102,10 @@ type authSettingsFixture struct {
 	enc      *EncryptionService
 	wayIn    *staticWayIn
 	counts   *credentialCounts
+	// admins resolves instance admins, including provider-sourced ones whose
+	// promotions and demotions land in events (#1644).
+	admins *InstanceAdminService
+	events *auditEvents
 }
 
 // staticWayIn is an AuthWayIn with fixed answers.
@@ -145,17 +149,21 @@ func newAuthSettingsFixture(t *testing.T) *authSettingsFixture {
 			{ID: authSettingsSuspendedID, Email: "gone@example.com", Status: models.UserStatusSuspended},
 		}},
 	}
-	admins := NewInstanceAdminService([]string{authSettingsRootEmail}, f.store.Grants(), f.users, logger)
+	f.events = &auditEvents{}
+	admins := NewInstanceAdminService([]string{authSettingsRootEmail}, f.store.Grants(), f.users, logger,
+		WithProviderAdmins(f.store.ProviderAdmins(), f.events))
+	f.admins = admins
 	f.svc = NewInstanceAuthSettingsService(InstanceAuthSettingsDeps{
-		Providers:   f.store.Providers(),
-		Allowlists:  f.store.Allowlist(),
-		Policies:    f.store.Policy(),
-		WayIn:       f.wayIn,
-		Credentials: f.counts,
-		Versions:    f.store.Versions(),
-		Grants:      f.store.Grants(),
-		Users:       f.users,
-		Resolver:    f.resolver,
+		Providers:      f.store.Providers(),
+		Allowlists:     f.store.Allowlist(),
+		Policies:       f.store.Policy(),
+		WayIn:          f.wayIn,
+		Credentials:    f.counts,
+		Versions:       f.store.Versions(),
+		Grants:         f.store.Grants(),
+		ProviderAdmins: f.store.ProviderAdmins(),
+		Users:          f.users,
+		Resolver:       f.resolver,
 		AllowlistResolver: NewAccessAllowlistResolver(AccessAllowlistResolverDeps{
 			Allowlists: f.store.Allowlist(), Versions: f.store.Versions(), RootAdmins: admins, Logger: logger,
 		}),

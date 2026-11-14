@@ -129,6 +129,12 @@ const (
 	// AuditOpAuthMCPGrantRevoked is reserved: there is no per-app grant
 	// revocation yet, so nothing records it.
 	AuditOpAuthMCPGrantRevoked AuditOperation = "auth.mcp_grant.revoked"
+	// AuditOpAuthInstanceAdminPromoted and AuditOpAuthInstanceAdminDemoted are a
+	// sign-in provider's role mapping making a user an instance admin or
+	// removing that (#1644). Metadata: provider_slug, plus matched_value on a
+	// promotion and reason on a demotion.
+	AuditOpAuthInstanceAdminPromoted AuditOperation = "auth.instance_admin.promoted"
+	AuditOpAuthInstanceAdminDemoted  AuditOperation = "auth.instance_admin.demoted"
 )
 
 // Team administration.
@@ -188,6 +194,7 @@ var allAuditOperations = []AuditOperation{
 	AuditOpAuthIdentityLinked, AuditOpAuthIdentityUnlinked,
 	AuditOpAuthMCPClientRegistered, AuditOpAuthMCPConsentGranted,
 	AuditOpAuthMCPConsentDenied, AuditOpAuthMCPGrantRevoked,
+	AuditOpAuthInstanceAdminPromoted, AuditOpAuthInstanceAdminDemoted,
 
 	AuditOpTeamCreated, AuditOpTeamUpdated, AuditOpTeamDeleted,
 	AuditOpTeamInviteSent, AuditOpTeamInviteAccepted, AuditOpTeamInviteRejected, AuditOpTeamInviteRevoked,

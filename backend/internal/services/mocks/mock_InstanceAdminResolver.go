@@ -229,6 +229,91 @@ func (_c *MockInstanceAdminResolver_IsVerifiedRootAdmin_Call) RunAndReturn(run f
 	return _c
 }
 
+// RecordProviderAdminDemotions provides a mock function with given fields: ctx, providerSlug, reason, userIDs
+func (_m *MockInstanceAdminResolver) RecordProviderAdminDemotions(ctx context.Context, providerSlug string, reason string, userIDs []string) {
+	_m.Called(ctx, providerSlug, reason, userIDs)
+}
+
+// MockInstanceAdminResolver_RecordProviderAdminDemotions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RecordProviderAdminDemotions'
+type MockInstanceAdminResolver_RecordProviderAdminDemotions_Call struct {
+	*mock.Call
+}
+
+// RecordProviderAdminDemotions is a helper method to define mock.On call
+//   - ctx context.Context
+//   - providerSlug string
+//   - reason string
+//   - userIDs []string
+func (_e *MockInstanceAdminResolver_Expecter) RecordProviderAdminDemotions(ctx interface{}, providerSlug interface{}, reason interface{}, userIDs interface{}) *MockInstanceAdminResolver_RecordProviderAdminDemotions_Call {
+	return &MockInstanceAdminResolver_RecordProviderAdminDemotions_Call{Call: _e.mock.On("RecordProviderAdminDemotions", ctx, providerSlug, reason, userIDs)}
+}
+
+func (_c *MockInstanceAdminResolver_RecordProviderAdminDemotions_Call) Run(run func(ctx context.Context, providerSlug string, reason string, userIDs []string)) *MockInstanceAdminResolver_RecordProviderAdminDemotions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].([]string))
+	})
+	return _c
+}
+
+func (_c *MockInstanceAdminResolver_RecordProviderAdminDemotions_Call) Return() *MockInstanceAdminResolver_RecordProviderAdminDemotions_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockInstanceAdminResolver_RecordProviderAdminDemotions_Call) RunAndReturn(run func(context.Context, string, string, []string)) *MockInstanceAdminResolver_RecordProviderAdminDemotions_Call {
+	_c.Run(run)
+	return _c
+}
+
+// RemoveProviderAdmins provides a mock function with given fields: ctx, providerID, providerSlug, reason
+func (_m *MockInstanceAdminResolver) RemoveProviderAdmins(ctx context.Context, providerID string, providerSlug string, reason string) error {
+	ret := _m.Called(ctx, providerID, providerSlug, reason)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RemoveProviderAdmins")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) error); ok {
+		r0 = rf(ctx, providerID, providerSlug, reason)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockInstanceAdminResolver_RemoveProviderAdmins_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RemoveProviderAdmins'
+type MockInstanceAdminResolver_RemoveProviderAdmins_Call struct {
+	*mock.Call
+}
+
+// RemoveProviderAdmins is a helper method to define mock.On call
+//   - ctx context.Context
+//   - providerID string
+//   - providerSlug string
+//   - reason string
+func (_e *MockInstanceAdminResolver_Expecter) RemoveProviderAdmins(ctx interface{}, providerID interface{}, providerSlug interface{}, reason interface{}) *MockInstanceAdminResolver_RemoveProviderAdmins_Call {
+	return &MockInstanceAdminResolver_RemoveProviderAdmins_Call{Call: _e.mock.On("RemoveProviderAdmins", ctx, providerID, providerSlug, reason)}
+}
+
+func (_c *MockInstanceAdminResolver_RemoveProviderAdmins_Call) Run(run func(ctx context.Context, providerID string, providerSlug string, reason string)) *MockInstanceAdminResolver_RemoveProviderAdmins_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string))
+	})
+	return _c
+}
+
+func (_c *MockInstanceAdminResolver_RemoveProviderAdmins_Call) Return(_a0 error) *MockInstanceAdminResolver_RemoveProviderAdmins_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockInstanceAdminResolver_RemoveProviderAdmins_Call) RunAndReturn(run func(context.Context, string, string, string) error) *MockInstanceAdminResolver_RemoveProviderAdmins_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RequireRootAdmin provides a mock function with given fields: ctx, userID
 func (_m *MockInstanceAdminResolver) RequireRootAdmin(ctx context.Context, userID string) error {
 	ret := _m.Called(ctx, userID)
@@ -367,6 +452,56 @@ func (_c *MockInstanceAdminResolver_RootAdminEmails_Call) Return(_a0 []string) *
 }
 
 func (_c *MockInstanceAdminResolver_RootAdminEmails_Call) RunAndReturn(run func() []string) *MockInstanceAdminResolver_RootAdminEmails_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SyncProviderAdmin provides a mock function with given fields: ctx, user, providerID, providerSlug, matched
+func (_m *MockInstanceAdminResolver) SyncProviderAdmin(ctx context.Context, user *models.User, providerID string, providerSlug string, matched *string) error {
+	ret := _m.Called(ctx, user, providerID, providerSlug, matched)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SyncProviderAdmin")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *models.User, string, string, *string) error); ok {
+		r0 = rf(ctx, user, providerID, providerSlug, matched)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockInstanceAdminResolver_SyncProviderAdmin_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SyncProviderAdmin'
+type MockInstanceAdminResolver_SyncProviderAdmin_Call struct {
+	*mock.Call
+}
+
+// SyncProviderAdmin is a helper method to define mock.On call
+//   - ctx context.Context
+//   - user *models.User
+//   - providerID string
+//   - providerSlug string
+//   - matched *string
+func (_e *MockInstanceAdminResolver_Expecter) SyncProviderAdmin(ctx interface{}, user interface{}, providerID interface{}, providerSlug interface{}, matched interface{}) *MockInstanceAdminResolver_SyncProviderAdmin_Call {
+	return &MockInstanceAdminResolver_SyncProviderAdmin_Call{Call: _e.mock.On("SyncProviderAdmin", ctx, user, providerID, providerSlug, matched)}
+}
+
+func (_c *MockInstanceAdminResolver_SyncProviderAdmin_Call) Run(run func(ctx context.Context, user *models.User, providerID string, providerSlug string, matched *string)) *MockInstanceAdminResolver_SyncProviderAdmin_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*models.User), args[2].(string), args[3].(string), args[4].(*string))
+	})
+	return _c
+}
+
+func (_c *MockInstanceAdminResolver_SyncProviderAdmin_Call) Return(_a0 error) *MockInstanceAdminResolver_SyncProviderAdmin_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockInstanceAdminResolver_SyncProviderAdmin_Call) RunAndReturn(run func(context.Context, *models.User, string, string, *string) error) *MockInstanceAdminResolver_SyncProviderAdmin_Call {
 	_c.Call.Return(run)
 	return _c
 }

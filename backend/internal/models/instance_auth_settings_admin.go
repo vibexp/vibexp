@@ -146,11 +146,21 @@ type InstanceAdminView struct {
 	GrantedAt time.Time
 }
 
+// InstanceProviderAdminView is one provider-sourced instance admin with the
+// user it names.
+type InstanceProviderAdminView struct {
+	InstanceProviderAdmin
+	Email string
+	Name  string
+}
+
 // InstanceAdminList is the instance's admins: the root admins' emails from
-// config (read-only) and the DB grants, oldest first.
+// config (read-only), the DB grants, oldest first, and the provider-sourced
+// admins of the enabled providers.
 type InstanceAdminList struct {
-	RootAdmins []string
-	Admins     []InstanceAdminView
+	RootAdmins     []string
+	Admins         []InstanceAdminView
+	ProviderAdmins []InstanceProviderAdminView
 }
 
 // InstanceAdminGrantTarget names the existing user to grant, by exactly one of

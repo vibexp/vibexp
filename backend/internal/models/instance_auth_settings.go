@@ -156,3 +156,16 @@ type InstanceAdminGrant struct {
 	GrantedBy *string   `json:"granted_by,omitempty" db:"granted_by"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
+
+// InstanceProviderAdmin is one provider-sourced instance admin (#1644): the
+// user's last sign-in through the provider carried a claim value listed in the
+// provider's AdminValues. Only the role mapping writes it, and it grants admin
+// only while the provider is enabled.
+type InstanceProviderAdmin struct {
+	UserID       string `json:"user_id" db:"user_id"`
+	ProviderID   string `json:"provider_id" db:"provider_id"`
+	ProviderSlug string `json:"provider_slug" db:"slug"`
+	// MatchedValue is the AdminValues entry the claim matched.
+	MatchedValue string    `json:"matched_value" db:"matched_value"`
+	EvaluatedAt  time.Time `json:"evaluated_at" db:"evaluated_at"`
+}

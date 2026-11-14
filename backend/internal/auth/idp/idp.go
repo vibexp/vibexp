@@ -71,6 +71,11 @@ type Claims struct {
 	EmailVerified bool
 	Name          string
 	Picture       string
+	// Raw is the full verified claim set the canonical claims were read from:
+	// the ID token's, or userinfo's when the token response carried no ID
+	// token. A role mapping reads it (#1644). Nil for a provider that does not
+	// expose one. It may carry personal data, so it is never logged.
+	Raw map[string]any
 }
 
 // IdentityProvider abstracts an authorization-code-flow identity provider.

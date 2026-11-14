@@ -13,6 +13,18 @@ type Entry struct {
 	Type ProviderName
 	// DisplayName is the label the login UI shows.
 	DisplayName string
+	// ProviderID is the id of the provider's stored row; empty for a provider
+	// not built from one.
+	ProviderID string
+	// RoleMapping is the provider's role mapping (#1644); nil when it is off.
+	RoleMapping *RoleMapping
+}
+
+// RoleMapping makes a user an instance admin when the claim at Claim, a dotted
+// path, carries one of AdminValues (rolemapping.Evaluate).
+type RoleMapping struct {
+	Claim       string
+	AdminValues []string
 }
 
 // Registry is an immutable snapshot of the identity providers enabled for a

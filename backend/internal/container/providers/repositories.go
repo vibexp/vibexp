@@ -287,6 +287,12 @@ func ProvideInstanceAuthSettingsVersionRepository(db *database.DB) repositories.
 	return postgres.NewInstanceAuthSettingsVersionRepository(db)
 }
 
+// ProvideInstanceProviderAdminRepository creates a new
+// InstanceProviderAdminRepository (#1644).
+func ProvideInstanceProviderAdminRepository(db *database.DB) repositories.InstanceProviderAdminRepository {
+	return postgres.NewInstanceProviderAdminRepository(db)
+}
+
 // ProvideInstanceAdminRepository creates a new InstanceAdminRepository (#1231).
 func ProvideInstanceAdminRepository(db *database.DB) repositories.InstanceAdminRepository {
 	return postgres.NewInstanceAdminRepository(db)

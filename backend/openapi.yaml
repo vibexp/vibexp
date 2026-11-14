@@ -1246,6 +1246,8 @@ components:
       $ref: "./schemas/admin.yaml#/AdminInstanceAdmin"
     AdminInstanceAdminList:
       $ref: "./schemas/admin.yaml#/AdminInstanceAdminList"
+    AdminInstanceProviderAdmin:
+      $ref: "./schemas/admin.yaml#/AdminInstanceProviderAdmin"
     AdminInstanceAdminGrant:
       $ref: "./schemas/admin.yaml#/AdminInstanceAdminGrant"
     AdminAuthSettingsAuditSetting:

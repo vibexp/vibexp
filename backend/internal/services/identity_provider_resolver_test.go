@@ -550,3 +550,31 @@ func TestIDPResolver_WaiterLeavesWhenItsRequestEnds(t *testing.T) {
 	assert.Equal(t, []string{"corp-sso"}, slugs(reg))
 	assert.EqualValues(t, 1, h.repo.lists.Load(), "the detached rebuild served the later caller")
 }
+
+// TestRoleMappingOf pins which stored providers carry a role mapping into the
+// registry entry sign-in evaluates (#1644).
+func TestRoleMappingOf(t *testing.T) {
+	claim, empty := "realm_access.roles", ""
+	values := []string{"platform-admins"}
+	tests := []struct {
+		name string
+		row  models.InstanceAuthProvider
+		want *idp.RoleMapping
+	}{
+		{"oidc with a mapping", models.InstanceAuthProvider{
+			Type: models.InstanceAuthProviderOIDC, RolesClaim: &claim, AdminValues: values,
+		}, &idp.RoleMapping{Claim: claim, AdminValues: values}},
+		{"oidc without a mapping", models.InstanceAuthProvider{Type: models.InstanceAuthProviderOIDC}, nil},
+		{"oidc with an empty claim", models.InstanceAuthProvider{
+			Type: models.InstanceAuthProviderOIDC, RolesClaim: &empty, AdminValues: values,
+		}, nil},
+		{"google never maps", models.InstanceAuthProvider{
+			Type: models.InstanceAuthProviderGoogle, RolesClaim: &claim, AdminValues: values,
+		}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, roleMappingOf(&tt.row))
+		})
+	}
+}
