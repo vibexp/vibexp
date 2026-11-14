@@ -13,6 +13,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/vibexp/vibexp/internal/auth/authkit"
+	"github.com/vibexp/vibexp/internal/auth/idp"
 	sesslib "github.com/vibexp/vibexp/internal/auth/session"
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	apierrors "github.com/vibexp/vibexp/internal/errors"
@@ -32,15 +33,18 @@ func isTransientRefreshError(err error) bool {
 	// unreadable provider table or an enabled-but-unhealthy provider says
 	// nothing about the session, so keep it and let the client retry.
 	if errors.Is(err, services.ErrIdentityProvidersUnresolvable) ||
-		errors.Is(err, services.ErrIdentityProviderTemporarilyUnavailable) {
+		errors.Is(err, services.ErrIdentityProviderTemporarilyUnavailable) ||
+		errors.Is(err, idp.ErrProviderUnavailable) {
 		return true
 	}
 	// golang.org/x/oauth2 reports a non-2xx token endpoint answer as a
-	// RetrieveError carrying the response: a 5xx is the issuer failing, not a
-	// verdict on the refresh token.
+	// RetrieveError carrying the response: a 5xx, a throttling 429 or a 408
+	// is the issuer failing to answer, not a verdict on the refresh token.
 	var retrieveErr *oauth2.RetrieveError
 	if errors.As(err, &retrieveErr) && retrieveErr.Response != nil {
-		return retrieveErr.Response.StatusCode >= http.StatusInternalServerError
+		code := retrieveErr.Response.StatusCode
+		return code >= http.StatusInternalServerError ||
+			code == http.StatusTooManyRequests || code == http.StatusRequestTimeout
 	}
 	return isTransientRefreshMessage(err.Error())
 }

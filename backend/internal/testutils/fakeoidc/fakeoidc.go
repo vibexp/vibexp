@@ -56,10 +56,12 @@ type Issuer struct {
 	unverified  atomic.Bool
 	release     chan struct{}
 
-	refreshCalls  atomic.Int64
-	refreshStatus atomic.Int32
-	noRefreshID   atomic.Bool
-	forgeIDToken  atomic.Bool
+	refreshCalls   atomic.Int64
+	refreshStatus  atomic.Int32
+	jwksStatus     atomic.Int32
+	userInfoStatus atomic.Int32
+	noRefreshID    atomic.Bool
+	forgeIDToken   atomic.Bool
 
 	mu              sync.Mutex
 	grants          map[string]grant
@@ -159,6 +161,19 @@ func (i *Issuer) RefreshCalls() int64 { return i.refreshCalls.Load() }
 // (a 5xx simulates an issuer outage); 0 restores normal answers.
 func (i *Issuer) SetRefreshStatus(status int) {
 	i.refreshStatus.Store(int32(status)) // #nosec G115 -- an HTTP status fits
+}
+
+// SetJWKSStatus makes the keys endpoint answer status from now on; 0 restores
+// normal answers. A client caches the keys, so it only bites before the first
+// verification.
+func (i *Issuer) SetJWKSStatus(status int) {
+	i.jwksStatus.Store(int32(status)) // #nosec G115 -- an HTTP status fits
+}
+
+// SetUserInfoStatus makes the userinfo endpoint answer status from now on; 0
+// restores normal answers.
+func (i *Issuer) SetUserInfoStatus(status int) {
+	i.userInfoStatus.Store(int32(status)) // #nosec G115 -- an HTTP status fits
 }
 
 // SetRefreshIDToken sets whether a refresh response carries an ID token. It
@@ -311,6 +326,10 @@ func (i *Issuer) handleDiscovery(w http.ResponseWriter, r *http.Request) {
 }
 
 func (i *Issuer) handleJWKS(w http.ResponseWriter, _ *http.Request) {
+	if status := int(i.jwksStatus.Load()); status != 0 {
+		http.Error(w, "keys unavailable", status)
+		return
+	}
 	writeJSON(w, map[string]any{"keys": []map[string]any{{
 		"kty": "RSA", "alg": "RS256", "use": "sig", "kid": keyID,
 		"n": base64.RawURLEncoding.EncodeToString(i.key.N.Bytes()),
@@ -415,6 +434,10 @@ func (i *Issuer) mintIDToken(nonce string) (string, error) {
 
 // handleUserInfo answers the userinfo endpoint for the issuer's subject.
 func (i *Issuer) handleUserInfo(w http.ResponseWriter, _ *http.Request) {
+	if status := int(i.userInfoStatus.Load()); status != 0 {
+		http.Error(w, "userinfo unavailable", status)
+		return
+	}
 	sub := i.subject
 	i.mu.Lock()
 	if v, ok := i.extraClaims["sub"].(string); ok {

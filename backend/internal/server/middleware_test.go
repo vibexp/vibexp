@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/oauth2"
 
+	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
@@ -233,6 +234,10 @@ func TestIsTransientRefreshError(t *testing.T) {
 		{"oauth2 500", &oauth2.RetrieveError{Response: &http.Response{StatusCode: http.StatusInternalServerError}}, true},
 		{"oauth2 502 wrapped", fmt.Errorf("oidc: refresh token: %w",
 			&oauth2.RetrieveError{Response: &http.Response{StatusCode: http.StatusBadGateway}}), true},
+		{"oauth2 429", &oauth2.RetrieveError{Response: &http.Response{StatusCode: http.StatusTooManyRequests}}, true},
+		{"oauth2 408", &oauth2.RetrieveError{Response: &http.Response{StatusCode: http.StatusRequestTimeout}}, true},
+		{"jwks or userinfo unavailable", fmt.Errorf("oidc: verify id token: %w: oidc: get keys failed: 503 Service Unavailable",
+			idp.ErrProviderUnavailable), true},
 		{"oauth2 invalid_grant", &oauth2.RetrieveError{
 			Response: &http.Response{StatusCode: http.StatusBadRequest}, ErrorCode: "invalid_grant",
 		}, false},

@@ -2,6 +2,8 @@ package oidc
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -140,4 +142,38 @@ func TestClient_Refresh_ReusedTokenIsInvalidGrant(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid_grant")
+}
+
+func TestClient_Refresh_IssuerOutageIsProviderUnavailable(t *testing.T) {
+	tests := []struct {
+		name        string
+		setup       func(*fakeoidc.Issuer)
+		unavailable bool
+	}{
+		{"keys endpoint 503", func(i *fakeoidc.Issuer) { i.SetJWKSStatus(http.StatusServiceUnavailable) }, true},
+		{"userinfo 503", func(i *fakeoidc.Issuer) {
+			i.SetRefreshIDToken(false)
+			i.SetUserInfoStatus(http.StatusServiceUnavailable)
+		}, true},
+		{"userinfo 429", func(i *fakeoidc.Issuer) {
+			i.SetRefreshIDToken(false)
+			i.SetUserInfoStatus(http.StatusTooManyRequests)
+		}, true},
+		{"userinfo 401 is a verdict on the token", func(i *fakeoidc.Issuer) {
+			i.SetRefreshIDToken(false)
+			i.SetUserInfoStatus(http.StatusUnauthorized)
+		}, false},
+		{"bad signature is a verdict on the token", func(i *fakeoidc.Issuer) { i.SetForgeIDTokens(true) }, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, iss := newRefreshClient(t, nil)
+			tt.setup(iss)
+
+			_, _, err := c.Refresh(context.Background(), iss.IssueRefreshToken())
+
+			require.Error(t, err)
+			assert.Equal(t, tt.unavailable, errors.Is(err, idp.ErrProviderUnavailable), err.Error())
+		})
+	}
 }

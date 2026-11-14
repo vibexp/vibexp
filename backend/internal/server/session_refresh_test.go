@@ -255,3 +255,32 @@ func TestSessionRefresh_ParallelRequestsRefreshOnce(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, int64(2), iss.RefreshCalls())
 }
+
+// TestSessionRefresh_IssuerKeysOutageKeepsTheSession: the token endpoint
+// answers, but the keys needed to verify the refreshed ID token cannot be
+// fetched. That is the issuer failing, not a refusal: 503, session kept.
+func TestSessionRefresh_IssuerKeysOutageKeepsTheSession(t *testing.T) {
+	iss := fakeoidc.New(t, "client-1", "secret-1", refreshSubject, "user@example.com")
+	client, err := oidc.New(context.Background(), oidc.Config{
+		Name: idp.ProviderOIDC, IssuerURL: iss.URL, ClientID: "client-1", ClientSecret: "secret-1",
+	})
+	require.NoError(t, err)
+	iss.SetJWKSStatus(http.StatusServiceUnavailable)
+
+	f := newEpochFixture(t, 0)
+	rows := withOwnSessionStore(f.srv)
+	rec := withAudit(f.srv)
+	f.container.authService.On("RefreshTokens", mock.Anything, "oidc", mock.Anything).
+		Return(func(ctx context.Context, _, rt string) (*idp.Tokens, *idp.Claims, error) {
+			return client.Refresh(ctx, rt)
+		})
+	cookie := storedSessionCookie(t, f.srv, refreshableSession(iss.IssueRefreshToken(), time.Now().Add(-time.Minute)))
+
+	resp, _, called := f.requireAuth(t, cookie)
+
+	assert.False(t, called)
+	assert.Equal(t, http.StatusServiceUnavailable, resp.Code)
+	assert.Equal(t, 1, rows.count(), "the row is kept")
+	assert.Nil(t, sessionCookieIn(resp), "the cookie is kept")
+	assert.Empty(t, rec.events(), "nothing was ended by the provider")
+}

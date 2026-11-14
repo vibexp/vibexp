@@ -38,6 +38,12 @@ var ErrTokenInvalid = errors.New("identity provider: invalid token")
 // browser flow that requested it.
 var ErrNonceMismatch = errors.New("identity provider: id token nonce mismatch")
 
+// ErrProviderUnavailable marks a failure to reach the identity provider (an
+// unreachable host, a 5xx or a throttling answer) while it was being asked
+// about a token, as opposed to a verdict on the token. A refresh that fails
+// with it must keep the session.
+var ErrProviderUnavailable = errors.New("identity provider: temporarily unavailable")
+
 // FlowParams are the per-authorization-request secrets of one sign-in flow.
 // They are generated fresh for every authorization request and must survive
 // the redirect to the identity provider and back, so the callback can hand the

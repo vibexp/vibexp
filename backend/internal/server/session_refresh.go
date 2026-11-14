@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
+
+	"golang.org/x/oauth2"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	sesslib "github.com/vibexp/vibexp/internal/auth/session"
@@ -47,6 +48,10 @@ const sessionRefreshRetryAfter = "5"
 
 // errSessionRefreshTransient marks a refresh failure that keeps the session.
 var errSessionRefreshTransient = errors.New("session refresh failed transiently")
+
+// errRefreshSubjectMismatch is a refresh whose identity names a subject other
+// than the session's.
+var errRefreshSubjectMismatch = errors.New("the refreshed identity names another subject")
 
 // sessionRecheckInterval returns the configured re-check interval.
 func (s *Server) sessionRecheckInterval() time.Duration {
@@ -123,7 +128,7 @@ func (s *Server) refreshAtProvider(
 		return nil, fmt.Errorf("%w: %w", services.ErrSessionRefreshRejected, err)
 	}
 	if claims != nil && sess.IDPSubject != "" && claims.Subject != sess.IDPSubject {
-		return nil, fmt.Errorf("%w: the refreshed identity names another subject", services.ErrSessionRefreshRejected)
+		return nil, fmt.Errorf("%w: %w", services.ErrSessionRefreshRejected, errRefreshSubjectMismatch)
 	}
 	if tokens.RefreshToken == "" {
 		// A rotating provider returns a new refresh token on rotation. Empty
@@ -192,11 +197,11 @@ func (s *Server) auditSessionEndedByProvider(ctx context.Context, sess *sesslib.
 // error text: "invalid_grant" when the provider said so, "subject_mismatch"
 // when it answered for another user, else "rejected".
 func refreshErrorClass(err error) string {
-	msg := err.Error()
+	var retrieveErr *oauth2.RetrieveError
 	switch {
-	case strings.Contains(msg, "invalid_grant"):
+	case errors.As(err, &retrieveErr) && retrieveErr.ErrorCode == "invalid_grant":
 		return "invalid_grant"
-	case strings.Contains(msg, "another subject"):
+	case errors.Is(err, errRefreshSubjectMismatch):
 		return "subject_mismatch"
 	default:
 		return "rejected"
