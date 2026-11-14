@@ -281,11 +281,12 @@ func (s *Server) authenticateWithOAuthJWT(w http.ResponseWriter, r *http.Request
 	next.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// authenticateWithSession reads the vx_session cookie, decrypts it, checks
-// expiry (with automatic refresh when a refresh token is present), and sets
-// the user context. A session with no refresh token is never refreshed: it
-// expires SlidingLifetime after it was last issued and is extended by use
-// (slideSession).
+// authenticateWithSession reads the vx_session cookie, decrypts it, loads the
+// session's server-side row (#1646), checks expiry (with automatic refresh when
+// a refresh token is present), and sets the user context. A session with no
+// refresh token is never refreshed: it expires SlidingLifetime after it was
+// last issued and is extended by use (slideSession). A legacy cookie, minted
+// before sessions had rows, is converted to one once the chokepoint accepts it.
 //
 //nolint:funlen // Session auth must handle cookie read, expiry check, refresh, and context setup
 func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request, next http.Handler) {
@@ -312,9 +313,16 @@ func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
+	// The tokens, and whether there is a refresh token at all, are in the row.
+	if !sess.IsLegacy() && !s.loadSessionOrReject(w, r, sess, logger) {
+		return
+	}
+
 	// An expired session with no refresh token is over: nothing can renew it.
+	// A session with a row never gets here expired, since its row expires with
+	// it and the load above already answered; this catches a legacy cookie.
 	// Answering here, before the account lookup, keeps that answer a 401 even
-	// when the lookup would fail, and costs an expired cookie no database read.
+	// when the lookup would fail, and costs the expired cookie no user read.
 	if sess.IsExpired() && sess.RefreshToken == "" {
 		logger.With(
 			"middleware", "authenticateWithSession",
@@ -341,34 +349,46 @@ func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	// If the access token is expired, attempt a refresh — serialized per
-	// user to avoid racing on the provider's single-use refresh tokens (H1).
-	// The refresh updates sess in place: the context built above holds the same
-	// session, so a handler that re-issues the cookie writes the refreshed
-	// tokens and not the spent ones.
-	if sess.IsExpired() {
-		mu := s.refreshLockFor(sess.UserID)
-		mu.Lock()
-
-		// Re-read the cookie inside the lock — another goroutine may have
-		// already refreshed it, in which case our copy of the refresh token
-		// is stale and a refresh attempt would 401.
-		if reread, rerr := s.sessionManager.Read(r); rerr == nil && !reread.IsExpired() {
-			*sess = *reread
-			mu.Unlock()
-		} else {
-			_, ok := s.refreshSession(w, r, sess, logger)
-			mu.Unlock()
-			if !ok {
-				return
-			}
-		}
+	// Only now, with the epoch and the account checked, does a legacy cookie
+	// get a row: a revoked or suspended one must never be converted.
+	if sess.IsLegacy() && !s.convertLegacySession(w, r, sess, logger) {
+		return
 	}
 
-	s.slideSession(w, sess, contextkeys.GetLoggerFromContext(ctx))
+	if !s.refreshIfExpired(w, r, sess, logger) {
+		return
+	}
+
+	s.slideSession(r.Context(), w, sess, contextkeys.GetLoggerFromContext(ctx))
 
 	contextkeys.GetLoggerFromContext(ctx).Debug("Cookie session authentication successful")
 	next.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// refreshIfExpired refreshes an authenticated session whose access token has
+// expired and reports whether the request may go on. The refresh is
+// serialized per user to avoid racing on the provider's single-use refresh
+// tokens (H1), and it updates sess in place: the request context holds the same
+// session, so a handler that re-issues the cookie writes the refreshed tokens
+// and not the spent ones.
+func (s *Server) refreshIfExpired(
+	w http.ResponseWriter, r *http.Request, sess *sesslib.Session, logger *slog.Logger,
+) bool {
+	if !sess.IsExpired() {
+		return true
+	}
+	mu := s.refreshLockFor(sess.UserID)
+	mu.Lock()
+	defer mu.Unlock()
+
+	// Re-read the row inside the lock — another request may have already
+	// refreshed the session, in which case our copy of the refresh token is
+	// spent and a refresh attempt would 401.
+	if s.rereadRefreshedSession(r.Context(), sess) {
+		return true
+	}
+	_, ok := s.refreshSession(w, r, sess, logger)
+	return ok
 }
 
 // slideSession extends an authenticated sliding session (one with no refresh
@@ -378,19 +398,27 @@ func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request,
 // epoch that was just checked. sess is the session held by the request
 // context, so the extension is visible to a handler that re-issues the cookie.
 //
-// A failed write is logged and the request continues: the session in hand is
-// still valid, and the next request tries again.
-func (s *Server) slideSession(w http.ResponseWriter, sess *sesslib.Session, logger *slog.Logger) {
+// The row's expiry moves with the cookie's. A failed write of either is logged
+// and the request continues: the session in hand is still valid, and the next
+// request tries again.
+func (s *Server) slideSession(
+	ctx context.Context, w http.ResponseWriter, sess *sesslib.Session, logger *slog.Logger,
+) {
 	if !sess.Slide(time.Now()) {
 		return
+	}
+	if store := s.sessionStore(); store != nil {
+		if err := store.Slide(ctx, sess); err != nil {
+			logger.With("error", err).Warn("Failed to extend the sliding session's row")
+		}
 	}
 	if err := s.sessionManager.Write(w, sess); err != nil {
 		logger.With("error", err).Warn("Failed to re-issue sliding session cookie")
 	}
 }
 
-// refreshSession runs the provider's refresh-token rotation and rewrites the
-// vx_session cookie. Returns the refreshed session and true on success.
+// refreshSession runs the provider's refresh-token rotation, stores the new
+// tokens in the session's row and rewrites the vx_session cookie. Returns the refreshed session and true on success.
 // On permanent failures (revoked token, invalid_grant) it writes 401 +
 // clears the cookie. On transient failures (5xx, network) it writes 503
 // and KEEPS the cookie so the client can retry.
@@ -422,6 +450,7 @@ func (s *Server) refreshSession(
 			return nil, false
 		}
 		logger.With(fields...).Warn("Permanent refresh failure; clearing session")
+		s.deleteSession(r.Context(), sess)
 		s.sessionManager.Clear(w)
 		apiErr := apierrors.NewAuthInvalidError("Session expired")
 		apierrors.WriteJSONError(w, r, apiErr)
@@ -441,6 +470,14 @@ func (s *Server) refreshSession(
 	}
 	sess.AccessToken = newTokens.AccessToken
 	sess.ExpiresAt = newTokens.ExpiresAt
+
+	if store := s.sessionStore(); store != nil {
+		if saveErr := store.SaveTokens(r.Context(), sess); saveErr != nil {
+			// The rotated tokens live only in this request now; the next
+			// refresh presents the spent refresh token and signs the user out.
+			logger.With("error", saveErr).Error("Failed to store the refreshed session tokens")
+		}
+	}
 
 	if writeErr := s.sessionManager.Write(w, sess); writeErr != nil {
 		logger.With("error", writeErr).Warn("Failed to rewrite refreshed session cookie")
@@ -518,13 +555,21 @@ func (s *Server) optionalAPIKeyContext(r *http.Request, token string) (context.C
 }
 
 // optionalSessionContext returns the authenticated context for a valid,
-// unexpired session cookie; ok = false lets the request proceed anonymous.
+// unexpired session cookie whose row exists; ok = false lets the request
+// proceed anonymous. A legacy cookie is accepted as it is and is converted by
+// the next required-auth request, which can re-issue the cookie.
 func (s *Server) optionalSessionContext(r *http.Request) (context.Context, bool) {
 	if s.sessionManager == nil {
 		return nil, false
 	}
 	sess, err := s.sessionManager.Read(r)
-	if err != nil || sess.IsExpired() {
+	if err != nil {
+		return nil, false
+	}
+	if !sess.IsLegacy() && s.loadSession(r.Context(), sess) != nil {
+		return nil, false
+	}
+	if sess.IsExpired() {
 		return nil, false
 	}
 	ctx, err := s.authenticateUser(r.Context(), sess.UserID, authTypeCookie, nil, sess, time.Time{})

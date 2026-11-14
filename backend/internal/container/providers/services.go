@@ -1120,6 +1120,19 @@ func ProvidePasswordAuthService(
 	})
 }
 
+// ProvideSessionStore creates the store of server-side cookie sessions (#1646).
+// It needs the encryption service for the identity-provider tokens; without one
+// (only tests and tooling run with no security.encryption_key) it returns nil,
+// and every cookie sign-in fails closed.
+func ProvideSessionStore(
+	repo repositories.UserSessionRepository, enc services.EncryptionServiceInterface,
+) services.SessionStoreInterface {
+	if enc == nil {
+		return nil
+	}
+	return services.NewSessionStore(repo, enc)
+}
+
 // AccountTokenServiceDeps groups the dependencies of
 // ProvideAccountTokenService. Wire fills it via wire.Struct (see the container
 // ProviderSet).

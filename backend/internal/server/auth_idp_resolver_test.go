@@ -709,18 +709,10 @@ func TestHandleCallback_ProviderErrors(t *testing.T) {
 // expired, so the next authenticated request refreshes it through slug.
 func expiredSessionCookie(t *testing.T, srv *Server, slug string) *http.Cookie {
 	t.Helper()
-	w := httptest.NewRecorder()
-	require.NoError(t, srv.sessionManager.Write(w, &sesslib.Session{
+	return storedSessionCookie(t, srv, &sesslib.Session{
 		AccessToken: "old", RefreshToken: "refresh-1", ExpiresAt: time.Now().Add(-time.Minute),
 		IDPSubject: rtSubject, UserID: "user-1", Provider: slug,
-	}))
-	for _, c := range w.Result().Cookies() {
-		if c.Name == sesslib.CookieName {
-			return c
-		}
-	}
-	t.Fatal("no session cookie written")
-	return nil
+	})
 }
 
 // sessionCleared reports whether the response expires the session cookie.

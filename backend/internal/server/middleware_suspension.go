@@ -298,9 +298,13 @@ func (s *Server) writeSuspensionAuthError(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if errors.Is(err, errSessionRevoked) {
-		// The cookie can never authenticate again, so drop it instead of
-		// letting the browser present it on every request until it expires.
+		// The cookie can never authenticate again, so drop it, and its row,
+		// instead of letting the browser present it on every request until it
+		// expires.
 		if s.sessionManager != nil {
+			if sess, readErr := s.sessionManager.Read(r); readErr == nil {
+				s.deleteSession(r.Context(), sess)
+			}
 			s.sessionManager.Clear(w)
 		}
 		apierrors.WriteJSONError(w, r, apierrors.NewAuthInvalidError(sessionRevokedAuthDetail))

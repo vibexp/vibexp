@@ -1,6 +1,7 @@
 package session
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -59,6 +60,7 @@ func TestWriteAndRead_RoundTrip(t *testing.T) {
 	mgr := newTestManager(t)
 
 	sess := &Session{
+		ID:           "sid-123",
 		AccessToken:  "access-token-value",
 		RefreshToken: "refresh-token-value",
 		ExpiresAt:    time.Now().Add(time.Hour),
@@ -86,8 +88,11 @@ func TestWriteAndRead_RoundTrip(t *testing.T) {
 	readSess, err := mgr.Read(req)
 	require.NoError(t, err)
 
-	assert.Equal(t, sess.AccessToken, readSess.AccessToken)
-	assert.Equal(t, sess.RefreshToken, readSess.RefreshToken)
+	// The tokens live in the session's server-side row, never in the cookie.
+	assert.Empty(t, readSess.AccessToken)
+	assert.Empty(t, readSess.RefreshToken)
+	assert.Equal(t, sess.ID, readSess.ID)
+	assert.False(t, readSess.IsLegacy())
 	assert.Equal(t, sess.IDPSubject, readSess.IDPSubject)
 	assert.Equal(t, sess.UserID, readSess.UserID)
 	// Time comparison with tolerance
@@ -249,9 +254,9 @@ func TestWrite_RejectsOversizedCookie(t *testing.T) {
 		huge[i] = 'A'
 	}
 	sess := &Session{
-		AccessToken: string(huge),
-		ExpiresAt:   time.Now().Add(time.Hour),
-		UserID:      "user-1",
+		IDPSubject: string(huge),
+		ExpiresAt:  time.Now().Add(time.Hour),
+		UserID:     "user-1",
 	}
 
 	rw := httptest.NewRecorder()
@@ -302,6 +307,46 @@ func TestRead_PayloadFromBeforeEpochs(t *testing.T) {
 	assert.Equal(t, int64(0), sess.Epoch)
 	assert.Empty(t, sess.AuthMethod)
 	assert.True(t, sess.AuthenticatedAt.IsZero())
+	// A cookie from before server-side sessions (#1646) still yields its
+	// tokens, which is what lets the first request convert it to a row.
+	assert.True(t, sess.IsLegacy())
+	assert.Equal(t, "tok", sess.AccessToken)
+	assert.Equal(t, "rt", sess.RefreshToken)
+}
+
+// TestCookie_CarriesNoProviderTokens pins #1646's core property: the decrypted
+// cookie payload names the session but holds neither identity-provider token,
+// not even as an empty key, and writing it leaves the caller's session intact.
+func TestCookie_CarriesNoProviderTokens(t *testing.T) {
+	mgr := newTestManager(t)
+	sess := &Session{
+		ID: "sid-1", AccessToken: "secret-access", RefreshToken: "secret-refresh",
+		ExpiresAt: time.Now().Add(time.Hour), UserID: "u-1", Provider: "oidc", Epoch: 2,
+	}
+
+	cookie, err := mgr.Cookie(sess)
+	require.NoError(t, err)
+	plaintext, err := mgr.decrypt(cookie.Value, nil)
+	require.NoError(t, err)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(plaintext, &payload))
+	assert.NotContains(t, payload, "access_token")
+	assert.NotContains(t, payload, "refresh_token")
+	assert.Equal(t, "sid-1", payload["sid"])
+	assert.NotContains(t, string(plaintext), "secret-")
+	assert.Equal(t, "secret-access", sess.AccessToken, "Cookie must not clear the caller's tokens")
+	assert.Equal(t, "secret-refresh", sess.RefreshToken)
+}
+
+func TestSession_EndsAt(t *testing.T) {
+	now := time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC)
+
+	sliding := &Session{ExpiresAt: now.Add(10 * 24 * time.Hour)}
+	assert.Equal(t, sliding.ExpiresAt, sliding.EndsAt(now), "a sliding session ends at its own expiry")
+
+	refreshable := &Session{RefreshToken: "rt", ExpiresAt: now.Add(time.Hour)}
+	assert.Equal(t, now.Add(24*time.Hour), refreshable.EndsAt(now), "a refreshable session ends with its cookie")
 }
 
 func TestWriteAndRead_RoundTripsEpochMethodAndSignInTime(t *testing.T) {
@@ -441,7 +486,7 @@ func TestCookie_IsWhatWriteSets(t *testing.T) {
 func TestCookie_RejectsOversizedSession(t *testing.T) {
 	mgr := newTestManager(t)
 
-	cookie, err := mgr.Cookie(&Session{UserID: "u-1", AccessToken: strings.Repeat("a", maxCookieValueBytes)})
+	cookie, err := mgr.Cookie(&Session{UserID: "u-1", IDPSubject: strings.Repeat("a", maxCookieValueBytes)})
 
 	require.ErrorIs(t, err, ErrCookieTooLarge)
 	assert.Nil(t, cookie)

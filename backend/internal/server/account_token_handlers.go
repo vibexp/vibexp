@@ -230,7 +230,7 @@ func (h *passwordAuthStrictServer) signInWithPassword(
 		Epoch:           user.SessionEpoch,
 	}
 	sess.StartSliding(now)
-	cookie, err := h.s.sessionManager.Cookie(sess)
+	cookie, err := h.s.newSessionCookie(ctx, sess)
 	if err != nil {
 		h.s.logger.With("handler", handler, "user_id", user.ID, "error", err.Error()).
 			Error("Failed to create the session of a password sign-in")

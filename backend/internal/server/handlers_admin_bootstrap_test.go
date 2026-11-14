@@ -40,14 +40,10 @@ func asRootPasswordSession(t *testing.T, f *authSettingsFixture, r *http.Request
 func asPasswordSession(userID string) authCaller {
 	return func(t *testing.T, f *authSettingsFixture, r *http.Request) {
 		t.Helper()
-		rr := httptest.NewRecorder()
-		require.NoError(t, f.srv.sessionManager.Write(rr, &sesslib.Session{
+		r.AddCookie(storedSessionCookie(t, f.srv, &sesslib.Session{
 			UserID: userID, AuthMethod: sesslib.AuthMethodPassword, AuthenticatedAt: time.Now(),
 			ExpiresAt: time.Now().Add(time.Hour),
 		}))
-		for _, c := range rr.Result().Cookies() {
-			r.AddCookie(c)
-		}
 	}
 }
 

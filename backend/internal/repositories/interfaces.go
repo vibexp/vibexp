@@ -458,6 +458,10 @@ var (
 	// ErrOAuthLoginSessionNotFound is returned by OAuthLoginSessionRepository.Get
 	// when no (or an expired) login session matches the given id.
 	ErrOAuthLoginSessionNotFound = errors.New("oauth login session not found")
+
+	// ErrUserSessionNotFound is returned by UserSessionRepository when no
+	// unexpired session row matches the given id hash.
+	ErrUserSessionNotFound = errors.New("user session not found")
 )
 
 // OAuthClientRepository persists dynamically-registered OAuth 2.1 clients
@@ -523,6 +527,26 @@ type OAuthLoginSessionRepository interface {
 	AttachUser(ctx context.Context, id, userID string) error
 	Delete(ctx context.Context, id string) error
 	// DeleteExpired purges sessions past their expiry; returns rows removed.
+	DeleteExpired(ctx context.Context) (int64, error)
+}
+
+// UserSessionRepository persists the server-side rows of cookie sessions
+// (#1646). Every method keys on the SHA-256 of the session id; the id itself is
+// never stored.
+type UserSessionRepository interface {
+	Create(ctx context.Context, session *models.UserSession) error
+	// GetByIDHash returns the unexpired session or ErrUserSessionNotFound.
+	GetByIDHash(ctx context.Context, idHash []byte) (*models.UserSession, error)
+	// UpdateTokens stores rotated tokens, their expiry and the session's new
+	// expiry, and stamps last_refreshed_at. ErrUserSessionNotFound when no
+	// unexpired row matches.
+	UpdateTokens(ctx context.Context, session *models.UserSession) error
+	// UpdateExpiry moves AccessExpiresAt and ExpiresAt (a sliding session's
+	// extension). ErrUserSessionNotFound when no unexpired row matches.
+	UpdateExpiry(ctx context.Context, idHash []byte, accessExpiresAt, expiresAt time.Time) error
+	// Delete removes the row; deleting a row that does not exist is not an error.
+	Delete(ctx context.Context, idHash []byte) error
+	// DeleteExpired purges rows past their expiry; returns rows removed.
 	DeleteExpired(ctx context.Context) (int64, error)
 }
 

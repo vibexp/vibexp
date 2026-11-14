@@ -172,6 +172,8 @@ type WireContainer struct {
 	// One-time account links: password setup and reset (#1432)
 	accountTokenService           services.AccountTokenServiceInterface
 	invitationRegistrationService services.InvitationRegistrationServiceInterface
+	// Server-side cookie sessions (#1646)
+	sessionStore services.SessionStoreInterface
 	// Emailing account links, and the background runners its sends use (#1433)
 	accountLinkMailer services.AccountLinkMailerInterface
 	// Instance-admin management of how accounts sign in (#1436)
@@ -350,6 +352,11 @@ func (c *WireContainer) PasswordAuthService() services.PasswordAuthServiceInterf
 // AccountTokenService returns the one-time account link service (#1432).
 func (c *WireContainer) AccountTokenService() services.AccountTokenServiceInterface {
 	return c.accountTokenService
+}
+
+// SessionStore returns the store of server-side cookie sessions (#1646).
+func (c *WireContainer) SessionStore() services.SessionStoreInterface {
+	return c.sessionStore
 }
 
 // InvitationRegistrationService returns the public side of invitations: the
