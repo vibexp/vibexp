@@ -100,6 +100,10 @@ type IdentityProvider interface {
 	// token does not echo yields ErrNonceMismatch.
 	ExchangeCode(ctx context.Context, code, redirectURI string, flow FlowParams) (*Tokens, *Claims, error)
 
-	// Refresh requests a new set of tokens using the given refresh token.
-	Refresh(ctx context.Context, refreshToken string) (*Tokens, error)
+	// Refresh requests a new set of tokens using the given refresh token and
+	// returns them with the user's current claims: those of the verified ID
+	// token in the refresh response (no nonce is checked, since a refresh is
+	// not bound to a browser flow), or of userinfo when the response carries no
+	// ID token. Claims may be nil only for a provider that offers neither.
+	Refresh(ctx context.Context, refreshToken string) (*Tokens, *Claims, error)
 }

@@ -164,11 +164,6 @@ type Server struct {
 	// oauthAS is the embedded OAuth 2.1 Authorization Server (issue #31). Nil when
 	// OAUTH_AS_ISSUER_URL is unset, which leaves its routes unmounted.
 	oauthAS *oauthserver.Service
-	// refreshLocks serializes concurrent refresh-token rotations per user.
-	// Many identity providers invalidate a refresh token on use; without this,
-	// parallel requests from the same user with an expired access token would all
-	// race on RefreshTokens and most would 401. See middleware.go:authenticateWithSession.
-	refreshLocks sync.Map // map[string]*sync.Mutex keyed by user_id
 	// reembedInFlight guards background team re-embeds so a rapid provider
 	// change or a repeated reprocess click never stacks duplicate fan-outs for
 	// the same team. Keyed by team_id; the value is present while a run is live

@@ -101,6 +101,10 @@ auth:
   # signing users in. Unset it once sign-in works again. The no-restart
   # alternative: `docker exec <container> ./main admin auth setup rearm`.
   recovery_mode: "${AUTH_SETTINGS_RECOVERY_MODE:-false}"
+  # How often a session with an identity-provider refresh token is re-checked
+  # against the provider (#1647): access removed there ends the VibeXP session
+  # within this interval. Must be positive.
+  session_recheck_interval: "${AUTH_SESSION_RECHECK_INTERVAL:-15m}"
 
   # Restrict sign-in by email domain and/or exact address (comma-separated).
   # A user is allowed if EITHER list matches. Both empty (the default) = open

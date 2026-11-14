@@ -34054,6 +34054,7 @@ components:
         - auth.logout
         - auth.setup_session.started
         - auth.sessions.revoked
+        - auth.session.ended_by_provider
         - auth.api_key.created
         - auth.api_key.revoked
         - auth.api_access.revoked
@@ -34130,6 +34131,7 @@ components:
         - AdminAuditOperationAuthLogout
         - AdminAuditOperationAuthSetupSessionStarted
         - AdminAuditOperationAuthSessionsRevoked
+        - AdminAuditOperationAuthSessionEndedByProvider
         - AdminAuditOperationAuthAPIKeyCreated
         - AdminAuditOperationAuthAPIKeyRevoked
         - AdminAuditOperationAuthAPIAccessRevoked

@@ -8,6 +8,8 @@ import (
 	mock "github.com/stretchr/testify/mock"
 	models "github.com/vibexp/vibexp/internal/models"
 
+	repositories "github.com/vibexp/vibexp/internal/repositories"
+
 	time "time"
 )
 
@@ -229,6 +231,54 @@ func (_c *MockUserSessionRepository_GetByIDHash_Call) Return(_a0 *models.UserSes
 }
 
 func (_c *MockUserSessionRepository_GetByIDHash_Call) RunAndReturn(run func(context.Context, []byte) (*models.UserSession, error)) *MockUserSessionRepository_GetByIDHash_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// RefreshLocked provides a mock function with given fields: ctx, idHash, decide
+func (_m *MockUserSessionRepository) RefreshLocked(ctx context.Context, idHash []byte, decide repositories.UserSessionRefreshFunc) error {
+	ret := _m.Called(ctx, idHash, decide)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RefreshLocked")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, []byte, repositories.UserSessionRefreshFunc) error); ok {
+		r0 = rf(ctx, idHash, decide)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockUserSessionRepository_RefreshLocked_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RefreshLocked'
+type MockUserSessionRepository_RefreshLocked_Call struct {
+	*mock.Call
+}
+
+// RefreshLocked is a helper method to define mock.On call
+//   - ctx context.Context
+//   - idHash []byte
+//   - decide repositories.UserSessionRefreshFunc
+func (_e *MockUserSessionRepository_Expecter) RefreshLocked(ctx interface{}, idHash interface{}, decide interface{}) *MockUserSessionRepository_RefreshLocked_Call {
+	return &MockUserSessionRepository_RefreshLocked_Call{Call: _e.mock.On("RefreshLocked", ctx, idHash, decide)}
+}
+
+func (_c *MockUserSessionRepository_RefreshLocked_Call) Run(run func(ctx context.Context, idHash []byte, decide repositories.UserSessionRefreshFunc)) *MockUserSessionRepository_RefreshLocked_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]byte), args[2].(repositories.UserSessionRefreshFunc))
+	})
+	return _c
+}
+
+func (_c *MockUserSessionRepository_RefreshLocked_Call) Return(_a0 error) *MockUserSessionRepository_RefreshLocked_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockUserSessionRepository_RefreshLocked_Call) RunAndReturn(run func(context.Context, []byte, repositories.UserSessionRefreshFunc) error) *MockUserSessionRepository_RefreshLocked_Call {
 	_c.Call.Return(run)
 	return _c
 }

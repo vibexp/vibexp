@@ -754,7 +754,7 @@ func TestResolverAuth_RefreshKeepsSessionWhenProviderIsUnhealthy(t *testing.T) {
 func TestRefresh_ResolverErrorKeepsSession(t *testing.T) {
 	mc := newMockAuthContainer(t)
 	mc.authService.On("RefreshTokens", mock.Anything, "corp-sso", "refresh-1").
-		Return(nil, fmt.Errorf("%w: driver: bad connection", services.ErrIdentityProvidersUnresolvable))
+		Return(nil, nil, fmt.Errorf("%w: driver: bad connection", services.ErrIdentityProvidersUnresolvable))
 	srv := createTestAuthServer(mc)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
 	req.AddCookie(expiredSessionCookie(t, srv, "corp-sso"))

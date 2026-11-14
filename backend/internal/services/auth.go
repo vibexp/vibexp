@@ -303,13 +303,14 @@ func (as *AuthService) applyRoleMapping(
 // not support refresh at all). A failure to read the providers returns
 // ErrIdentityProvidersUnresolvable and an enabled-but-unhealthy provider
 // ErrIdentityProviderTemporarilyUnavailable, both transient; only a provider
-// that is not enabled returns ErrIdentityProviderUnavailable.
+// that is not enabled returns ErrIdentityProviderUnavailable. The claims are
+// the provider's current view of the user (see idp.IdentityProvider.Refresh).
 func (as *AuthService) RefreshTokens(
 	ctx context.Context, slug, refreshToken string,
-) (*idp.Tokens, error) {
+) (*idp.Tokens, *idp.Claims, error) {
 	reg, err := as.snapshot(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	name := idp.ProviderName(slug)
 	if slug == "" {
@@ -325,9 +326,9 @@ func (as *AuthService) RefreshTokens(
 		// Health lists every ENABLED provider, so an entry here means the
 		// provider is enabled but failed to build: a transient condition.
 		if _, enabled := as.resolver.Health()[string(name)]; enabled {
-			return nil, fmt.Errorf("%w: %q", ErrIdentityProviderTemporarilyUnavailable, slug)
+			return nil, nil, fmt.Errorf("%w: %q", ErrIdentityProviderTemporarilyUnavailable, slug)
 		}
-		return nil, fmt.Errorf("%w: %q", ErrIdentityProviderUnavailable, slug)
+		return nil, nil, fmt.Errorf("%w: %q", ErrIdentityProviderUnavailable, slug)
 	}
 	return p.Refresh(ctx, refreshToken)
 }

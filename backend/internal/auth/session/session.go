@@ -101,6 +101,10 @@ type Session struct {
 	RefreshToken string `json:"refresh_token,omitempty"`
 	// ExpiresAt is when the access token expires.
 	ExpiresAt time.Time `json:"expires_at"`
+	// LastRefreshedAt is when the session's tokens were last refreshed, or when
+	// it was created (#1647). Like the tokens it comes from the server-side
+	// row, never the cookie.
+	LastRefreshedAt time.Time `json:"-"`
 	// IDPSubject is the stable, unique provider-specific user identifier.
 	IDPSubject string `json:"idp_subject"`
 	// UserID is the internal application user ID.

@@ -111,3 +111,21 @@ func TestAuthorizeURL_OfflineAccessPKCEAndNonce(t *testing.T) {
 	assert.Equal(t, "S256", q.Get("code_challenge_method"))
 	assert.Equal(t, "n-1", q.Get("nonce"))
 }
+
+// TestAuthorizeURL_NeverOfflineAccessScope pins that Google is asked for a
+// refresh token through access_type=offline only: even an issuer whose
+// discovery lists offline_access does not get the scope (#1647), which Google
+// rejects.
+func TestAuthorizeURL_NeverOfflineAccessScope(t *testing.T) {
+	iss := fakeoidc.New(t, "test-client-id", "test-client-secret", "sub", "user@example.com")
+	iss.SetScopesSupported([]string{"openid", "email", "profile", "offline_access"})
+	p, err := New(context.Background(), Config{
+		ClientID: "test-client-id", ClientSecret: "test-client-secret", IssuerURL: iss.URL,
+	})
+	require.NoError(t, err)
+
+	u, err := url.Parse(p.AuthorizeURL("s", "", "", idp.FlowParams{}))
+	require.NoError(t, err)
+	assert.Equal(t, "offline", u.Query().Get("access_type"))
+	assert.Equal(t, "openid email profile", u.Query().Get("scope"))
+}

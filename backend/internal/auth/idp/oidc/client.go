@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -74,6 +75,12 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	scopes := cfg.Scopes
 	if len(scopes) == 0 {
 		scopes = []string{oidc.ScopeOpenID, "email", "profile"}
+		// Ask for a refresh token where the issuer says it grants one, so the
+		// session can be re-checked against the issuer (#1647). Google is
+		// asked through access_type=offline instead and rejects offline_access.
+		if !cfg.AccessTypeOffline && supportsOfflineAccess(provider) {
+			scopes = append(scopes, oidc.ScopeOfflineAccess)
+		}
 	}
 
 	return &Client{
@@ -89,6 +96,19 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 		},
 		accessTypeOffline: cfg.AccessTypeOffline,
 	}, nil
+}
+
+// supportsOfflineAccess reports whether the issuer's discovery document lists
+// the offline_access scope in scopes_supported. An unreadable or absent list
+// reads as no.
+func supportsOfflineAccess(provider *oidc.Provider) bool {
+	var meta struct {
+		ScopesSupported []string `json:"scopes_supported"`
+	}
+	if err := provider.Claims(&meta); err != nil {
+		return false
+	}
+	return slices.Contains(meta.ScopesSupported, oidc.ScopeOfflineAccess)
 }
 
 // Name returns the canonical provider identifier.
@@ -160,10 +180,14 @@ func (c *Client) ExchangeCode(
 	return tokens, claims, nil
 }
 
-// Refresh requests a new access token using the provided refresh token.
-func (c *Client) Refresh(ctx context.Context, refreshToken string) (*idp.Tokens, error) {
+// Refresh requests a new access token using the provided refresh token and
+// returns the user's current claims. An ID token in the refresh response is
+// verified like the sign-in one (signature, issuer, audience, expiry) but
+// without a nonce, which OpenID Connect Core §12.2 leaves out of a refresh; a
+// response without one falls back to userinfo.
+func (c *Client) Refresh(ctx context.Context, refreshToken string) (*idp.Tokens, *idp.Claims, error) {
 	if refreshToken == "" {
-		return nil, fmt.Errorf("oidc: refresh token is required")
+		return nil, nil, fmt.Errorf("oidc: refresh token is required")
 	}
 
 	src := c.oauth2Config.TokenSource(ctx, &oauth2.Token{
@@ -172,7 +196,7 @@ func (c *Client) Refresh(ctx context.Context, refreshToken string) (*idp.Tokens,
 	})
 	token, err := src.Token()
 	if err != nil {
-		return nil, fmt.Errorf("oidc: refresh token: %w", err)
+		return nil, nil, fmt.Errorf("oidc: refresh token: %w", err)
 	}
 
 	tokens := &idp.Tokens{
@@ -180,10 +204,14 @@ func (c *Client) Refresh(ctx context.Context, refreshToken string) (*idp.Tokens,
 		RefreshToken: token.RefreshToken,
 		ExpiresAt:    token.Expiry,
 	}
+	claims, err := c.claimsFromToken(ctx, c.oauth2Config, token, "")
+	if err != nil {
+		return nil, nil, err
+	}
 	if rawIDToken, ok := token.Extra("id_token").(string); ok {
 		tokens.IDToken = rawIDToken
 	}
-	return tokens, nil
+	return tokens, claims, nil
 }
 
 // claimsFromToken reads the claims from the verified ID token, or from userinfo

@@ -40,7 +40,7 @@ func TestAllAuditOperations_CoversTheEpic(t *testing.T) {
 		"feed_item.create", "feed_item.delete", "feed_item.archive", "feed_item.unarchive",
 		"project.create", "project.update", "project.delete", "project.migrated",
 		"auth.login", "auth.login_failed", "auth.logout",
-		"auth.setup_session.started", "auth.sessions.revoked",
+		"auth.setup_session.started", "auth.sessions.revoked", "auth.session.ended_by_provider",
 		"auth.api_key.created", "auth.api_key.revoked", "auth.api_access.revoked",
 		"auth.password.set", "auth.password.changed", "auth.password.removed",
 		"auth.password.reset_requested", "auth.password.reset_link_issued",

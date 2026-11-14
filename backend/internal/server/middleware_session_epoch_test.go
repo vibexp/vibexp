@@ -466,7 +466,7 @@ func TestRevokeOtherSessions(t *testing.T) {
 		expectBump(f)
 		newExpiry := time.Now().Add(time.Hour)
 		f.container.authService.On("RefreshTokens", mock.Anything, "google", "spent-refresh-token").
-			Return(&idp.Tokens{AccessToken: "new-at", RefreshToken: "new-refresh-token", ExpiresAt: newExpiry}, nil).Once()
+			Return(&idp.Tokens{AccessToken: "new-at", RefreshToken: "new-refresh-token", ExpiresAt: newExpiry}, nil, nil).Once()
 		expired := f.cookieFor(t, &sesslib.Session{
 			UserID: epochUserID, AccessToken: "old-at", RefreshToken: "spent-refresh-token", Provider: "google",
 			ExpiresAt: time.Now().Add(-time.Minute), AuthMethod: sesslib.AuthMethodOAuth,

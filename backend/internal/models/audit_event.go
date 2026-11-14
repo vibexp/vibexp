@@ -113,6 +113,7 @@ const (
 	AuditOpAuthLogout                         AuditOperation = "auth.logout"
 	AuditOpAuthSetupSessionStarted            AuditOperation = "auth.setup_session.started"
 	AuditOpAuthSessionsRevoked                AuditOperation = "auth.sessions.revoked"
+	AuditOpAuthSessionEndedByProvider         AuditOperation = "auth.session.ended_by_provider"
 	AuditOpAuthAPIKeyCreated                  AuditOperation = "auth.api_key.created"
 	AuditOpAuthAPIKeyRevoked                  AuditOperation = "auth.api_key.revoked"
 	AuditOpAuthAPIAccessRevoked               AuditOperation = "auth.api_access.revoked"
@@ -187,7 +188,7 @@ var allAuditOperations = []AuditOperation{
 	AuditOpProjectCreate, AuditOpProjectUpdate, AuditOpProjectDelete, AuditOpProjectMigrated,
 
 	AuditOpAuthLogin, AuditOpAuthLoginFailed, AuditOpAuthLogout,
-	AuditOpAuthSetupSessionStarted, AuditOpAuthSessionsRevoked,
+	AuditOpAuthSetupSessionStarted, AuditOpAuthSessionsRevoked, AuditOpAuthSessionEndedByProvider,
 	AuditOpAuthAPIKeyCreated, AuditOpAuthAPIKeyRevoked, AuditOpAuthAPIAccessRevoked,
 	AuditOpAuthLocalCredentialSet, AuditOpAuthLocalCredentialChanged, AuditOpAuthLocalCredentialRemoved,
 	AuditOpAuthLocalCredentialResetRequested, AuditOpAuthLocalCredentialResetLinkIssued,

@@ -227,7 +227,7 @@ func TestSessionRows_RefreshRotatesTheTokensInTheRow(t *testing.T) {
 	rows := withOwnSessionStore(f.srv)
 	newExpiry := time.Now().Add(time.Hour)
 	f.container.authService.On("RefreshTokens", mock.Anything, "oidc", "rt-1").
-		Return(&idp.Tokens{AccessToken: "at-2", RefreshToken: "rt-2", ExpiresAt: newExpiry}, nil).Once()
+		Return(&idp.Tokens{AccessToken: "at-2", RefreshToken: "rt-2", ExpiresAt: newExpiry}, nil, nil).Once()
 	cookie := storedSessionCookie(t, f.srv, &sesslib.Session{
 		UserID: epochUserID, AccessToken: "at-1", RefreshToken: "rt-1", Provider: "oidc",
 		ExpiresAt: time.Now().Add(-time.Minute), AuthMethod: sesslib.AuthMethodOAuth,
@@ -394,7 +394,7 @@ func TestSessionRows_PermanentRefreshFailureDeletesTheRow(t *testing.T) {
 	f := newEpochFixture(t, 0)
 	rows := withOwnSessionStore(f.srv)
 	f.container.authService.On("RefreshTokens", mock.Anything, "oidc", "rt-1").
-		Return(nil, errors.New("token endpoint returned 400: invalid_grant")).Once()
+		Return(nil, nil, errors.New("token endpoint returned 400: invalid_grant")).Once()
 	cookie := storedSessionCookie(t, f.srv, &sesslib.Session{
 		UserID: epochUserID, AccessToken: "at-1", RefreshToken: "rt-1", Provider: "oidc",
 		ExpiresAt: time.Now().Add(-time.Minute), AuthMethod: sesslib.AuthMethodOAuth,
