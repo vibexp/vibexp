@@ -384,8 +384,7 @@ func TestAuditDevLogin(t *testing.T) {
 // the session's row is read first, and only a session that still has one (or
 // a legacy cookie) is recorded.
 func recordLogoutAsHandled(srv *Server, req *http.Request, sess *sesslib.Session) {
-	stored := sess.IsLegacy() || srv.loadSession(req.Context(), sess) == nil
-	srv.recordLogout(req, sess, stored)
+	srv.recordLogout(req, sess, srv.sessionStillStored(req.Context(), sess))
 }
 
 func TestAuditLogout(t *testing.T) {

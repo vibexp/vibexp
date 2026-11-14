@@ -440,3 +440,37 @@ func TestSessionStore_DeleteOthers(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+func TestSessionStore_Remove(t *testing.T) {
+	t.Run("returns the deleted row's user, provider and decrypted refresh token", func(t *testing.T) {
+		store, repo, enc := newTestSessionStore(t)
+		ct, err := enc.Encrypt("rt-latest")
+		require.NoError(t, err)
+		repo.On("DeleteReturning", mock.Anything, hashOf("sid-1")).
+			Return(&models.UserSession{UserID: "u-1", Provider: "oidc", RefreshTokenEnc: ct}, nil)
+
+		got, err := store.Remove(context.Background(), "sid-1")
+
+		require.NoError(t, err)
+		assert.Equal(t, &session.Session{UserID: "u-1", Provider: "oidc", RefreshToken: "rt-latest"}, got)
+	})
+
+	t.Run("no row is nil", func(t *testing.T) {
+		store, repo, _ := newTestSessionStore(t)
+		repo.On("DeleteReturning", mock.Anything, hashOf("gone")).Return(nil, nil)
+
+		got, err := store.Remove(context.Background(), "gone")
+
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	})
+
+	t.Run("a repository failure is returned", func(t *testing.T) {
+		store, repo, _ := newTestSessionStore(t)
+		repo.On("DeleteReturning", mock.Anything, mock.Anything).Return(nil, errors.New("db down"))
+
+		_, err := store.Remove(context.Background(), "sid-1")
+
+		require.Error(t, err)
+	})
+}

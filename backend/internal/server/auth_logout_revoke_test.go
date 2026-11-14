@@ -15,6 +15,7 @@ import (
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/auth/idp/oidc"
 	sesslib "github.com/vibexp/vibexp/internal/auth/session"
+	"github.com/vibexp/vibexp/internal/services"
 	svcmocks "github.com/vibexp/vibexp/internal/services/mocks"
 	"github.com/vibexp/vibexp/internal/testutils/fakeoidc"
 )
@@ -171,6 +172,36 @@ func TestLogoutRevoke_ACancelledRequestStillRevokes(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.True(t, got[0].Authenticated)
 	assert.Equal(t, token, got[0].Token)
+}
+
+// staleLoadStore is a session store whose Load hands back a refresh token a
+// concurrent refresh has since rotated: the row holds a newer one.
+type staleLoadStore struct {
+	services.SessionStoreInterface
+	stale string
+}
+
+func (s staleLoadStore) Load(ctx context.Context, sess *sesslib.Session) error {
+	if err := s.SessionStoreInterface.Load(ctx, sess); err != nil {
+		return err
+	}
+	sess.RefreshToken = s.stale
+	return nil
+}
+
+func TestLogoutRevoke_RevokesTheTokenTheRowHeldWhenDeleted(t *testing.T) {
+	f := newRevokeFixture(t, true)
+	stale, latest := f.iss.IssueRefreshToken(), f.iss.IssueRefreshToken()
+	cookie := storedSessionCookie(t, f.srv, providerSession(latest))
+	f.srv.container = sessionStoreContainer{
+		Container: f.srv.container, store: staleLoadStore{SessionStoreInterface: f.srv.sessionStore(), stale: stale},
+	}
+
+	f.logout(t, cookie)
+
+	got := f.iss.Revocations()
+	require.Len(t, got, 1)
+	assert.Equal(t, latest, got[0].Token, "the rotated token the row held, never the one read before the delete")
 }
 
 func TestRevokeOtherSessions_DeletesTheOtherRowsAndRevokesTheirTokens(t *testing.T) {

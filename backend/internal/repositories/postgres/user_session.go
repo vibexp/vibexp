@@ -191,6 +191,27 @@ func (r *UserSessionRepository) Delete(ctx context.Context, idHash []byte) error
 	return nil
 }
 
+// DeleteReturning removes a session row by id hash and returns its user,
+// provider and encrypted refresh token. The DELETE waits for a refresh holding
+// the row lock, so what it returns is the token that refresh stored.
+func (r *UserSessionRepository) DeleteReturning(ctx context.Context, idHash []byte) (*models.UserSession, error) {
+	var (
+		s                 models.UserSession
+		provider, refresh sql.NullString
+	)
+	err := r.db.QueryRowContext(ctx,
+		`DELETE FROM sessions WHERE id_hash = $1 RETURNING user_id, provider, refresh_token_enc`, idHash,
+	).Scan(&s.UserID, &provider, &refresh)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete session: %w", err)
+	}
+	s.IDHash, s.Provider, s.RefreshTokenEnc = idHash, provider.String, refresh.String
+	return &s, nil
+}
+
 // DeleteExpired purges sessions past their expiry and returns the count
 // removed. It is one idempotent statement, so replicas running it at the same
 // time only race to delete the same rows.

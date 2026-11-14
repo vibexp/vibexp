@@ -340,3 +340,36 @@ func TestIntegrationUserSession_DeleteOthersForUser(t *testing.T) {
 	_, err = repo.GetByIDHash(ctx, foreign.IDHash)
 	require.NoError(t, err)
 }
+
+// DeleteReturning removes one row, expired or not, and returns what it held
+// (#1649); a missing row is nil.
+func TestIntegrationUserSession_DeleteReturning(t *testing.T) {
+	resetIntegrationTables(t)
+	ctx := context.Background()
+	repo := NewUserSessionRepository(integrationDB)
+	userID := insertTestUser(t)
+	live := newIntegrationSession(userID, 24*time.Hour)
+	expired := newIntegrationSession(userID, -time.Minute)
+	expired.Provider, expired.RefreshTokenEnc = "", ""
+	require.NoError(t, repo.Create(ctx, live))
+	require.NoError(t, repo.Create(ctx, expired))
+
+	got, err := repo.DeleteReturning(ctx, live.IDHash)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, userID, got.UserID)
+	assert.Equal(t, "oidc", got.Provider)
+	assert.Equal(t, "enc-rt", got.RefreshTokenEnc)
+	_, err = repo.GetByIDHash(ctx, live.IDHash)
+	require.ErrorIs(t, err, repositories.ErrUserSessionNotFound)
+
+	got, err = repo.DeleteReturning(ctx, expired.IDHash)
+	require.NoError(t, err)
+	require.NotNil(t, got, "an expired row is removed too")
+	assert.Empty(t, got.Provider)
+	assert.Empty(t, got.RefreshTokenEnc)
+
+	got, err = repo.DeleteReturning(ctx, live.IDHash)
+	require.NoError(t, err)
+	assert.Nil(t, got, "no row left")
+}

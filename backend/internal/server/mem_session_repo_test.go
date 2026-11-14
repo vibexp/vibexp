@@ -126,6 +126,20 @@ func (m *memSessionRepo) Delete(_ context.Context, idHash []byte) error {
 	return nil
 }
 
+func (m *memSessionRepo) DeleteReturning(_ context.Context, idHash []byte) (*models.UserSession, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.failWith != nil {
+		return nil, m.failWith
+	}
+	row, ok := m.rows[string(idHash)]
+	if !ok {
+		return nil, nil
+	}
+	delete(m.rows, string(idHash))
+	return &row, nil
+}
+
 func (m *memSessionRepo) DeleteExpired(_ context.Context) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

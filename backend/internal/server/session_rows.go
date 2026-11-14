@@ -88,6 +88,37 @@ func (s *Server) deleteSession(ctx context.Context, sess *sesslib.Session) {
 	}
 }
 
+// sessionStillStored reports whether sess, read from a cookie, still has its
+// row (#1646), filling its tokens from it. A legacy cookie has no row and
+// carries its tokens itself, so it counts as stored.
+func (s *Server) sessionStillStored(ctx context.Context, sess *sesslib.Session) bool {
+	return sess.IsLegacy() || s.loadSession(ctx, sess) == nil
+}
+
+// removeSession deletes sess's row and returns the session as the row held it
+// when it was deleted, so its refresh token is the latest one even when a
+// refresh rotated it a moment ago (#1649). A legacy session has no row and is
+// returned as it is. A failure is logged and returns nil, as does a row that
+// was already gone or belongs to another user.
+func (s *Server) removeSession(ctx context.Context, sess *sesslib.Session) *sesslib.Session {
+	if sess.IsLegacy() {
+		return sess
+	}
+	store := s.sessionStore()
+	if store == nil {
+		return nil
+	}
+	removed, err := store.Remove(ctx, sess.ID)
+	if err != nil {
+		s.logger.With("user_id", sess.UserID, "error", err.Error()).Warn("Failed to delete a session row")
+		return nil
+	}
+	if removed == nil || removed.UserID != sess.UserID {
+		return nil
+	}
+	return removed
+}
+
 // loadSessionOrReject loads the row of a cookie session for a required-auth
 // request and reports whether the request may go on. A missing, expired or
 // unreadable row is answered 401 with the cookie cleared; a failure to read it

@@ -546,6 +546,11 @@ type UserSessionRepository interface {
 	UpdateExpiry(ctx context.Context, idHash []byte, accessExpiresAt, expiresAt time.Time) error
 	// Delete removes the row; deleting a row that does not exist is not an error.
 	Delete(ctx context.Context, idHash []byte) error
+	// DeleteReturning removes the row, expired or not, and returns its UserID,
+	// Provider and RefreshTokenEnc as they were when it was removed, so a
+	// sign-out revokes the refresh token the row held last (#1649); nil when
+	// there was no row.
+	DeleteReturning(ctx context.Context, idHash []byte) (*models.UserSession, error)
 	// DeleteExpired purges rows past their expiry; returns rows removed.
 	DeleteExpired(ctx context.Context) (int64, error)
 	// DeleteOthersForUser removes every row of userID except the one of

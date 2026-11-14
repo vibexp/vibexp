@@ -236,6 +236,65 @@ func (_c *MockUserSessionRepository_DeleteOthersForUser_Call) RunAndReturn(run f
 	return _c
 }
 
+// DeleteReturning provides a mock function with given fields: ctx, idHash
+func (_m *MockUserSessionRepository) DeleteReturning(ctx context.Context, idHash []byte) (*models.UserSession, error) {
+	ret := _m.Called(ctx, idHash)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteReturning")
+	}
+
+	var r0 *models.UserSession
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []byte) (*models.UserSession, error)); ok {
+		return rf(ctx, idHash)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []byte) *models.UserSession); ok {
+		r0 = rf(ctx, idHash)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.UserSession)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []byte) error); ok {
+		r1 = rf(ctx, idHash)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockUserSessionRepository_DeleteReturning_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteReturning'
+type MockUserSessionRepository_DeleteReturning_Call struct {
+	*mock.Call
+}
+
+// DeleteReturning is a helper method to define mock.On call
+//   - ctx context.Context
+//   - idHash []byte
+func (_e *MockUserSessionRepository_Expecter) DeleteReturning(ctx interface{}, idHash interface{}) *MockUserSessionRepository_DeleteReturning_Call {
+	return &MockUserSessionRepository_DeleteReturning_Call{Call: _e.mock.On("DeleteReturning", ctx, idHash)}
+}
+
+func (_c *MockUserSessionRepository_DeleteReturning_Call) Run(run func(ctx context.Context, idHash []byte)) *MockUserSessionRepository_DeleteReturning_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]byte))
+	})
+	return _c
+}
+
+func (_c *MockUserSessionRepository_DeleteReturning_Call) Return(_a0 *models.UserSession, _a1 error) *MockUserSessionRepository_DeleteReturning_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockUserSessionRepository_DeleteReturning_Call) RunAndReturn(run func(context.Context, []byte) (*models.UserSession, error)) *MockUserSessionRepository_DeleteReturning_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetByIDHash provides a mock function with given fields: ctx, idHash
 func (_m *MockUserSessionRepository) GetByIDHash(ctx context.Context, idHash []byte) (*models.UserSession, error) {
 	ret := _m.Called(ctx, idHash)

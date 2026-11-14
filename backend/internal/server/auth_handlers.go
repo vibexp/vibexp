@@ -581,10 +581,10 @@ func (s *Server) rejectSuspendedSignIn(
 // identity-provider refresh token at the issuer, best effort (#1649), clears
 // the session cookie and returns a JSON confirmation.
 //
-// The row is read before it is deleted, since it holds the refresh token, and
-// the token is revoked only after the row is gone: an issuer that is slow or
-// failing can delay sign-out by at most providerRevocationTimeout, and can
-// never leave the session alive.
+// The refresh token revoked is the one the row held when it was deleted (a
+// refresh may have rotated it since the row was read), and it is revoked only
+// after the row is gone: an issuer that is slow or failing can delay sign-out
+// by at most providerRevocationTimeout, and can never leave the session alive.
 //
 // POST /api/v1/auth/logout
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -595,13 +595,8 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 	if s.sessionManager != nil {
 		if sess, err := s.sessionManager.Read(r); err == nil {
-			// A legacy cookie (#1646) carries its tokens and has no row.
-			stored := sess.IsLegacy() || s.loadSession(r.Context(), sess) == nil
-			s.recordLogout(r, sess, stored)
-			s.deleteSession(r.Context(), sess)
-			if stored {
-				s.revokeProviderTokens(r.Context(), sess)
-			}
+			s.recordLogout(r, sess, s.sessionStillStored(r.Context(), sess))
+			s.revokeProviderTokens(r.Context(), s.removeSession(r.Context(), sess))
 		}
 		s.sessionManager.Clear(w)
 	}
