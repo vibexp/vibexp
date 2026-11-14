@@ -592,6 +592,21 @@ func (r providerAdminRepo) DeleteByProvider(_ context.Context, providerID string
 	return removed, nil
 }
 
+func (r providerAdminRepo) UserIDsByProvider(_ context.Context, providerID string) ([]string, error) {
+	r.s.mu.Lock()
+	defer r.s.mu.Unlock()
+	if r.s.Err != nil {
+		return nil, r.s.Err
+	}
+	ids := make([]string, 0)
+	for _, a := range r.s.providerAdmins {
+		if a.ProviderID == providerID {
+			ids = append(ids, a.UserID)
+		}
+	}
+	return ids, nil
+}
+
 func (r providerAdminRepo) IsProviderAdmin(ctx context.Context, userID string) (bool, error) {
 	rows, err := r.ListByUser(ctx, userID)
 	return len(rows) > 0, err

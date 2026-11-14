@@ -372,6 +372,65 @@ func (_c *MockInstanceProviderAdminRepository_Upsert_Call) RunAndReturn(run func
 	return _c
 }
 
+// UserIDsByProvider provides a mock function with given fields: ctx, providerID
+func (_m *MockInstanceProviderAdminRepository) UserIDsByProvider(ctx context.Context, providerID string) ([]string, error) {
+	ret := _m.Called(ctx, providerID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UserIDsByProvider")
+	}
+
+	var r0 []string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]string, error)); ok {
+		return rf(ctx, providerID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []string); ok {
+		r0 = rf(ctx, providerID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]string)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, providerID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInstanceProviderAdminRepository_UserIDsByProvider_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UserIDsByProvider'
+type MockInstanceProviderAdminRepository_UserIDsByProvider_Call struct {
+	*mock.Call
+}
+
+// UserIDsByProvider is a helper method to define mock.On call
+//   - ctx context.Context
+//   - providerID string
+func (_e *MockInstanceProviderAdminRepository_Expecter) UserIDsByProvider(ctx interface{}, providerID interface{}) *MockInstanceProviderAdminRepository_UserIDsByProvider_Call {
+	return &MockInstanceProviderAdminRepository_UserIDsByProvider_Call{Call: _e.mock.On("UserIDsByProvider", ctx, providerID)}
+}
+
+func (_c *MockInstanceProviderAdminRepository_UserIDsByProvider_Call) Run(run func(ctx context.Context, providerID string)) *MockInstanceProviderAdminRepository_UserIDsByProvider_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockInstanceProviderAdminRepository_UserIDsByProvider_Call) Return(_a0 []string, _a1 error) *MockInstanceProviderAdminRepository_UserIDsByProvider_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInstanceProviderAdminRepository_UserIDsByProvider_Call) RunAndReturn(run func(context.Context, string) ([]string, error)) *MockInstanceProviderAdminRepository_UserIDsByProvider_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockInstanceProviderAdminRepository creates a new instance of MockInstanceProviderAdminRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockInstanceProviderAdminRepository(t interface {

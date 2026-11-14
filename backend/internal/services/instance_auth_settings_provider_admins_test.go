@@ -281,7 +281,7 @@ func TestInstanceAuthSettings_ARowWrittenAfterTheClearGrantsNothing(t *testing.T
 	assert.Empty(t, list.ProviderAdmins)
 }
 
-func TestInstanceAuthSettings_ClearingTheMappingLogsACleanupFailure(t *testing.T) {
+func TestInstanceAuthSettings_ClearingTheMappingSurvivesACleanupFailure(t *testing.T) {
 	f := newAuthSettingsFixture(t)
 	p := f.mappedProvider(t, "okta")
 	f.promote(t, authSettingsMemberID, p)
@@ -299,4 +299,19 @@ type failingAdminRemoval struct{ InstanceAdminResolver }
 
 func (failingAdminRemoval) RemoveProviderAdmins(context.Context, string, string, string) error {
 	return errors.New("db down")
+}
+
+func TestInstanceAuthSettings_DeletingADisabledProviderAuditsItsRows(t *testing.T) {
+	f := newAuthSettingsFixture(t)
+	p := f.mappedProvider(t, "okta")
+	f.promote(t, authSettingsMemberID, p)
+	disable := updateOf(*p, f.store.Version())
+	disable.Enabled = false
+	_, err := f.svc.UpdateProvider(context.Background(), authSettingsRootID, p.ID, disable)
+	require.NoError(t, err)
+
+	require.NoError(t, f.svc.DeleteProvider(context.Background(), authSettingsRootID, p.ID,
+		models.DeleteInstanceAuthProviderRequest{}))
+
+	assert.Equal(t, []string{authSettingsMemberID}, f.demotions(t, ProviderAdminDemotedProviderDeleted))
 }

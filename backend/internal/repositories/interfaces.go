@@ -2611,6 +2611,9 @@ type InstanceProviderAdminRepository interface {
 	// DeleteByProvider removes every row of providerID and returns the user ids
 	// it removed.
 	DeleteByProvider(ctx context.Context, providerID string) ([]string, error)
+	// UserIDsByProvider returns the user ids of every row of providerID, live
+	// or not: the rows a delete of the provider will cascade to.
+	UserIDsByProvider(ctx context.Context, providerID string) ([]string, error)
 	// IsProviderAdmin reports whether userID holds a row of an enabled, mapped
 	// provider.
 	IsProviderAdmin(ctx context.Context, userID string) (bool, error)

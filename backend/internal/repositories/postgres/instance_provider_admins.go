@@ -36,6 +36,9 @@ const instanceProviderAdminDelete = `DELETE FROM instance_provider_admins
 const instanceProviderAdminDeleteByProvider = `DELETE FROM instance_provider_admins
 	WHERE provider_id = $1 RETURNING user_id`
 
+const instanceProviderAdminUserIDsByProvider = `SELECT user_id FROM instance_provider_admins
+	WHERE provider_id = $1 ORDER BY user_id`
+
 // liveProviderAdmins joins a row to its provider only while that provider is
 // enabled and still has a role mapping: a row left behind by a cleared mapping
 // (a sign-in that was in flight while it was cleared) grants nothing.
@@ -89,13 +92,23 @@ func (r *InstanceProviderAdminRepository) Delete(ctx context.Context, userID, pr
 
 // DeleteByProvider removes every row of providerID; see the interface.
 func (r *InstanceProviderAdminRepository) DeleteByProvider(ctx context.Context, providerID string) ([]string, error) {
-	return queryAdminRows(ctx, r.db, "provider-sourced instance admins",
-		func(rows *sql.Rows) (string, error) {
-			var userID string
-			err := rows.Scan(&userID)
-			return userID, err
-		},
+	return queryAdminRows(ctx, r.db, "provider-sourced instance admins", scanProviderAdminUserID,
 		instanceProviderAdminDeleteByProvider, providerID)
+}
+
+// UserIDsByProvider returns the users of every row of providerID; see the
+// interface.
+func (r *InstanceProviderAdminRepository) UserIDsByProvider(
+	ctx context.Context, providerID string,
+) ([]string, error) {
+	return queryAdminRows(ctx, r.db, "provider-sourced instance admins", scanProviderAdminUserID,
+		instanceProviderAdminUserIDsByProvider, providerID)
+}
+
+func scanProviderAdminUserID(rows *sql.Rows) (string, error) {
+	var userID string
+	err := rows.Scan(&userID)
+	return userID, err
 }
 
 // IsProviderAdmin reports whether userID holds a row of an enabled, mapped

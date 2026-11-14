@@ -94,6 +94,10 @@ func TestIntegrationInstanceProviderAdmins_DeleteByProvider(t *testing.T) {
 	_, err := repo.Upsert(ctx, alice, other.ID, "platform-admins")
 	require.NoError(t, err)
 
+	ids, err := repo.UserIDsByProvider(ctx, keycloak.ID)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{alice, bob}, ids)
+
 	removed, err := repo.DeleteByProvider(ctx, keycloak.ID)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{alice, bob}, removed)

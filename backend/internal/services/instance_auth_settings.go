@@ -384,22 +384,16 @@ func (s *InstanceAuthSettingsService) removeProviderAdmins(ctx context.Context, 
 	}
 }
 
-// providerAdminIDs returns the users provider's role mapping currently makes
-// admins, read before the provider is deleted, since the cascade removes their
-// rows silently.
+// providerAdminIDs returns the users of every provider-sourced row of the
+// provider, read before it is deleted, since the cascade removes the rows
+// silently. Like clearing the mapping, the delete audits every row it removes.
 func (s *InstanceAuthSettingsService) providerAdminIDs(ctx context.Context, providerID string) ([]string, error) {
 	if s.deps.ProviderAdmins == nil {
 		return nil, nil
 	}
-	rows, err := s.deps.ProviderAdmins.List(ctx)
+	ids, err := s.deps.ProviderAdmins.UserIDsByProvider(ctx, providerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the provider's instance admins: %w", err)
-	}
-	ids := make([]string, 0, len(rows))
-	for _, row := range rows {
-		if row.ProviderID == providerID {
-			ids = append(ids, row.UserID)
-		}
 	}
 	return ids, nil
 }
