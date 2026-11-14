@@ -22,6 +22,7 @@ e2e/journeys/
 ├── resource-locking.journey.spec.ts         # Lock, enforcement and unlock across three users
 ├── site-info.journey.spec.ts                # Company branding: sign-in, app shell, VibeXP footer mark, admin Site info page
 ├── audit-log.journey.spec.ts                # Admin → Audit: a user's events, filters, drawer, CSV export
+├── sso-role-mapping.journey.spec.ts         # Provider sign-in through the stack's fake OIDC issuer: role mapping, re-check
 ├── password-*.journey.spec.ts               # Password sign-in journeys (#1444), their own project, see below
 └── README.md                                # This file
 ```
@@ -29,8 +30,8 @@ e2e/journeys/
 ## Password journeys (`password-*.journey.spec.ts`)
 
 Seven journeys for email/password authentication (epic #1426), the first that
-sign in without dev login. They need the docker stack (`make e2e`): it has
-Mailpit and no identity provider.
+sign in without dev login. They need the docker stack (`make e2e`) for its
+Mailpit.
 
 | File                          | What it proves                                                                                                                                                                                                               |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -72,12 +73,14 @@ as "did not run". To run them, or one of them, on their own against a running
 stack: `npx playwright test --project=password-journeys --no-deps [file]`.
 
 **Not covered:** a provider sign-up refused by `invite_only`
-(`registration_closed`). The stack has no identity provider, and that gate
-guards only a new account created by a provider sign-in; the backend tests of
-#1434 and #1430 cover it.
+(`registration_closed`). That gate guards only a new account created by a
+provider sign-in, which only `sso-role-mapping` drives, in the default
+registration mode; the backend tests of #1434 and #1430 cover it.
 
 **A second stack.** To run beside a stack already on :8080:
-`E2E_APP_PORT=8481 E2E_COMPOSE_PROJECT=vibexp-e2e-one make e2e`.
+`E2E_APP_PORT=8481 E2E_OIDC_PORT=9481 E2E_COMPOSE_PROJECT=vibexp-e2e-one make e2e`
+(`E2E_OIDC_PORT` moves the fake OIDC issuer the app publishes, see
+`sso-role-mapping`).
 The app listens on `E2E_APP_PORT`, and its base URL, the links it emails and the local OAuth issuer follow it.
 
 ## Audit log (`audit-log.journey.spec.ts`)
@@ -307,9 +310,10 @@ API. Three tests, run serially as the root admin (`ADMIN_EMAIL`):
   provider configured there brings up the "Sign in with … as a root admin to
   finish setup" prompt.
 
-**What it cannot cover.** The stack has no identity provider, so nobody signs in
-_through_ a provider: the journey stops at the prompt, and the root-admin
-provider login that ends setup is covered by the backend's tests (#1236). Dev
+**What it cannot cover.** Its providers point at no real issuer, so nobody signs
+in _through_ them: the journey stops at the prompt, and the root-admin provider
+login that ends setup is covered by the backend's tests (#1236). Signing in
+through a provider is `sso-role-mapping`'s job, against the stack's fake issuer. Dev
 login sessions carry no provider either, so the `own_provider` lockout reason
 cannot be produced here; Vitest covers its copy. The stored GitHub provider is
 never "tested" from the UI, because that check would send its made-up
@@ -329,6 +333,60 @@ unnoticeable:
 The setup test **requires the docker e2e stack** (the setup URL exists nowhere
 else) and skips with a reason without it. A stack started under another compose
 project name is found through `E2E_COMPOSE_PROJECT`.
+
+## SSO role mapping and access re-check (`sso-role-mapping.journey.spec.ts`)
+
+The ship gate for issue #1650 (epic #1640), and the only journey that signs in
+**through an identity provider**. The e2e stack runs a scriptable OpenID
+Connect issuer, `backend/cmd/oidc-test-issuer` (the `fakeoidc` issuer of the
+Go tests, behind a small `/_control/*` API), and the journey drives it through
+`e2e/helpers/fakeIssuer.ts`: who signs in next, their `groups` claim, and
+whether it refuses the sign-in or the next refresh. Six tests, run serially,
+each against a provider of its own with the role mapping
+`roles_claim=groups`, `admin_values=[vibexp-admins]`:
+
+| Test                    | What it proves                                                                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| mapping from the dialog | The mapping set in the provider dialog (#1645) makes a user whose `groups` holds the value an instance admin: `/admin` opens, and Settings → Authentication lists them as provider-sourced |
+| no admin value          | A user without it signs in but `/admin` sends them home, the user menu has no Admin Portal and the admin API answers 404                                                                   |
+| demotion on re-check    | The issuer drops the value; the next re-check (#1647) re-applies the mapping (#1648): the same session, with no new sign-in, loses the admin area                                          |
+| refused refresh         | The issuer answers the refresh with `invalid_grant`; the next re-check signs the user out, and the app sends them to the sign-in page                                                      |
+| denied sign-in          | The issuer answers the authorization with `access_denied`; the callback shows the "No access" page (#1642), no session and no account                                                      |
+| root admin              | `ADMIN_EMAIL` (`INSTANCE_ADMIN_EMAILS`) signs in through the provider with no roles claim at all and keeps `/admin`, across a re-check too                                                 |
+
+**How the stack makes it work.**
+
+- The issuer shares the app container's network namespace and the app
+  publishes its port (`E2E_OIDC_PORT`, default 9003), so
+  `http://localhost:9003` is the issuer URL for the browser and for the app
+  alike, and every ID token's `iss` matches. The app accepts an `http://`
+  localhost issuer because the stack runs in local-development mode.
+- The fake issuer answers `/authorize` with its code (or error) as JSON instead
+  of redirecting to the caller's `redirect_uri`, which would be an open
+  redirect. `signInWithProvider` turns that answer into the 302 to the app's
+  callback (a Playwright route), after checking the callback is the app's own.
+- `AUTH_SESSION_RECHECK_INTERVAL` is `10s` on the stack, so a re-check is waited
+  for by polling `/api/v1/auth/me` (`toPass`, up to 30s), never by sleeping.
+  The issuer's `/_control/stats` counts refreshes, which is how the demotion
+  and root-admin tests show a re-check really happened. Dev-login sessions
+  carry no refresh token, so the short interval changes nothing for other specs.
+
+**It changes instance-wide settings**, so it is an instance journey (one at a
+time, after the parallel projects). Each test deletes every provider under its
+`e2e-sso-` slug prefix and resets the issuer before and after it runs, pass or
+fail, then re-reads the providers and asserts none is left. Addresses are
+namespaced per attempt (`e2e-sso-<who>-<run>@vibexp.test`); the root-admin test
+links a provider identity to `ADMIN_EMAIL`, which every other spec keeps
+dev-logging in as.
+
+**Running it alone** against a running stack:
+`npx playwright test --project=instance-journeys --no-deps e2e/journeys/sso-role-mapping.journey.spec.ts`.
+It takes about a minute, most of it the two re-check waits.
+
+**Not covered:** PKCE, the nonce, refresh-token rotation and reuse detection on
+their own (the `fakeoidc` Go tests of #1641 and #1647), revocation at sign-out
+(#1649), Google and GitHub providers, and a provider sign-up refused by
+`invite_only`.
 
 ## Admin panel v3 (`admin-panel-v3.journey.spec.ts`)
 

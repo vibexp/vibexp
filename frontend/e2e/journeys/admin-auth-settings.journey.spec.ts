@@ -28,11 +28,13 @@ import { e2eAppAvailable, rearmSetup } from '../helpers/e2eApp'
  *
  * ## What this cannot do
  *
- * The stack has no identity provider, so nobody can actually sign in THROUGH
- * a provider. The journey therefore stops at the prompt; the provider login
- * that ends setup is covered by the backend's own tests (#1236). For the same
- * reason every session here is a dev login, which carries no provider — the
- * `own_provider` lockout reason cannot be produced and is covered in Vitest.
+ * The providers here point at no real issuer, so nobody signs in THROUGH
+ * them (signing in through a provider is `sso-role-mapping`'s job, against the
+ * stack's fake issuer). The journey therefore stops at the prompt; the
+ * provider login that ends setup is covered by the backend's own tests
+ * (#1236). For the same reason every session here is a dev login, which
+ * carries no provider — the `own_provider` lockout reason cannot be produced
+ * and is covered in Vitest.
  *
  * ## Sharing the stack
  *

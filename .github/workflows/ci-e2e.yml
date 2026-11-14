@@ -104,7 +104,7 @@ jobs:
     name: Build e2e image ${{ matrix.image }} (${{ inputs.branch || github.head_ref || github.ref_name }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # One job per image, so the three build in parallel and the slowest (app)
+    # One job per image, so the four build in parallel and the slowest (app)
     # alone sets the critical path.
     strategy:
       matrix:
@@ -115,6 +115,8 @@ jobs:
             dockerfile: backend/cmd/a2a-test-agent/Dockerfile
           - image: llm-test-provider
             dockerfile: backend/cmd/llm-test-provider/Dockerfile
+          - image: oidc-test-issuer
+            dockerfile: backend/cmd/oidc-test-issuer/Dockerfile
 
     steps:
       - name: Checkout ${{ inputs.branch }}
