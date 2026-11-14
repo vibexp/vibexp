@@ -22,6 +22,9 @@ func NewInstanceProviderAdminRepository(db *database.DB) repositories.InstancePr
 	return &InstanceProviderAdminRepository{db: db}
 }
 
+// providerAdminsSubject names the rows in errors and logs.
+const providerAdminsSubject = "provider-sourced instance admins"
+
 // instanceProviderAdminUpsert reports, through xmax, whether the row was
 // inserted (xmax = 0) rather than updated by the conflict clause.
 const instanceProviderAdminUpsert = `INSERT INTO instance_provider_admins (user_id, provider_id, matched_value)
@@ -92,7 +95,7 @@ func (r *InstanceProviderAdminRepository) Delete(ctx context.Context, userID, pr
 
 // DeleteByProvider removes every row of providerID; see the interface.
 func (r *InstanceProviderAdminRepository) DeleteByProvider(ctx context.Context, providerID string) ([]string, error) {
-	return queryAdminRows(ctx, r.db, "provider-sourced instance admins", scanProviderAdminUserID,
+	return queryAdminRows(ctx, r.db, providerAdminsSubject, scanProviderAdminUserID,
 		instanceProviderAdminDeleteByProvider, providerID)
 }
 
@@ -101,7 +104,7 @@ func (r *InstanceProviderAdminRepository) DeleteByProvider(ctx context.Context, 
 func (r *InstanceProviderAdminRepository) UserIDsByProvider(
 	ctx context.Context, providerID string,
 ) ([]string, error) {
-	return queryAdminRows(ctx, r.db, "provider-sourced instance admins", scanProviderAdminUserID,
+	return queryAdminRows(ctx, r.db, providerAdminsSubject, scanProviderAdminUserID,
 		instanceProviderAdminUserIDsByProvider, providerID)
 }
 
@@ -123,7 +126,7 @@ func (r *InstanceProviderAdminRepository) IsProviderAdmin(ctx context.Context, u
 
 // List returns the rows of the enabled, mapped providers.
 func (r *InstanceProviderAdminRepository) List(ctx context.Context) ([]*models.InstanceProviderAdmin, error) {
-	return queryAdminRows(ctx, r.db, "provider-sourced instance admins", scanInstanceProviderAdmin,
+	return queryAdminRows(ctx, r.db, providerAdminsSubject, scanInstanceProviderAdmin,
 		instanceProviderAdminList)
 }
 
@@ -131,6 +134,6 @@ func (r *InstanceProviderAdminRepository) List(ctx context.Context) ([]*models.I
 func (r *InstanceProviderAdminRepository) ListByUser(
 	ctx context.Context, userID string,
 ) ([]*models.InstanceProviderAdmin, error) {
-	return queryAdminRows(ctx, r.db, "provider-sourced instance admins", scanInstanceProviderAdmin,
+	return queryAdminRows(ctx, r.db, providerAdminsSubject, scanInstanceProviderAdmin,
 		instanceProviderAdminListByUser, userID)
 }
