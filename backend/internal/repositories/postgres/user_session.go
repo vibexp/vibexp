@@ -191,6 +191,27 @@ func (r *UserSessionRepository) Delete(ctx context.Context, idHash []byte) error
 	return nil
 }
 
+// DeleteReturning removes a session row by id hash and returns its user,
+// provider and encrypted refresh token. The DELETE waits for a refresh holding
+// the row lock, so what it returns is the token that refresh stored.
+func (r *UserSessionRepository) DeleteReturning(ctx context.Context, idHash []byte) (*models.UserSession, error) {
+	var (
+		s                 models.UserSession
+		provider, refresh sql.NullString
+	)
+	err := r.db.QueryRowContext(ctx,
+		`DELETE FROM sessions WHERE id_hash = $1 RETURNING user_id, provider, refresh_token_enc`, idHash,
+	).Scan(&s.UserID, &provider, &refresh)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete session: %w", err)
+	}
+	s.IDHash, s.Provider, s.RefreshTokenEnc = idHash, provider.String, refresh.String
+	return &s, nil
+}
+
 // DeleteExpired purges sessions past their expiry and returns the count
 // removed. It is one idempotent statement, so replicas running it at the same
 // time only race to delete the same rows.
@@ -204,6 +225,42 @@ func (r *UserSessionRepository) DeleteExpired(ctx context.Context) (int64, error
 		return 0, fmt.Errorf("failed to read affected rows deleting expired sessions: %w", err)
 	}
 	return n, nil
+}
+
+// DeleteOthersForUser removes every session row of userID except keepIDHash's
+// and returns each removed row's provider and encrypted refresh token. A nil
+// keepIDHash is bound as an empty bytea, which no id hash equals.
+func (r *UserSessionRepository) DeleteOthersForUser(
+	ctx context.Context, userID string, keepIDHash []byte,
+) ([]*models.UserSession, error) {
+	if keepIDHash == nil {
+		keepIDHash = []byte{}
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`DELETE FROM sessions WHERE user_id = $1 AND id_hash <> $2 RETURNING provider, refresh_token_enc`,
+		userID, keepIDHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete the user's other sessions: %w", err)
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			slog.Error("Failed to close the deleted sessions", "error", cerr)
+		}
+	}()
+	var removed []*models.UserSession
+	for rows.Next() {
+		var provider, refresh sql.NullString
+		if err = rows.Scan(&provider, &refresh); err != nil {
+			return nil, fmt.Errorf("failed to scan a deleted session: %w", err)
+		}
+		removed = append(removed, &models.UserSession{
+			UserID: userID, Provider: provider.String, RefreshTokenEnc: refresh.String,
+		})
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read the deleted sessions: %w", err)
+	}
+	return removed, nil
 }
 
 // requireOneSessionRow maps an update that matched no row to

@@ -15,6 +15,11 @@
 // token and issues a new one, and presenting a spent token revokes every token
 // the issuer has issued (invalid_grant from then on). It counts refresh calls,
 // so a test can prove how often a session was refreshed.
+//
+// A revocation endpoint (RFC 7009) can be advertised in discovery with
+// SetRevocationEndpoint. It authenticates the client (HTTP Basic or form
+// credentials), revokes a live refresh token, records every request and can be
+// made to fail or hang, so a test can prove when and how a token was revoked.
 package fakeoidc
 
 import (
@@ -29,6 +34,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -63,6 +69,10 @@ type Issuer struct {
 	noRefreshID    atomic.Bool
 	forgeIDToken   atomic.Bool
 
+	revocationEnabled atomic.Bool
+	revocationStatus  atomic.Int32
+	revocationHang    atomic.Bool
+
 	mu              sync.Mutex
 	grants          map[string]grant
 	nonceOverride   *string
@@ -74,6 +84,22 @@ type Issuer struct {
 	liveRefresh  map[string]bool
 	spentRefresh map[string]bool
 	revoked      bool
+	// revocationAuthMethods is the revocation_endpoint_auth_methods_supported
+	// list of discovery (nil omits it); revocations are the requests the
+	// revocation endpoint received.
+	revocationAuthMethods []string
+	revocations           []Revocation
+}
+
+// Revocation is one request the revocation endpoint received.
+type Revocation struct {
+	// Token and TokenTypeHint are the form's token and token_type_hint.
+	Token, TokenTypeHint string
+	// BasicAuth reports whether the client authenticated with HTTP Basic
+	// (client_secret_basic) rather than form credentials (client_secret_post).
+	BasicAuth bool
+	// Authenticated reports whether the client credentials were correct.
+	Authenticated bool
 }
 
 // grant is what the authorization endpoint recorded for one issued code.
@@ -100,6 +126,7 @@ func New(t testing.TB, clientID, clientSecret, subject, email string) *Issuer {
 	mux.HandleFunc("/authorize", i.handleAuthorize)
 	mux.HandleFunc("/token", i.handleToken)
 	mux.HandleFunc("/userinfo", i.handleUserInfo)
+	mux.HandleFunc("/revoke", i.handleRevoke)
 	i.server = httptest.NewServer(mux)
 	i.URL = i.server.URL
 	t.Cleanup(func() {
@@ -151,6 +178,37 @@ func (i *Issuer) SetScopesSupported(scopes []string) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.scopesSupported = scopes
+}
+
+// SetRevocationEndpoint sets whether discovery advertises the revocation
+// endpoint. It does not until changed, and it affects clients discovered from
+// now on.
+func (i *Issuer) SetRevocationEndpoint(enabled bool) { i.revocationEnabled.Store(enabled) }
+
+// SetRevocationAuthMethods sets the revocation_endpoint_auth_methods_supported
+// list of discovery; nil omits it. It affects clients discovered from now on.
+func (i *Issuer) SetRevocationAuthMethods(methods []string) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.revocationAuthMethods = methods
+}
+
+// SetRevocationStatus makes the revocation endpoint answer status from now on
+// (a 5xx simulates an issuer outage); 0 restores normal answers.
+func (i *Issuer) SetRevocationStatus(status int) {
+	i.revocationStatus.Store(int32(status)) // #nosec G115 -- an HTTP status fits
+}
+
+// SetRevocationHang makes the revocation endpoint block until the request is
+// cancelled (true) or answer normally again (false).
+func (i *Issuer) SetRevocationHang(hang bool) { i.revocationHang.Store(hang) }
+
+// Revocations returns the requests the revocation endpoint has received, in
+// order, failed ones included.
+func (i *Issuer) Revocations() []Revocation {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return append([]Revocation(nil), i.revocations...)
 }
 
 // RefreshCalls reports how many refresh_token grants the token endpoint has
@@ -317,9 +375,15 @@ func (i *Issuer) handleDiscovery(w http.ResponseWriter, r *http.Request) {
 		"jwks_uri":                              i.URL + "/jwks",
 		"id_token_signing_alg_values_supported": []string{"RS256"},
 	}
+	if i.revocationEnabled.Load() {
+		doc["revocation_endpoint"] = i.URL + "/revoke"
+	}
 	i.mu.Lock()
 	if i.scopesSupported != nil {
 		doc["scopes_supported"] = i.scopesSupported
+	}
+	if i.revocationAuthMethods != nil {
+		doc["revocation_endpoint_auth_methods_supported"] = i.revocationAuthMethods
 	}
 	i.mu.Unlock()
 	writeJSON(w, doc)
@@ -371,6 +435,60 @@ func (i *Issuer) handleToken(w http.ResponseWriter, r *http.Request) {
 		"access_token": "fake-access", "refresh_token": "fake-refresh",
 		"token_type": "Bearer", "expires_in": 3600, "id_token": signed,
 	})
+}
+
+// handleRevoke serves the revocation endpoint (RFC 7009): it records the
+// request, authenticates the client, and revokes the token when it is a live
+// refresh token. Like a real issuer it answers 200 for a token it does not
+// know (§2.2), and 401 invalid_client for bad credentials.
+func (i *Issuer) handleRevoke(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	id, secret, basic := r.BasicAuth()
+	if basic {
+		id, secret = formDecoded(id), formDecoded(secret)
+	} else {
+		id, secret = r.PostFormValue("client_id"), r.PostFormValue("client_secret")
+	}
+	authenticated := id == i.clientID && secret == i.clientSecret
+	token := r.PostFormValue("token")
+	i.mu.Lock()
+	i.revocations = append(i.revocations, Revocation{
+		Token: token, TokenTypeHint: r.PostFormValue("token_type_hint"), BasicAuth: basic, Authenticated: authenticated,
+	})
+	i.mu.Unlock()
+
+	if i.revocationHang.Load() {
+		select {
+		case <-r.Context().Done():
+		case <-i.release:
+		}
+		return
+	}
+	if status := int(i.revocationStatus.Load()); status != 0 {
+		http.Error(w, `{"error":"temporarily_unavailable"}`, status)
+		return
+	}
+	if !authenticated {
+		http.Error(w, `{"error":"invalid_client"}`, http.StatusUnauthorized)
+		return
+	}
+	i.mu.Lock()
+	delete(i.liveRefresh, token)
+	i.mu.Unlock()
+	w.WriteHeader(http.StatusOK)
+}
+
+// formDecoded undoes the form encoding RFC 6749 §2.3.1 applies to Basic
+// credentials; a malformed value decodes to "", which matches no client.
+func formDecoded(v string) string {
+	decoded, err := url.QueryUnescape(v)
+	if err != nil {
+		return ""
+	}
+	return decoded
 }
 
 // handleRefresh serves the refresh_token grant: it rotates token or answers

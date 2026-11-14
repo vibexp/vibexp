@@ -126,6 +126,20 @@ func (m *memSessionRepo) Delete(_ context.Context, idHash []byte) error {
 	return nil
 }
 
+func (m *memSessionRepo) DeleteReturning(_ context.Context, idHash []byte) (*models.UserSession, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.failWith != nil {
+		return nil, m.failWith
+	}
+	row, ok := m.rows[string(idHash)]
+	if !ok {
+		return nil, nil
+	}
+	delete(m.rows, string(idHash))
+	return &row, nil
+}
+
 func (m *memSessionRepo) DeleteExpired(_ context.Context) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -140,6 +154,26 @@ func (m *memSessionRepo) DeleteExpired(_ context.Context) (int64, error) {
 		}
 	}
 	return n, nil
+}
+
+func (m *memSessionRepo) DeleteOthersForUser(
+	_ context.Context, userID string, keepIDHash []byte,
+) ([]*models.UserSession, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.failWith != nil {
+		return nil, m.failWith
+	}
+	var removed []*models.UserSession
+	for k, row := range m.rows {
+		if row.UserID == userID && k != string(keepIDHash) {
+			removed = append(removed, &models.UserSession{
+				UserID: userID, Provider: row.Provider, RefreshTokenEnc: row.RefreshTokenEnc,
+			})
+			delete(m.rows, k)
+		}
+	}
+	return removed, nil
 }
 
 // RefreshLocked holds idHash's row lock while decide runs, like the postgres

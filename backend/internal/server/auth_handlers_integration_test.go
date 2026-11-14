@@ -214,6 +214,11 @@ func newMockAuthContainer(t *testing.T) *MockAuthContainer {
 	// (#1648). A test that cares sets its own expectation on a fresh mock.
 	authService.On("ApplyRefreshedRoleMapping", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(nil).Maybe()
+	// Default: the session's provider cannot revoke tokens (#1649), so sign-out
+	// makes no revocation call. A test that cares sets its own expectation on a
+	// fresh mock.
+	authService.On("RevokeRefreshToken", mock.Anything, mock.Anything, mock.Anything).
+		Return(idp.ErrRevocationUnsupported).Maybe()
 
 	return &MockAuthContainer{
 		authService:        authService,

@@ -5,7 +5,9 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
+	"github.com/vibexp/vibexp/internal/auth/idp"
 	sesslib "github.com/vibexp/vibexp/internal/auth/session"
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/services"
@@ -86,6 +88,37 @@ func (s *Server) deleteSession(ctx context.Context, sess *sesslib.Session) {
 	}
 }
 
+// sessionStillStored reports whether sess, read from a cookie, still has its
+// row (#1646), filling its tokens from it. A legacy cookie has no row and
+// carries its tokens itself, so it counts as stored.
+func (s *Server) sessionStillStored(ctx context.Context, sess *sesslib.Session) bool {
+	return sess.IsLegacy() || s.loadSession(ctx, sess) == nil
+}
+
+// removeSession deletes sess's row and returns the session as the row held it
+// when it was deleted, so its refresh token is the latest one even when a
+// refresh rotated it a moment ago (#1649). A legacy session has no row and is
+// returned as it is. A failure is logged and returns nil, as does a row that
+// was already gone or belongs to another user.
+func (s *Server) removeSession(ctx context.Context, sess *sesslib.Session) *sesslib.Session {
+	if sess.IsLegacy() {
+		return sess
+	}
+	store := s.sessionStore()
+	if store == nil {
+		return nil
+	}
+	removed, err := store.Remove(ctx, sess.ID)
+	if err != nil {
+		s.logger.With("user_id", sess.UserID, "error", err.Error()).Warn("Failed to delete a session row")
+		return nil
+	}
+	if removed == nil || removed.UserID != sess.UserID {
+		return nil
+	}
+	return removed
+}
+
 // loadSessionOrReject loads the row of a cookie session for a required-auth
 // request and reports whether the request may go on. A missing, expired or
 // unreadable row is answered 401 with the cookie cleared; a failure to read it
@@ -126,4 +159,46 @@ func (s *Server) convertLegacySession(
 	http.SetCookie(w, cookie)
 	logger.With("user_id", sess.UserID).Info("Converted a legacy session cookie to a server-side session")
 	return true
+}
+
+// providerRevocationTimeout bounds the identity-provider revocation calls of
+// one sign-out (#1649), so an issuer that is slow or down delays it by at most
+// this much.
+const providerRevocationTimeout = 3 * time.Second
+
+// revokeProviderTokens revokes, best effort, the identity-provider refresh
+// token of each of sessions at the provider that issued it (RFC 7009, #1649).
+// It runs after the sessions' rows are gone, so nothing it does can keep a
+// session alive. The calls share one providerRevocationTimeout and are not
+// cancelled with the request: a browser navigating away must not abort them
+// halfway. A session without a refresh token (a sliding or password session)
+// is skipped; every outcome is logged and none is returned.
+func (s *Server) revokeProviderTokens(ctx context.Context, sessions ...*sesslib.Session) {
+	if s.container == nil {
+		return
+	}
+	var pending []*sesslib.Session
+	for _, sess := range sessions {
+		if sess != nil && sess.RefreshToken != "" {
+			pending = append(pending, sess)
+		}
+	}
+	if len(pending) == 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), providerRevocationTimeout)
+	defer cancel()
+	auth := s.container.AuthService()
+	for _, sess := range pending {
+		log := s.logger.With("user_id", sess.UserID, "provider", sess.Provider)
+		err := auth.RevokeRefreshToken(ctx, sess.Provider, sess.RefreshToken)
+		switch {
+		case err == nil:
+			log.Info("Revoked the identity provider's refresh token at sign-out")
+		case errors.Is(err, idp.ErrRevocationUnsupported):
+			log.Debug("The identity provider does not support token revocation; nothing revoked at sign-out")
+		default:
+			log.With("error", err.Error()).Warn("Failed to revoke the identity provider's refresh token at sign-out")
+		}
+	}
 }

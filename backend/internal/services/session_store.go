@@ -50,6 +50,17 @@ type SessionStoreInterface interface {
 	Slide(ctx context.Context, sess *session.Session) error
 	// Delete removes the session with id sid. A missing row is not an error.
 	Delete(ctx context.Context, sid string) error
+	// Remove deletes the session with id sid and returns it with its UserID,
+	// Provider and RefreshToken as the row held them when it was deleted, so
+	// the refresh token can be revoked (#1649); nil when there was no row. A
+	// refresh token that no longer decrypts is left empty.
+	Remove(ctx context.Context, sid string) (*session.Session, error)
+	// DeleteOthers removes every session of userID except the one with id
+	// keepSID (an empty keepSID keeps none) and returns the removed sessions
+	// with their UserID, Provider and RefreshToken set, so the caller can
+	// revoke the refresh tokens (#1649). A refresh token that no longer
+	// decrypts is left empty.
+	DeleteOthers(ctx context.Context, userID, keepSID string) ([]*session.Session, error)
 	// Sweep deletes expired rows and returns how many it removed.
 	Sweep(ctx context.Context) (int64, error)
 	// RefreshIfDue refreshes sess under a lock on its row (#1647). With the
@@ -245,6 +256,44 @@ func (s *SessionStore) Slide(ctx context.Context, sess *session.Session) error {
 // Delete removes the session with id sid.
 func (s *SessionStore) Delete(ctx context.Context, sid string) error {
 	return s.repo.Delete(ctx, sessionIDHash(sid))
+}
+
+// Remove deletes the session with id sid and returns what it held.
+func (s *SessionStore) Remove(ctx context.Context, sid string) (*session.Session, error) {
+	row, err := s.repo.DeleteReturning(ctx, sessionIDHash(sid))
+	if err != nil || row == nil {
+		return nil, err
+	}
+	return s.removedSession(row), nil
+}
+
+// DeleteOthers removes the sessions of userID other than keepSID's.
+func (s *SessionStore) DeleteOthers(ctx context.Context, userID, keepSID string) ([]*session.Session, error) {
+	var keep []byte
+	if keepSID != "" {
+		keep = sessionIDHash(keepSID)
+	}
+	rows, err := s.repo.DeleteOthersForUser(ctx, userID, keep)
+	if err != nil {
+		return nil, err
+	}
+	removed := make([]*session.Session, 0, len(rows))
+	for _, row := range rows {
+		removed = append(removed, s.removedSession(row))
+	}
+	return removed, nil
+}
+
+// removedSession is the session a deleted row held: its user, provider and
+// decrypted refresh token. A token that no longer decrypts (a rotated
+// encryption key) cannot be revoked and is left empty; the row is gone either
+// way.
+func (s *SessionStore) removedSession(row *models.UserSession) *session.Session {
+	sess := &session.Session{UserID: row.UserID, Provider: row.Provider}
+	if refresh, err := s.decrypt(row.RefreshTokenEnc); err == nil {
+		sess.RefreshToken = refresh
+	}
+	return sess
 }
 
 // Sweep deletes the rows past their expiry.
