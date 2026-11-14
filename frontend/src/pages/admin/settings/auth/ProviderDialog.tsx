@@ -163,8 +163,8 @@ function RoleMappingFields({
             The ID token or userinfo claim that lists the user&apos;s groups or
             roles, such as <code className="font-mono">groups</code>,{' '}
             <code className="font-mono">roles</code> or{' '}
-            <code className="font-mono">realm_access.roles</code>. Leave it
-            blank to turn the mapping off.
+            <code className="font-mono">realm_access.roles</code>. Clear the
+            claim and the values to turn the mapping off.
           </>
         }
         placeholder="groups"

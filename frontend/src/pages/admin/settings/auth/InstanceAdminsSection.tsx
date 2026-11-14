@@ -248,7 +248,7 @@ export function InstanceAdminsSection({
             className="text-muted-foreground text-sm"
             data-testid="auth-admins-empty"
           >
-            No instance admin has been granted beyond the root admins.
+            No instance admin has been granted by hand.
           </p>
         )}
 
