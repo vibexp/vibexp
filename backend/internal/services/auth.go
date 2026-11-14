@@ -38,20 +38,22 @@ type AuthService struct {
 	// audit records session revocations and identity links (#1514); nil
 	// records nothing.
 	audit audit.Recorder
-	// providerAdmins applies a provider's role mapping at sign-in (#1644); nil
-	// applies none.
+	// providerAdmins applies a provider's role mapping at sign-in (#1644) and
+	// on every token refresh (#1648); nil applies none.
 	providerAdmins ProviderAdminSyncer
 }
 
 // ProviderAdminSyncer applies one evaluation of a provider's role mapping
 // (InstanceAdminResolver.SyncProviderAdmin). It is the narrow slice of the
-// instance admin resolver the sign-in path needs.
+// instance admin resolver the sign-in and refresh paths need.
 type ProviderAdminSyncer interface {
-	SyncProviderAdmin(ctx context.Context, user *models.User, providerID, providerSlug string, matched *string) error
+	SyncProviderAdmin(
+		ctx context.Context, user *models.User, providerID, providerSlug string, matched *string, trigger string,
+	) error
 }
 
-// WithProviderAdminSync makes sign-in apply each provider's role mapping
-// through syncer (#1644).
+// WithProviderAdminSync makes sign-in (#1644) and token refresh (#1648) apply
+// each provider's role mapping through syncer.
 func WithProviderAdminSync(syncer ProviderAdminSyncer) AuthServiceOption {
 	return func(as *AuthService) { as.providerAdmins = syncer }
 }
@@ -262,7 +264,7 @@ func (as *AuthService) HandleCallback(
 		return nil, nil, false, fmt.Errorf("failed to create or update user: %w", err)
 	}
 
-	if err := as.applyRoleMapping(ctx, user, slug, entry, claims); err != nil {
+	if err := as.applyRoleMapping(ctx, user, slug, entry, claims, ProviderAdminTriggerSignIn); err != nil {
 		as.logger.With("user_id", user.ID, "idp", slug, "error", err).
 			Error("Failed to apply the provider's role mapping")
 		return nil, nil, false, fmt.Errorf("failed to apply the provider's role mapping: %w", err)
@@ -276,13 +278,14 @@ func (as *AuthService) HandleCallback(
 	return user, tokens, isNewUser, nil
 }
 
-// applyRoleMapping evaluates the provider's role mapping against the sign-in's
-// verified claims and records the result (#1644). With no mapping it reads and
-// writes nothing. A failure fails the sign-in, so a promotion the identity
-// provider has withdrawn never survives a sign-in that could not record it.
-// The claim set itself is never logged.
+// applyRoleMapping evaluates the provider's role mapping against verified
+// claims and records the result. It is the one evaluation for sign-in (#1644)
+// and token refresh (#1648); trigger (ProviderAdminTrigger*) says which. With
+// no mapping it reads and writes nothing. A failure fails the sign-in, so a
+// promotion the identity provider has withdrawn never survives a sign-in that
+// could not record it. The claim set itself is never logged.
 func (as *AuthService) applyRoleMapping(
-	ctx context.Context, user *models.User, slug string, entry idp.Entry, claims *idp.Claims,
+	ctx context.Context, user *models.User, slug string, entry idp.Entry, claims *idp.Claims, trigger string,
 ) error {
 	if entry.RoleMapping == nil || as.providerAdmins == nil {
 		return nil
@@ -292,9 +295,60 @@ func (as *AuthService) applyRoleMapping(
 	if ok {
 		matched = &value
 	}
-	as.logger.With("user_id", user.ID, "provider", slug, "matched", ok, "matched_value", value).
+	as.logger.With("user_id", user.ID, "provider", slug, "matched", ok, "matched_value", value, "trigger", trigger).
 		Info("Evaluated the provider's role mapping")
-	return as.providerAdmins.SyncProviderAdmin(ctx, user, entry.ProviderID, slug, matched)
+	return as.providerAdmins.SyncProviderAdmin(ctx, user, entry.ProviderID, slug, matched, trigger)
+}
+
+// ApplyRefreshedRoleMapping re-applies the role mapping of the provider with
+// slug to userID after a successful refresh of their session's tokens (#1648),
+// through the same evaluation as sign-in, so a promotion or demotion at the
+// identity provider takes effect without a new sign-in. claims are the ones
+// RefreshTokens returned. A provider with no mapping (Google, GitHub, or an
+// OIDC provider with the mapping off) costs no read and no write.
+//
+// A refresh that observed no claim set changes nothing and logs a warning: the
+// claim was not observed, which is not the same as observed and absent, so it
+// never demotes. A failure to read the providers or the user, or to record the
+// result, is returned.
+func (as *AuthService) ApplyRefreshedRoleMapping(
+	ctx context.Context, slug, userID string, claims *idp.Claims,
+) error {
+	if as.providerAdmins == nil {
+		return nil
+	}
+	reg, err := as.snapshot(ctx)
+	if err != nil {
+		return err
+	}
+	name := refreshProviderName(reg, slug)
+	entry, ok := reg.Entry(name)
+	if !ok || entry.RoleMapping == nil {
+		return nil
+	}
+	if claims == nil || claims.Raw == nil {
+		as.logger.With("user_id", userID, "provider", string(name), "trigger", ProviderAdminTriggerRefresh).
+			Warn("Session refresh observed no claims; keeping the last role mapping result")
+		return nil
+	}
+	user, err := as.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to read user %q: %w", userID, err)
+	}
+	return as.applyRoleMapping(ctx, user, string(name), entry, claims, ProviderAdminTriggerRefresh)
+}
+
+// refreshProviderName names the provider that refreshes a session issued by
+// slug. Sessions issued before multi-provider support carry no provider name:
+// when the deployment runs a single provider, they route to it so they keep
+// refreshing across the upgrade.
+func refreshProviderName(reg *idp.Registry, slug string) idp.ProviderName {
+	if slug == "" {
+		if enabled := reg.Enabled(); len(enabled) == 1 {
+			return enabled[0]
+		}
+	}
+	return idp.ProviderName(slug)
 }
 
 // RefreshTokens refreshes the access token using the provider with slug. The
@@ -312,15 +366,7 @@ func (as *AuthService) RefreshTokens(
 	if err != nil {
 		return nil, nil, err
 	}
-	name := idp.ProviderName(slug)
-	if slug == "" {
-		// Back-compat: sessions issued before multi-provider support carry no
-		// provider name. When the deployment runs a single provider, route to
-		// it so those sessions keep refreshing across the upgrade.
-		if enabled := reg.Enabled(); len(enabled) == 1 {
-			name = enabled[0]
-		}
-	}
+	name := refreshProviderName(reg, slug)
 	p, ok := reg.Get(name)
 	if !ok {
 		// Health lists every ENABLED provider, so an entry here means the

@@ -209,8 +209,14 @@ func newMockAuthContainer(t *testing.T) *MockAuthContainer {
 	userRepo.On("GetByID", mock.Anything, mock.Anything).
 		Return(&models.User{Status: models.UserStatusActive}, nil).Maybe()
 
+	authService := svcmocks.NewMockAuthServiceInterface(t)
+	// Default: re-applying the role mapping after a refresh changes nothing
+	// (#1648). A test that cares sets its own expectation on a fresh mock.
+	authService.On("ApplyRefreshedRoleMapping", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Maybe()
+
 	return &MockAuthContainer{
-		authService:        svcmocks.NewMockAuthServiceInterface(t),
+		authService:        authService,
 		activityService:    &MockActivityServiceForAuthHandlers{},
 		environmentService: services.NewEnvironmentService(cfg),
 		userRepository:     userRepo,

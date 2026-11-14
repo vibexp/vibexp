@@ -34,6 +34,11 @@ type AuthServiceInterface interface {
 	// RefreshTokens exchanges a refresh token for new access/refresh tokens
 	// using the provider with slug (the one the session was issued by).
 	RefreshTokens(ctx context.Context, provider, refreshToken string) (*idp.Tokens, *idp.Claims, error)
+	// ApplyRefreshedRoleMapping re-applies the role mapping of the provider
+	// with slug to userID from the claims a successful RefreshTokens returned
+	// (#1648). No claim set observed changes nothing; a provider without a
+	// mapping costs no read or write.
+	ApplyRefreshedRoleMapping(ctx context.Context, slug, userID string, claims *idp.Claims) error
 	// ProvisionFromClaims resolves or creates a user from upstream IdP claims,
 	// used by the embedded OAuth Authorization Server's login leg (issue #31).
 	ProvisionFromClaims(ctx context.Context, providerName string, claims *idp.Claims) (*models.User, error)

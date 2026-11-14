@@ -195,7 +195,7 @@ type adminSyncCall struct {
 }
 
 func (r *recordingAdminSync) SyncProviderAdmin(
-	_ context.Context, _ *models.User, providerID, providerSlug string, matched *string,
+	_ context.Context, _ *models.User, providerID, providerSlug string, matched *string, _ string,
 ) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

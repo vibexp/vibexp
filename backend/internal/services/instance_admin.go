@@ -91,12 +91,22 @@ func (e *ErrInstanceAdminTargetIsProviderSourced) Error() string {
 
 // Why a provider-sourced admin was demoted: the audit metadata's reason.
 const (
-	// ProviderAdminDemotedNoMatch is a sign-in whose claims no longer match.
+	// ProviderAdminDemotedNoMatch is a sign-in or refresh whose claims no
+	// longer match.
 	ProviderAdminDemotedNoMatch = "no_match"
 	// ProviderAdminDemotedMappingCleared is an admin clearing the mapping.
 	ProviderAdminDemotedMappingCleared = "mapping_cleared"
 	// ProviderAdminDemotedProviderDeleted is an admin deleting the provider.
 	ProviderAdminDemotedProviderDeleted = "provider_deleted"
+)
+
+// What evaluated a provider's role mapping: the audit metadata's trigger on a
+// promotion or demotion SyncProviderAdmin records (#1648).
+const (
+	// ProviderAdminTriggerSignIn is a sign-in through the provider.
+	ProviderAdminTriggerSignIn = "sign_in"
+	// ProviderAdminTriggerRefresh is a refresh of a session's provider tokens.
+	ProviderAdminTriggerRefresh = "refresh"
 )
 
 // IsUnknownUser reports whether the grant was refused because the target user
@@ -143,9 +153,12 @@ type InstanceAdminResolver interface {
 	RevokeInstanceAdmin(ctx context.Context, actingUserID, targetUserID string) error
 	// SyncProviderAdmin applies one evaluation of a provider's role mapping to
 	// user: a non-nil matched records them as an admin of the provider, nil
-	// removes that. Only a real transition is audited, with user as the actor.
-	// It is the one entry point for sign-in and, later, token refresh (#1648).
-	SyncProviderAdmin(ctx context.Context, user *models.User, providerID, providerSlug string, matched *string) error
+	// removes that. Only a real transition is audited, with user as the actor
+	// and trigger (ProviderAdminTrigger*) in its metadata. It is the one entry
+	// point for sign-in and token refresh (#1648).
+	SyncProviderAdmin(
+		ctx context.Context, user *models.User, providerID, providerSlug string, matched *string, trigger string,
+	) error
 	// RemoveProviderAdmins removes every provider-sourced admin of providerID,
 	// auditing one demotion with reason per user; the actor comes from ctx.
 	RemoveProviderAdmins(ctx context.Context, providerID, providerSlug, reason string) error
@@ -375,7 +388,7 @@ func (s *InstanceAdminService) refuseProviderSourcedRevoke(ctx context.Context, 
 
 // SyncProviderAdmin implements InstanceAdminResolver.
 func (s *InstanceAdminService) SyncProviderAdmin(
-	ctx context.Context, user *models.User, providerID, providerSlug string, matched *string,
+	ctx context.Context, user *models.User, providerID, providerSlug string, matched *string, trigger string,
 ) error {
 	if s.providerAdmins == nil || user == nil {
 		return nil
@@ -388,9 +401,9 @@ func (s *InstanceAdminService) SyncProviderAdmin(
 		}
 		if inserted {
 			s.logger.Info("Provider-sourced instance admin promoted",
-				"user_id", user.ID, "provider", providerSlug, "matched_value", *matched)
+				"user_id", user.ID, "provider", providerSlug, "matched_value", *matched, "trigger", trigger)
 			s.recordProviderAdminChange(ctx, models.AuditOpAuthInstanceAdminPromoted, actor, user.ID, user.Email,
-				map[string]any{"provider_slug": providerSlug, "matched_value": *matched})
+				map[string]any{"provider_slug": providerSlug, "matched_value": *matched, "trigger": trigger})
 		}
 		return nil
 	}
@@ -400,9 +413,9 @@ func (s *InstanceAdminService) SyncProviderAdmin(
 	}
 	if deleted {
 		s.logger.Info("Provider-sourced instance admin demoted",
-			"user_id", user.ID, "provider", providerSlug, "reason", ProviderAdminDemotedNoMatch)
+			"user_id", user.ID, "provider", providerSlug, "reason", ProviderAdminDemotedNoMatch, "trigger", trigger)
 		s.recordProviderAdminChange(ctx, models.AuditOpAuthInstanceAdminDemoted, actor, user.ID, user.Email,
-			map[string]any{"provider_slug": providerSlug, "reason": ProviderAdminDemotedNoMatch})
+			map[string]any{"provider_slug": providerSlug, "reason": ProviderAdminDemotedNoMatch, "trigger": trigger})
 	}
 	return nil
 }

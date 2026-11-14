@@ -61,14 +61,25 @@ func (f *providerAdminFixture) isAdmin(t *testing.T, id string) bool {
 
 func (f *providerAdminFixture) promote(t *testing.T, id string) {
 	t.Helper()
-	matched := "admins"
-	require.NoError(t, f.svc.SyncProviderAdmin(context.Background(), f.user(id), f.provider.ID, f.provider.Slug,
-		&matched))
+	f.promoteBy(t, id, ProviderAdminTriggerSignIn)
 }
 
 func (f *providerAdminFixture) demote(t *testing.T, id string) {
 	t.Helper()
-	require.NoError(t, f.svc.SyncProviderAdmin(context.Background(), f.user(id), f.provider.ID, f.provider.Slug, nil))
+	f.demoteBy(t, id, ProviderAdminTriggerSignIn)
+}
+
+func (f *providerAdminFixture) promoteBy(t *testing.T, id, trigger string) {
+	t.Helper()
+	matched := "admins"
+	require.NoError(t, f.svc.SyncProviderAdmin(context.Background(), f.user(id), f.provider.ID, f.provider.Slug,
+		&matched, trigger))
+}
+
+func (f *providerAdminFixture) demoteBy(t *testing.T, id, trigger string) {
+	t.Helper()
+	require.NoError(t, f.svc.SyncProviderAdmin(context.Background(), f.user(id), f.provider.ID, f.provider.Slug,
+		nil, trigger))
 }
 
 func (f *providerAdminFixture) takeEvents() []auditEventView {
@@ -101,7 +112,7 @@ func TestSyncProviderAdmin_PromotesAndDemotesAuditingOnlyTransitions(t *testing.
 	assert.True(t, f.isAdmin(t, iaPlainID), "a matching sign-in makes the user an admin")
 	assert.Equal(t, []auditEventView{{
 		op: models.AuditOpAuthInstanceAdminPromoted, resourceID: iaPlainID, actor: iaPlainID,
-		metadata: map[string]any{"provider_slug": "keycloak", "matched_value": "admins"},
+		metadata: map[string]any{"provider_slug": "keycloak", "matched_value": "admins", "trigger": "sign_in"},
 	}}, f.takeEvents())
 
 	f.promote(t, iaPlainID)
@@ -111,19 +122,42 @@ func TestSyncProviderAdmin_PromotesAndDemotesAuditingOnlyTransitions(t *testing.
 	assert.False(t, f.isAdmin(t, iaPlainID), "a sign-in without the value removes the status")
 	assert.Equal(t, []auditEventView{{
 		op: models.AuditOpAuthInstanceAdminDemoted, resourceID: iaPlainID, actor: iaPlainID,
-		metadata: map[string]any{"provider_slug": "keycloak", "reason": ProviderAdminDemotedNoMatch},
+		metadata: map[string]any{"provider_slug": "keycloak", "reason": ProviderAdminDemotedNoMatch, "trigger": "sign_in"},
 	}}, f.takeEvents())
 
 	f.demote(t, iaPlainID)
 	assert.Empty(t, f.takeEvents(), "demoting a non-admin audits nothing")
 }
 
+func TestSyncProviderAdmin_RefreshTriggerIsAudited(t *testing.T) {
+	f := newProviderAdminFixture(t)
+
+	f.promoteBy(t, iaPlainID, ProviderAdminTriggerRefresh)
+	assert.True(t, f.isAdmin(t, iaPlainID), "a matching refresh makes the user an admin")
+	assert.Equal(t, []auditEventView{{
+		op: models.AuditOpAuthInstanceAdminPromoted, resourceID: iaPlainID, actor: iaPlainID,
+		metadata: map[string]any{"provider_slug": "keycloak", "matched_value": "admins", "trigger": "refresh"},
+	}}, f.takeEvents())
+
+	f.promoteBy(t, iaPlainID, ProviderAdminTriggerRefresh)
+	assert.Empty(t, f.takeEvents(), "an unchanged result on refresh audits nothing")
+
+	f.demoteBy(t, iaPlainID, ProviderAdminTriggerRefresh)
+	assert.False(t, f.isAdmin(t, iaPlainID), "a refresh without the value removes the status")
+	assert.Equal(t, []auditEventView{{
+		op: models.AuditOpAuthInstanceAdminDemoted, resourceID: iaPlainID, actor: iaPlainID,
+		metadata: map[string]any{"provider_slug": "keycloak", "reason": ProviderAdminDemotedNoMatch, "trigger": "refresh"},
+	}}, f.takeEvents())
+}
+
 func TestSyncProviderAdmin_RootAndManualAdminsKeepTheirStatus(t *testing.T) {
 	f := newProviderAdminFixture(t, iaDBAdminID)
 	for _, id := range []string{iaRootID, iaDBAdminID} {
-		f.promote(t, id)
-		f.demote(t, id)
-		assert.True(t, f.isAdmin(t, id), "%s keeps its own source when the claim is missing", id)
+		for _, trigger := range []string{ProviderAdminTriggerSignIn, ProviderAdminTriggerRefresh} {
+			f.promoteBy(t, id, trigger)
+			f.demoteBy(t, id, trigger)
+			assert.True(t, f.isAdmin(t, id), "%s keeps its own source when the claim is missing (%s)", id, trigger)
+		}
 	}
 	ok, err := f.grants.IsGranted(context.Background(), iaDBAdminID)
 	require.NoError(t, err)
@@ -136,7 +170,7 @@ func TestIsInstanceAdmin_ProviderSourced(t *testing.T) {
 		disabled := f.addProvider(t, "old-idp", false)
 		matched := "admins"
 		require.NoError(t, f.svc.SyncProviderAdmin(context.Background(), f.user(iaPlainID), disabled.ID,
-			disabled.Slug, &matched))
+			disabled.Slug, &matched, ProviderAdminTriggerSignIn))
 		assert.False(t, f.isAdmin(t, iaPlainID))
 	})
 	t.Run("a suspended user is never an admin", func(t *testing.T) {
@@ -154,7 +188,8 @@ func TestIsInstanceAdmin_ProviderSourced(t *testing.T) {
 	t.Run("without the source nothing is read or written", func(t *testing.T) {
 		svc, users := newInstanceAdminFixture(newFakeInstanceAdminGrants())
 		matched := "admins"
-		require.NoError(t, svc.SyncProviderAdmin(context.Background(), users.users[iaPlainID], "p", "s", &matched))
+		require.NoError(t, svc.SyncProviderAdmin(context.Background(), users.users[iaPlainID], "p", "s", &matched,
+			ProviderAdminTriggerSignIn))
 		require.NoError(t, svc.RemoveProviderAdmins(context.Background(), "p", "s", ProviderAdminDemotedProviderDeleted))
 		ok, err := svc.IsInstanceAdmin(context.Background(), users.users[iaPlainID])
 		require.NoError(t, err)
@@ -212,7 +247,8 @@ func TestRemoveProviderAdmins_AuditsEachDemotion(t *testing.T) {
 	f.promote(t, iaPlainID)
 	f.promote(t, iaDBAdminID)
 	matched := "admins"
-	require.NoError(t, f.svc.SyncProviderAdmin(context.Background(), f.user(iaRoot2ID), other.ID, other.Slug, &matched))
+	require.NoError(t, f.svc.SyncProviderAdmin(context.Background(), f.user(iaRoot2ID), other.ID, other.Slug, &matched,
+		ProviderAdminTriggerSignIn))
 	f.takeEvents()
 
 	require.NoError(t, f.svc.RemoveProviderAdmins(context.Background(), f.provider.ID, f.provider.Slug,
@@ -240,8 +276,9 @@ func TestSyncProviderAdmin_WriteErrorsAreReturned(t *testing.T) {
 	f.store.Err = errors.New("db down")
 	matched := "admins"
 	require.Error(t, f.svc.SyncProviderAdmin(context.Background(), f.user(iaPlainID), f.provider.ID, "keycloak",
-		&matched))
-	require.Error(t, f.svc.SyncProviderAdmin(context.Background(), f.user(iaPlainID), f.provider.ID, "keycloak", nil))
+		&matched, ProviderAdminTriggerSignIn))
+	require.Error(t, f.svc.SyncProviderAdmin(context.Background(), f.user(iaPlainID), f.provider.ID, "keycloak",
+		nil, ProviderAdminTriggerSignIn))
 	require.Error(t, f.svc.RemoveProviderAdmins(context.Background(), f.provider.ID, "keycloak",
 		ProviderAdminDemotedProviderDeleted))
 	assert.Empty(t, f.takeEvents())
