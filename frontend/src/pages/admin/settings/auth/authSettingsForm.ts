@@ -356,7 +356,7 @@ export function toProviderUpdate(
     client_id: (changes.client_id ?? provider.client_id).trim(),
     ...(changes.client_secret ? { client_secret: changes.client_secret } : {}),
     ...(provider.type === 'oidc' ? { issuer_url: issuer } : {}),
-    ...(mapping ?? {}),
+    ...mapping,
     expected_version: expectedVersion,
     confirm_lockout_risk: confirmLockoutRisk,
   }
