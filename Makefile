@@ -542,7 +542,7 @@ build-combined: frontend-build
 # cwd, so a recipe that cd's somewhere first can never break the teardown (#598).
 # The compose project and the app's port are overridable together, to run a
 # second stack beside one already up:
-#   E2E_APP_PORT=8481 E2E_COMPOSE_PROJECT=vibexp-e2e-one make e2e
+#   E2E_APP_PORT=8481 E2E_OIDC_PORT=9481 E2E_COMPOSE_PROJECT=vibexp-e2e-one make e2e
 # Both are exported: docker-compose.e2e.yml reads E2E_APP_PORT, and the e2e
 # helpers that reach into the containers read E2E_COMPOSE_PROJECT.
 E2E_COMPOSE_PROJECT ?= vibexp-e2e
@@ -552,6 +552,11 @@ E2E_COMPOSE := docker compose -p $(E2E_COMPOSE_PROJECT) -f $(CURDIR)/docker-comp
 E2E_APP_PORT ?= 8080
 export E2E_APP_PORT
 E2E_BASE_URL ?= http://localhost:$(E2E_APP_PORT)
+# Port of the e2e OpenID Connect issuer (default 9003), published by the app;
+# a second stack moves it too. Exported for docker-compose.e2e.yml and for the
+# SSO journey, which derives the issuer URL from it.
+E2E_OIDC_PORT ?= 9003
+export E2E_OIDC_PORT
 # URL the BACKEND (app container) uses to reach the dummy A2A agent — the
 # compose service name, resolvable inside the vibexp-e2e network. The real-agent
 # journey spec registers this URL. Local dev runs default to loopback:9001.

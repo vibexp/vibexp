@@ -16,6 +16,7 @@ const INSTANCE_JOURNEYS = [
   '**/journeys/audit-log.journey.spec.ts',
   '**/journeys/instance-settings.journey.spec.ts',
   '**/journeys/site-info.journey.spec.ts',
+  '**/journeys/sso-role-mapping.journey.spec.ts',
 ]
 
 /**

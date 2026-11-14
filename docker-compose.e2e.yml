@@ -138,6 +138,44 @@ services:
       timeout: 5s
       retries: 20
 
+  # A scriptable OpenID Connect issuer for the SSO role-mapping journey
+  # (backend/cmd/oidc-test-issuer, #1650), so a spec signs users in through an
+  # identity provider with no real one and no secret. Like mailpit it shares
+  # the APP's network namespace, and the app publishes its port: the issuer URL
+  # must be the SAME for the browser (on the host) and the app (which checks
+  # every ID token's iss against it), and http://localhost:<port> is that URL
+  # for both. The app may use an http:// localhost issuer because it runs in
+  # local-development mode. Nothing signs in through it until the journey
+  # configures a provider, and the journey removes that provider again.
+  oidc-test-issuer:
+    image: ${E2E_COMPOSE_PROJECT:-vibexp-e2e}/oidc-test-issuer:local
+    build:
+      context: .
+      dockerfile: backend/cmd/oidc-test-issuer/Dockerfile
+    command:
+      [
+        '--issuer',
+        'http://localhost:${E2E_OIDC_PORT:-9003}',
+        '--port',
+        '${E2E_OIDC_PORT:-9003}',
+      ]
+    network_mode: 'service:app'
+    depends_on:
+      app:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'wget',
+          '--spider',
+          '-q',
+          'http://localhost:${E2E_OIDC_PORT:-9003}/healthz',
+        ]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
   app:
     # Explicit image names (here and on the two test services above) so CI can
     # build every image ONCE, hand it to each shard as a tarball, and start the
@@ -157,6 +195,9 @@ services:
     # MCP resource from the port it listens on.
     ports:
       - '${E2E_APP_PORT:-8080}:${E2E_APP_PORT:-8080}'
+      # oidc-test-issuer listens in this namespace (see there). Overridable
+      # (E2E_OIDC_PORT, default 9003) for the same second-stack reason.
+      - '${E2E_OIDC_PORT:-9003}:${E2E_OIDC_PORT:-9003}'
     environment:
       PORT: '${E2E_APP_PORT:-8080}'
       DB_HOST: postgres
@@ -199,6 +240,14 @@ services:
       # how often due schedules are LOOKED FOR; each schedule keeps its own
       # interval (a day for freshness), so nothing runs more often than it should.
       SCHEDULER_TICK_INTERVAL: '5s'
+
+      # How often a session holding an identity-provider refresh token is
+      # re-checked with its provider (#1647), cut from its 15-minute default so
+      # the SSO journey (#1650) can OBSERVE a demotion or a revoked refresh
+      # token reach a signed-in user. Only provider sign-ins carry a refresh
+      # token; every other spec's session is a dev login, which is never
+      # re-checked, so this changes nothing for them.
+      AUTH_SESSION_RECHECK_INTERVAL: '10s'
 
       # Attachments via the fake-gcs emulator (no real GCS / no credentials).
       STORAGE_EMULATOR_HOST: 'http://gcs:4443'
