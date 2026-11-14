@@ -47,8 +47,12 @@ const userSessionColumns = `id_hash, user_id, provider, auth_method, authenticat
 			created_at, expires_at`
 
 // lockUnexpiredSession reads an unexpired session row and locks it until the
-// transaction ends.
-const lockUnexpiredSession = `SELECT ` + userSessionColumns + `
+// transaction ends. It selects userSessionColumns, spelled out so the statement
+// is one literal.
+const lockUnexpiredSession = `
+		SELECT id_hash, user_id, provider, auth_method, authenticated_at,
+			access_token_enc, refresh_token_enc, access_expires_at, last_refreshed_at,
+			created_at, expires_at
 		FROM sessions WHERE id_hash = $1 AND expires_at > CURRENT_TIMESTAMP FOR UPDATE`
 
 // GetByIDHash returns an unexpired session or ErrUserSessionNotFound.
