@@ -10,8 +10,9 @@ import { execInApp } from './e2eApp'
 /**
  * Shared steps of the password journeys (#1444, epic #1426).
  *
- * The e2e stack has no identity provider, so these journeys sign in through
- * the password form, read emailed links from the stack's Mailpit, and change
+ * These journeys configure no identity provider (only `sso-role-mapping`
+ * signs in through the stack's fake issuer), so they sign in through the
+ * password form, read emailed links from the stack's Mailpit, and change
  * instance-wide settings (password sign-in, registration mode, the instance
  * email provider) that every journey puts back afterwards
  * (`restoreInstanceAuth`).

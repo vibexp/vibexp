@@ -33,9 +33,9 @@ import {
  * on `invite_only` itself.
  *
  * NOT covered here: a provider sign-up being refused (`registration_closed`).
- * The e2e stack has no identity provider, and that gate guards only a new
- * account created by a provider sign-in; it is covered by the backend tests
- * of #1434 and #1430.
+ * That gate guards only a new account created by a provider sign-in, which
+ * only `sso-role-mapping` drives (in the default registration mode); it is
+ * covered by the backend tests of #1434 and #1430.
  */
 const UI_TIMEOUT = 20_000
 

@@ -177,7 +177,7 @@ services:
       retries: 20
 
   app:
-    # Explicit image names (here and on the two test services above) so CI can
+    # Explicit image names (here and on the three test services above) so CI can
     # build every image ONCE, hand it to each shard as a tarball, and start the
     # shard's stack from the loaded image with `up --no-build` (#1562). The
     # compose project is part of the name, so two stacks side by side
