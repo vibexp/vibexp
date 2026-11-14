@@ -127,16 +127,3 @@ func (s *Server) convertLegacySession(
 	logger.With("user_id", sess.UserID).Info("Converted a legacy session cookie to a server-side session")
 	return true
 }
-
-// rereadRefreshedSession reports whether another request refreshed sess while
-// this one waited for the refresh lock, in which case sess now holds the
-// unexpired tokens from the row and this request's copy of the refresh token,
-// already spent, is not used.
-func (s *Server) rereadRefreshedSession(ctx context.Context, sess *sesslib.Session) bool {
-	reread := *sess
-	if err := s.loadSession(ctx, &reread); err != nil || reread.IsExpired() {
-		return false
-	}
-	*sess = reread
-	return true
-}

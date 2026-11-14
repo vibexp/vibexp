@@ -132,6 +132,14 @@ auth:
   # Set it back to false once sign-in works again. The no-restart alternative is
   # the CLI: `vibexp admin auth setup rearm`.
   recovery_mode: false
+  # How often a session signed in through an identity provider that issued a
+  # refresh token is re-checked against that provider (#1647). The session is
+  # refreshed when its access token expires or after this interval, whichever
+  # comes first; a provider that refuses the refresh (access removed, account
+  # disabled) ends the session. Sessions without a refresh token (GitHub, an
+  # issuer that ignores offline_access, password and dev login) are not
+  # re-checked. Must be positive.
+  session_recheck_interval: "15m"
   # Restrict who may sign in, by email domain and/or exact email address.
   # `domains` matches the part after the last "@" of a user's email exactly
   # (case-insensitively, e.g. "example.com"); `emails` matches the full address.

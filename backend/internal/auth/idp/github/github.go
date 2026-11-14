@@ -199,8 +199,8 @@ func (p *provider) ExchangeCode(
 
 // Refresh is unsupported: GitHub OAuth App access tokens are long-lived and
 // GitHub does not issue refresh tokens for them.
-func (p *provider) Refresh(_ context.Context, _ string) (*idp.Tokens, error) {
-	return nil, fmt.Errorf("github: token refresh is not supported")
+func (p *provider) Refresh(_ context.Context, _ string) (*idp.Tokens, *idp.Claims, error) {
+	return nil, nil, fmt.Errorf("github: token refresh is not supported")
 }
 
 func (p *provider) exchange(ctx context.Context, code, redirect, codeVerifier string) (string, error) {

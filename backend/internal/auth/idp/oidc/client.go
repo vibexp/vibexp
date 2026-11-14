@@ -5,7 +5,12 @@ package oidc
 import (
 	"context"
 	"crypto/subtle"
+	"errors"
 	"fmt"
+	"net/url"
+	"regexp"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -74,6 +79,12 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	scopes := cfg.Scopes
 	if len(scopes) == 0 {
 		scopes = []string{oidc.ScopeOpenID, "email", "profile"}
+		// Ask for a refresh token where the issuer says it grants one, so the
+		// session can be re-checked against the issuer (#1647). Google is
+		// asked through access_type=offline instead and rejects offline_access.
+		if !cfg.AccessTypeOffline && supportsOfflineAccess(provider) {
+			scopes = append(scopes, oidc.ScopeOfflineAccess)
+		}
 	}
 
 	return &Client{
@@ -89,6 +100,19 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 		},
 		accessTypeOffline: cfg.AccessTypeOffline,
 	}, nil
+}
+
+// supportsOfflineAccess reports whether the issuer's discovery document lists
+// the offline_access scope in scopes_supported. An unreadable or absent list
+// reads as no.
+func supportsOfflineAccess(provider *oidc.Provider) bool {
+	var meta struct {
+		ScopesSupported []string `json:"scopes_supported"`
+	}
+	if err := provider.Claims(&meta); err != nil {
+		return false
+	}
+	return slices.Contains(meta.ScopesSupported, oidc.ScopeOfflineAccess)
 }
 
 // Name returns the canonical provider identifier.
@@ -160,10 +184,14 @@ func (c *Client) ExchangeCode(
 	return tokens, claims, nil
 }
 
-// Refresh requests a new access token using the provided refresh token.
-func (c *Client) Refresh(ctx context.Context, refreshToken string) (*idp.Tokens, error) {
+// Refresh requests a new access token using the provided refresh token and
+// returns the user's current claims. An ID token in the refresh response is
+// verified like the sign-in one (signature, issuer, audience, expiry) but
+// without a nonce, which OpenID Connect Core §12.2 leaves out of a refresh; a
+// response without one falls back to userinfo.
+func (c *Client) Refresh(ctx context.Context, refreshToken string) (*idp.Tokens, *idp.Claims, error) {
 	if refreshToken == "" {
-		return nil, fmt.Errorf("oidc: refresh token is required")
+		return nil, nil, fmt.Errorf("oidc: refresh token is required")
 	}
 
 	src := c.oauth2Config.TokenSource(ctx, &oauth2.Token{
@@ -172,7 +200,7 @@ func (c *Client) Refresh(ctx context.Context, refreshToken string) (*idp.Tokens,
 	})
 	token, err := src.Token()
 	if err != nil {
-		return nil, fmt.Errorf("oidc: refresh token: %w", err)
+		return nil, nil, fmt.Errorf("oidc: refresh token: %w", err)
 	}
 
 	tokens := &idp.Tokens{
@@ -180,10 +208,14 @@ func (c *Client) Refresh(ctx context.Context, refreshToken string) (*idp.Tokens,
 		RefreshToken: token.RefreshToken,
 		ExpiresAt:    token.Expiry,
 	}
+	claims, err := c.claimsFromToken(ctx, c.oauth2Config, token, "")
+	if err != nil {
+		return nil, nil, err
+	}
 	if rawIDToken, ok := token.Extra("id_token").(string); ok {
 		tokens.IDToken = rawIDToken
 	}
-	return tokens, nil
+	return tokens, claims, nil
 }
 
 // claimsFromToken reads the claims from the verified ID token, or from userinfo
@@ -201,6 +233,11 @@ func (c *Client) claimsFromToken(
 func (c *Client) idTokenClaims(ctx context.Context, rawIDToken, nonce string) (*idp.Claims, error) {
 	idToken, err := c.verifier.Verify(ctx, rawIDToken)
 	if err != nil {
+		// go-oidc reports a failure to download the issuer's keys as
+		// "fetching keys ...": the issuer is unavailable, the token unjudged.
+		if strings.Contains(err.Error(), "fetching keys") {
+			return nil, fmt.Errorf("oidc: verify id token: %w: %w", idp.ErrProviderUnavailable, err)
+		}
 		return nil, fmt.Errorf("oidc: verify id token: %w", err)
 	}
 	if err = checkNonce(idToken.Nonce, nonce); err != nil {
@@ -239,6 +276,9 @@ func (c *Client) userInfoClaims(
 ) (*idp.Claims, error) {
 	userInfo, err := c.provider.UserInfo(ctx, cfg.TokenSource(ctx, token))
 	if err != nil {
+		if userInfoUnavailable(err) {
+			return nil, fmt.Errorf("oidc: fetch userinfo: %w: %w", idp.ErrProviderUnavailable, err)
+		}
 		return nil, fmt.Errorf("oidc: fetch userinfo: %w", err)
 	}
 	var raw struct {
@@ -264,6 +304,19 @@ func (c *Client) userInfoClaims(
 		Picture:       raw.Picture,
 		Raw:           all,
 	}, nil
+}
+
+// userInfoStatus matches the "<status>: <body>" error go-oidc returns for a
+// non-200 userinfo answer whose status says the issuer could not answer: a
+// 5xx, 429 Too Many Requests or 408 Request Timeout.
+var userInfoStatus = regexp.MustCompile(`^(5\d\d|429|408) `)
+
+// userInfoUnavailable reports whether a userinfo failure is the issuer being
+// unreachable or failing rather than an answer about the token (a 401 for a
+// revoked access token is the latter).
+func userInfoUnavailable(err error) bool {
+	var urlErr *url.Error
+	return errors.As(err, &urlErr) || userInfoStatus.MatchString(err.Error())
 }
 
 // checkNonce enforces OpenID Connect Core §3.1.3.7: when the authorization

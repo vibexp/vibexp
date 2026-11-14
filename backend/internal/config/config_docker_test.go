@@ -286,6 +286,21 @@ func TestConfigDockerYAML_MCPSessionTimeout(t *testing.T) {
 	require.Equal(t, 2*time.Hour, cfg.MCP.SessionTimeout)
 }
 
+// The combined image re-checks sessions every 15 minutes by default, and
+// AUTH_SESSION_RECHECK_INTERVAL retunes it with env alone (#1647).
+func TestConfigDockerYAML_SessionRecheckInterval(t *testing.T) {
+	setDockerRequiredEnv(t)
+
+	cfg, err := Load(dockerConfigPath)
+	require.NoError(t, err)
+	require.Equal(t, 15*time.Minute, cfg.Auth.SessionRecheckInterval)
+
+	t.Setenv("AUTH_SESSION_RECHECK_INTERVAL", "5m")
+	cfg, err = Load(dockerConfigPath)
+	require.NoError(t, err)
+	require.Equal(t, 5*time.Minute, cfg.Auth.SessionRecheckInterval)
+}
+
 // TestConfigDockerYAML_SchedulerEnvOverrides is the headline acceptance
 // criterion: every scheduler knob is settable with `docker run -e` alone, no
 // mounted config file. The bool and int cases are the ones that needed

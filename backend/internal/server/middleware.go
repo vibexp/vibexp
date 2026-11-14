@@ -8,25 +8,18 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
+	"golang.org/x/oauth2"
+
 	"github.com/vibexp/vibexp/internal/auth/authkit"
+	"github.com/vibexp/vibexp/internal/auth/idp"
 	sesslib "github.com/vibexp/vibexp/internal/auth/session"
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
 )
-
-// refreshLockFor returns a per-user mutex used to serialize refresh-token
-// rotations. Many identity providers invalidate a refresh token on use, so
-// concurrent refreshes for the same user would all race and most would 401.
-// The mutex is created lazily and stored in s.refreshLocks (sync.Map).
-func (s *Server) refreshLockFor(userID string) *sync.Mutex {
-	m, _ := s.refreshLocks.LoadOrStore(userID, &sync.Mutex{})
-	return m.(*sync.Mutex)
-}
 
 // isTransientRefreshError reports whether a refresh failure looks transient
 // (network/timeout/5xx) vs. permanent (revoked/invalid_grant). On transient
@@ -40,22 +33,35 @@ func isTransientRefreshError(err error) bool {
 	// unreadable provider table or an enabled-but-unhealthy provider says
 	// nothing about the session, so keep it and let the client retry.
 	if errors.Is(err, services.ErrIdentityProvidersUnresolvable) ||
-		errors.Is(err, services.ErrIdentityProviderTemporarilyUnavailable) {
+		errors.Is(err, services.ErrIdentityProviderTemporarilyUnavailable) ||
+		errors.Is(err, idp.ErrProviderUnavailable) {
 		return true
 	}
-	msg := err.Error()
+	// golang.org/x/oauth2 reports a non-2xx token endpoint answer as a
+	// RetrieveError carrying the response: a 5xx, a throttling 429 or a 408
+	// is the issuer failing to answer, not a verdict on the refresh token.
+	var retrieveErr *oauth2.RetrieveError
+	if errors.As(err, &retrieveErr) && retrieveErr.Response != nil {
+		code := retrieveErr.Response.StatusCode
+		return code >= http.StatusInternalServerError ||
+			code == http.StatusTooManyRequests || code == http.StatusRequestTimeout
+	}
+	return isTransientRefreshMessage(err.Error())
+}
+
+// isTransientRefreshMessage classifies a refresh error by its text.
+func isTransientRefreshMessage(msg string) bool {
 	// The provider client surfaces non-2xx status codes as "endpoint returned %d: ...".
 	// 4xx => permanent; 5xx => transient. Network/timeout has no status.
 	if strings.Contains(msg, "returned 5") {
 		return true
 	}
-	if strings.Contains(msg, "context deadline exceeded") ||
-		strings.Contains(msg, "context canceled") ||
-		strings.Contains(msg, "timeout") ||
-		strings.Contains(msg, "no such host") ||
-		strings.Contains(msg, "connection refused") ||
-		strings.Contains(msg, "EOF") {
-		return true
+	for _, transient := range []string{
+		"context deadline exceeded", "context canceled", "timeout", "no such host", "connection refused", "EOF",
+	} {
+		if strings.Contains(msg, transient) {
+			return true
+		}
 	}
 	return false
 }
@@ -282,8 +288,9 @@ func (s *Server) authenticateWithOAuthJWT(w http.ResponseWriter, r *http.Request
 }
 
 // authenticateWithSession reads the vx_session cookie, decrypts it, loads the
-// session's server-side row (#1646), checks expiry (with automatic refresh when
-// a refresh token is present), and sets the user context. A session with no
+// session's server-side row (#1646), checks expiry, re-checks a session that has
+// a refresh token against its identity provider when that is due (#1647), and
+// sets the user context. A session with no
 // refresh token is never refreshed: it expires SlidingLifetime after it was
 // last issued and is extended by use (slideSession). A legacy cookie, minted
 // before sessions had rows, is converted to one once the chokepoint accepts it.
@@ -355,7 +362,7 @@ func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	if !s.refreshIfExpired(w, r, sess, logger) {
+	if !s.refreshIfDue(w, r, sess, logger) {
 		return
 	}
 
@@ -363,32 +370,6 @@ func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request,
 
 	contextkeys.GetLoggerFromContext(ctx).Debug("Cookie session authentication successful")
 	next.ServeHTTP(w, r.WithContext(ctx))
-}
-
-// refreshIfExpired refreshes an authenticated session whose access token has
-// expired and reports whether the request may go on. The refresh is
-// serialized per user to avoid racing on the provider's single-use refresh
-// tokens (H1), and it updates sess in place: the request context holds the same
-// session, so a handler that re-issues the cookie writes the refreshed tokens
-// and not the spent ones.
-func (s *Server) refreshIfExpired(
-	w http.ResponseWriter, r *http.Request, sess *sesslib.Session, logger *slog.Logger,
-) bool {
-	if !sess.IsExpired() {
-		return true
-	}
-	mu := s.refreshLockFor(sess.UserID)
-	mu.Lock()
-	defer mu.Unlock()
-
-	// Re-read the row inside the lock — another request may have already
-	// refreshed the session, in which case our copy of the refresh token is
-	// spent and a refresh attempt would 401.
-	if s.rereadRefreshedSession(r.Context(), sess) {
-		return true
-	}
-	_, ok := s.refreshSession(w, r, sess, logger)
-	return ok
 }
 
 // slideSession extends an authenticated sliding session (one with no refresh
@@ -415,76 +396,6 @@ func (s *Server) slideSession(
 	if err := s.sessionManager.Write(w, sess); err != nil {
 		logger.With("error", err).Warn("Failed to re-issue sliding session cookie")
 	}
-}
-
-// refreshSession runs the provider's refresh-token rotation, stores the new
-// tokens in the session's row and rewrites the vx_session cookie. Returns the refreshed session and true on success.
-// On permanent failures (revoked token, invalid_grant) it writes 401 +
-// clears the cookie. On transient failures (5xx, network) it writes 503
-// and KEEPS the cookie so the client can retry.
-//
-// Caller must hold the per-user refresh lock for serialization.
-func (s *Server) refreshSession(
-	w http.ResponseWriter,
-	r *http.Request,
-	sess *sesslib.Session,
-	logger *slog.Logger,
-) (*sesslib.Session, bool) {
-	logger.With(
-		"middleware", "authenticateWithSession",
-		"user_id", sess.UserID,
-	).Debug("Access token expired, attempting refresh")
-
-	newTokens, refreshErr := s.container.AuthService().RefreshTokens(r.Context(), sess.Provider, sess.RefreshToken)
-	if refreshErr != nil {
-		fields := []any{
-			"middleware", "authenticateWithSession",
-			"user_id", sess.UserID,
-			"error", fmt.Sprintf("%+v", refreshErr),
-		}
-		if isTransientRefreshError(refreshErr) {
-			logger.With(fields...).Warn("Transient refresh failure; keeping session, asking client to retry")
-			w.Header().Set("Retry-After", "5")
-			apiErr := apierrors.NewServiceUnavailableError("Authentication provider temporarily unavailable")
-			apierrors.WriteJSONError(w, r, apiErr)
-			return nil, false
-		}
-		logger.With(fields...).Warn("Permanent refresh failure; clearing session")
-		s.deleteSession(r.Context(), sess)
-		s.sessionManager.Clear(w)
-		apiErr := apierrors.NewAuthInvalidError("Session expired")
-		apierrors.WriteJSONError(w, r, apiErr)
-		return nil, false
-	}
-
-	if newTokens.RefreshToken == "" {
-		// A rotating provider returns a new refresh token on rotation. Empty
-		// here means upstream behaviour changed; the cached refresh token
-		// has been invalidated and the next refresh will fail.
-		logger.With(
-			"middleware", "authenticateWithSession",
-			"user_id", sess.UserID,
-		).Warn("Refresh response missing new refresh_token; subsequent refreshes may fail")
-	} else {
-		sess.RefreshToken = newTokens.RefreshToken
-	}
-	sess.AccessToken = newTokens.AccessToken
-	sess.ExpiresAt = newTokens.ExpiresAt
-
-	if store := s.sessionStore(); store != nil {
-		if saveErr := store.SaveTokens(r.Context(), sess); saveErr != nil {
-			// The rotated tokens live only in this request now; the next
-			// refresh presents the spent refresh token and signs the user out.
-			logger.With("error", saveErr).Error("Failed to store the refreshed session tokens")
-		}
-	}
-
-	if writeErr := s.sessionManager.Write(w, sess); writeErr != nil {
-		logger.With("error", writeErr).Warn("Failed to rewrite refreshed session cookie")
-		// Continue anyway — the user is authenticated with the new tokens
-	}
-
-	return sess, true
 }
 
 // Optional auth middleware that allows both authenticated and unauthenticated access.

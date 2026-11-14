@@ -7,12 +7,12 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/oauth2"
 
+	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
@@ -231,6 +231,16 @@ func TestIsTransientRefreshError(t *testing.T) {
 		{"provider 503", errors.New("oidc: token endpoint returned 503: try later"), true},
 		{"provider 400", errors.New("oidc: token endpoint returned 400: bad request"), false},
 		{"provider 401 invalid_grant", errors.New("oidc: token endpoint returned 401: invalid_grant"), false},
+		{"oauth2 500", &oauth2.RetrieveError{Response: &http.Response{StatusCode: http.StatusInternalServerError}}, true},
+		{"oauth2 502 wrapped", fmt.Errorf("oidc: refresh token: %w",
+			&oauth2.RetrieveError{Response: &http.Response{StatusCode: http.StatusBadGateway}}), true},
+		{"oauth2 429", &oauth2.RetrieveError{Response: &http.Response{StatusCode: http.StatusTooManyRequests}}, true},
+		{"oauth2 408", &oauth2.RetrieveError{Response: &http.Response{StatusCode: http.StatusRequestTimeout}}, true},
+		{"jwks or userinfo unavailable", fmt.Errorf("oidc: verify id token: %w: oidc: get keys failed: 503 Service Unavailable",
+			idp.ErrProviderUnavailable), true},
+		{"oauth2 invalid_grant", &oauth2.RetrieveError{
+			Response: &http.Response{StatusCode: http.StatusBadRequest}, ErrorCode: "invalid_grant",
+		}, false},
 		{"context deadline", context.DeadlineExceeded, true},
 		{"context canceled", context.Canceled, true},
 		{"DNS lookup failure", errors.New("dial tcp: lookup idp.example.com: no such host"), true},
@@ -246,48 +256,4 @@ func TestIsTransientRefreshError(t *testing.T) {
 			assert.Equal(t, tt.transient, isTransientRefreshError(tt.err))
 		})
 	}
-}
-
-func TestRefreshLockFor_ReturnsSameMutexPerUser(t *testing.T) {
-	srv := &Server{}
-	mu1 := srv.refreshLockFor("user-A")
-	mu2 := srv.refreshLockFor("user-A")
-	mu3 := srv.refreshLockFor("user-B")
-
-	assert.Same(t, mu1, mu2, "same user should always get the same mutex")
-	assert.NotSame(t, mu1, mu3, "different users must get distinct mutexes")
-}
-
-func TestRefreshLockFor_SerializesConcurrentRefreshes(t *testing.T) {
-	srv := &Server{}
-
-	const goroutines = 16
-	mu := srv.refreshLockFor("user-X")
-
-	var concurrent int32
-	var maxConcurrent int32
-	var done sync.WaitGroup
-	done.Add(goroutines)
-
-	for i := 0; i < goroutines; i++ {
-		go func() {
-			defer done.Done()
-			lock := srv.refreshLockFor("user-X")
-			lock.Lock()
-			// Simulate some work; track maximum observed concurrency.
-			cur := concurrent + 1
-			concurrent = cur
-			if cur > maxConcurrent {
-				maxConcurrent = cur
-			}
-			time.Sleep(2 * time.Millisecond)
-			concurrent--
-			lock.Unlock()
-		}()
-	}
-	done.Wait()
-
-	assert.Equal(t, mu, srv.refreshLockFor("user-X"))
-	assert.LessOrEqual(t, maxConcurrent, int32(1),
-		"per-user refresh lock must serialize concurrent goroutines")
 }

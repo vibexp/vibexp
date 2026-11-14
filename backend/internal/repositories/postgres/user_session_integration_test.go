@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -186,4 +187,108 @@ func TestIntegrationUserSession_StoreKeepsTokensEncrypted(t *testing.T) {
 
 	require.NoError(t, store.Delete(ctx, sess.ID))
 	require.ErrorIs(t, store.Load(ctx, loaded), services.ErrSessionNotFound)
+}
+
+// TestIntegrationUserSession_RefreshLockedSerializesOnTheRow proves the row
+// lock holds across connections (#1647): while one caller's decision runs,
+// a second caller on the same session waits, and then decides on the row the
+// first one stored.
+func TestIntegrationUserSession_RefreshLockedSerializesOnTheRow(t *testing.T) {
+	resetIntegrationTables(t)
+	ctx := context.Background()
+	repo := NewUserSessionRepository(integrationDB)
+	s := newIntegrationSession(insertTestUser(t), 24*time.Hour)
+	require.NoError(t, repo.Create(ctx, s))
+
+	firstHolds := make(chan struct{})
+	release := make(chan struct{})
+	firstDone := make(chan error, 1)
+	go func() {
+		firstDone <- repo.RefreshLocked(ctx, s.IDHash,
+			func(row *models.UserSession) (repositories.UserSessionRefresh, error) {
+				close(firstHolds)
+				<-release
+				return repositories.UserSessionRefresh{Update: &models.UserSession{
+					AccessTokenEnc: "enc-at-2", RefreshTokenEnc: "enc-rt-2",
+					AccessExpiresAt: row.AccessExpiresAt, ExpiresAt: row.ExpiresAt,
+				}}, nil
+			})
+	}()
+	<-firstHolds
+
+	secondSaw := make(chan string, 1)
+	secondDone := make(chan error, 1)
+	go func() {
+		secondDone <- repo.RefreshLocked(ctx, s.IDHash,
+			func(row *models.UserSession) (repositories.UserSessionRefresh, error) {
+				secondSaw <- row.RefreshTokenEnc
+				return repositories.UserSessionRefresh{}, nil
+			})
+	}()
+
+	select {
+	case got := <-secondSaw:
+		t.Fatalf("the second caller read the row (%q) while the first held its lock", got)
+	case <-time.After(300 * time.Millisecond):
+	}
+	close(release)
+
+	require.NoError(t, <-firstDone)
+	require.NoError(t, <-secondDone)
+	assert.Equal(t, "enc-rt-2", <-secondSaw, "the second caller decided on the refreshed row")
+	got, err := repo.GetByIDHash(ctx, s.IDHash)
+	require.NoError(t, err)
+	assert.Equal(t, "enc-rt-2", got.RefreshTokenEnc)
+	require.NotNil(t, got.LastRefreshedAt)
+}
+
+func TestIntegrationUserSession_RefreshLockedDecisions(t *testing.T) {
+	resetIntegrationTables(t)
+	ctx := context.Background()
+	repo := NewUserSessionRepository(integrationDB)
+	userID := insertTestUser(t)
+
+	t.Run("a delete decision removes the row and returns the decision's error", func(t *testing.T) {
+		s := newIntegrationSession(userID, 24*time.Hour)
+		require.NoError(t, repo.Create(ctx, s))
+		refused := errors.New("invalid_grant")
+
+		err := repo.RefreshLocked(ctx, s.IDHash, func(*models.UserSession) (repositories.UserSessionRefresh, error) {
+			return repositories.UserSessionRefresh{Delete: true}, refused
+		})
+
+		require.ErrorIs(t, err, refused)
+		_, err = repo.GetByIDHash(ctx, s.IDHash)
+		require.ErrorIs(t, err, repositories.ErrUserSessionNotFound)
+	})
+
+	t.Run("an error with no decision changes nothing", func(t *testing.T) {
+		s := newIntegrationSession(userID, 24*time.Hour)
+		require.NoError(t, repo.Create(ctx, s))
+		outage := errors.New("issuer unreachable")
+
+		err := repo.RefreshLocked(ctx, s.IDHash, func(*models.UserSession) (repositories.UserSessionRefresh, error) {
+			return repositories.UserSessionRefresh{}, outage
+		})
+
+		require.ErrorIs(t, err, outage)
+		got, err := repo.GetByIDHash(ctx, s.IDHash)
+		require.NoError(t, err)
+		assert.Equal(t, "enc-rt", got.RefreshTokenEnc)
+		assert.Nil(t, got.LastRefreshedAt)
+	})
+
+	t.Run("an expired or missing row is ErrUserSessionNotFound", func(t *testing.T) {
+		expired := newIntegrationSession(userID, -time.Minute)
+		require.NoError(t, repo.Create(ctx, expired))
+		called := false
+		decide := func(*models.UserSession) (repositories.UserSessionRefresh, error) {
+			called = true
+			return repositories.UserSessionRefresh{}, nil
+		}
+
+		require.ErrorIs(t, repo.RefreshLocked(ctx, expired.IDHash, decide), repositories.ErrUserSessionNotFound)
+		require.ErrorIs(t, repo.RefreshLocked(ctx, sessionHash("missing"), decide), repositories.ErrUserSessionNotFound)
+		assert.False(t, called)
+	})
 }

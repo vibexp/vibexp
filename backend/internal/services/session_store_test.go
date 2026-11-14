@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/auth/session"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -58,6 +60,7 @@ func TestSessionStore_Create(t *testing.T) {
 		assert.Len(t, raw, sessionIDBytes)
 		require.NotNil(t, stored)
 		assert.Equal(t, hashOf(sess.ID), stored.IDHash, "only the hash of the id is stored")
+		assert.Equal(t, sessionStoreTestNow, sess.LastRefreshedAt, "a sign-in counts as a refresh")
 		assert.Equal(t, "u-1", stored.UserID)
 		assert.Equal(t, "oidc", stored.Provider)
 		assert.Equal(t, session.AuthMethodOAuth, stored.AuthMethod)
@@ -236,4 +239,163 @@ func TestSessionStore_SlideDeleteSweep(t *testing.T) {
 	n, err := store.Sweep(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, int64(3), n)
+}
+
+// lockedRefresh makes repo's RefreshLocked of session "sid-1" hand row to the
+// decision function and records the decision it returned.
+func lockedRefresh(repo *repomocks.MockUserSessionRepository, row *models.UserSession) *repositories.UserSessionRefresh {
+	var decided repositories.UserSessionRefresh
+	repo.On("RefreshLocked", mock.Anything, hashOf("sid-1"), mock.Anything).
+		Return(func(_ context.Context, _ []byte, decide repositories.UserSessionRefreshFunc) error {
+			d, err := decide(row)
+			decided = d
+			return err
+		}).Once()
+	return &decided
+}
+
+func TestSessionStore_RefreshIfDue(t *testing.T) {
+	always := func(*session.Session) bool { return true }
+
+	t.Run("a session no longer due takes the row's tokens and calls nothing", func(t *testing.T) {
+		store, repo, enc := newTestSessionStore(t)
+		refreshedAt := sessionStoreTestNow.Add(-time.Minute)
+		row := storedRow(t, enc, "u-1", "fresh-at", "fresh-rt", sessionStoreTestNow.Add(time.Hour))
+		row.LastRefreshedAt = &refreshedAt
+		decided := lockedRefresh(repo, row)
+		sess := &session.Session{ID: "sid-1", UserID: "u-1", RefreshToken: "spent-rt"}
+
+		refreshed, err := store.RefreshIfDue(context.Background(), sess,
+			func(s *session.Session) bool { return s.RefreshToken != "fresh-rt" },
+			func(context.Context, *session.Session) (*idp.Tokens, error) {
+				t.Fatal("refresh must not run for a session another request refreshed")
+				return nil, nil
+			})
+
+		require.NoError(t, err)
+		assert.False(t, refreshed)
+		assert.Equal(t, repositories.UserSessionRefresh{}, *decided)
+		assert.Equal(t, "fresh-rt", sess.RefreshToken)
+		assert.Equal(t, "fresh-at", sess.AccessToken)
+		assert.Equal(t, refreshedAt, sess.LastRefreshedAt)
+	})
+
+	t.Run("a due session stores the rotated tokens", func(t *testing.T) {
+		store, repo, enc := newTestSessionStore(t)
+		row := storedRow(t, enc, "u-1", "at-1", "rt-1", sessionStoreTestNow.Add(-time.Minute))
+		row.CreatedAt = sessionStoreTestNow.Add(-time.Hour)
+		decided := lockedRefresh(repo, row)
+		sess := &session.Session{ID: "sid-1", UserID: "u-1"}
+		newExpiry := sessionStoreTestNow.Add(time.Hour)
+
+		refreshed, err := store.RefreshIfDue(context.Background(), sess, always,
+			func(_ context.Context, s *session.Session) (*idp.Tokens, error) {
+				assert.Equal(t, "rt-1", s.RefreshToken, "refresh gets the row's token")
+				assert.Equal(t, sessionStoreTestNow.Add(-time.Hour), s.LastRefreshedAt, "never refreshed: its creation")
+				return &idp.Tokens{AccessToken: "at-2", RefreshToken: "rt-2", ExpiresAt: newExpiry}, nil
+			})
+
+		require.NoError(t, err)
+		assert.True(t, refreshed)
+		require.NotNil(t, decided.Update)
+		assert.False(t, decided.Delete)
+		got, err := enc.Decrypt(decided.Update.RefreshTokenEnc)
+		require.NoError(t, err)
+		assert.Equal(t, "rt-2", got)
+		assert.Equal(t, newExpiry, decided.Update.AccessExpiresAt)
+		assert.Equal(t, sessionStoreTestNow.Add(24*time.Hour), decided.Update.ExpiresAt)
+		assert.Equal(t, "rt-2", sess.RefreshToken)
+		assert.Equal(t, "at-2", sess.AccessToken)
+		assert.Equal(t, sessionStoreTestNow, sess.LastRefreshedAt)
+	})
+
+	t.Run("a refresh without a new refresh token keeps the current one", func(t *testing.T) {
+		store, repo, enc := newTestSessionStore(t)
+		decided := lockedRefresh(repo, storedRow(t, enc, "u-1", "at-1", "rt-1", sessionStoreTestNow))
+		sess := &session.Session{ID: "sid-1", UserID: "u-1"}
+
+		_, err := store.RefreshIfDue(context.Background(), sess, always,
+			func(context.Context, *session.Session) (*idp.Tokens, error) {
+				return &idp.Tokens{AccessToken: "at-2", ExpiresAt: sessionStoreTestNow.Add(time.Hour)}, nil
+			})
+
+		require.NoError(t, err)
+		got, err := enc.Decrypt(decided.Update.RefreshTokenEnc)
+		require.NoError(t, err)
+		assert.Equal(t, "rt-1", got)
+	})
+
+	t.Run("a rejected refresh deletes the row", func(t *testing.T) {
+		store, repo, enc := newTestSessionStore(t)
+		decided := lockedRefresh(repo, storedRow(t, enc, "u-1", "at-1", "rt-1", sessionStoreTestNow))
+		sess := &session.Session{ID: "sid-1", UserID: "u-1", RefreshToken: "rt-1"}
+		rejected := fmt.Errorf("%w: invalid_grant", ErrSessionRefreshRejected)
+
+		refreshed, err := store.RefreshIfDue(context.Background(), sess, always,
+			func(context.Context, *session.Session) (*idp.Tokens, error) { return nil, rejected })
+
+		require.ErrorIs(t, err, ErrSessionRefreshRejected)
+		assert.False(t, refreshed)
+		assert.True(t, decided.Delete)
+	})
+
+	t.Run("a transient failure leaves the row", func(t *testing.T) {
+		store, repo, enc := newTestSessionStore(t)
+		decided := lockedRefresh(repo, storedRow(t, enc, "u-1", "at-1", "rt-1", sessionStoreTestNow))
+		sess := &session.Session{ID: "sid-1", UserID: "u-1"}
+		outage := errors.New("token endpoint returned 503")
+
+		_, err := store.RefreshIfDue(context.Background(), sess, always,
+			func(context.Context, *session.Session) (*idp.Tokens, error) { return nil, outage })
+
+		require.ErrorIs(t, err, outage)
+		assert.Equal(t, repositories.UserSessionRefresh{}, *decided)
+	})
+
+	t.Run("a row of another user does not authenticate", func(t *testing.T) {
+		store, repo, enc := newTestSessionStore(t)
+		decided := lockedRefresh(repo, storedRow(t, enc, "u-2", "at", "rt", sessionStoreTestNow))
+		sess := &session.Session{ID: "sid-1", UserID: "u-1"}
+
+		_, err := store.RefreshIfDue(context.Background(), sess, always, nil)
+
+		require.ErrorIs(t, err, ErrSessionNotFound)
+		assert.Equal(t, repositories.UserSessionRefresh{}, *decided)
+	})
+
+	t.Run("a missing row is ErrSessionNotFound", func(t *testing.T) {
+		store, repo, _ := newTestSessionStore(t)
+		repo.On("RefreshLocked", mock.Anything, hashOf("sid-1"), mock.Anything).
+			Return(repositories.ErrUserSessionNotFound).Once()
+
+		_, err := store.RefreshIfDue(context.Background(), &session.Session{ID: "sid-1", UserID: "u-1"}, always, nil)
+
+		require.ErrorIs(t, err, ErrSessionNotFound)
+	})
+
+	t.Run("a session without an id has no row", func(t *testing.T) {
+		store, _, _ := newTestSessionStore(t)
+		_, err := store.RefreshIfDue(context.Background(), &session.Session{UserID: "u-1"}, always, nil)
+		require.ErrorIs(t, err, ErrSessionNotFound)
+	})
+}
+
+func TestSessionStore_LoadReadsLastRefreshed(t *testing.T) {
+	store, repo, enc := newTestSessionStore(t)
+	created := sessionStoreTestNow.Add(-2 * time.Hour)
+	refreshed := sessionStoreTestNow.Add(-time.Hour)
+
+	row := storedRow(t, enc, "u-1", "at", "rt", sessionStoreTestNow)
+	row.CreatedAt = created
+	repo.On("GetByIDHash", mock.Anything, hashOf("sid-1")).Return(row, nil).Once()
+	sess := &session.Session{ID: "sid-1", UserID: "u-1"}
+	require.NoError(t, store.Load(context.Background(), sess))
+	assert.Equal(t, created, sess.LastRefreshedAt, "a session never refreshed counts from its creation")
+
+	row2 := storedRow(t, enc, "u-1", "at", "rt", sessionStoreTestNow)
+	row2.CreatedAt, row2.LastRefreshedAt = created, &refreshed
+	repo.On("GetByIDHash", mock.Anything, hashOf("sid-2")).Return(row2, nil).Once()
+	sess = &session.Session{ID: "sid-2", UserID: "u-1"}
+	require.NoError(t, store.Load(context.Background(), sess))
+	assert.Equal(t, refreshed, sess.LastRefreshedAt)
 }

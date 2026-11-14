@@ -99,6 +99,7 @@ const (
 	AdminAuditOperationAuthMCPConsentDenied               AdminAuditOperation = "auth.mcp_consent.denied"
 	AdminAuditOperationAuthMCPConsentGranted              AdminAuditOperation = "auth.mcp_consent.granted"
 	AdminAuditOperationAuthMCPGrantRevoked                AdminAuditOperation = "auth.mcp_grant.revoked"
+	AdminAuditOperationAuthSessionEndedByProvider         AdminAuditOperation = "auth.session.ended_by_provider"
 	AdminAuditOperationAuthSessionsRevoked                AdminAuditOperation = "auth.sessions.revoked"
 	AdminAuditOperationAuthSetupSessionStarted            AdminAuditOperation = "auth.setup_session.started"
 	AdminAuditOperationAuthzDenied                        AdminAuditOperation = "authz.denied"
@@ -210,6 +211,8 @@ func (e AdminAuditOperation) Valid() bool {
 	case AdminAuditOperationAuthMCPConsentGranted:
 		return true
 	case AdminAuditOperationAuthMCPGrantRevoked:
+		return true
+	case AdminAuditOperationAuthSessionEndedByProvider:
 		return true
 	case AdminAuditOperationAuthSessionsRevoked:
 		return true

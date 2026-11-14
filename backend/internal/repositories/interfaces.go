@@ -548,7 +548,29 @@ type UserSessionRepository interface {
 	Delete(ctx context.Context, idHash []byte) error
 	// DeleteExpired purges rows past their expiry; returns rows removed.
 	DeleteExpired(ctx context.Context) (int64, error)
+	// RefreshLocked runs decide on the unexpired row of idHash while holding a
+	// lock on that row (SELECT ... FOR UPDATE), and applies the decision in the
+	// same transaction (#1647). Concurrent calls for one session, from any
+	// replica, therefore run decide one at a time, each on the row the previous
+	// one left. decide's error is returned after its decision is applied; an
+	// error with a zero decision applies nothing. ErrUserSessionNotFound when no
+	// unexpired row matches.
+	RefreshLocked(ctx context.Context, idHash []byte, decide UserSessionRefreshFunc) error
 }
+
+// UserSessionRefresh is what a RefreshLocked callback decided about the locked
+// session row. The zero value leaves the row as it is.
+type UserSessionRefresh struct {
+	// Update, when set, carries the rotated tokens and the new expiries
+	// (AccessTokenEnc, RefreshTokenEnc, AccessExpiresAt, ExpiresAt) to store;
+	// last_refreshed_at is stamped with them.
+	Update *models.UserSession
+	// Delete removes the row.
+	Delete bool
+}
+
+// UserSessionRefreshFunc decides what to do with a locked session row.
+type UserSessionRefreshFunc func(row *models.UserSession) (UserSessionRefresh, error)
 
 // UserRepository defines the interface for user data access operations
 type UserRepository interface {

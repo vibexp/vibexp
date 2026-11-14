@@ -109,7 +109,7 @@ func TestRefresh_Unsupported(t *testing.T) {
 	p, err := New(Config{ClientID: "id", ClientSecret: "secret"})
 	require.NoError(t, err)
 
-	_, err = p.Refresh(context.Background(), "anything")
+	_, _, err = p.Refresh(context.Background(), "anything")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not supported")
 }

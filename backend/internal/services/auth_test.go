@@ -348,9 +348,9 @@ func TestAuthService_RefreshTokens(t *testing.T) {
 		mockRepo := &repo_mocks.MockUserRepository{}
 		mockIDP := &idpmocks.MockIdentityProvider{}
 		service := createTestAuthServiceNew(mockRepo, mockIDP, []string{})
-		mockIDP.On("Refresh", context.Background(), "old-refresh").Return(refreshed, nil)
+		mockIDP.On("Refresh", context.Background(), "old-refresh").Return(refreshed, nil, nil)
 
-		got, err := service.RefreshTokens(context.Background(), "oidc", "old-refresh")
+		got, _, err := service.RefreshTokens(context.Background(), "oidc", "old-refresh")
 		assert.NoError(t, err)
 		assert.Equal(t, refreshed, got)
 		mockIDP.AssertExpectations(t)
@@ -360,10 +360,10 @@ func TestAuthService_RefreshTokens(t *testing.T) {
 		mockRepo := &repo_mocks.MockUserRepository{}
 		mockIDP := &idpmocks.MockIdentityProvider{}
 		service := createTestAuthServiceNew(mockRepo, mockIDP, []string{})
-		mockIDP.On("Refresh", context.Background(), "legacy-refresh").Return(refreshed, nil)
+		mockIDP.On("Refresh", context.Background(), "legacy-refresh").Return(refreshed, nil, nil)
 
 		// Legacy session with no provider name: single-provider deployment routes to it.
-		got, err := service.RefreshTokens(context.Background(), "", "legacy-refresh")
+		got, _, err := service.RefreshTokens(context.Background(), "", "legacy-refresh")
 		assert.NoError(t, err)
 		assert.Equal(t, refreshed, got)
 		mockIDP.AssertExpectations(t)
@@ -374,7 +374,7 @@ func TestAuthService_RefreshTokens(t *testing.T) {
 		mockIDP := &idpmocks.MockIdentityProvider{}
 		service := createTestAuthServiceNew(mockRepo, mockIDP, []string{})
 
-		_, err := service.RefreshTokens(context.Background(), "github", "tok")
+		_, _, err := service.RefreshTokens(context.Background(), "github", "tok")
 		assert.Error(t, err)
 		mockIDP.AssertNotCalled(t, "Refresh", mock.Anything, mock.Anything)
 	})
@@ -1050,7 +1050,7 @@ func TestAuthService_ResolverFailureIsUnresolvable(t *testing.T) {
 	assert.ErrorIs(t, err, ErrIdentityProvidersUnresolvable)
 	_, _, _, err = svc.HandleCallback(ctx, "code", "corp-sso", idp.FlowParams{})
 	assert.ErrorIs(t, err, ErrIdentityProvidersUnresolvable)
-	_, err = svc.RefreshTokens(ctx, "corp-sso", "tok")
+	_, _, err = svc.RefreshTokens(ctx, "corp-sso", "tok")
 	assert.ErrorIs(t, err, ErrIdentityProvidersUnresolvable)
 }
 
@@ -1061,7 +1061,7 @@ func TestAuthService_UnknownSlugIsUnavailable(t *testing.T) {
 
 	_, _, _, err := svc.HandleCallback(ctx, "code", "partner-sso", idp.FlowParams{})
 	assert.ErrorIs(t, err, ErrIdentityProviderUnavailable)
-	_, err = svc.RefreshTokens(ctx, "partner-sso", "tok")
+	_, _, err = svc.RefreshTokens(ctx, "partner-sso", "tok")
 	assert.ErrorIs(t, err, ErrIdentityProviderUnavailable)
 	p.AssertNotCalled(t, "ExchangeCode", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
@@ -1120,7 +1120,7 @@ func TestAuthService_HandleCallback_GoogleTypeKeepsLegacyFallback(t *testing.T) 
 func TestAuthService_RefreshTokens_EmptySlugWithSeveralProvidersIsUnavailable(t *testing.T) {
 	reg := idp.NewRegistry(slugProvider("corp-sso"), slugProvider("partner-sso"))
 	svc := newResolverAuthService(&repo_mocks.MockUserRepository{}, staticIDPResolver{reg: reg})
-	_, err := svc.RefreshTokens(context.Background(), "", "tok")
+	_, _, err := svc.RefreshTokens(context.Background(), "", "tok")
 	assert.ErrorIs(t, err, ErrIdentityProviderUnavailable, "no silent pick among several providers")
 }
 
@@ -1129,11 +1129,11 @@ func TestAuthService_RefreshTokens_UnhealthyProviderIsTemporarilyUnavailable(t *
 	health := map[string]ProviderHealth{"corp-sso": {Healthy: false, LastError: "discovery timed out"}}
 	svc := newResolverAuthService(&repo_mocks.MockUserRepository{}, staticIDPResolver{reg: reg, health: health})
 
-	_, err := svc.RefreshTokens(context.Background(), "corp-sso", "tok")
+	_, _, err := svc.RefreshTokens(context.Background(), "corp-sso", "tok")
 	assert.ErrorIs(t, err, ErrIdentityProviderTemporarilyUnavailable, "enabled but unhealthy is transient")
 	assert.NotErrorIs(t, err, ErrIdentityProviderUnavailable)
 
-	_, err = svc.RefreshTokens(context.Background(), "partner-sso", "tok")
+	_, _, err = svc.RefreshTokens(context.Background(), "partner-sso", "tok")
 	assert.ErrorIs(t, err, ErrIdentityProviderUnavailable, "not enabled at all is permanent")
 }
 

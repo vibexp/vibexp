@@ -30,12 +30,15 @@ const testSessionEncryptionKey = "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
 type memSessionRepo struct {
 	mu   sync.Mutex
 	rows map[string]models.UserSession
+	// rowLocks are the per-row locks RefreshLocked holds, standing in for
+	// SELECT ... FOR UPDATE.
+	rowLocks map[string]*sync.Mutex
 	// failWith, when set, is returned by every method.
 	failWith error
 }
 
 func newMemSessionRepo() *memSessionRepo {
-	return &memSessionRepo{rows: map[string]models.UserSession{}}
+	return &memSessionRepo{rows: map[string]models.UserSession{}, rowLocks: map[string]*sync.Mutex{}}
 }
 
 // newMemSessionStore returns a real SessionStore over a fresh memSessionRepo.
@@ -139,6 +142,51 @@ func (m *memSessionRepo) DeleteExpired(_ context.Context) (int64, error) {
 	return n, nil
 }
 
+// RefreshLocked holds idHash's row lock while decide runs, like the postgres
+// repository's SELECT ... FOR UPDATE, then applies the decision.
+func (m *memSessionRepo) RefreshLocked(
+	_ context.Context, idHash []byte, decide repositories.UserSessionRefreshFunc,
+) error {
+	m.mu.Lock()
+	if m.failWith != nil {
+		m.mu.Unlock()
+		return m.failWith
+	}
+	lock, ok := m.rowLocks[string(idHash)]
+	if !ok {
+		lock = &sync.Mutex{}
+		m.rowLocks[string(idHash)] = lock
+	}
+	m.mu.Unlock()
+
+	lock.Lock()
+	defer lock.Unlock()
+
+	m.mu.Lock()
+	row, ok := m.live(idHash)
+	m.mu.Unlock()
+	if !ok {
+		return repositories.ErrUserSessionNotFound
+	}
+	decision, err := decide(&row)
+	if err != nil && !decision.Delete && decision.Update == nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	switch {
+	case decision.Delete:
+		delete(m.rows, string(idHash))
+	case decision.Update != nil:
+		now := time.Now()
+		u := decision.Update
+		row.AccessTokenEnc, row.RefreshTokenEnc = u.AccessTokenEnc, u.RefreshTokenEnc
+		row.AccessExpiresAt, row.ExpiresAt, row.LastRefreshedAt = u.AccessExpiresAt, u.ExpiresAt, &now
+		m.rows[string(idHash)] = row
+	}
+	return err
+}
+
 // count returns the number of stored rows, expired ones included.
 func (m *memSessionRepo) count() int {
 	m.mu.Lock()
@@ -157,6 +205,20 @@ func (m *memSessionRepo) only() models.UserSession {
 		return row
 	}
 	return models.UserSession{}
+}
+
+// backdateRefresh moves every row's creation and last refresh d into the past.
+func (m *memSessionRepo) backdateRefresh(d time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for k, row := range m.rows {
+		row.CreatedAt = row.CreatedAt.Add(-d)
+		if row.LastRefreshedAt != nil {
+			t := row.LastRefreshedAt.Add(-d)
+			row.LastRefreshedAt = &t
+		}
+		m.rows[k] = row
+	}
 }
 
 // setFail makes every later call return err (nil restores normal behaviour).

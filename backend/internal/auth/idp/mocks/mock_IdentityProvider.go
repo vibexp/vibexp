@@ -187,7 +187,7 @@ func (_c *MockIdentityProvider_Name_Call) RunAndReturn(run func() idp.ProviderNa
 }
 
 // Refresh provides a mock function with given fields: ctx, refreshToken
-func (_m *MockIdentityProvider) Refresh(ctx context.Context, refreshToken string) (*idp.Tokens, error) {
+func (_m *MockIdentityProvider) Refresh(ctx context.Context, refreshToken string) (*idp.Tokens, *idp.Claims, error) {
 	ret := _m.Called(ctx, refreshToken)
 
 	if len(ret) == 0 {
@@ -195,8 +195,9 @@ func (_m *MockIdentityProvider) Refresh(ctx context.Context, refreshToken string
 	}
 
 	var r0 *idp.Tokens
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*idp.Tokens, error)); ok {
+	var r1 *idp.Claims
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*idp.Tokens, *idp.Claims, error)); ok {
 		return rf(ctx, refreshToken)
 	}
 	if rf, ok := ret.Get(0).(func(context.Context, string) *idp.Tokens); ok {
@@ -207,13 +208,21 @@ func (_m *MockIdentityProvider) Refresh(ctx context.Context, refreshToken string
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, string) *idp.Claims); ok {
 		r1 = rf(ctx, refreshToken)
 	} else {
-		r1 = ret.Error(1)
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(*idp.Claims)
+		}
 	}
 
-	return r0, r1
+	if rf, ok := ret.Get(2).(func(context.Context, string) error); ok {
+		r2 = rf(ctx, refreshToken)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
 }
 
 // MockIdentityProvider_Refresh_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Refresh'
@@ -235,12 +244,12 @@ func (_c *MockIdentityProvider_Refresh_Call) Run(run func(ctx context.Context, r
 	return _c
 }
 
-func (_c *MockIdentityProvider_Refresh_Call) Return(_a0 *idp.Tokens, _a1 error) *MockIdentityProvider_Refresh_Call {
-	_c.Call.Return(_a0, _a1)
+func (_c *MockIdentityProvider_Refresh_Call) Return(_a0 *idp.Tokens, _a1 *idp.Claims, _a2 error) *MockIdentityProvider_Refresh_Call {
+	_c.Call.Return(_a0, _a1, _a2)
 	return _c
 }
 
-func (_c *MockIdentityProvider_Refresh_Call) RunAndReturn(run func(context.Context, string) (*idp.Tokens, error)) *MockIdentityProvider_Refresh_Call {
+func (_c *MockIdentityProvider_Refresh_Call) RunAndReturn(run func(context.Context, string) (*idp.Tokens, *idp.Claims, error)) *MockIdentityProvider_Refresh_Call {
 	_c.Call.Return(run)
 	return _c
 }

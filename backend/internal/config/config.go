@@ -353,6 +353,14 @@ type AuthConfig struct {
 	// image can set it with AUTH_SETTINGS_RECOVERY_MODE alone.
 	RecoveryMode EnvBool `koanf:"recovery_mode"`
 
+	// SessionRecheckInterval bounds how long a cookie session with a refresh
+	// token goes without asking its identity provider again (#1647). The
+	// session is refreshed when its access token has expired or when this much
+	// time has passed since its last refresh, whichever comes first, so access
+	// removed at the provider ends the session within this interval. A session
+	// without a refresh token is never re-checked. Must be positive.
+	SessionRecheckInterval time.Duration `koanf:"session_recheck_interval"`
+
 	// LegacyAccessAllowlist is the config.yaml access allowlist: email domains
 	// and/or exact addresses. It is no longer enforced from here. It is imported
 	// once at boot into the instance_auth_allowlist table (#1232), and the
@@ -1273,6 +1281,16 @@ func validateMCPConfig(cfg *Config) error {
 	return nil
 }
 
+// validateSessionRecheckInterval enforces that auth.session_recheck_interval is
+// positive. A zero interval would make every request of a refreshable session
+// call the identity provider.
+func validateSessionRecheckInterval(cfg *Config) error {
+	if cfg.Auth.SessionRecheckInterval <= 0 {
+		return fmt.Errorf("auth.session_recheck_interval must be positive, got %v", cfg.Auth.SessionRecheckInterval)
+	}
+	return nil
+}
+
 // validateEmbeddingQueueConfig enforces that the durable embedding queue's
 // drain knobs are usable. poll_interval is the load-bearing one for the same
 // reason scheduler.tick_interval is: it feeds time.NewTicker, which panics on a
@@ -1342,6 +1360,7 @@ func validateAll(cfg *Config) error {
 		validateOAuthASConfig,
 		validateSchedulerConfig,
 		validateMCPConfig,
+		validateSessionRecheckInterval,
 		validateEmbeddingQueueConfig,
 		func(c *Config) error { return validateTrustedProxies(c.Server.TrustedProxies) },
 		validatePprofConfig,
@@ -1393,6 +1412,7 @@ func defaults() map[string]any {
 		"auth.google.redirect_uri":            defaultAuthRedirectURI,
 		"auth.github.redirect_uri":            defaultAuthRedirectURI,
 		"auth.oidc.redirect_uri":              defaultAuthRedirectURI,
+		"auth.session_recheck_interval":       "15m",
 		"auth.oauth_as.access_token_ttl":      "15m",
 		"auth.oauth_as.refresh_token_ttl":     "720h",
 		"auth.oauth_as.auth_code_ttl":         "10m",

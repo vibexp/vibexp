@@ -9,6 +9,12 @@
 // code_verifier (RFC 7636, S256 only) and puts that nonce in the ID token, so
 // tests run against an issuer that actually enforces both. A code the issuer
 // never issued keeps the original behaviour: no PKCE check and no nonce.
+//
+// The token endpoint also serves the refresh_token grant the way a rotating
+// issuer with reuse detection does: every refresh spends the presented refresh
+// token and issues a new one, and presenting a spent token revokes every token
+// the issuer has issued (invalid_grant from then on). It counts refresh calls,
+// so a test can prove how often a session was refreshed.
 package fakeoidc
 
 import (
@@ -50,10 +56,24 @@ type Issuer struct {
 	unverified  atomic.Bool
 	release     chan struct{}
 
-	mu            sync.Mutex
-	grants        map[string]grant
-	nonceOverride *string
-	extraClaims   map[string]any
+	refreshCalls   atomic.Int64
+	refreshStatus  atomic.Int32
+	jwksStatus     atomic.Int32
+	userInfoStatus atomic.Int32
+	noRefreshID    atomic.Bool
+	forgeIDToken   atomic.Bool
+
+	mu              sync.Mutex
+	grants          map[string]grant
+	nonceOverride   *string
+	extraClaims     map[string]any
+	scopesSupported []string
+	// liveRefresh and spentRefresh are the refresh tokens issued and not yet
+	// used, and those already used; revoked is set once a spent one is
+	// presented again.
+	liveRefresh  map[string]bool
+	spentRefresh map[string]bool
+	revoked      bool
 }
 
 // grant is what the authorization endpoint recorded for one issued code.
@@ -72,13 +92,14 @@ func New(t testing.TB, clientID, clientSecret, subject, email string) *Issuer {
 	i := &Issuer{
 		key: key, clientID: clientID, clientSecret: clientSecret,
 		subject: subject, email: email, release: make(chan struct{}),
-		grants: map[string]grant{},
+		grants: map[string]grant{}, liveRefresh: map[string]bool{}, spentRefresh: map[string]bool{},
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", i.handleDiscovery)
 	mux.HandleFunc("/jwks", i.handleJWKS)
 	mux.HandleFunc("/authorize", i.handleAuthorize)
 	mux.HandleFunc("/token", i.handleToken)
+	mux.HandleFunc("/userinfo", i.handleUserInfo)
 	i.server = httptest.NewServer(mux)
 	i.URL = i.server.URL
 	t.Cleanup(func() {
@@ -122,6 +143,80 @@ func (i *Issuer) SetClaim(name string, value any) {
 		return
 	}
 	i.extraClaims[name] = value
+}
+
+// SetScopesSupported sets the scopes_supported list of the discovery
+// document; nil omits it. It affects clients discovered from now on.
+func (i *Issuer) SetScopesSupported(scopes []string) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.scopesSupported = scopes
+}
+
+// RefreshCalls reports how many refresh_token grants the token endpoint has
+// served, failed ones included.
+func (i *Issuer) RefreshCalls() int64 { return i.refreshCalls.Load() }
+
+// SetRefreshStatus makes every refresh_token grant from now on answer status
+// (a 5xx simulates an issuer outage); 0 restores normal answers.
+func (i *Issuer) SetRefreshStatus(status int) {
+	i.refreshStatus.Store(int32(status)) // #nosec G115 -- an HTTP status fits
+}
+
+// SetJWKSStatus makes the keys endpoint answer status from now on; 0 restores
+// normal answers. A client caches the keys, so it only bites before the first
+// verification.
+func (i *Issuer) SetJWKSStatus(status int) {
+	i.jwksStatus.Store(int32(status)) // #nosec G115 -- an HTTP status fits
+}
+
+// SetUserInfoStatus makes the userinfo endpoint answer status from now on; 0
+// restores normal answers.
+func (i *Issuer) SetUserInfoStatus(status int) {
+	i.userInfoStatus.Store(int32(status)) // #nosec G115 -- an HTTP status fits
+}
+
+// SetRefreshIDToken sets whether a refresh response carries an ID token. It
+// does until changed; without one a client falls back to userinfo.
+func (i *Issuer) SetRefreshIDToken(include bool) { i.noRefreshID.Store(!include) }
+
+// SetForgeIDTokens makes every ID token minted from now on signed by a key
+// the issuer does not publish, so its signature does not verify.
+func (i *Issuer) SetForgeIDTokens(forge bool) { i.forgeIDToken.Store(forge) }
+
+// IssueRefreshToken issues a live refresh token, as a sign-in would, so a test
+// can store a session without running the authorization flow.
+func (i *Issuer) IssueRefreshToken() string {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.issueRefreshLocked()
+}
+
+// issueRefreshLocked mints and records a new refresh token; i.mu must be held.
+func (i *Issuer) issueRefreshLocked() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	token := "rt-" + hex.EncodeToString(b)
+	i.liveRefresh[token] = true
+	return token
+}
+
+// rotate spends token and returns its successor, or false when token is not a
+// live refresh token. Presenting a spent token revokes every token issued.
+func (i *Issuer) rotate(token string) (string, bool) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.spentRefresh[token] {
+		i.revoked = true
+	}
+	if i.revoked || !i.liveRefresh[token] {
+		return "", false
+	}
+	delete(i.liveRefresh, token)
+	i.spentRefresh[token] = true
+	return i.issueRefreshLocked(), true
 }
 
 // Authorize runs authURL (an authorization URL pointing at a fake issuer)
@@ -214,16 +309,27 @@ func (i *Issuer) handleDiscovery(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	writeJSON(w, map[string]any{
+	doc := map[string]any{
 		"issuer":                                i.URL,
 		"authorization_endpoint":                i.URL + "/authorize",
 		"token_endpoint":                        i.URL + "/token",
+		"userinfo_endpoint":                     i.URL + "/userinfo",
 		"jwks_uri":                              i.URL + "/jwks",
 		"id_token_signing_alg_values_supported": []string{"RS256"},
-	})
+	}
+	i.mu.Lock()
+	if i.scopesSupported != nil {
+		doc["scopes_supported"] = i.scopesSupported
+	}
+	i.mu.Unlock()
+	writeJSON(w, doc)
 }
 
 func (i *Issuer) handleJWKS(w http.ResponseWriter, _ *http.Request) {
+	if status := int(i.jwksStatus.Load()); status != 0 {
+		http.Error(w, "keys unavailable", status)
+		return
+	}
 	writeJSON(w, map[string]any{"keys": []map[string]any{{
 		"kty": "RSA", "alg": "RS256", "use": "sig", "kid": keyID,
 		"n": base64.RawURLEncoding.EncodeToString(i.key.N.Bytes()),
@@ -244,11 +350,61 @@ func (i *Issuer) handleToken(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"invalid_client"}`, http.StatusUnauthorized)
 		return
 	}
+	if r.FormValue("grant_type") == "refresh_token" {
+		i.handleRefresh(w, r.FormValue("refresh_token"))
+		return
+	}
 	nonce, ok := i.redeem(r.FormValue("code"), r.FormValue("code_verifier"))
 	if !ok {
 		http.Error(w, `{"error":"invalid_grant"}`, http.StatusBadRequest)
 		return
 	}
+	signed, err := i.mintIDToken(nonce)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	i.mu.Lock()
+	i.liveRefresh["fake-refresh"] = true
+	i.mu.Unlock()
+	writeJSON(w, map[string]any{
+		"access_token": "fake-access", "refresh_token": "fake-refresh",
+		"token_type": "Bearer", "expires_in": 3600, "id_token": signed,
+	})
+}
+
+// handleRefresh serves the refresh_token grant: it rotates token or answers
+// invalid_grant, and answers the configured status instead when one is set.
+func (i *Issuer) handleRefresh(w http.ResponseWriter, token string) {
+	i.refreshCalls.Add(1)
+	if status := int(i.refreshStatus.Load()); status != 0 {
+		http.Error(w, `{"error":"temporarily_unavailable"}`, status)
+		return
+	}
+	next, ok := i.rotate(token)
+	if !ok {
+		w.Header().Set("Content-Type", "application/json")
+		http.Error(w, `{"error":"invalid_grant"}`, http.StatusBadRequest)
+		return
+	}
+	body := map[string]any{
+		"access_token": "fake-access-" + next, "refresh_token": next,
+		"token_type": "Bearer", "expires_in": 3600,
+	}
+	if !i.noRefreshID.Load() {
+		signed, err := i.mintIDToken("")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		body["id_token"] = signed
+	}
+	writeJSON(w, body)
+}
+
+// mintIDToken signs an ID token for the issuer's subject, with nonce when it
+// is not empty and the claims SetClaim added.
+func (i *Issuer) mintIDToken(nonce string) (string, error) {
 	now := time.Now()
 	claims := jwt.MapClaims{
 		"iss": i.URL, "sub": i.subject, "aud": i.clientID,
@@ -265,14 +421,31 @@ func (i *Issuer) handleToken(w http.ResponseWriter, r *http.Request) {
 	i.mu.Unlock()
 	tok := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	tok.Header["kid"] = keyID
-	signed, err := tok.SignedString(i.key)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	key := i.key
+	if i.forgeIDToken.Load() {
+		forged, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			return "", err
+		}
+		key = forged
+	}
+	return tok.SignedString(key)
+}
+
+// handleUserInfo answers the userinfo endpoint for the issuer's subject.
+func (i *Issuer) handleUserInfo(w http.ResponseWriter, _ *http.Request) {
+	if status := int(i.userInfoStatus.Load()); status != 0 {
+		http.Error(w, "userinfo unavailable", status)
 		return
 	}
+	sub := i.subject
+	i.mu.Lock()
+	if v, ok := i.extraClaims["sub"].(string); ok {
+		sub = v
+	}
+	i.mu.Unlock()
 	writeJSON(w, map[string]any{
-		"access_token": "fake-access", "refresh_token": "fake-refresh",
-		"token_type": "Bearer", "expires_in": 3600, "id_token": signed,
+		"sub": sub, "email": i.email, "email_verified": !i.unverified.Load(), "name": "Fake User",
 	})
 }
 

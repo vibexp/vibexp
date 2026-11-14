@@ -400,7 +400,7 @@ func (_c *MockAuthServiceInterface_ProvisionFromClaims_Call) RunAndReturn(run fu
 }
 
 // RefreshTokens provides a mock function with given fields: ctx, provider, refreshToken
-func (_m *MockAuthServiceInterface) RefreshTokens(ctx context.Context, provider string, refreshToken string) (*idp.Tokens, error) {
+func (_m *MockAuthServiceInterface) RefreshTokens(ctx context.Context, provider string, refreshToken string) (*idp.Tokens, *idp.Claims, error) {
 	ret := _m.Called(ctx, provider, refreshToken)
 
 	if len(ret) == 0 {
@@ -408,8 +408,9 @@ func (_m *MockAuthServiceInterface) RefreshTokens(ctx context.Context, provider 
 	}
 
 	var r0 *idp.Tokens
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*idp.Tokens, error)); ok {
+	var r1 *idp.Claims
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*idp.Tokens, *idp.Claims, error)); ok {
 		return rf(ctx, provider, refreshToken)
 	}
 	if rf, ok := ret.Get(0).(func(context.Context, string, string) *idp.Tokens); ok {
@@ -420,13 +421,21 @@ func (_m *MockAuthServiceInterface) RefreshTokens(ctx context.Context, provider 
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) *idp.Claims); ok {
 		r1 = rf(ctx, provider, refreshToken)
 	} else {
-		r1 = ret.Error(1)
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(*idp.Claims)
+		}
 	}
 
-	return r0, r1
+	if rf, ok := ret.Get(2).(func(context.Context, string, string) error); ok {
+		r2 = rf(ctx, provider, refreshToken)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
 }
 
 // MockAuthServiceInterface_RefreshTokens_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RefreshTokens'
@@ -449,12 +458,12 @@ func (_c *MockAuthServiceInterface_RefreshTokens_Call) Run(run func(ctx context.
 	return _c
 }
 
-func (_c *MockAuthServiceInterface_RefreshTokens_Call) Return(_a0 *idp.Tokens, _a1 error) *MockAuthServiceInterface_RefreshTokens_Call {
-	_c.Call.Return(_a0, _a1)
+func (_c *MockAuthServiceInterface_RefreshTokens_Call) Return(_a0 *idp.Tokens, _a1 *idp.Claims, _a2 error) *MockAuthServiceInterface_RefreshTokens_Call {
+	_c.Call.Return(_a0, _a1, _a2)
 	return _c
 }
 
-func (_c *MockAuthServiceInterface_RefreshTokens_Call) RunAndReturn(run func(context.Context, string, string) (*idp.Tokens, error)) *MockAuthServiceInterface_RefreshTokens_Call {
+func (_c *MockAuthServiceInterface_RefreshTokens_Call) RunAndReturn(run func(context.Context, string, string) (*idp.Tokens, *idp.Claims, error)) *MockAuthServiceInterface_RefreshTokens_Call {
 	_c.Call.Return(run)
 	return _c
 }

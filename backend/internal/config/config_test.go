@@ -990,6 +990,36 @@ scheduler:
 	assert.Contains(t, err.Error(), "scheduler.tick_interval")
 }
 
+// --- Session re-check interval (#1647) --------------------------------------
+
+func TestLoad_SessionRecheckIntervalDefault(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML)
+
+	require.NoError(t, err)
+	assert.Equal(t, 15*time.Minute, cfg.Auth.SessionRecheckInterval)
+}
+
+func TestLoad_SessionRecheckInterval(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML+`
+auth:
+  session_recheck_interval: "5m"
+`)
+	require.NoError(t, err)
+	assert.Equal(t, 5*time.Minute, cfg.Auth.SessionRecheckInterval)
+
+	for _, value := range []string{"0s", "-1m"} {
+		t.Run(value, func(t *testing.T) {
+			cfg, err := loadYAML(t, baseValidYAML+`
+auth:
+  session_recheck_interval: "`+value+`"
+`)
+			require.Error(t, err)
+			assert.Nil(t, cfg)
+			assert.Contains(t, err.Error(), "auth.session_recheck_interval")
+		})
+	}
+}
+
 // --- MCP session timeout ---------------------------------------------------
 
 func TestLoad_MCPSessionTimeoutDefault(t *testing.T) {

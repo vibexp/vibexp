@@ -357,7 +357,7 @@ func TestClient_Refresh_RequiresToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = c.Refresh(context.Background(), "")
+	_, _, err = c.Refresh(context.Background(), "")
 	require.Error(t, err)
 }
 

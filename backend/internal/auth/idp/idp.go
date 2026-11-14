@@ -38,6 +38,12 @@ var ErrTokenInvalid = errors.New("identity provider: invalid token")
 // browser flow that requested it.
 var ErrNonceMismatch = errors.New("identity provider: id token nonce mismatch")
 
+// ErrProviderUnavailable marks a failure to reach the identity provider (an
+// unreachable host, a 5xx or a throttling answer) while it was being asked
+// about a token, as opposed to a verdict on the token. A refresh that fails
+// with it must keep the session.
+var ErrProviderUnavailable = errors.New("identity provider: temporarily unavailable")
+
 // FlowParams are the per-authorization-request secrets of one sign-in flow.
 // They are generated fresh for every authorization request and must survive
 // the redirect to the identity provider and back, so the callback can hand the
@@ -100,6 +106,10 @@ type IdentityProvider interface {
 	// token does not echo yields ErrNonceMismatch.
 	ExchangeCode(ctx context.Context, code, redirectURI string, flow FlowParams) (*Tokens, *Claims, error)
 
-	// Refresh requests a new set of tokens using the given refresh token.
-	Refresh(ctx context.Context, refreshToken string) (*Tokens, error)
+	// Refresh requests a new set of tokens using the given refresh token and
+	// returns them with the user's current claims: those of the verified ID
+	// token in the refresh response (no nonce is checked, since a refresh is
+	// not bound to a browser flow), or of userinfo when the response carries no
+	// ID token. Claims may be nil only for a provider that offers neither.
+	Refresh(ctx context.Context, refreshToken string) (*Tokens, *Claims, error)
 }
