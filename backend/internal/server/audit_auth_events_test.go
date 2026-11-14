@@ -380,6 +380,14 @@ func TestAuditDevLogin(t *testing.T) {
 	})
 }
 
+// recordLogoutAsHandled records the logout of sess the way handleLogout does:
+// the session's row is read first, and only a session that still has one (or
+// a legacy cookie) is recorded.
+func recordLogoutAsHandled(srv *Server, req *http.Request, sess *sesslib.Session) {
+	stored := sess.IsLegacy() || srv.loadSession(req.Context(), sess) == nil
+	srv.recordLogout(req, sess, stored)
+}
+
 func TestAuditLogout(t *testing.T) {
 	srv, rec := newOIDCAuditServer(t)
 	sess := &sesslib.Session{UserID: "u-1", AuthMethod: sesslib.AuthMethodPassword}
@@ -391,7 +399,7 @@ func TestAuditLogout(t *testing.T) {
 	req.AddCookie(cookie)
 	read, err := srv.sessionManager.Read(req)
 	require.NoError(t, err)
-	srv.recordLogout(req, read)
+	recordLogoutAsHandled(srv, req, read)
 
 	got := rec.only(t)
 	assert.Equal(t, models.AuditOpAuthLogout, got.event.Operation)
@@ -421,7 +429,7 @@ func TestAuditLogout_DoesNotShareTheActivityMap(t *testing.T) {
 	req.AddCookie(cookie)
 	read, err := srv.sessionManager.Read(req)
 	require.NoError(t, err)
-	srv.recordLogout(req, read)
+	recordLogoutAsHandled(srv, req, read)
 
 	assert.Equal(t, map[string]any{auditMetaMethod: sesslib.AuthMethodDev, auditMetaProvider: "github"},
 		rec.only(t).event.Metadata)
@@ -430,9 +438,10 @@ func TestAuditLogout_DoesNotShareTheActivityMap(t *testing.T) {
 func TestAuditLogout_UnusableCookieRecordsNothing(t *testing.T) {
 	srv, rec := newOIDCAuditServer(t)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
-	srv.recordLogout(req, &sesslib.Session{})
+	recordLogoutAsHandled(srv, req, &sesslib.Session{})
 	// A session whose server-side row is gone signs nobody out either (#1646).
-	srv.recordLogout(req, &sesslib.Session{ID: "no-such-session", UserID: "u-1", AuthMethod: sesslib.AuthMethodDev})
+	recordLogoutAsHandled(srv, req,
+		&sesslib.Session{ID: "no-such-session", UserID: "u-1", AuthMethod: sesslib.AuthMethodDev})
 	assert.Empty(t, rec.events())
 }
 

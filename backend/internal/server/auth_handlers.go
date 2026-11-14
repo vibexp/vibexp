@@ -577,8 +577,14 @@ func (s *Server) rejectSuspendedSignIn(
 }
 
 // handleLogout ends the cookie's session, deleting its server-side row so no
-// copy of the cookie authenticates again (#1646), clears the session cookie and
-// returns a JSON confirmation.
+// copy of the cookie authenticates again (#1646), revokes the session's
+// identity-provider refresh token at the issuer, best effort (#1649), clears
+// the session cookie and returns a JSON confirmation.
+//
+// The row is read before it is deleted, since it holds the refresh token, and
+// the token is revoked only after the row is gone: an issuer that is slow or
+// failing can delay sign-out by at most providerRevocationTimeout, and can
+// never leave the session alive.
 //
 // POST /api/v1/auth/logout
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -589,8 +595,13 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 	if s.sessionManager != nil {
 		if sess, err := s.sessionManager.Read(r); err == nil {
-			s.recordLogout(r, sess)
+			// A legacy cookie (#1646) carries its tokens and has no row.
+			stored := sess.IsLegacy() || s.loadSession(r.Context(), sess) == nil
+			s.recordLogout(r, sess, stored)
 			s.deleteSession(r.Context(), sess)
+			if stored {
+				s.revokeProviderTokens(r.Context(), sess)
+			}
 		}
 		s.sessionManager.Clear(w)
 	}
@@ -604,7 +615,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 // recordLogout records the auth_logout activity for the session being ended
 // (#1428). The logout route is public, so the user is taken from the cookie
 // itself, and only a cookie that would still authenticate counts: its row
-// exists (#1646; a legacy cookie has none), the account may sign in, the
+// exists (stored; #1646, a legacy cookie has none), the account may sign in, the
 // cookie's epoch is the user's current one, and a session with no refresh token
 // has not expired. Anything else signs nobody out and records
 // nothing. That keeps a revoked or expired copy of a cookie from writing
@@ -612,11 +623,8 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 //
 // An expired session that has a refresh token is recorded: whether it would
 // still authenticate depends on a provider round trip that logout does not make.
-func (s *Server) recordLogout(r *http.Request, sess *sesslib.Session) {
-	if sess.UserID == "" {
-		return
-	}
-	if !sess.IsLegacy() && s.loadSession(r.Context(), sess) != nil {
+func (s *Server) recordLogout(r *http.Request, sess *sesslib.Session, stored bool) {
+	if sess.UserID == "" || !stored {
 		return
 	}
 	if sess.IsSliding() && sess.IsExpired() {
@@ -667,13 +675,23 @@ func (s *Server) auditLogout(ctx context.Context, user *models.User, sess *sessl
 // The epoch is bumped before the cookie is written. If the write then fails the
 // caller is signed out along with everyone else, which is the safe direction:
 // the other order could leave a revoked session alive.
+//
+// After the bump the ended sessions' rows are deleted and their
+// identity-provider refresh tokens revoked, best effort (#1649): the epoch bump
+// is what the caller is promised, so a failure there is logged, not returned.
 func (s *Server) revokeOtherSessions(w http.ResponseWriter, r *http.Request, userID string) error {
 	epoch, err := s.container.AuthService().RevokeUserSessions(r.Context(), userID)
 	if err != nil {
 		return err
 	}
 	sess := authenticatedSession(r.Context())
-	if sess == nil || sess.UserID != userID || s.sessionManager == nil {
+	own := sess != nil && sess.UserID == userID
+	keepSID := ""
+	if own {
+		keepSID = sess.ID
+	}
+	s.deleteOtherSessions(r.Context(), userID, keepSID)
+	if !own || s.sessionManager == nil {
 		return nil
 	}
 	sess.Epoch = epoch
@@ -681,6 +699,22 @@ func (s *Server) revokeOtherSessions(w http.ResponseWriter, r *http.Request, use
 		return fmt.Errorf("failed to re-issue the session after revoking the others: %w", err)
 	}
 	return nil
+}
+
+// deleteOtherSessions deletes every session row of userID except keepSID's (an
+// empty keepSID keeps none) and revokes the deleted sessions' refresh tokens,
+// best effort: a failure is logged, and the rows then expire and are swept.
+func (s *Server) deleteOtherSessions(ctx context.Context, userID, keepSID string) {
+	store := s.sessionStore()
+	if store == nil {
+		return
+	}
+	removed, err := store.DeleteOthers(ctx, userID, keepSID)
+	if err != nil {
+		s.logger.With("user_id", userID, "error", err.Error()).Warn("Failed to delete the user's other session rows")
+		return
+	}
+	s.revokeProviderTokens(ctx, removed...)
 }
 
 func (s *Server) handleGetMe(w http.ResponseWriter, r *http.Request) {

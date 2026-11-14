@@ -292,3 +292,51 @@ func TestIntegrationUserSession_RefreshLockedDecisions(t *testing.T) {
 		assert.False(t, called)
 	})
 }
+
+// DeleteOthersForUser ends a user's other sessions (#1649): every row of the
+// user but the kept one goes, expired ones included, and each removed row's
+// provider and refresh token come back for revocation. Another user's rows
+// are untouched.
+func TestIntegrationUserSession_DeleteOthersForUser(t *testing.T) {
+	resetIntegrationTables(t)
+	ctx := context.Background()
+	repo := NewUserSessionRepository(integrationDB)
+	userID, otherUserID := insertTestUser(t), insertTestUser(t)
+
+	kept := newIntegrationSession(userID, 24*time.Hour)
+	other := newIntegrationSession(userID, 24*time.Hour)
+	other.Provider, other.RefreshTokenEnc = "corp-sso", "enc-rt-other"
+	password := newIntegrationSession(userID, 24*time.Hour)
+	password.Provider, password.AccessTokenEnc, password.RefreshTokenEnc = "", "", ""
+	expired := newIntegrationSession(userID, -time.Minute)
+	expired.RefreshTokenEnc = "enc-rt-expired"
+	foreign := newIntegrationSession(otherUserID, 24*time.Hour)
+	for _, s := range []*models.UserSession{kept, other, password, expired, foreign} {
+		require.NoError(t, repo.Create(ctx, s))
+	}
+
+	removed, err := repo.DeleteOthersForUser(ctx, userID, kept.IDHash)
+	require.NoError(t, err)
+
+	got := map[string]string{}
+	for _, s := range removed {
+		assert.Equal(t, userID, s.UserID)
+		got[s.RefreshTokenEnc] = s.Provider
+	}
+	assert.Equal(t, map[string]string{"enc-rt-other": "corp-sso", "": "", "enc-rt-expired": "oidc"}, got)
+	_, err = repo.GetByIDHash(ctx, kept.IDHash)
+	require.NoError(t, err, "the kept session stays")
+	_, err = repo.GetByIDHash(ctx, foreign.IDHash)
+	require.NoError(t, err, "another user's session stays")
+	_, err = repo.GetByIDHash(ctx, other.IDHash)
+	require.ErrorIs(t, err, repositories.ErrUserSessionNotFound)
+
+	// No session to keep: every row of the user goes.
+	removed, err = repo.DeleteOthersForUser(ctx, userID, nil)
+	require.NoError(t, err)
+	assert.Len(t, removed, 1)
+	_, err = repo.GetByIDHash(ctx, kept.IDHash)
+	require.ErrorIs(t, err, repositories.ErrUserSessionNotFound)
+	_, err = repo.GetByIDHash(ctx, foreign.IDHash)
+	require.NoError(t, err)
+}

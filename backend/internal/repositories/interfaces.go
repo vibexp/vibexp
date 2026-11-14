@@ -548,6 +548,11 @@ type UserSessionRepository interface {
 	Delete(ctx context.Context, idHash []byte) error
 	// DeleteExpired purges rows past their expiry; returns rows removed.
 	DeleteExpired(ctx context.Context) (int64, error)
+	// DeleteOthersForUser removes every row of userID except the one of
+	// keepIDHash (nil keeps none), expired rows included, and returns the
+	// removed rows' Provider and RefreshTokenEnc so their refresh tokens can
+	// be revoked (#1649).
+	DeleteOthersForUser(ctx context.Context, userID string, keepIDHash []byte) ([]*models.UserSession, error)
 	// RefreshLocked runs decide on the unexpired row of idHash while holding a
 	// lock on that row (SELECT ... FOR UPDATE), and applies the decision in the
 	// same transaction (#1647). Concurrent calls for one session, from any

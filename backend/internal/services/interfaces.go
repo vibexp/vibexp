@@ -34,6 +34,11 @@ type AuthServiceInterface interface {
 	// RefreshTokens exchanges a refresh token for new access/refresh tokens
 	// using the provider with slug (the one the session was issued by).
 	RefreshTokens(ctx context.Context, provider, refreshToken string) (*idp.Tokens, *idp.Claims, error)
+	// RevokeRefreshToken revokes refreshToken at the provider with slug (the
+	// one the session was issued by) through its RFC 7009 revocation endpoint
+	// (#1649). A provider that cannot revoke returns
+	// idp.ErrRevocationUnsupported.
+	RevokeRefreshToken(ctx context.Context, slug, refreshToken string) error
 	// ApplyRefreshedRoleMapping re-applies the role mapping of the provider
 	// with slug to userID from the claims a successful RefreshTokens returned
 	// (#1648). No claim set observed changes nothing; a provider without a

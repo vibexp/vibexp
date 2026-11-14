@@ -44,6 +44,23 @@ var ErrNonceMismatch = errors.New("identity provider: id token nonce mismatch")
 // with it must keep the session.
 var ErrProviderUnavailable = errors.New("identity provider: temporarily unavailable")
 
+// ErrRevocationUnsupported is returned by TokenRevoker.RevokeRefreshToken when
+// the provider offers no token revocation endpoint (RFC 7009), and by callers
+// resolving a provider that does not implement TokenRevoker at all.
+var ErrRevocationUnsupported = errors.New("identity provider: token revocation not supported")
+
+// TokenRevoker is an optional capability of an IdentityProvider: revoking a
+// refresh token at the issuer (RFC 7009), so a signed-out session leaves no
+// live grant behind (#1649). Callers type-assert for it; a provider without
+// it cannot revoke.
+type TokenRevoker interface {
+	// RevokeRefreshToken asks the issuer to revoke refreshToken. It returns
+	// ErrRevocationUnsupported when the issuer advertises no revocation
+	// endpoint, and an error for any answer other than 200 OK (RFC 7009
+	// §2.2 answers 200 for an unknown or already revoked token too).
+	RevokeRefreshToken(ctx context.Context, refreshToken string) error
+}
+
 // FlowParams are the per-authorization-request secrets of one sign-in flow.
 // They are generated fresh for every authorization request and must survive
 // the redirect to the identity provider and back, so the callback can hand the

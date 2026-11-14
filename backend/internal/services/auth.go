@@ -363,9 +363,22 @@ func refreshProviderName(reg *idp.Registry, slug string) idp.ProviderName {
 func (as *AuthService) RefreshTokens(
 	ctx context.Context, slug, refreshToken string,
 ) (*idp.Tokens, *idp.Claims, error) {
-	reg, err := as.snapshot(ctx)
+	p, err := as.sessionProvider(ctx, slug)
 	if err != nil {
 		return nil, nil, err
+	}
+	return p.Refresh(ctx, refreshToken)
+}
+
+// sessionProvider resolves the provider that issued a session carrying slug
+// (see refreshProviderName). A failure to read the providers returns
+// ErrIdentityProvidersUnresolvable, an enabled-but-unhealthy provider
+// ErrIdentityProviderTemporarilyUnavailable and a provider that is not enabled
+// ErrIdentityProviderUnavailable.
+func (as *AuthService) sessionProvider(ctx context.Context, slug string) (idp.IdentityProvider, error) {
+	reg, err := as.snapshot(ctx)
+	if err != nil {
+		return nil, err
 	}
 	name := refreshProviderName(reg, slug)
 	p, ok := reg.Get(name)
@@ -373,11 +386,28 @@ func (as *AuthService) RefreshTokens(
 		// Health lists every ENABLED provider, so an entry here means the
 		// provider is enabled but failed to build: a transient condition.
 		if _, enabled := as.resolver.Health()[string(name)]; enabled {
-			return nil, nil, fmt.Errorf("%w: %q", ErrIdentityProviderTemporarilyUnavailable, slug)
+			return nil, fmt.Errorf("%w: %q", ErrIdentityProviderTemporarilyUnavailable, slug)
 		}
-		return nil, nil, fmt.Errorf("%w: %q", ErrIdentityProviderUnavailable, slug)
+		return nil, fmt.Errorf("%w: %q", ErrIdentityProviderUnavailable, slug)
 	}
-	return p.Refresh(ctx, refreshToken)
+	return p, nil
+}
+
+// RevokeRefreshToken revokes refreshToken at the provider with slug, the one
+// the session was issued by (#1649), resolved like RefreshTokens. A provider
+// that cannot revoke (GitHub, or an issuer without an RFC 7009 endpoint)
+// returns idp.ErrRevocationUnsupported; the resolution errors are those of
+// sessionProvider.
+func (as *AuthService) RevokeRefreshToken(ctx context.Context, slug, refreshToken string) error {
+	p, err := as.sessionProvider(ctx, slug)
+	if err != nil {
+		return err
+	}
+	revoker, ok := p.(idp.TokenRevoker)
+	if !ok {
+		return fmt.Errorf("%w: %q", idp.ErrRevocationUnsupported, slug)
+	}
+	return revoker.RevokeRefreshToken(ctx, refreshToken)
 }
 
 // RevokeUserSessions ends every cookie session of the user by bumping their

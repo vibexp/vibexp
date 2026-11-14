@@ -399,3 +399,44 @@ func TestSessionStore_LoadReadsLastRefreshed(t *testing.T) {
 	require.NoError(t, store.Load(context.Background(), sess))
 	assert.Equal(t, refreshed, sess.LastRefreshedAt)
 }
+
+func TestSessionStore_DeleteOthers(t *testing.T) {
+	t.Run("keeps the given session and returns the others' decrypted refresh tokens", func(t *testing.T) {
+		store, repo, enc := newTestSessionStore(t)
+		ct, err := enc.Encrypt("rt-other")
+		require.NoError(t, err)
+		repo.On("DeleteOthersForUser", mock.Anything, "u-1", hashOf("keep-me")).Return([]*models.UserSession{
+			{UserID: "u-1", Provider: "oidc", RefreshTokenEnc: ct},
+			{UserID: "u-1", Provider: ""},
+			{UserID: "u-1", Provider: "corp-sso", RefreshTokenEnc: "garbage"},
+		}, nil)
+
+		got, err := store.DeleteOthers(context.Background(), "u-1", "keep-me")
+
+		require.NoError(t, err)
+		assert.Equal(t, []*session.Session{
+			{UserID: "u-1", Provider: "oidc", RefreshToken: "rt-other"},
+			{UserID: "u-1"},
+			{UserID: "u-1", Provider: "corp-sso"},
+		}, got, "a token that no longer decrypts is left empty")
+	})
+
+	t.Run("an empty session id keeps none", func(t *testing.T) {
+		store, repo, _ := newTestSessionStore(t)
+		repo.On("DeleteOthersForUser", mock.Anything, "u-1", []byte(nil)).Return(nil, nil)
+
+		got, err := store.DeleteOthers(context.Background(), "u-1", "")
+
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("a repository failure is returned", func(t *testing.T) {
+		store, repo, _ := newTestSessionStore(t)
+		repo.On("DeleteOthersForUser", mock.Anything, "u-1", mock.Anything).Return(nil, errors.New("db down"))
+
+		_, err := store.DeleteOthers(context.Background(), "u-1", "keep-me")
+
+		require.Error(t, err)
+	})
+}

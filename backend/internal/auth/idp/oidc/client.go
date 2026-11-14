@@ -7,6 +7,8 @@ import (
 	"crypto/subtle"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"regexp"
 	"slices"
@@ -62,6 +64,9 @@ type Client struct {
 	oauth2Config *oauth2.Config
 	// accessTypeOffline mirrors Config.AccessTypeOffline.
 	accessTypeOffline bool
+	// revocation is the issuer's RFC 7009 revocation endpoint, read from
+	// discovery; its zero value means the issuer advertises none.
+	revocation revocationEndpoint
 }
 
 // New builds a new OIDC Client. It performs OIDC discovery against
@@ -99,6 +104,7 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 			Scopes:       scopes,
 		},
 		accessTypeOffline: cfg.AccessTypeOffline,
+		revocation:        discoverRevocation(provider),
 	}, nil
 }
 
@@ -113,6 +119,39 @@ func supportsOfflineAccess(provider *oidc.Provider) bool {
 		return false
 	}
 	return slices.Contains(meta.ScopesSupported, oidc.ScopeOfflineAccess)
+}
+
+// revocationEndpoint is where and how the client revokes a token (RFC 7009).
+type revocationEndpoint struct {
+	// url is the revocation_endpoint of the discovery document; empty when the
+	// issuer advertises none.
+	url string
+	// post sends the client credentials in the form body (client_secret_post)
+	// instead of HTTP Basic (client_secret_basic).
+	post bool
+}
+
+// Client authentication methods of revocation_endpoint_auth_methods_supported.
+const (
+	authMethodBasic = "client_secret_basic"
+	authMethodPost  = "client_secret_post"
+)
+
+// discoverRevocation reads the revocation endpoint from the issuer's discovery
+// document. The client authenticates with client_secret_basic, the default of
+// RFC 8414, unless the issuer lists client_secret_post and not basic among
+// revocation_endpoint_auth_methods_supported. An unreadable document reads as
+// no endpoint.
+func discoverRevocation(provider *oidc.Provider) revocationEndpoint {
+	var meta struct {
+		Endpoint    string   `json:"revocation_endpoint"`
+		AuthMethods []string `json:"revocation_endpoint_auth_methods_supported"`
+	}
+	if err := provider.Claims(&meta); err != nil || meta.Endpoint == "" {
+		return revocationEndpoint{}
+	}
+	post := slices.Contains(meta.AuthMethods, authMethodPost) && !slices.Contains(meta.AuthMethods, authMethodBasic)
+	return revocationEndpoint{url: meta.Endpoint, post: post}
 }
 
 // Name returns the canonical provider identifier.
@@ -216,6 +255,61 @@ func (c *Client) Refresh(ctx context.Context, refreshToken string) (*idp.Tokens,
 		tokens.IDToken = rawIDToken
 	}
 	return tokens, claims, nil
+}
+
+// RevokeRefreshToken revokes refreshToken at the issuer's revocation endpoint
+// (RFC 7009) with token_type_hint=refresh_token, authenticating as the client.
+// It returns idp.ErrRevocationUnsupported when discovery advertised no
+// endpoint, and an error for any answer but 200 OK. ctx bounds the call; an
+// *http.Client in ctx under oauth2.HTTPClient is used, as for the token
+// endpoint.
+func (c *Client) RevokeRefreshToken(ctx context.Context, refreshToken string) error {
+	if c.revocation.url == "" {
+		return idp.ErrRevocationUnsupported
+	}
+	if refreshToken == "" {
+		return fmt.Errorf("oidc: refresh token is required")
+	}
+	form := url.Values{"token": {refreshToken}, "token_type_hint": {"refresh_token"}}
+	if c.revocation.post {
+		form.Set("client_id", c.oauth2Config.ClientID)
+		form.Set("client_secret", c.oauth2Config.ClientSecret)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.revocation.url, strings.NewReader(form.Encode()))
+	if err != nil {
+		return fmt.Errorf("oidc: build revocation request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if !c.revocation.post {
+		// RFC 6749 §2.3.1: the credentials are form-encoded before Basic.
+		req.SetBasicAuth(url.QueryEscape(c.oauth2Config.ClientID), url.QueryEscape(c.oauth2Config.ClientSecret))
+	}
+	resp, err := httpClient(ctx).Do(req)
+	if err != nil {
+		return fmt.Errorf("oidc: revoke token: %w: %w", idp.ErrProviderUnavailable, err)
+	}
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxRevocationErrorBody))
+	closeErr := resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("oidc: revoke token: status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	if err = errors.Join(readErr, closeErr); err != nil {
+		return fmt.Errorf("oidc: revoke token: read response: %w", err)
+	}
+	return nil
+}
+
+// maxRevocationErrorBody caps how much of a revocation response is read, and
+// quoted in the error of a failed one.
+const maxRevocationErrorBody = 512
+
+// httpClient returns the *http.Client carried in ctx under oauth2.HTTPClient,
+// or http.DefaultClient.
+func httpClient(ctx context.Context) *http.Client {
+	if hc, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok && hc != nil {
+		return hc
+	}
+	return http.DefaultClient
 }
 
 // claimsFromToken reads the claims from the verified ID token, or from userinfo

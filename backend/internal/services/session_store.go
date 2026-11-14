@@ -50,6 +50,12 @@ type SessionStoreInterface interface {
 	Slide(ctx context.Context, sess *session.Session) error
 	// Delete removes the session with id sid. A missing row is not an error.
 	Delete(ctx context.Context, sid string) error
+	// DeleteOthers removes every session of userID except the one with id
+	// keepSID (an empty keepSID keeps none) and returns the removed sessions
+	// with their UserID, Provider and RefreshToken set, so the caller can
+	// revoke the refresh tokens (#1649). A refresh token that no longer
+	// decrypts is left empty.
+	DeleteOthers(ctx context.Context, userID, keepSID string) ([]*session.Session, error)
 	// Sweep deletes expired rows and returns how many it removed.
 	Sweep(ctx context.Context) (int64, error)
 	// RefreshIfDue refreshes sess under a lock on its row (#1647). With the
@@ -245,6 +251,29 @@ func (s *SessionStore) Slide(ctx context.Context, sess *session.Session) error {
 // Delete removes the session with id sid.
 func (s *SessionStore) Delete(ctx context.Context, sid string) error {
 	return s.repo.Delete(ctx, sessionIDHash(sid))
+}
+
+// DeleteOthers removes the sessions of userID other than keepSID's.
+func (s *SessionStore) DeleteOthers(ctx context.Context, userID, keepSID string) ([]*session.Session, error) {
+	var keep []byte
+	if keepSID != "" {
+		keep = sessionIDHash(keepSID)
+	}
+	rows, err := s.repo.DeleteOthersForUser(ctx, userID, keep)
+	if err != nil {
+		return nil, err
+	}
+	removed := make([]*session.Session, 0, len(rows))
+	for _, row := range rows {
+		sess := &session.Session{UserID: userID, Provider: row.Provider}
+		// A token that no longer decrypts (a rotated encryption key) cannot
+		// be revoked; the row is gone either way.
+		if refresh, decErr := s.decrypt(row.RefreshTokenEnc); decErr == nil {
+			sess.RefreshToken = refresh
+		}
+		removed = append(removed, sess)
+	}
+	return removed, nil
 }
 
 // Sweep deletes the rows past their expiry.

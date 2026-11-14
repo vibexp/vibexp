@@ -517,6 +517,54 @@ func (_c *MockAuthServiceInterface_RefreshTokens_Call) RunAndReturn(run func(con
 	return _c
 }
 
+// RevokeRefreshToken provides a mock function with given fields: ctx, slug, refreshToken
+func (_m *MockAuthServiceInterface) RevokeRefreshToken(ctx context.Context, slug string, refreshToken string) error {
+	ret := _m.Called(ctx, slug, refreshToken)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RevokeRefreshToken")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
+		r0 = rf(ctx, slug, refreshToken)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockAuthServiceInterface_RevokeRefreshToken_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RevokeRefreshToken'
+type MockAuthServiceInterface_RevokeRefreshToken_Call struct {
+	*mock.Call
+}
+
+// RevokeRefreshToken is a helper method to define mock.On call
+//   - ctx context.Context
+//   - slug string
+//   - refreshToken string
+func (_e *MockAuthServiceInterface_Expecter) RevokeRefreshToken(ctx interface{}, slug interface{}, refreshToken interface{}) *MockAuthServiceInterface_RevokeRefreshToken_Call {
+	return &MockAuthServiceInterface_RevokeRefreshToken_Call{Call: _e.mock.On("RevokeRefreshToken", ctx, slug, refreshToken)}
+}
+
+func (_c *MockAuthServiceInterface_RevokeRefreshToken_Call) Run(run func(ctx context.Context, slug string, refreshToken string)) *MockAuthServiceInterface_RevokeRefreshToken_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockAuthServiceInterface_RevokeRefreshToken_Call) Return(_a0 error) *MockAuthServiceInterface_RevokeRefreshToken_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockAuthServiceInterface_RevokeRefreshToken_Call) RunAndReturn(run func(context.Context, string, string) error) *MockAuthServiceInterface_RevokeRefreshToken_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RevokeUserSessions provides a mock function with given fields: ctx, userID
 func (_m *MockAuthServiceInterface) RevokeUserSessions(ctx context.Context, userID string) (int64, error) {
 	ret := _m.Called(ctx, userID)
