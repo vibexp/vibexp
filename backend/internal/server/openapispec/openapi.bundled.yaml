@@ -36233,8 +36233,8 @@ components:
       type: object
       description: |
         One instance admin sourced from a sign-in provider's role mapping: the
-        user's last sign-in through the provider carried a claim value listed in
-        its `admin_values`. Only the mapping changes it.
+        claims of the user's last sign-in or session refresh through the provider
+        carried a value listed in its `admin_values`. Only the mapping changes it.
       additionalProperties: false
       required:
         - user_id
@@ -36265,12 +36265,12 @@ components:
           example: keycloak
         matched_value:
           type: string
-          description: The `admin_values` entry the user's claim matched at their last sign-in.
+          description: The `admin_values` entry the user's claim matched at the last evaluation of the role mapping (sign-in or session refresh).
           example: platform-admins
         evaluated_at:
           type: string
           format: date-time
-          description: When the mapping last made the user an admin (their last sign-in through the provider).
+          description: When the role mapping was last evaluated for the user (their last sign-in or session refresh through the provider).
     AdminInstanceAdminGrant:
       type: object
       description: |

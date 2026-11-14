@@ -283,7 +283,8 @@ func (as *AuthService) HandleCallback(
 // and token refresh (#1648); trigger (ProviderAdminTrigger*) says which. With
 // no mapping it reads and writes nothing. A failure fails the sign-in, so a
 // promotion the identity provider has withdrawn never survives a sign-in that
-// could not record it. The claim set itself is never logged.
+// could not record it; on refresh the caller answers 503 and keeps the session.
+// The claim set itself is never logged.
 func (as *AuthService) applyRoleMapping(
 	ctx context.Context, user *models.User, slug string, entry idp.Entry, claims *idp.Claims, trigger string,
 ) error {

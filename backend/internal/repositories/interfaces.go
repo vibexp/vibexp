@@ -2645,8 +2645,8 @@ type InstanceAdminRepository interface {
 
 // InstanceProviderAdminRepository defines the data access operations for
 // provider-sourced instance admins (#1644): one row per (user, provider) whose
-// last sign-in through the provider matched its role mapping. Only the role
-// mapping writes it. Rows of a disabled provider, or of one whose mapping was
+// last sign-in or session refresh (#1648) through the provider matched its
+// role mapping. Only the role mapping writes it. Rows of a disabled provider, or of one whose mapping was
 // cleared, are kept but every read below leaves them out: they grant nothing.
 type InstanceProviderAdminRepository interface {
 	// Upsert records userID as an admin of providerID with the matched value
