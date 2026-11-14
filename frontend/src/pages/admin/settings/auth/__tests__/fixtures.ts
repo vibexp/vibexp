@@ -20,6 +20,8 @@ export function provider(
     client_id: 'client-okta',
     has_client_secret: true,
     issuer_url: 'https://example.okta.com',
+    roles_claim: null,
+    admin_values: [],
     redirect_uri: REDIRECT_URI,
     health: { status: 'healthy', last_error: null, checked_at: null },
     created_at: '2026-10-01T10:00:00Z',

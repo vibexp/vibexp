@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   type AdminAuthProvider,
   type AdminAuthProviderTestResult,
@@ -122,6 +123,78 @@ function TypePicker({
         Google and GitHub can each be added once. The type cannot be changed
         later.
       </p>
+    </fieldset>
+  )
+}
+
+/**
+ * The OIDC role mapping (#1645): the claim whose values are read at sign-in,
+ * and the values that make a user an instance admin.
+ */
+function RoleMappingFields({
+  form,
+  errors,
+  disabled,
+  onChange,
+}: Readonly<{
+  form: ProviderForm
+  errors: FieldErrors<ProviderField>
+  disabled: boolean
+  onChange: (field: 'roles_claim' | 'admin_values', value: string) => void
+}>) {
+  const valuesHint =
+    'One value per line. A user whose claim contains one of them becomes an instance admin. Exact, case-sensitive match. Root admins are never affected.'
+  return (
+    <fieldset
+      className="min-w-0 space-y-4 rounded-md border p-4"
+      data-testid="provider-role-mapping"
+    >
+      <legend className="px-1 text-sm font-medium">
+        Role mapping (optional)
+      </legend>
+      <TextField
+        id="roles_claim"
+        label="Roles claim"
+        value={form.roles_claim}
+        error={errors.roles_claim}
+        disabled={disabled}
+        hint={
+          <>
+            The ID token or userinfo claim that lists the user&apos;s groups or
+            roles, such as <code className="font-mono">groups</code>,{' '}
+            <code className="font-mono">roles</code> or{' '}
+            <code className="font-mono">realm_access.roles</code>. Leave it
+            blank to turn the mapping off.
+          </>
+        }
+        placeholder="groups"
+        onChange={value => {
+          onChange('roles_claim', value)
+        }}
+      />
+      <FieldFrame
+        id="admin_values"
+        label="Admin values"
+        hint={valuesHint}
+        error={errors.admin_values}
+      >
+        <Textarea
+          id="admin_values"
+          rows={3}
+          value={form.admin_values}
+          disabled={disabled}
+          placeholder="platform-admins"
+          aria-invalid={errors.admin_values ? true : undefined}
+          aria-describedby={fieldDescribedBy(
+            'admin_values',
+            valuesHint,
+            errors.admin_values
+          )}
+          onChange={event => {
+            onChange('admin_values', event.target.value)
+          }}
+        />
+      </FieldFrame>
     </fieldset>
   )
 }
@@ -370,6 +443,15 @@ export function ProviderEditor({
           setField('client_secret', value)
         }}
       />
+
+      {form.type === 'oidc' && (
+        <RoleMappingFields
+          form={form}
+          errors={errors}
+          disabled={disabled}
+          onChange={setField}
+        />
+      )}
 
       <div className="space-y-1">
         <label htmlFor="redirect_uri" className="text-sm font-medium">

@@ -18,8 +18,10 @@ import { formatDateTime } from '@/lib/time'
 import { toast } from '@/lib/toast'
 import { ownerEmailParam } from '@/pages/admin/filters/advancedFilterParams'
 import {
+  type AdminAuthProvider,
   type AdminInstanceAdmin,
   type AdminInstanceAdminList,
+  type AdminInstanceProviderAdmin,
   authSettingsService,
 } from '@/services/authSettingsService'
 
@@ -27,19 +29,65 @@ import { FieldFrame } from '../InstanceSettingsFields'
 import { fieldDescribedBy } from '../instanceSettingsForm'
 import { messageOf } from './authSettingsForm'
 
+/** The name a provider-sourced admin's provider is shown by: its display name, else its slug. */
+function providerName(
+  admin: Pick<AdminInstanceProviderAdmin, 'provider_id' | 'provider_slug'>,
+  providers: readonly Pick<AdminAuthProvider, 'id' | 'display_name'>[]
+): string {
+  return (
+    providers.find(provider => provider.id === admin.provider_id)
+      ?.display_name ?? admin.provider_slug
+  )
+}
+
+/** One admin a provider's role mapping made (#1645): read-only, with why. */
+function ProviderAdminRow({
+  admin,
+  provider,
+}: Readonly<{ admin: AdminInstanceProviderAdmin; provider: string }>) {
+  return (
+    <li
+      className="flex flex-wrap items-center gap-2 py-2 text-sm"
+      data-testid="auth-provider-admin"
+    >
+      <span className="font-medium">{admin.name ?? admin.email}</span>
+      {admin.name && (
+        <span className="text-muted-foreground">{admin.email}</span>
+      )}
+      <Badge variant="outline">Identity provider</Badge>
+      <span className="text-muted-foreground">
+        via {provider}, matched{' '}
+        <code className="font-mono">{admin.matched_value}</code>
+      </span>
+      <span className="text-muted-foreground basis-full text-xs">
+        Managed by {provider}: change it at the identity provider or in the role
+        mapping.
+      </span>
+    </li>
+  )
+}
+
 /**
  * Instance admins (#1239): the root admins set in the server configuration,
- * read-only, and the admins granted in the database.
+ * read-only, the admins granted in the database, and the admins a sign-in
+ * provider's role mapping made (#1645), read-only too — the server refuses a
+ * grant or revoke of those (409), as only the mapping changes them.
  *
  * Only a root admin may grant or revoke, and the server refuses anyone else
  * (403), so the controls are rendered only when `canManage` is set — from the
  * server's `is_root_instance_admin` flag, never from local role logic.
- * `onChanged` runs after each stored change.
+ * `providers` names the provider of a provider-sourced admin; without it the
+ * slug is shown. `onChanged` runs after each stored change.
  */
 export function InstanceAdminsSection({
   canManage,
+  providers = [],
   onChanged,
-}: Readonly<{ canManage: boolean; onChanged?: () => void }>) {
+}: Readonly<{
+  canManage: boolean
+  providers?: readonly AdminAuthProvider[] | null
+  onChanged?: () => void
+}>) {
   const [list, setList] = useState<AdminInstanceAdminList | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -129,8 +177,9 @@ export function InstanceAdminsSection({
         <CardTitle>Instance admins</CardTitle>
         <CardDescription>
           Who can open this admin portal. Root admins are set in the server
-          configuration and cannot be changed here; only a root admin can grant
-          or revoke the others.
+          configuration, and an identity provider&apos;s role mapping makes
+          others; neither can be changed here. Only a root admin can grant or
+          revoke the rest.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -151,7 +200,7 @@ export function InstanceAdminsSection({
               data-testid="auth-root-admin"
             >
               <span className="font-medium">{root}</span>
-              <Badge variant="secondary">config</Badge>
+              <Badge variant="secondary">Server configuration</Badge>
               <span className="text-muted-foreground">Root admin</span>
             </li>
           ))}
@@ -165,6 +214,7 @@ export function InstanceAdminsSection({
               {admin.name && (
                 <span className="text-muted-foreground">{admin.email}</span>
               )}
+              <Badge variant="outline">Granted</Badge>
               <span className="text-muted-foreground">
                 granted {formatDateTime(admin.granted_at)}
               </span>
@@ -184,6 +234,13 @@ export function InstanceAdminsSection({
                 </Button>
               )}
             </li>
+          ))}
+          {list.provider_admins.map(admin => (
+            <ProviderAdminRow
+              key={`provider:${admin.provider_id}:${admin.user_id}`}
+              admin={admin}
+              provider={providerName(admin, providers ?? [])}
+            />
           ))}
         </ul>
         {list.admins.length === 0 && (

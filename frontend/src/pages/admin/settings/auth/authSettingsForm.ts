@@ -46,6 +46,8 @@ export const PROVIDER_FORM_FIELDS = [
   'client_id',
   'client_secret',
   'issuer_url',
+  'roles_claim',
+  'admin_values',
 ] as const
 
 export type ProviderField = (typeof PROVIDER_FORM_FIELDS)[number]
@@ -58,6 +60,10 @@ export interface ProviderForm {
   /** Write-only: always starts empty, and blank on an edit keeps the stored one. */
   client_secret: string
   issuer_url: string
+  /** The role mapping's claim path (#1645); blank means no mapping. */
+  roles_claim: string
+  /** The role mapping's admin values, one per line. */
+  admin_values: string
   enabled: boolean
 }
 
@@ -65,6 +71,10 @@ export interface ProviderForm {
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/
 const DOMAIN_LABEL_CHARS = /^[a-z0-9-]{1,63}$/
 const MAX_DOMAIN_LENGTH = 253
+/** The role mapping's limits, as `instance_auth_settings_validation.go` has them. */
+const MAX_ROLES_CLAIM_LENGTH = 255
+const MAX_ADMIN_VALUES = 50
+const MAX_ADMIN_VALUE_LENGTH = 255
 
 /**
  * The types a new provider may still take: Google and GitHub are limited to
@@ -87,6 +97,8 @@ export function emptyProviderForm(type: AdminAuthProviderType): ProviderForm {
     client_id: '',
     client_secret: '',
     issuer_url: '',
+    roles_claim: '',
+    admin_values: '',
     enabled: true,
   }
 }
@@ -99,6 +111,8 @@ export function toProviderForm(provider: AdminAuthProvider): ProviderForm {
     client_id: provider.client_id,
     client_secret: '',
     issuer_url: provider.issuer_url ?? '',
+    roles_claim: provider.roles_claim ?? '',
+    admin_values: provider.admin_values.join('\n'),
     enabled: provider.enabled,
   }
 }
@@ -148,6 +162,85 @@ export function issuerChanged(
   )
 }
 
+// --- role mapping (#1645) ----------------------------------------------------
+
+/** A provider's role mapping as the API carries it; no mapping is `null` + `[]`. */
+export interface RoleMapping {
+  roles_claim: string | null
+  admin_values: string[]
+}
+
+/**
+ * The admin values of the one-per-line editor: each line trimmed, blank lines
+ * dropped and duplicates removed exactly (case-sensitive), first one kept. A
+ * value is otherwise kept as entered, inner spaces included.
+ */
+export function adminValuesOf(text: string): string[] {
+  const values = new Set<string>()
+  for (const line of text.split('\n')) {
+    const value = line.trim()
+    if (value !== '') values.add(value)
+  }
+  return [...values]
+}
+
+/** The mapping a form describes: a blank claim turns it off. */
+export function roleMappingOf(
+  form: Pick<ProviderForm, 'roles_claim' | 'admin_values'>
+): RoleMapping {
+  const claim = form.roles_claim.trim()
+  if (claim === '') return { roles_claim: null, admin_values: [] }
+  return { roles_claim: claim, admin_values: adminValuesOf(form.admin_values) }
+}
+
+/** Whether two mappings are the same claim with the same values in order. */
+function sameRoleMapping(a: RoleMapping, b: RoleMapping): boolean {
+  return (
+    a.roles_claim === b.roles_claim &&
+    a.admin_values.length === b.admin_values.length &&
+    a.admin_values.every((value, index) => value === b.admin_values[index])
+  )
+}
+
+/**
+ * Why `claim` is not an acceptable roles claim path, or null: 1-255
+ * characters, no whitespace, and dot-separated with no empty segment.
+ */
+export function rolesClaimError(claim: string): string | null {
+  if (claim.length > MAX_ROLES_CLAIM_LENGTH) {
+    return `Use at most ${String(MAX_ROLES_CLAIM_LENGTH)} characters.`
+  }
+  if (/\s/.test(claim)) return 'The claim must not contain spaces.'
+  if (claim.split('.').includes('')) {
+    return 'Use a claim name or a dotted path such as realm_access.roles.'
+  }
+  return null
+}
+
+/** Client-side errors of an OIDC provider's role mapping. */
+function roleMappingErrors(
+  form: Pick<ProviderForm, 'roles_claim' | 'admin_values'>
+): FieldErrors<'roles_claim' | 'admin_values'> {
+  const claim = form.roles_claim.trim()
+  const values = adminValuesOf(form.admin_values)
+  if (claim === '') {
+    return values.length > 0
+      ? { roles_claim: 'Enter the claim that carries these values.' }
+      : {}
+  }
+  const errors: FieldErrors<'roles_claim' | 'admin_values'> = {}
+  const claimError = rolesClaimError(claim)
+  if (claimError) errors.roles_claim = claimError
+  if (values.length === 0) {
+    errors.admin_values = 'Enter at least one value that makes a user an admin.'
+  } else if (values.length > MAX_ADMIN_VALUES) {
+    errors.admin_values = `Enter at most ${String(MAX_ADMIN_VALUES)} values.`
+  } else if (values.some(value => value.length > MAX_ADMIN_VALUE_LENGTH)) {
+    errors.admin_values = `Each value can be at most ${String(MAX_ADMIN_VALUE_LENGTH)} characters.`
+  }
+  return errors
+}
+
 /**
  * Client-side errors of a provider form. `stored` is the provider being
  * edited, or null for a new one. The client secret is required for a new
@@ -171,6 +264,7 @@ export function validateProviderForm(
   if (form.type === 'oidc') {
     const issuer = issuerUrlError(form.issuer_url)
     if (issuer) errors.issuer_url = issuer
+    Object.assign(errors, roleMappingErrors(form))
   }
   if (form.client_secret === '') {
     if (stored === null) {
@@ -188,6 +282,7 @@ export function toProviderCreate(
   sortOrder: number,
   expectedVersion: number
 ): AdminAuthProviderCreate {
+  const mapping = roleMappingOf(form)
   return {
     type: form.type,
     slug: form.slug,
@@ -197,27 +292,63 @@ export function toProviderCreate(
     client_id: form.client_id.trim(),
     client_secret: form.client_secret,
     ...(form.type === 'oidc' ? { issuer_url: form.issuer_url.trim() } : {}),
+    ...(form.type === 'oidc' && mapping.roles_claim !== null
+      ? { roles_claim: mapping.roles_claim, admin_values: mapping.admin_values }
+      : {}),
     expected_version: expectedVersion,
   }
 }
 
 /**
+ * The role mapping an update sends: the form's, when it differs from the
+ * stored one, and nothing otherwise — the server keeps the stored mapping when
+ * both fields are omitted, so an edit that leaves it alone (the enable toggle,
+ * a reorder) can never clear it.
+ */
+function roleMappingChange(
+  provider: AdminAuthProvider,
+  changes: Partial<Pick<ProviderForm, 'roles_claim' | 'admin_values'>>
+): RoleMapping | null {
+  if (provider.type !== 'oidc') return null
+  if (changes.roles_claim === undefined && changes.admin_values === undefined) {
+    return null
+  }
+  const stored: RoleMapping = {
+    roles_claim: provider.roles_claim,
+    admin_values: provider.admin_values,
+  }
+  const next = roleMappingOf({
+    roles_claim: changes.roles_claim ?? provider.roles_claim ?? '',
+    admin_values: changes.admin_values ?? provider.admin_values.join('\n'),
+  })
+  return sameRoleMapping(next, stored) ? null : next
+}
+
+/**
  * The whole-row PUT body for `provider` with `changes` applied. The client
  * secret is sent only when one is given, so an omitted one keeps the stored
- * secret.
+ * secret; the role mapping only when it changed, so an omitted one keeps the
+ * stored mapping.
  */
 export function toProviderUpdate(
   provider: AdminAuthProvider,
   changes: Partial<
     Pick<
       ProviderForm,
-      'display_name' | 'client_id' | 'client_secret' | 'issuer_url' | 'enabled'
+      | 'display_name'
+      | 'client_id'
+      | 'client_secret'
+      | 'issuer_url'
+      | 'roles_claim'
+      | 'admin_values'
+      | 'enabled'
     > & { sort_order: number }
   >,
   expectedVersion: number,
   confirmLockoutRisk: boolean
 ): AdminAuthProviderUpdate {
   const issuer = (changes.issuer_url ?? provider.issuer_url ?? '').trim()
+  const mapping = roleMappingChange(provider, changes)
   return {
     display_name: (changes.display_name ?? provider.display_name).trim(),
     enabled: changes.enabled ?? provider.enabled,
@@ -225,6 +356,7 @@ export function toProviderUpdate(
     client_id: (changes.client_id ?? provider.client_id).trim(),
     ...(changes.client_secret ? { client_secret: changes.client_secret } : {}),
     ...(provider.type === 'oidc' ? { issuer_url: issuer } : {}),
+    ...(mapping ?? {}),
     expected_version: expectedVersion,
     confirm_lockout_risk: confirmLockoutRisk,
   }
@@ -410,6 +542,12 @@ export function lockoutRiskCopy(
         title: 'This is the provider you signed in with',
         description:
           'After this change you cannot sign in through it again once your session ends. Make sure another enabled provider lets you in before you continue.',
+      }
+    case 'own_admin_status':
+      return {
+        title: 'This removes your own admin access',
+        description:
+          "You are an instance admin only through this provider's role mapping. After this change you lose access to this admin portal on your next request. Make sure another admin can still manage the instance before you continue.",
       }
     default:
       return {
