@@ -485,8 +485,8 @@ func (s *Server) handleCallbackSuccess(
 	if s.sessionManager != nil {
 		cookie, err := s.newSessionCookie(r.Context(), newProviderSession(user, tokens, provider))
 		if err != nil {
-			s.logger.With("error", err).Error("Failed to create session")
-			apiErr := errors.NewInternalError("Failed to create session")
+			s.logger.With("error", err).Error("Failed to create provider session")
+			apiErr := errors.NewInternalError(createSessionFailedDetail)
 			errors.WriteJSONError(w, r, apiErr)
 			return
 		}
@@ -511,6 +511,10 @@ func (s *Server) handleCallbackSuccess(
 	// Redirect to frontend home after successful authentication
 	http.Redirect(w, r, s.config.Frontend.BaseURL+"/", http.StatusFound)
 }
+
+// createSessionFailedDetail is the client-facing message when a sign-in
+// cannot store its session.
+const createSessionFailedDetail = "Failed to create session"
 
 // newProviderSession builds the session of a user who just signed in through
 // the identity provider with slug provider.
@@ -858,7 +862,7 @@ func (s *Server) handleDevLoginSuccess(w http.ResponseWriter, r *http.Request, u
 		cookie, err := s.newSessionCookie(r.Context(), sess)
 		if err != nil {
 			s.logger.With("error", err).Error("Failed to create dev session")
-			apiErr := errors.NewInternalError("Failed to create session")
+			apiErr := errors.NewInternalError(createSessionFailedDetail)
 			errors.WriteJSONError(w, r, apiErr)
 			return
 		}
