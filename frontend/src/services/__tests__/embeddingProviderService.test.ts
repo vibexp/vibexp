@@ -69,6 +69,8 @@ const provider: EmbeddingProviderResponse = {
   chunk_size: 1000,
   chunk_overlap: 200,
   concurrency: 1,
+  batch_size: 32,
+  request_timeout_seconds: 30,
   is_default: true,
   base_url: 'https://api.openai.com/v1',
   configuration: '{}',

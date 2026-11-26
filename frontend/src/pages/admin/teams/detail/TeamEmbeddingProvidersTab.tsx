@@ -32,6 +32,10 @@ function EmbeddingDetails({
       </dd>
       <dt className="text-muted-foreground">Concurrency</dt>
       <dd>{provider.concurrency}</dd>
+      <dt className="text-muted-foreground">Batch size</dt>
+      <dd>{provider.batch_size}</dd>
+      <dt className="text-muted-foreground">Request timeout</dt>
+      <dd>{provider.request_timeout_seconds}s</dd>
       <dt className="text-muted-foreground">Query prefix</dt>
       <dd className="break-all">{displayValue(provider.query_prefix)}</dd>
       <dt className="text-muted-foreground">Document prefix</dt>

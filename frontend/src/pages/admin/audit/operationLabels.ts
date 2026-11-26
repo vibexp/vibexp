@@ -67,6 +67,10 @@ export const AUDIT_OPERATIONS: Record<AuditOperation, AuditOperationInfo> = {
     group: 'auth',
   },
   'auth.sessions.revoked': { label: 'Sessions revoked', group: 'auth' },
+  'auth.session.ended_by_provider': {
+    label: 'Session ended by identity provider',
+    group: 'auth',
+  },
   'auth.api_key.created': { label: 'API key created', group: 'auth' },
   'auth.api_key.revoked': { label: 'API key revoked', group: 'auth' },
   'auth.api_access.revoked': { label: 'API access revoked', group: 'auth' },

@@ -114,6 +114,56 @@ describe('EmbeddingProviderDialog', () => {
     })
   })
 
+  it('defaults batch size and request timeout and sends edited values to the probe and submit', async () => {
+    const user = userEvent.setup()
+    mockedValidate.mockResolvedValue({ is_valid: true, message: 'ok' })
+    const onSubmit = renderDialog()
+
+    const batchSize = screen.getByLabelText('Batch size')
+    const timeout = screen.getByLabelText('Request timeout (seconds)')
+    expect(batchSize).toHaveValue(32)
+    expect(timeout).toHaveValue(30)
+
+    await fillValidForm(user)
+    await user.clear(batchSize)
+    await user.type(batchSize, '8')
+    await user.clear(timeout)
+    await user.type(timeout, '120')
+    await user.click(screen.getByRole('button', { name: 'Add provider' }))
+
+    const expected = expect.objectContaining({
+      batch_size: 8,
+      request_timeout_seconds: 120,
+    })
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(expected)
+    })
+    expect(mockedValidate).toHaveBeenCalledWith('team-1', expected)
+  })
+
+  // The inputs carry the server's bounds as min/max, so the browser refuses to
+  // submit an out-of-range value; the zod schema enforces the same bounds for
+  // any submit that bypasses native validation.
+  it.each([
+    ['Batch size', '0'],
+    ['Batch size', '33'],
+    ['Request timeout (seconds)', '4'],
+    ['Request timeout (seconds)', '301'],
+  ])('refuses to submit %s = %s', async (label, value) => {
+    const user = userEvent.setup()
+    const onSubmit = renderDialog()
+
+    await fillValidForm(user)
+    const input = screen.getByLabelText(label)
+    await user.clear(input)
+    await user.type(input, value)
+    await user.click(screen.getByRole('button', { name: 'Add provider' }))
+
+    expect(input).toBeInvalid()
+    expect(mockedValidate).not.toHaveBeenCalled()
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
   it('blocks submit and shows an error when validation fails', async () => {
     const user = userEvent.setup()
     mockedValidate.mockResolvedValue({
@@ -143,6 +193,8 @@ describe('EmbeddingProviderDialog', () => {
     chunk_size: 1000,
     chunk_overlap: 200,
     concurrency: 5,
+    batch_size: 8,
+    request_timeout_seconds: 120,
     is_default: false,
     base_url: 'https://api.openai.com/v1',
     configuration: '{}',
@@ -165,6 +217,8 @@ describe('EmbeddingProviderDialog', () => {
       />
     )
     expect(screen.getByLabelText('Concurrency')).toHaveValue(5)
+    expect(screen.getByLabelText('Batch size')).toHaveValue(8)
+    expect(screen.getByLabelText('Request timeout (seconds)')).toHaveValue(120)
   })
 
   it('skips validation on a name-only edit (identity unchanged)', async () => {
