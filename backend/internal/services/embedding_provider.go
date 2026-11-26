@@ -24,6 +24,10 @@ const (
 	// Safe single-threaded default when a create request omits concurrency, so a
 	// provider never fans out embedding requests until an operator opts in (#144).
 	defaultEmbeddingConcurrency = 1
+	// Per-request batch size and timeout when a create request omits them: the
+	// values that were hardcoded before they became provider settings (#1665).
+	defaultEmbeddingBatchSize             = maxEmbeddingBatchSize
+	defaultEmbeddingRequestTimeoutSeconds = int(generateEmbeddingsTimeout / time.Second)
 )
 
 // Ensure EmbeddingProviderService satisfies the narrow resolver seam consumed by
@@ -152,14 +156,18 @@ func (eps *EmbeddingProviderService) buildEmbeddingProvider(
 
 	now := time.Now()
 	return &models.EmbeddingProvider{
-		UserID:          userID,
-		TeamID:          &teamID,
-		Name:            req.Name,
-		ProviderType:    req.ProviderType,
-		Model:           req.Model,
-		ChunkSize:       chunkSize,
-		ChunkOverlap:    chunkOverlap,
-		Concurrency:     concurrency,
+		UserID:       userID,
+		TeamID:       &teamID,
+		Name:         req.Name,
+		ProviderType: req.ProviderType,
+		Model:        req.Model,
+		ChunkSize:    chunkSize,
+		ChunkOverlap: chunkOverlap,
+		Concurrency:  concurrency,
+		BatchSize:    intValueOr(req.BatchSize, defaultEmbeddingBatchSize),
+		RequestTimeoutSeconds: intValueOr(
+			req.RequestTimeoutSeconds, defaultEmbeddingRequestTimeoutSeconds,
+		),
 		QueryPrefix:     req.QueryPrefix,
 		DocumentPrefix:  req.DocumentPrefix,
 		IsDefault:       isDefault,
@@ -316,6 +324,8 @@ func (eps *EmbeddingProviderService) updateProviderFields(
 	if req.Concurrency != nil {
 		provider.Concurrency = *req.Concurrency
 	}
+	provider.BatchSize = intValueOr(req.BatchSize, provider.BatchSize)
+	provider.RequestTimeoutSeconds = intValueOr(req.RequestTimeoutSeconds, provider.RequestTimeoutSeconds)
 	// A non-nil prefix (including an explicit empty string) is applied, so sending
 	// "" clears a previously configured prefix; omitting the field leaves it as-is.
 	if req.QueryPrefix != nil {
@@ -467,16 +477,18 @@ func (eps *EmbeddingProviderService) DeleteEmbeddingProvider(
 // a write names them in changed_fields only.
 func embeddingProviderAuditValues(provider *models.EmbeddingProvider) map[string]any {
 	return map[string]any{
-		"name":            provider.Name,
-		"provider_type":   provider.ProviderType,
-		"model":           provider.Model,
-		"is_default":      provider.IsDefault,
-		"base_url":        optionalAuditString(provider.BaseURL),
-		"chunk_size":      provider.ChunkSize,
-		"chunk_overlap":   provider.ChunkOverlap,
-		"concurrency":     provider.Concurrency,
-		"query_prefix":    optionalAuditString(provider.QueryPrefix),
-		"document_prefix": optionalAuditString(provider.DocumentPrefix),
+		"name":                    provider.Name,
+		"provider_type":           provider.ProviderType,
+		"model":                   provider.Model,
+		"is_default":              provider.IsDefault,
+		"base_url":                optionalAuditString(provider.BaseURL),
+		"chunk_size":              provider.ChunkSize,
+		"chunk_overlap":           provider.ChunkOverlap,
+		"concurrency":             provider.Concurrency,
+		"batch_size":              provider.BatchSize,
+		"request_timeout_seconds": provider.RequestTimeoutSeconds,
+		"query_prefix":            optionalAuditString(provider.QueryPrefix),
+		"document_prefix":         optionalAuditString(provider.DocumentPrefix),
 	}
 }
 
@@ -526,9 +538,8 @@ func (eps *EmbeddingProviderService) ResolveActiveProvider(
 
 	// The model and vector width come from the stored row + the fixed constant, so
 	// document and query embeddings for this team always share one model and width.
-	provider, err := NewGenerationProvider(
-		row, apiKey, row.Model, EmbeddingVectorDimensions, generateEmbeddingsTimeout, eps.guard,
-	)
+	// The row's batch_size and request_timeout_seconds size each request (#1665).
+	provider, err := NewGenerationProvider(row, apiKey, row.Model, EmbeddingVectorDimensions, eps.guard)
 	if err != nil {
 		return nil, err
 	}
@@ -595,6 +606,20 @@ func (eps *EmbeddingProviderService) authorizeProviderMutation(
 	return eps.authz.Can(ctx, userID, teamID, authz.TeamUpdate)
 }
 
+// validationProbeRow is the provider row the /validate probe is built from. The
+// probe runs with the batch size and request timeout that would be saved, so a
+// slow provider that needs a longer timeout validates with it (#1665); omitted
+// values are the create-path defaults.
+func validationProbeRow(req models.ValidateEmbeddingProviderRequest) *models.EmbeddingProvider {
+	baseURL := req.BaseURL
+	return &models.EmbeddingProvider{
+		ProviderType:          req.ProviderType,
+		BaseURL:               &baseURL,
+		BatchSize:             intValueOr(req.BatchSize, defaultEmbeddingBatchSize),
+		RequestTimeoutSeconds: intValueOr(req.RequestTimeoutSeconds, defaultEmbeddingRequestTimeoutSeconds),
+	}
+}
+
 // validateOpenAICompatibleProvider validates a provider by running the exact
 // generation path used for real embeddings: it builds the provider and requests a
 // probe embedding. Reusing NewGenerationProvider means the provider is accepted
@@ -624,19 +649,14 @@ func (eps *EmbeddingProviderService) validateOpenAICompatibleProvider(
 		return response, nil
 	}
 
-	row := &models.EmbeddingProvider{
-		ProviderType: req.ProviderType,
-		BaseURL:      &baseURL,
-	}
+	row := validationProbeRow(req)
 
 	apiKey := ""
 	if req.APIKey != nil {
 		apiKey = *req.APIKey
 	}
 
-	provider, err := NewGenerationProvider(
-		row, apiKey, req.Model, EmbeddingVectorDimensions, generateEmbeddingsTimeout, eps.guard,
-	)
+	provider, err := NewGenerationProvider(row, apiKey, req.Model, EmbeddingVectorDimensions, eps.guard)
 	if err != nil {
 		logProviderValidationFailure("embedding", baseURL, err)
 		response.Message = "Unsupported or misconfigured provider"

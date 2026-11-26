@@ -32,6 +32,9 @@ type CopyEmbeddingProviderRequest struct {
 	// BaseUrl Overrides the source provider's base URL. Send null or an empty string to store no base URL on the copy.
 	BaseUrl *string `json:"base_url,omitempty"`
 
+	// BatchSize Overrides the source provider's chunks per embeddings request.
+	BatchSize *int `json:"batch_size,omitempty"`
+
 	// ChunkOverlap Overrides the source provider's chunk overlap.
 	ChunkOverlap *int `json:"chunk_overlap,omitempty"`
 
@@ -64,6 +67,9 @@ type CopyEmbeddingProviderRequest struct {
 	// Omitted or false, nothing is enqueued and the response's `activation.reprocess_enqueued` is false. Sent true, a background re-embed is enqueued for the destination team, and the response reports whether the team's existing vectors were WIPED first: they are, and only are, when the copy becomes the effective active provider AND its model differs from the model it displaces — the case where the stored vectors can no longer be compared against new queries. Any other case fills gaps only, leaving stored vectors intact.
 	Reprocess *bool `json:"reprocess,omitempty"`
 
+	// RequestTimeoutSeconds Overrides the source provider's embeddings request timeout, in seconds.
+	RequestTimeoutSeconds *int `json:"request_timeout_seconds,omitempty"`
+
 	// SourceProviderId Provider to copy, as it exists in the source team.
 	SourceProviderId openapi_types.UUID `json:"source_provider_id"`
 
@@ -84,6 +90,9 @@ type CopyEmbeddingProviderResponse struct {
 type CreateEmbeddingProviderRequest struct {
 	ApiKey  *string `json:"api_key,omitempty"`
 	BaseUrl *string `json:"base_url,omitempty"`
+
+	// BatchSize Optional number of document chunks per embeddings request; defaults to 32 when omitted. Lower it for slow or CPU-only providers.
+	BatchSize *int `json:"batch_size,omitempty"`
 
 	// ChunkOverlap Optional chunk overlap; defaults to 200 when omitted.
 	ChunkOverlap *int `json:"chunk_overlap,omitempty"`
@@ -106,11 +115,17 @@ type CreateEmbeddingProviderRequest struct {
 
 	// QueryPrefix Optional instruction prefix prepended to search queries before embedding. Defaults to empty (no prefix) when omitted.
 	QueryPrefix *string `json:"query_prefix,omitempty"`
+
+	// RequestTimeoutSeconds Optional timeout, in seconds, for one embeddings request; defaults to 30 when omitted. Raise it for slow or CPU-only providers. One entity's whole embedding is also bounded by a fixed 2-minute job timeout, which this setting does not extend.
+	RequestTimeoutSeconds *int `json:"request_timeout_seconds,omitempty"`
 }
 
 // EmbeddingProvider defines model for EmbeddingProvider.
 type EmbeddingProvider struct {
 	BaseUrl *string `json:"base_url,omitempty"`
+
+	// BatchSize Number of document chunks sent in one embeddings request. Lower it for slow or CPU-only providers.
+	BatchSize int `json:"batch_size"`
 
 	// ChunkOverlap Overlap between adjacent chunks.
 	ChunkOverlap int `json:"chunk_overlap"`
@@ -135,6 +150,9 @@ type EmbeddingProvider struct {
 
 	// QueryPrefix Instruction prefix prepended to search queries before they are embedded (only the text sent to the provider; nothing extra is stored). Asymmetric models require this — e.g. mxbai/BGE English expect "Represent this sentence for searching relevant passages: ", E5 expects "query: ". Empty/null means no prefix (default behaviour).
 	QueryPrefix *string `json:"query_prefix,omitempty"`
+
+	// RequestTimeoutSeconds Timeout, in seconds, for one embeddings request. Raise it for slow or CPU-only providers. One entity's whole embedding, all requests and retries included, is also bounded by a fixed 2-minute job timeout, which this setting does not extend.
+	RequestTimeoutSeconds int `json:"request_timeout_seconds"`
 
 	// TeamId Team that owns this provider.
 	TeamId    *openapi_types.UUID `json:"team_id,omitempty"`
@@ -176,6 +194,9 @@ type EmbeddingProviderCopyActivation struct {
 type EmbeddingProviderResponse struct {
 	BaseUrl *string `json:"base_url,omitempty"`
 
+	// BatchSize Number of document chunks sent in one embeddings request. Lower it for slow or CPU-only providers.
+	BatchSize int `json:"batch_size"`
+
 	// ChunkOverlap Overlap between adjacent chunks.
 	ChunkOverlap int `json:"chunk_overlap"`
 
@@ -200,6 +221,9 @@ type EmbeddingProviderResponse struct {
 
 	// QueryPrefix Instruction prefix prepended to search queries before they are embedded (only the text sent to the provider; nothing extra is stored). Asymmetric models require this — e.g. mxbai/BGE English expect "Represent this sentence for searching relevant passages: ", E5 expects "query: ". Empty/null means no prefix (default behaviour).
 	QueryPrefix *string `json:"query_prefix,omitempty"`
+
+	// RequestTimeoutSeconds Timeout, in seconds, for one embeddings request. Raise it for slow or CPU-only providers. One entity's whole embedding, all requests and retries included, is also bounded by a fixed 2-minute job timeout, which this setting does not extend.
+	RequestTimeoutSeconds int `json:"request_timeout_seconds"`
 
 	// TeamId Team that owns this provider.
 	TeamId    *openapi_types.UUID `json:"team_id,omitempty"`
@@ -242,8 +266,11 @@ type ErrorResponse struct {
 
 // UpdateEmbeddingProviderRequest defines model for UpdateEmbeddingProviderRequest.
 type UpdateEmbeddingProviderRequest struct {
-	ApiKey        *string                 `json:"api_key,omitempty"`
-	BaseUrl       *string                 `json:"base_url,omitempty"`
+	ApiKey  *string `json:"api_key,omitempty"`
+	BaseUrl *string `json:"base_url,omitempty"`
+
+	// BatchSize Number of document chunks per embeddings request.
+	BatchSize     *int                    `json:"batch_size,omitempty"`
 	ChunkOverlap  *int                    `json:"chunk_overlap,omitempty"`
 	ChunkSize     *int                    `json:"chunk_size,omitempty"`
 	Concurrency   *int                    `json:"concurrency,omitempty"`
@@ -258,17 +285,26 @@ type UpdateEmbeddingProviderRequest struct {
 
 	// QueryPrefix Instruction prefix prepended to search queries before embedding. Send an empty string to clear a previously configured prefix.
 	QueryPrefix *string `json:"query_prefix,omitempty"`
+
+	// RequestTimeoutSeconds Timeout, in seconds, for one embeddings request.
+	RequestTimeoutSeconds *int `json:"request_timeout_seconds,omitempty"`
 }
 
 // ValidateEmbeddingProviderRequest defines model for ValidateEmbeddingProviderRequest.
 type ValidateEmbeddingProviderRequest struct {
-	ApiKey        *string                 `json:"api_key,omitempty"`
-	BaseUrl       string                  `json:"base_url"`
+	ApiKey  *string `json:"api_key,omitempty"`
+	BaseUrl string  `json:"base_url"`
+
+	// BatchSize Batch size the probe runs with, so it matches what will be saved; defaults to 32 when omitted.
+	BatchSize     *int                    `json:"batch_size,omitempty"`
 	Configuration *map[string]interface{} `json:"configuration,omitempty"`
 
 	// Model Embedding model to probe. The provider is accepted only if it returns vectors of the fixed dimension VibeXP stores (1024).
 	Model        string `json:"model"`
 	ProviderType string `json:"provider_type"`
+
+	// RequestTimeoutSeconds Request timeout, in seconds, the probe runs with, so a slow provider validates with the timeout it will be saved with; defaults to 30 when omitted.
+	RequestTimeoutSeconds *int `json:"request_timeout_seconds,omitempty"`
 }
 
 // ValidateEmbeddingProviderResponse defines model for ValidateEmbeddingProviderResponse.

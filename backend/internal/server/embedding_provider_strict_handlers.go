@@ -310,9 +310,11 @@ func (e *embeddingProvidersStrictServer) update(
 	}
 
 	req := updateRequestFromGen(body)
-	if ve := appendPrefixLengthErrors(nil, req.QueryPrefix, req.DocumentPrefix); len(ve) > 0 {
+	ve := appendPrefixLengthErrors(nil, req.QueryPrefix, req.DocumentPrefix)
+	ve = appendRequestLimitErrors(ve, req.BatchSize, req.RequestTimeoutSeconds)
+	if len(ve) > 0 {
 		return zero, apierrors.NewProviderValidationError(
-			"Embedding provider validation failed. Please check the prefix fields.", ve,
+			"Embedding provider validation failed. Please check the highlighted fields.", ve,
 		)
 	}
 
@@ -498,6 +500,7 @@ func validateCreateEmbeddingProviderFields(req *models.CreateEmbeddingProviderRe
 		validationErrors = append(validationErrors, apierrors.NewRequiredFieldError("model"))
 	}
 	validationErrors = appendPrefixLengthErrors(validationErrors, req.QueryPrefix, req.DocumentPrefix)
+	validationErrors = appendRequestLimitErrors(validationErrors, req.BatchSize, req.RequestTimeoutSeconds)
 
 	if len(validationErrors) == 0 {
 		return nil
@@ -521,12 +524,13 @@ func validateProbeRequestFields(req *models.ValidateEmbeddingProviderRequest) er
 	if req.Model == "" {
 		validationErrors = append(validationErrors, apierrors.NewRequiredFieldError("model"))
 	}
+	validationErrors = appendRequestLimitErrors(validationErrors, req.BatchSize, req.RequestTimeoutSeconds)
 
 	if len(validationErrors) == 0 {
 		return nil
 	}
 	return apierrors.NewProviderValidationError(
-		"Provider validation request is missing required fields",
+		"Provider validation request is missing required fields or has invalid values",
 		validationErrors,
 	)
 }
@@ -575,18 +579,20 @@ func createRequestFromGen(
 	body *embeddingprovidersgen.CreateEmbeddingProviderJSONRequestBody,
 ) models.CreateEmbeddingProviderRequest {
 	return models.CreateEmbeddingProviderRequest{
-		Name:           body.Name,
-		ProviderType:   body.ProviderType,
-		Model:          body.Model,
-		ChunkSize:      body.ChunkSize,
-		ChunkOverlap:   body.ChunkOverlap,
-		Concurrency:    body.Concurrency,
-		QueryPrefix:    body.QueryPrefix,
-		DocumentPrefix: body.DocumentPrefix,
-		IsDefault:      body.IsDefault,
-		BaseURL:        body.BaseUrl,
-		APIKey:         body.ApiKey,
-		Configuration:  derefConfiguration(body.Configuration),
+		Name:                  body.Name,
+		ProviderType:          body.ProviderType,
+		Model:                 body.Model,
+		ChunkSize:             body.ChunkSize,
+		ChunkOverlap:          body.ChunkOverlap,
+		Concurrency:           body.Concurrency,
+		BatchSize:             body.BatchSize,
+		RequestTimeoutSeconds: body.RequestTimeoutSeconds,
+		QueryPrefix:           body.QueryPrefix,
+		DocumentPrefix:        body.DocumentPrefix,
+		IsDefault:             body.IsDefault,
+		BaseURL:               body.BaseUrl,
+		APIKey:                body.ApiKey,
+		Configuration:         derefConfiguration(body.Configuration),
 	}
 }
 
@@ -594,18 +600,20 @@ func updateRequestFromGen(
 	body *embeddingprovidersgen.UpdateEmbeddingProviderJSONRequestBody,
 ) models.UpdateEmbeddingProviderRequest {
 	return models.UpdateEmbeddingProviderRequest{
-		Name:           body.Name,
-		ProviderType:   body.ProviderType,
-		Model:          body.Model,
-		ChunkSize:      body.ChunkSize,
-		ChunkOverlap:   body.ChunkOverlap,
-		Concurrency:    body.Concurrency,
-		QueryPrefix:    body.QueryPrefix,
-		DocumentPrefix: body.DocumentPrefix,
-		IsDefault:      body.IsDefault,
-		BaseURL:        body.BaseUrl,
-		APIKey:         body.ApiKey,
-		Configuration:  derefConfiguration(body.Configuration),
+		Name:                  body.Name,
+		ProviderType:          body.ProviderType,
+		Model:                 body.Model,
+		ChunkSize:             body.ChunkSize,
+		ChunkOverlap:          body.ChunkOverlap,
+		Concurrency:           body.Concurrency,
+		BatchSize:             body.BatchSize,
+		RequestTimeoutSeconds: body.RequestTimeoutSeconds,
+		QueryPrefix:           body.QueryPrefix,
+		DocumentPrefix:        body.DocumentPrefix,
+		IsDefault:             body.IsDefault,
+		BaseURL:               body.BaseUrl,
+		APIKey:                body.ApiKey,
+		Configuration:         derefConfiguration(body.Configuration),
 	}
 }
 
@@ -613,11 +621,13 @@ func validateRequestFromGen(
 	body *embeddingprovidersgen.ValidateEmbeddingProviderJSONRequestBody,
 ) models.ValidateEmbeddingProviderRequest {
 	return models.ValidateEmbeddingProviderRequest{
-		ProviderType:  body.ProviderType,
-		Model:         body.Model,
-		BaseURL:       body.BaseUrl,
-		APIKey:        body.ApiKey,
-		Configuration: derefConfiguration(body.Configuration),
+		ProviderType:          body.ProviderType,
+		Model:                 body.Model,
+		BaseURL:               body.BaseUrl,
+		BatchSize:             body.BatchSize,
+		RequestTimeoutSeconds: body.RequestTimeoutSeconds,
+		APIKey:                body.ApiKey,
+		Configuration:         derefConfiguration(body.Configuration),
 	}
 }
 
@@ -639,24 +649,26 @@ func toGenEmbeddingProviderResponse(
 	provider models.EmbeddingProviderResponse,
 ) embeddingprovidersgen.EmbeddingProviderResponse {
 	return embeddingprovidersgen.EmbeddingProviderResponse{
-		Id:             provider.ID,
-		UserId:         provider.UserID,
-		TeamId:         parseOptionalUUID(provider.TeamID),
-		Name:           provider.Name,
-		ProviderType:   provider.ProviderType,
-		Model:          provider.Model,
-		ChunkSize:      provider.ChunkSize,
-		ChunkOverlap:   provider.ChunkOverlap,
-		Concurrency:    provider.Concurrency,
-		QueryPrefix:    provider.QueryPrefix,
-		DocumentPrefix: provider.DocumentPrefix,
-		IsDefault:      provider.IsDefault,
-		BaseUrl:        provider.BaseURL,
-		Configuration:  provider.Configuration,
-		CreatedAt:      provider.CreatedAt,
-		UpdatedAt:      provider.UpdatedAt,
-		Version:        provider.Version,
-		HasApiKey:      provider.HasAPIKey,
+		Id:                    provider.ID,
+		UserId:                provider.UserID,
+		TeamId:                parseOptionalUUID(provider.TeamID),
+		Name:                  provider.Name,
+		ProviderType:          provider.ProviderType,
+		Model:                 provider.Model,
+		ChunkSize:             provider.ChunkSize,
+		ChunkOverlap:          provider.ChunkOverlap,
+		Concurrency:           provider.Concurrency,
+		BatchSize:             provider.BatchSize,
+		RequestTimeoutSeconds: provider.RequestTimeoutSeconds,
+		QueryPrefix:           provider.QueryPrefix,
+		DocumentPrefix:        provider.DocumentPrefix,
+		IsDefault:             provider.IsDefault,
+		BaseUrl:               provider.BaseURL,
+		Configuration:         provider.Configuration,
+		CreatedAt:             provider.CreatedAt,
+		UpdatedAt:             provider.UpdatedAt,
+		Version:               provider.Version,
+		HasApiKey:             provider.HasAPIKey,
 	}
 }
 

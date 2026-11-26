@@ -31,7 +31,8 @@ const ProviderTypeOpenAICompatible = "openai_compatible"
 // the latest embeddings migration.
 const EmbeddingVectorDimensions = 1024
 
-// generateEmbeddingsTimeout bounds a single outbound embeddings call.
+// generateEmbeddingsTimeout bounds a single outbound embeddings call. It is the
+// default for a provider whose stored request_timeout_seconds is unset (#1665).
 const generateEmbeddingsTimeout = 30 * time.Second
 
 // maxEmbeddingBatchSize caps how many chunks go into one /embeddings request.
@@ -41,7 +42,11 @@ const generateEmbeddingsTimeout = 30 * time.Second
 // chunk at once — a 58k-char memory at chunk_size 1000 is ~73 inputs — and TEI
 // rejects the whole request with 422, making that entity permanently
 // un-embeddable (#756).
-const maxEmbeddingBatchSize = 32
+//
+// It is both the default and the cap for a provider's stored batch_size (#1665):
+// the setting can only lower the batch for a slow backend, never raise it past
+// the limit that brings back that 422.
+const maxEmbeddingBatchSize = models.EmbeddingBatchSizeMax
 
 // maxProviderErrorBodyBytes caps how much of a non-200 response body is carried
 // in the error. The body is what makes a provider rejection diagnosable, but it
@@ -128,6 +133,7 @@ type OpenAICompatibleProvider struct {
 	apiKey     string
 	model      string
 	dimensions int
+	batchSize  int
 }
 
 // Ensure OpenAICompatibleProvider implements EmbeddingProvider.
@@ -141,8 +147,12 @@ var _ EmbeddingProvider = (*OpenAICompatibleProvider)(nil)
 // required rather than optional because base_url is caller-supplied: pass
 // ssrfGuardForConfig(cfg) in production; a nil guard degrades to the fail-closed
 // production policy (see newProviderHTTPClient).
+//
+// timeout bounds each /embeddings request and batchSize is how many chunks go
+// into one; a non-positive value of either means the default, and batchSize is
+// capped at maxEmbeddingBatchSize.
 func NewOpenAICompatibleProvider(
-	baseURL, apiKey, model string, dimensions int, timeout time.Duration, guard *ssrfGuard,
+	baseURL, apiKey, model string, dimensions int, timeout time.Duration, batchSize int, guard *ssrfGuard,
 ) (*OpenAICompatibleProvider, error) {
 	baseURL = strings.TrimSpace(baseURL)
 	if baseURL == "" {
@@ -160,12 +170,17 @@ func NewOpenAICompatibleProvider(
 	if timeout <= 0 {
 		timeout = generateEmbeddingsTimeout
 	}
+	if batchSize <= 0 {
+		batchSize = maxEmbeddingBatchSize
+	}
+	batchSize = min(batchSize, maxEmbeddingBatchSize)
 	return &OpenAICompatibleProvider{
 		httpClient: newProviderHTTPClient(guard, timeout),
 		baseURL:    strings.TrimSuffix(baseURL, "/"),
 		apiKey:     apiKey,
 		model:      model,
 		dimensions: dimensions,
+		batchSize:  batchSize,
 	}, nil
 }
 
@@ -195,7 +210,7 @@ type openAIEmbeddingsResponse struct {
 // GenerateEmbeddings embeds texts via the OpenAI-compatible endpoint and returns
 // the vectors in input order, validating count and per-vector dimensionality.
 //
-// The request is split into batches of at most maxEmbeddingBatchSize, run
+// The request is split into batches of at most the provider's batch size, run
 // sequentially and concatenated, so an entity of any length embeds regardless of
 // the backend's per-request input limit (#756). Batching is an implementation
 // detail: the interface contract — one vector per input, in input order — is
@@ -211,8 +226,8 @@ func (p *OpenAICompatibleProvider) GenerateEmbeddings(
 	}
 
 	vectors := make([][]float32, 0, len(texts))
-	for start := 0; start < len(texts); start += maxEmbeddingBatchSize {
-		end := min(start+maxEmbeddingBatchSize, len(texts))
+	for start := 0; start < len(texts); start += p.batchSize {
+		end := min(start+p.batchSize, len(texts))
 
 		batch, err := p.generateBatch(ctx, texts[start:end])
 		if err != nil {
@@ -225,7 +240,7 @@ func (p *OpenAICompatibleProvider) GenerateEmbeddings(
 }
 
 // generateBatch embeds one batch in a single request. The caller guarantees the
-// batch is non-empty and within maxEmbeddingBatchSize; count and per-vector width
+// batch is non-empty and within the provider's batch size; count and per-vector width
 // are validated per batch, so a bad response fails the whole entity rather than
 // silently contributing short output.
 func (p *OpenAICompatibleProvider) generateBatch(
@@ -322,10 +337,11 @@ func (p *OpenAICompatibleProvider) orderVectors(decoded openAIEmbeddingsResponse
 // It maps provider_type to a concrete implementation; future provider types are a
 // single additional case here plus their implementation. model is the provider's
 // and dimensions is the fixed EmbeddingVectorDimensions constant, so document and
-// query embeddings always share one model and one vector width.
+// query embeddings always share one model and one vector width. The per-request
+// timeout and batch size come from the row (#1665); a zero value in either means
+// the default.
 func NewGenerationProvider(
-	provider *models.EmbeddingProvider, apiKey, model string, dimensions int,
-	timeout time.Duration, guard *ssrfGuard,
+	provider *models.EmbeddingProvider, apiKey, model string, dimensions int, guard *ssrfGuard,
 ) (EmbeddingProvider, error) {
 	if provider == nil {
 		return nil, fmt.Errorf("embedding provider is nil")
@@ -337,7 +353,8 @@ func NewGenerationProvider(
 		if provider.BaseURL != nil {
 			baseURL = *provider.BaseURL
 		}
-		return NewOpenAICompatibleProvider(baseURL, apiKey, model, dimensions, timeout, guard)
+		timeout := time.Duration(provider.RequestTimeoutSeconds) * time.Second
+		return NewOpenAICompatibleProvider(baseURL, apiKey, model, dimensions, timeout, provider.BatchSize, guard)
 	default:
 		return nil, fmt.Errorf("unsupported embedding provider type: %q", provider.ProviderType)
 	}

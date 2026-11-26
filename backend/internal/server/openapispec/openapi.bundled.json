@@ -28877,7 +28877,7 @@
     "/api/v1/{team_id}/settings/embedding-providers/copy": {
       "post": {
         "summary": "Copy an embedding provider from another team",
-        "description": "Copies one embedding provider out of another team into this one (#831,\nepic #827). The destination is `{team_id}`; the source is named in the\nbody.\n\nThe stored API key moves as CIPHERTEXT: the source row's encrypted key is\nwritten straight to the new row and is never decrypted, never held in\nplaintext, and never appears in a request or response body. That is the\nreason this is a server-side operation at all — keys are write-only over\nthe API, so a client copying a provider by hand cannot bring one with it.\n\nAuthorization requires permission to manage provider settings in BOTH\nteams. The destination is evaluated first and either denial answers the\nsame 403, so the response never reveals whether the source team exists.\n\nThe copy is always written `is_default: false`, and its chunk sizing,\nconcurrency and instruction prefixes carry over from the source unless\noverridden. It can nonetheless become the team's ACTIVE provider: the\nactive provider is \"the default-flagged one, else the most recently\nupdated one\", so a non-default copy takes over whenever the destination\nhas no default set. That verdict — and the model it displaces, with the\nnumber of resources still embedded under it — is reported in\n`activation`, because nothing else in the system reports it: mixing\nembedding models produces no error, only worse search results.\n\nNote the `version` caveat on `EmbeddingProvider`: like the create\nresponse, this one reports 0 for a row that persists at 1.\n",
+        "description": "Copies one embedding provider out of another team into this one (#831,\nepic #827). The destination is `{team_id}`; the source is named in the\nbody.\n\nThe stored API key moves as CIPHERTEXT: the source row's encrypted key is\nwritten straight to the new row and is never decrypted, never held in\nplaintext, and never appears in a request or response body. That is the\nreason this is a server-side operation at all — keys are write-only over\nthe API, so a client copying a provider by hand cannot bring one with it.\n\nAuthorization requires permission to manage provider settings in BOTH\nteams. The destination is evaluated first and either denial answers the\nsame 403, so the response never reveals whether the source team exists.\n\nThe copy is always written `is_default: false`, and its chunk sizing,\nconcurrency, request batch size and timeout, and instruction prefixes\ncarry over from the source unless overridden. It can nonetheless become the team's ACTIVE provider: the\nactive provider is \"the default-flagged one, else the most recently\nupdated one\", so a non-default copy takes over whenever the destination\nhas no default set. That verdict — and the model it displaces, with the\nnumber of resources still embedded under it — is reported in\n`activation`, because nothing else in the system reports it: mixing\nembedding models produces no error, only worse search results.\n\nNote the `version` caveat on `EmbeddingProvider`: like the create\nresponse, this one reports 0 for a row that persists at 1.\n",
         "operationId": "copyEmbeddingProviderFromTeam",
         "security": [
           {
@@ -36024,6 +36024,20 @@
             "description": "Maximum number of simultaneous embedding requests VibeXP issues to this provider. Keep at 1 for single-threaded providers.",
             "example": 1
           },
+          "batch_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 32,
+            "description": "Number of document chunks sent in one embeddings request. Lower it for slow or CPU-only providers.",
+            "example": 32
+          },
+          "request_timeout_seconds": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 300,
+            "description": "Timeout, in seconds, for one embeddings request. Raise it for slow or CPU-only providers. One entity's whole embedding, all requests and retries included, is also bounded by a fixed 2-minute job timeout, which this setting does not extend.",
+            "example": 30
+          },
           "query_prefix": {
             "type": "string",
             "nullable": true,
@@ -36074,6 +36088,8 @@
           "chunk_size",
           "chunk_overlap",
           "concurrency",
+          "batch_size",
+          "request_timeout_seconds",
           "is_default",
           "configuration",
           "created_at",
@@ -36144,6 +36160,20 @@
             "description": "Optional max simultaneous embedding requests to this provider; defaults to 1 when omitted.",
             "example": 1
           },
+          "batch_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 32,
+            "description": "Optional number of document chunks per embeddings request; defaults to 32 when omitted. Lower it for slow or CPU-only providers.",
+            "example": 32
+          },
+          "request_timeout_seconds": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 300,
+            "description": "Optional timeout, in seconds, for one embeddings request; defaults to 30 when omitted. Raise it for slow or CPU-only providers. One entity's whole embedding is also bounded by a fixed 2-minute job timeout, which this setting does not extend.",
+            "example": 30
+          },
           "query_prefix": {
             "type": "string",
             "nullable": true,
@@ -36210,6 +36240,18 @@
             "type": "integer",
             "minimum": 1
           },
+          "batch_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 32,
+            "description": "Number of document chunks per embeddings request."
+          },
+          "request_timeout_seconds": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 300,
+            "description": "Timeout, in seconds, for one embeddings request."
+          },
           "query_prefix": {
             "type": "string",
             "nullable": true,
@@ -36254,6 +36296,20 @@
             "type": "string",
             "format": "uri",
             "example": "https://api.openai.com/v1"
+          },
+          "batch_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 32,
+            "description": "Batch size the probe runs with, so it matches what will be saved; defaults to 32 when omitted.",
+            "example": 32
+          },
+          "request_timeout_seconds": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 300,
+            "description": "Request timeout, in seconds, the probe runs with, so a slow provider validates with the timeout it will be saved with; defaults to 30 when omitted.",
+            "example": 30
           },
           "api_key": {
             "type": "string",
@@ -36461,6 +36517,20 @@
             "minimum": 1,
             "description": "Overrides the source provider's embedding request concurrency.",
             "example": 1
+          },
+          "batch_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 32,
+            "description": "Overrides the source provider's chunks per embeddings request.",
+            "example": 32
+          },
+          "request_timeout_seconds": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 300,
+            "description": "Overrides the source provider's embeddings request timeout, in seconds.",
+            "example": 30
           },
           "query_prefix": {
             "type": "string",
@@ -47002,6 +47072,8 @@
           "chunk_size",
           "chunk_overlap",
           "concurrency",
+          "batch_size",
+          "request_timeout_seconds",
           "query_prefix",
           "document_prefix",
           "base_url",
@@ -47033,6 +47105,14 @@
           },
           "concurrency": {
             "type": "integer"
+          },
+          "batch_size": {
+            "type": "integer",
+            "description": "Document chunks sent in one embeddings request."
+          },
+          "request_timeout_seconds": {
+            "type": "integer",
+            "description": "Timeout, in seconds, for one embeddings request."
           },
           "query_prefix": {
             "type": "string",

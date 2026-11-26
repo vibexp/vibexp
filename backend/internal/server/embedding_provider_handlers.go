@@ -23,6 +23,35 @@ const maxEmbeddingPrefixLen = 256
 // Response and log messages shared across the embedding provider handlers.
 const ()
 
+// appendRequestLimitErrors appends a range validation error for a batch_size or
+// request_timeout_seconds outside the bounds the spec, the validate tags and the
+// DB CHECKs share (#1665). A nil pointer (field omitted) is skipped. Shared by
+// the create, update, copy and validate-probe handlers so all four agree, and so
+// an out-of-range value answers a 400 naming the field rather than a 500 from the
+// CHECK constraint.
+func appendRequestLimitErrors(
+	ve []errors.ValidationError, batchSize, requestTimeoutSeconds *int,
+) []errors.ValidationError {
+	ve = appendIntRangeError(ve, "batch_size", batchSize,
+		models.EmbeddingBatchSizeMin, models.EmbeddingBatchSizeMax)
+	return appendIntRangeError(ve, "request_timeout_seconds", requestTimeoutSeconds,
+		models.EmbeddingRequestTimeoutSecondsMin, models.EmbeddingRequestTimeoutSecondsMax)
+}
+
+func appendIntRangeError(
+	ve []errors.ValidationError, field string, value *int, minValue, maxValue int,
+) []errors.ValidationError {
+	if value == nil || (*value >= minValue && *value <= maxValue) {
+		return ve
+	}
+	return append(ve, errors.ValidationError{
+		Field:      field,
+		Message:    fmt.Sprintf("Field '%s' must be between %d and %d", field, minValue, maxValue),
+		Code:       "INVALID_RANGE",
+		Constraint: fmt.Sprintf("%d-%d", minValue, maxValue),
+	})
+}
+
 // appendPrefixLengthErrors appends a max-length validation error for each
 // instruction prefix that exceeds maxEmbeddingPrefixLen. A nil pointer (field
 // omitted) is skipped. Shared by the create and update handlers so both enforce

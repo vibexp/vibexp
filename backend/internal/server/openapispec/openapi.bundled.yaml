@@ -19729,8 +19729,8 @@ paths:
         same 403, so the response never reveals whether the source team exists.
 
         The copy is always written `is_default: false`, and its chunk sizing,
-        concurrency and instruction prefixes carry over from the source unless
-        overridden. It can nonetheless become the team's ACTIVE provider: the
+        concurrency, request batch size and timeout, and instruction prefixes
+        carry over from the source unless overridden. It can nonetheless become the team's ACTIVE provider: the
         active provider is "the default-flagged one, else the most recently
         updated one", so a non-default copy takes over whenever the destination
         has no default set. That verdict — and the model it displaces, with the
@@ -24827,6 +24827,18 @@ components:
           type: integer
           description: Maximum number of simultaneous embedding requests VibeXP issues to this provider. Keep at 1 for single-threaded providers.
           example: 1
+        batch_size:
+          type: integer
+          minimum: 1
+          maximum: 32
+          description: Number of document chunks sent in one embeddings request. Lower it for slow or CPU-only providers.
+          example: 32
+        request_timeout_seconds:
+          type: integer
+          minimum: 5
+          maximum: 300
+          description: Timeout, in seconds, for one embeddings request. Raise it for slow or CPU-only providers. One entity's whole embedding, all requests and retries included, is also bounded by a fixed 2-minute job timeout, which this setting does not extend.
+          example: 30
         query_prefix:
           type: string
           nullable: true
@@ -24868,6 +24880,8 @@ components:
         - chunk_size
         - chunk_overlap
         - concurrency
+        - batch_size
+        - request_timeout_seconds
         - is_default
         - configuration
         - created_at
@@ -24919,6 +24933,18 @@ components:
           minimum: 1
           description: Optional max simultaneous embedding requests to this provider; defaults to 1 when omitted.
           example: 1
+        batch_size:
+          type: integer
+          minimum: 1
+          maximum: 32
+          description: Optional number of document chunks per embeddings request; defaults to 32 when omitted. Lower it for slow or CPU-only providers.
+          example: 32
+        request_timeout_seconds:
+          type: integer
+          minimum: 5
+          maximum: 300
+          description: Optional timeout, in seconds, for one embeddings request; defaults to 30 when omitted. Raise it for slow or CPU-only providers. One entity's whole embedding is also bounded by a fixed 2-minute job timeout, which this setting does not extend.
+          example: 30
         query_prefix:
           type: string
           nullable: true
@@ -24970,6 +24996,16 @@ components:
         concurrency:
           type: integer
           minimum: 1
+        batch_size:
+          type: integer
+          minimum: 1
+          maximum: 32
+          description: Number of document chunks per embeddings request.
+        request_timeout_seconds:
+          type: integer
+          minimum: 5
+          maximum: 300
+          description: Timeout, in seconds, for one embeddings request.
         query_prefix:
           type: string
           nullable: true
@@ -25004,6 +25040,18 @@ components:
           type: string
           format: uri
           example: https://api.openai.com/v1
+        batch_size:
+          type: integer
+          minimum: 1
+          maximum: 32
+          description: Batch size the probe runs with, so it matches what will be saved; defaults to 32 when omitted.
+          example: 32
+        request_timeout_seconds:
+          type: integer
+          minimum: 5
+          maximum: 300
+          description: Request timeout, in seconds, the probe runs with, so a slow provider validates with the timeout it will be saved with; defaults to 30 when omitted.
+          example: 30
         api_key:
           type: string
           nullable: true
@@ -25177,6 +25225,18 @@ components:
           minimum: 1
           description: Overrides the source provider's embedding request concurrency.
           example: 1
+        batch_size:
+          type: integer
+          minimum: 1
+          maximum: 32
+          description: Overrides the source provider's chunks per embeddings request.
+          example: 32
+        request_timeout_seconds:
+          type: integer
+          minimum: 5
+          maximum: 300
+          description: Overrides the source provider's embeddings request timeout, in seconds.
+          example: 30
         query_prefix:
           type: string
           maxLength: 256
@@ -33557,6 +33617,8 @@ components:
         - chunk_size
         - chunk_overlap
         - concurrency
+        - batch_size
+        - request_timeout_seconds
         - query_prefix
         - document_prefix
         - base_url
@@ -33581,6 +33643,12 @@ components:
           type: integer
         concurrency:
           type: integer
+        batch_size:
+          type: integer
+          description: Document chunks sent in one embeddings request.
+        request_timeout_seconds:
+          type: integer
+          description: Timeout, in seconds, for one embeddings request.
         query_prefix:
           type: string
           nullable: true

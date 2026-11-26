@@ -29,8 +29,9 @@ func setupEmbeddingProviderTest(t *testing.T) (*EmbeddingProviderRepository, sql
 // (no version column).
 var embeddingProviderListColumns = []string{
 	"id", "user_id", "team_id", "name", "provider_type", "model", "chunk_size",
-	"chunk_overlap", "concurrency", "query_prefix", "document_prefix", "is_default",
-	"base_url", "api_key_encrypted", "configuration", "created_at", "updated_at",
+	"chunk_overlap", "concurrency", "batch_size", "request_timeout_seconds", "query_prefix",
+	"document_prefix", "is_default", "base_url", "api_key_encrypted", "configuration",
+	"created_at", "updated_at",
 }
 
 //nolint:funlen // table-driven test with multiple test cases
@@ -70,15 +71,15 @@ func TestEmbeddingProviderRepository_List(t *testing.T) {
 					WillReturnRows(countRows)
 
 				rows := sqlmock.NewRows(embeddingProviderListColumns).
-					AddRow("p1", "user-123", nil, "Default", "openai", "m", 1000, 200, 1, nil, nil, true, nil, "enc", "{}", now, now).
-					AddRow("p2", "user-123", nil, "Other", "ollama", "m", 1000, 200, 1, nil, nil, false, nil, "enc", "{}", now, now)
+					AddRow("p1", "user-123", nil, "Default", "openai", "m", 1000, 200, 1, 32, 30, nil, nil, true, nil, "enc", "{}", now, now).
+					AddRow("p2", "user-123", nil, "Other", "ollama", "m", 1000, 200, 1, 32, 30, nil, nil, false, nil, "enc", "{}", now, now)
 
 				// LIMIT/OFFSET are inlined literals by squirrel, so they are NOT bound args.
-				// The baseline scenario pins the exact 17-column projection (no version)
+				// The baseline scenario pins the exact 19-column projection (no version)
 				// so projection drift fails loudly as this template is copied to other repos.
 				mock.ExpectQuery(
 					`SELECT id, user_id, team_id, name, provider_type, model, chunk_size, ` +
-						`chunk_overlap, concurrency, query_prefix, document_prefix, is_default, ` +
+						`chunk_overlap, concurrency, batch_size, request_timeout_seconds, query_prefix, document_prefix, is_default, ` +
 						`base_url, api_key_encrypted, configuration, created_at, updated_at ` +
 						`FROM embedding_providers WHERE \(team_id = \$1\) ` +
 						`ORDER BY is_default DESC, created_at DESC LIMIT 10 OFFSET 0`,
@@ -107,7 +108,7 @@ func TestEmbeddingProviderRepository_List(t *testing.T) {
 					WillReturnRows(countRows)
 
 				rows := sqlmock.NewRows(embeddingProviderListColumns).
-					AddRow("p1", "user-123", nil, "Default", "openai", "m", 1000, 200, 1, nil, nil, true, nil, "enc", "{}", now, now)
+					AddRow("p1", "user-123", nil, "Default", "openai", "m", 1000, 200, 1, 32, 30, nil, nil, true, nil, "enc", "{}", now, now)
 
 				mock.ExpectQuery(
 					`SELECT .+ FROM embedding_providers `+
@@ -158,7 +159,7 @@ func TestEmbeddingProviderRepository_List(t *testing.T) {
 					WillReturnRows(countRows)
 
 				rows := sqlmock.NewRows(embeddingProviderListColumns).
-					AddRow("p11", "user-123", nil, "Eleven", "openai", "m", 1000, 200, 1, nil, nil, false, nil, "enc", "{}", now, now)
+					AddRow("p11", "user-123", nil, "Eleven", "openai", "m", 1000, 200, 1, 32, 30, nil, nil, false, nil, "enc", "{}", now, now)
 
 				// offset = (3-1)*5 = 10
 				mock.ExpectQuery(
@@ -294,7 +295,7 @@ func TestEmbeddingProviderRepository_List(t *testing.T) {
 					WillReturnRows(countRows)
 
 				rows := sqlmock.NewRows(embeddingProviderListColumns).
-					AddRow("p1", "user-123", nil, "Default", "openai", "m", 1000, 200, 1, nil, nil, true, nil, "enc", "{}", now, now).
+					AddRow("p1", "user-123", nil, "Default", "openai", "m", 1000, 200, 1, 32, 30, nil, nil, true, nil, "enc", "{}", now, now).
 					RowError(0, sql.ErrConnDone)
 				mock.ExpectQuery(`SELECT .+ FROM embedding_providers`).
 					WithArgs("user-123").
@@ -339,23 +340,24 @@ var embProviderTestTime = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 // used by GetByID and GetActiveProvider.
 var embProviderFullColumnsTest = []string{
 	"id", "user_id", "team_id", "name", "provider_type", "model", "chunk_size",
-	"chunk_overlap", "concurrency", "query_prefix", "document_prefix", "is_default",
-	"base_url", "api_key_encrypted", "configuration", "created_at", "updated_at", "version",
+	"chunk_overlap", "concurrency", "batch_size", "request_timeout_seconds", "query_prefix",
+	"document_prefix", "is_default", "base_url", "api_key_encrypted", "configuration",
+	"created_at", "updated_at", "version",
 }
 
-// embProviderFullRow returns one full 18-column provider row.
+// embProviderFullRow returns one full 20-column provider row.
 func embProviderFullRow() *sqlmock.Rows {
 	return sqlmock.NewRows(embProviderFullColumnsTest).
 		AddRow("prov-1", "user-1", "team-1", "Primary", "openai", "text-embedding-3-small",
-			1000, 200, 2, nil, nil, true, nil, testCipherText, "{}",
+			1000, 200, 2, 8, 120, nil, nil, true, nil, testCipherText, "{}",
 			embProviderTestTime, embProviderTestTime, int64(3))
 }
 
-// embProviderDefaultRow returns one 17-column row (no version) as selected by GetDefault.
+// embProviderDefaultRow returns one 19-column row (no version) as selected by GetDefault.
 func embProviderDefaultRow() *sqlmock.Rows {
 	return sqlmock.NewRows(embeddingProviderListColumns).
 		AddRow("prov-1", "user-1", "team-1", "Primary", "openai", "text-embedding-3-small",
-			1000, 200, 2, nil, nil, true, nil, testCipherText, "{}",
+			1000, 200, 2, 8, 120, nil, nil, true, nil, testCipherText, "{}",
 			embProviderTestTime, embProviderTestTime)
 }
 
@@ -364,20 +366,22 @@ func testEmbeddingProviderFixture() *models.EmbeddingProvider {
 	teamID := "team-1"
 	cipher := testCipherText
 	return &models.EmbeddingProvider{
-		UserID:          "user-1",
-		TeamID:          &teamID,
-		Name:            "Primary",
-		ProviderType:    "openai",
-		Model:           "text-embedding-3-small",
-		ChunkSize:       1000,
-		ChunkOverlap:    200,
-		Concurrency:     2,
-		IsDefault:       true,
-		APIKeyEncrypted: &cipher,
-		Configuration:   "{}",
-		CreatedAt:       embProviderTestTime,
-		UpdatedAt:       embProviderTestTime,
-		Version:         3,
+		UserID:                "user-1",
+		TeamID:                &teamID,
+		Name:                  "Primary",
+		ProviderType:          "openai",
+		Model:                 "text-embedding-3-small",
+		ChunkSize:             1000,
+		ChunkOverlap:          200,
+		Concurrency:           2,
+		BatchSize:             8,
+		RequestTimeoutSeconds: 120,
+		IsDefault:             true,
+		APIKeyEncrypted:       &cipher,
+		Configuration:         "{}",
+		CreatedAt:             embProviderTestTime,
+		UpdatedAt:             embProviderTestTime,
+		Version:               3,
 	}
 }
 
@@ -408,12 +412,12 @@ func runProviderCreateScenario(t *testing.T, sc providerOpScenario) {
 }
 
 func TestEmbeddingProviderRepository_Create(t *testing.T) {
-	// The 16 bound args, in column order; the verbatim ciphertext is pinned at
+	// The 18 bound args, in column order; the verbatim ciphertext is pinned at
 	// the SQL boundary via WithArgs.
 	expectInsert := func(mock sqlmock.Sqlmock) *sqlmock.ExpectedQuery {
 		return mock.ExpectQuery(`INSERT INTO embedding_providers`).
 			WithArgs("user-1", "team-1", "Primary", "openai", "text-embedding-3-small",
-				1000, 200, 2, nil, nil, true, nil, testCipherText, "{}",
+				1000, 200, 2, 8, 120, nil, nil, true, nil, testCipherText, "{}",
 				embProviderTestTime, embProviderTestTime)
 	}
 
@@ -507,8 +511,8 @@ func runProviderUpdateScenario(t *testing.T, sc providerOpScenario) {
 
 func TestEmbeddingProviderRepository_Update(t *testing.T) {
 	expectUpdate := func(mock sqlmock.Sqlmock) *sqlmock.ExpectedQuery {
-		return mock.ExpectQuery(`UPDATE embedding_providers SET .+ WHERE id = \$1 AND team_id = \$15 AND version = \$16`).
-			WithArgs("prov-1", "Primary", "openai", "text-embedding-3-small", 1000, 200, 2,
+		return mock.ExpectQuery(`UPDATE embedding_providers SET .+ WHERE id = \$1 AND team_id = \$17 AND version = \$18`).
+			WithArgs("prov-1", "Primary", "openai", "text-embedding-3-small", 1000, 200, 2, 8, 120,
 				nil, nil, true, nil, testCipherText, "{}", embProviderTestTime, "team-1", int64(3))
 	}
 

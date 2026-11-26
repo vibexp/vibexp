@@ -346,16 +346,18 @@ type CopyEmbeddingProviderParams struct {
 	SourceProviderID string
 	UserID           string
 
-	Name           *string
-	ProviderType   *string
-	Model          *string
-	BaseURL        *string
-	ChunkSize      *int
-	ChunkOverlap   *int
-	Concurrency    *int
-	QueryPrefix    *string
-	DocumentPrefix *string
-	Configuration  *map[string]interface{}
+	Name                  *string
+	ProviderType          *string
+	Model                 *string
+	BaseURL               *string
+	ChunkSize             *int
+	ChunkOverlap          *int
+	Concurrency           *int
+	BatchSize             *int
+	RequestTimeoutSeconds *int
+	QueryPrefix           *string
+	DocumentPrefix        *string
+	Configuration         *map[string]interface{}
 }
 
 // CopyEmbeddingProviderActivation reports what a copy did to the destination
