@@ -22,7 +22,9 @@ const (
 	// maxEmbeddingGenerateTimeout) -- because a lease that expires while the job is
 	// still running is re-run by the next poll. That costs a duplicate embed,
 	// which is wasted work rather than wrong data (generation is
-	// delete-then-insert per entity), but it is worth not doing routinely.
+	// delete-then-insert per entity), but it is worth not doing routinely. The
+	// wait for a slot is not bounded: jobs claimed together queue behind the
+	// provider's concurrency, so the later ones can outlive the lease (#1666).
 	defaultEmbeddingQueueLease = 30 * time.Minute
 	// defaultEmbeddingQueueMaxAttempts bounds how many times one job may be
 	// claimed before it is retired as a poison pill.

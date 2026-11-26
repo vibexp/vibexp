@@ -26,9 +26,10 @@ const (
 
 	// maxEmbeddingGenerateTimeout caps the generate-stage deadline that
 	// generateTimeout derives from a provider's batch size and request timeout
-	// (#1665). It stays well below defaultEmbeddingQueueLease, which has to cover
-	// the wait for a provider slot plus this deadline, so a long job is never
-	// reclaimed and run twice.
+	// (#1665). It stays well below defaultEmbeddingQueueLease, so a single job's
+	// generate stage fits inside its lease. Jobs claimed together and queued
+	// behind a low-concurrency provider can still outlive the lease while they
+	// wait (#1666).
 	maxEmbeddingGenerateTimeout = 20 * time.Minute
 
 	// maxEmbeddingRetryBackoff caps the base retry interval before jitter.
