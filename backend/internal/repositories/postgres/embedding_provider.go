@@ -29,15 +29,16 @@ func (r *EmbeddingProviderRepository) Create(ctx context.Context, provider *mode
 	query := `
 		INSERT INTO embedding_providers
 		(user_id, team_id, name, provider_type, model, chunk_size, chunk_overlap,
-		concurrency, query_prefix, document_prefix, is_default, base_url, api_key_encrypted,
-		configuration, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		concurrency, batch_size, request_timeout_seconds, query_prefix, document_prefix,
+		is_default, base_url, api_key_encrypted, configuration, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 		RETURNING id, created_at, updated_at
 	`
 
 	err := r.db.QueryRowContext(ctx, query,
 		provider.UserID, provider.TeamID, provider.Name, provider.ProviderType,
 		provider.Model, provider.ChunkSize, provider.ChunkOverlap, provider.Concurrency,
+		provider.BatchSize, provider.RequestTimeoutSeconds,
 		provider.QueryPrefix, provider.DocumentPrefix, provider.IsDefault, provider.BaseURL,
 		provider.APIKeyEncrypted, provider.Configuration, provider.CreatedAt, provider.UpdatedAt,
 	).Scan(&provider.ID, &provider.CreatedAt, &provider.UpdatedAt)
@@ -55,8 +56,8 @@ func (r *EmbeddingProviderRepository) GetByID(
 ) (*models.EmbeddingProvider, error) {
 	query := `
 		SELECT id, user_id, team_id, name, provider_type, model, chunk_size, chunk_overlap,
-		concurrency, query_prefix, document_prefix, is_default, base_url, api_key_encrypted,
-		configuration, created_at, updated_at, version
+		concurrency, batch_size, request_timeout_seconds, query_prefix, document_prefix,
+		is_default, base_url, api_key_encrypted, configuration, created_at, updated_at, version
 		FROM embedding_providers
 		WHERE id = $1 AND team_id = $2
 	`
@@ -65,7 +66,7 @@ func (r *EmbeddingProviderRepository) GetByID(
 	err := r.db.QueryRowContext(ctx, query, providerID, teamID).Scan(
 		&provider.ID, &provider.UserID, &provider.TeamID, &provider.Name, &provider.ProviderType,
 		&provider.Model, &provider.ChunkSize, &provider.ChunkOverlap, &provider.Concurrency,
-		&provider.QueryPrefix, &provider.DocumentPrefix,
+		&provider.BatchSize, &provider.RequestTimeoutSeconds, &provider.QueryPrefix, &provider.DocumentPrefix,
 		&provider.IsDefault, &provider.BaseURL, &provider.APIKeyEncrypted,
 		&provider.Configuration, &provider.CreatedAt, &provider.UpdatedAt, &provider.Version,
 	)
@@ -103,6 +104,15 @@ func (r *EmbeddingProviderRepository) List(
 	return providers, totalCount, nil
 }
 
+// embeddingProviderListProjection is the projection List selects (no version),
+// in the order queryList scans it.
+var embeddingProviderListProjection = []string{
+	"id", "user_id", "team_id", "name", "provider_type", "model", "chunk_size",
+	"chunk_overlap", "concurrency", "batch_size", "request_timeout_seconds", "query_prefix",
+	"document_prefix", "is_default", "base_url", "api_key_encrypted", "configuration",
+	"created_at", "updated_at",
+}
+
 // queryList runs the paginated page query for List using the shared WHERE
 // conditions, so it can never diverge from the count query.
 func (r *EmbeddingProviderRepository) queryList(
@@ -126,11 +136,7 @@ func (r *EmbeddingProviderRepository) queryList(
 	}
 
 	query, args, err := psql.
-		Select(
-			"id", "user_id", "team_id", "name", "provider_type", "model", "chunk_size",
-			"chunk_overlap", "concurrency", "query_prefix", "document_prefix", "is_default",
-			"base_url", "api_key_encrypted", "configuration", "created_at", "updated_at",
-		).
+		Select(embeddingProviderListProjection...).
 		From("embedding_providers").
 		Where(where).
 		OrderBy("is_default DESC", "created_at DESC").
@@ -157,7 +163,7 @@ func (r *EmbeddingProviderRepository) queryList(
 		scanErr := rows.Scan(
 			&provider.ID, &provider.UserID, &provider.TeamID, &provider.Name, &provider.ProviderType,
 			&provider.Model, &provider.ChunkSize, &provider.ChunkOverlap, &provider.Concurrency,
-			&provider.QueryPrefix, &provider.DocumentPrefix,
+			&provider.BatchSize, &provider.RequestTimeoutSeconds, &provider.QueryPrefix, &provider.DocumentPrefix,
 			&provider.IsDefault, &provider.BaseURL, &provider.APIKeyEncrypted,
 			&provider.Configuration, &provider.CreatedAt, &provider.UpdatedAt,
 		)
@@ -199,16 +205,18 @@ func (r *EmbeddingProviderRepository) Update(ctx context.Context, provider *mode
 	query := `
 		UPDATE embedding_providers
 		SET name = $2, provider_type = $3, model = $4, chunk_size = $5, chunk_overlap = $6,
-		concurrency = $7, query_prefix = $8, document_prefix = $9, is_default = $10, base_url = $11,
-		api_key_encrypted = $12, configuration = $13,
-		updated_at = $14, version = version + 1
-		WHERE id = $1 AND team_id = $15 AND version = $16
+		concurrency = $7, batch_size = $8, request_timeout_seconds = $9, query_prefix = $10,
+		document_prefix = $11, is_default = $12, base_url = $13,
+		api_key_encrypted = $14, configuration = $15,
+		updated_at = $16, version = version + 1
+		WHERE id = $1 AND team_id = $17 AND version = $18
 		RETURNING updated_at, version
 	`
 
 	err := r.db.QueryRowContext(ctx, query,
 		provider.ID, provider.Name, provider.ProviderType, provider.Model,
 		provider.ChunkSize, provider.ChunkOverlap, provider.Concurrency,
+		provider.BatchSize, provider.RequestTimeoutSeconds,
 		provider.QueryPrefix, provider.DocumentPrefix, provider.IsDefault,
 		provider.BaseURL, provider.APIKeyEncrypted, provider.Configuration,
 		provider.UpdatedAt, provider.TeamID, provider.Version,
@@ -251,8 +259,8 @@ func (r *EmbeddingProviderRepository) GetDefault(
 ) (*models.EmbeddingProvider, error) {
 	query := `
 		SELECT id, user_id, team_id, name, provider_type, model, chunk_size, chunk_overlap,
-		concurrency, query_prefix, document_prefix, is_default, base_url, api_key_encrypted,
-		configuration, created_at, updated_at
+		concurrency, batch_size, request_timeout_seconds, query_prefix, document_prefix,
+		is_default, base_url, api_key_encrypted, configuration, created_at, updated_at
 		FROM embedding_providers
 		WHERE team_id = $1 AND is_default = true
 		LIMIT 1
@@ -262,7 +270,7 @@ func (r *EmbeddingProviderRepository) GetDefault(
 	err := r.db.QueryRowContext(ctx, query, teamID).Scan(
 		&provider.ID, &provider.UserID, &provider.TeamID, &provider.Name, &provider.ProviderType,
 		&provider.Model, &provider.ChunkSize, &provider.ChunkOverlap, &provider.Concurrency,
-		&provider.QueryPrefix, &provider.DocumentPrefix,
+		&provider.BatchSize, &provider.RequestTimeoutSeconds, &provider.QueryPrefix, &provider.DocumentPrefix,
 		&provider.IsDefault, &provider.BaseURL, &provider.APIKeyEncrypted,
 		&provider.Configuration, &provider.CreatedAt, &provider.UpdatedAt,
 	)
@@ -287,8 +295,8 @@ func (r *EmbeddingProviderRepository) GetActiveProvider(
 ) (*models.EmbeddingProvider, error) {
 	query := `
 		SELECT id, user_id, team_id, name, provider_type, model, chunk_size, chunk_overlap,
-		concurrency, query_prefix, document_prefix, is_default, base_url, api_key_encrypted,
-		configuration, created_at, updated_at, version
+		concurrency, batch_size, request_timeout_seconds, query_prefix, document_prefix,
+		is_default, base_url, api_key_encrypted, configuration, created_at, updated_at, version
 		FROM embedding_providers
 		WHERE team_id = $1
 		ORDER BY is_default DESC, updated_at DESC
@@ -299,7 +307,7 @@ func (r *EmbeddingProviderRepository) GetActiveProvider(
 	err := r.db.QueryRowContext(ctx, query, teamID).Scan(
 		&provider.ID, &provider.UserID, &provider.TeamID, &provider.Name, &provider.ProviderType,
 		&provider.Model, &provider.ChunkSize, &provider.ChunkOverlap, &provider.Concurrency,
-		&provider.QueryPrefix, &provider.DocumentPrefix,
+		&provider.BatchSize, &provider.RequestTimeoutSeconds, &provider.QueryPrefix, &provider.DocumentPrefix,
 		&provider.IsDefault, &provider.BaseURL, &provider.APIKeyEncrypted,
 		&provider.Configuration, &provider.CreatedAt, &provider.UpdatedAt, &provider.Version,
 	)

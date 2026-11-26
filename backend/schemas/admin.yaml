@@ -2143,6 +2143,8 @@ AdminEmbeddingProvider:
     - chunk_size
     - chunk_overlap
     - concurrency
+    - batch_size
+    - request_timeout_seconds
     - query_prefix
     - document_prefix
     - base_url
@@ -2167,6 +2169,12 @@ AdminEmbeddingProvider:
       type: integer
     concurrency:
       type: integer
+    batch_size:
+      type: integer
+      description: Document chunks sent in one embeddings request.
+    request_timeout_seconds:
+      type: integer
+      description: Timeout, in seconds, for one embeddings request.
     query_prefix:
       type: string
       nullable: true

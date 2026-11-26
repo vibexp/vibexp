@@ -137,15 +137,18 @@ func buildEmbeddingProviderCopy(
 		Name:         name,
 		ProviderType: valueOr(params.ProviderType, source.ProviderType),
 		Model:        valueOr(params.Model, source.Model),
-		// Chunk sizing, concurrency and the instruction prefixes are part of how
-		// the model was tuned, not incidental settings: a copy that silently reset
-		// them to the create-path defaults would embed differently from the source
-		// while claiming to be the same provider.
-		ChunkSize:      intValueOr(params.ChunkSize, source.ChunkSize),
-		ChunkOverlap:   intValueOr(params.ChunkOverlap, source.ChunkOverlap),
-		Concurrency:    intValueOr(params.Concurrency, source.Concurrency),
-		QueryPrefix:    copyOptionalString(params.QueryPrefix, source.QueryPrefix),
-		DocumentPrefix: copyOptionalString(params.DocumentPrefix, source.DocumentPrefix),
+		// Chunk sizing, concurrency, the request batch size and timeout, and the
+		// instruction prefixes are part of how the model was tuned, not incidental
+		// settings: a copy that silently reset them to the create-path defaults
+		// would embed differently from the source while claiming to be the same
+		// provider.
+		ChunkSize:             intValueOr(params.ChunkSize, source.ChunkSize),
+		ChunkOverlap:          intValueOr(params.ChunkOverlap, source.ChunkOverlap),
+		Concurrency:           intValueOr(params.Concurrency, source.Concurrency),
+		BatchSize:             intValueOr(params.BatchSize, source.BatchSize),
+		RequestTimeoutSeconds: intValueOr(params.RequestTimeoutSeconds, source.RequestTimeoutSeconds),
+		QueryPrefix:           copyOptionalString(params.QueryPrefix, source.QueryPrefix),
+		DocumentPrefix:        copyOptionalString(params.DocumentPrefix, source.DocumentPrefix),
 		// Always non-default. Create writes is_default straight into the INSERT,
 		// so a true here would hit the partial unique index
 		// idx_embedding_providers_team_default before any SetDefault could run —
@@ -173,8 +176,7 @@ func buildEmbeddingProviderCopy(
 func (eps *EmbeddingProviderService) resolveActivation(
 	ctx context.Context,
 	teamID string,
-	created *models.EmbeddingProvider,
-	displaced *models.EmbeddingProvider,
+	created, displaced *models.EmbeddingProvider,
 ) (CopyEmbeddingProviderActivation, error) {
 	nowActive, err := eps.activeProvider(ctx, teamID)
 	if err != nil {

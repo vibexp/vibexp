@@ -39,7 +39,7 @@ func TestOpenAICompatibleProvider_HappyPathAndAuthHeader(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p, err := NewOpenAICompatibleProvider(server.URL+"/v1", "secret-key", "test-model", 2, time.Second, loopbackProviderGuard())
+	p, err := NewOpenAICompatibleProvider(server.URL+"/v1", "secret-key", "test-model", 2, time.Second, 0, loopbackProviderGuard())
 	require.NoError(t, err)
 
 	vectors, err := p.GenerateEmbeddings(context.Background(), []string{"alpha", "beta"})
@@ -66,7 +66,7 @@ func TestOpenAICompatibleProvider_NoAuthHeaderWhenKeyEmpty(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p, err := NewOpenAICompatibleProvider(server.URL, "", "m", 2, time.Second, loopbackProviderGuard())
+	p, err := NewOpenAICompatibleProvider(server.URL, "", "m", 2, time.Second, 0, loopbackProviderGuard())
 	require.NoError(t, err)
 	_, err = p.GenerateEmbeddings(context.Background(), []string{"x"})
 	require.NoError(t, err)
@@ -74,7 +74,7 @@ func TestOpenAICompatibleProvider_NoAuthHeaderWhenKeyEmpty(t *testing.T) {
 }
 
 func TestOpenAICompatibleProvider_EmptyInputNoCall(t *testing.T) {
-	p, err := NewOpenAICompatibleProvider("http://example.invalid", "k", "m", 2, time.Second, loopbackProviderGuard())
+	p, err := NewOpenAICompatibleProvider("http://example.invalid", "k", "m", 2, time.Second, 0, loopbackProviderGuard())
 	require.NoError(t, err)
 	vectors, err := p.GenerateEmbeddings(context.Background(), nil)
 	require.NoError(t, err)
@@ -87,7 +87,7 @@ func TestOpenAICompatibleProvider_NonOKStatus(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p, err := NewOpenAICompatibleProvider(server.URL, "k", "m", 2, time.Second, loopbackProviderGuard())
+	p, err := NewOpenAICompatibleProvider(server.URL, "k", "m", 2, time.Second, 0, loopbackProviderGuard())
 	require.NoError(t, err)
 	_, err = p.GenerateEmbeddings(context.Background(), []string{"x"})
 	require.Error(t, err)
@@ -102,7 +102,7 @@ func TestOpenAICompatibleProvider_DimensionMismatch(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p, err := NewOpenAICompatibleProvider(server.URL, "k", "m", 2, time.Second, loopbackProviderGuard())
+	p, err := NewOpenAICompatibleProvider(server.URL, "k", "m", 2, time.Second, 0, loopbackProviderGuard())
 	require.NoError(t, err)
 	_, err = p.GenerateEmbeddings(context.Background(), []string{"x"})
 	require.Error(t, err)
@@ -117,7 +117,7 @@ func TestOpenAICompatibleProvider_CountMismatch(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p, err := NewOpenAICompatibleProvider(server.URL, "k", "m", 2, time.Second, loopbackProviderGuard())
+	p, err := NewOpenAICompatibleProvider(server.URL, "k", "m", 2, time.Second, 0, loopbackProviderGuard())
 	require.NoError(t, err)
 	_, err = p.GenerateEmbeddings(context.Background(), []string{"a", "b"})
 	require.Error(t, err)
@@ -125,11 +125,11 @@ func TestOpenAICompatibleProvider_CountMismatch(t *testing.T) {
 }
 
 func TestNewOpenAICompatibleProvider_Validation(t *testing.T) {
-	_, err := NewOpenAICompatibleProvider("", "k", "m", 2, time.Second, loopbackProviderGuard())
+	_, err := NewOpenAICompatibleProvider("", "k", "m", 2, time.Second, 0, loopbackProviderGuard())
 	assert.ErrorContains(t, err, "base_url is required")
-	_, err = NewOpenAICompatibleProvider("http://x", "k", "", 2, time.Second, loopbackProviderGuard())
+	_, err = NewOpenAICompatibleProvider("http://x", "k", "", 2, time.Second, 0, loopbackProviderGuard())
 	assert.ErrorContains(t, err, "model is required")
-	_, err = NewOpenAICompatibleProvider("http://x", "k", "m", 0, time.Second, loopbackProviderGuard())
+	_, err = NewOpenAICompatibleProvider("http://x", "k", "m", 0, time.Second, 0, loopbackProviderGuard())
 	assert.ErrorContains(t, err, "dimensions must be")
 }
 
@@ -138,23 +138,23 @@ func TestNewGenerationProvider_Factory(t *testing.T) {
 	p, err := NewGenerationProvider(&models.EmbeddingProvider{
 		ProviderType: ProviderTypeOpenAICompatible,
 		BaseURL:      strptr("http://localhost:1234/v1"),
-	}, "key", "model", 1024, time.Second, loopbackProviderGuard())
+	}, "key", "model", 1024, loopbackProviderGuard())
 	require.NoError(t, err)
 	assert.Equal(t, ProviderTypeOpenAICompatible, p.Type())
 
 	// Unknown provider type is rejected.
-	_, err = NewGenerationProvider(&models.EmbeddingProvider{ProviderType: "cohere"}, "", "m", 2, time.Second, loopbackProviderGuard())
+	_, err = NewGenerationProvider(&models.EmbeddingProvider{ProviderType: "cohere"}, "", "m", 2, loopbackProviderGuard())
 	assert.ErrorContains(t, err, "unsupported embedding provider type")
 
 	// Missing base_url is rejected.
 	_, err = NewGenerationProvider(
-		&models.EmbeddingProvider{ProviderType: ProviderTypeOpenAICompatible}, "", "m", 2, time.Second,
+		&models.EmbeddingProvider{ProviderType: ProviderTypeOpenAICompatible}, "", "m", 2,
 		loopbackProviderGuard(),
 	)
 	assert.ErrorContains(t, err, "base_url is required")
 
 	// Nil provider is rejected.
-	_, err = NewGenerationProvider(nil, "", "m", 2, time.Second, loopbackProviderGuard())
+	_, err = NewGenerationProvider(nil, "", "m", 2, loopbackProviderGuard())
 	assert.ErrorContains(t, err, "nil")
 }
 
@@ -190,7 +190,7 @@ func TestOpenAICompatibleProvider_SplitsIntoBatches(t *testing.T) {
 	server, batches := batchingServer(t, 2)
 	defer server.Close()
 
-	p, err := NewOpenAICompatibleProvider(server.URL, "k", "m", 2, 5*time.Second, loopbackProviderGuard())
+	p, err := NewOpenAICompatibleProvider(server.URL, "k", "m", 2, 5*time.Second, 0, loopbackProviderGuard())
 	require.NoError(t, err)
 
 	const n = 73
@@ -223,7 +223,7 @@ func TestOpenAICompatibleProvider_ExactBatchSizeIsOneRequest(t *testing.T) {
 	server, batches := batchingServer(t, 2)
 	defer server.Close()
 
-	p, err := NewOpenAICompatibleProvider(server.URL, "k", "m", 2, 5*time.Second, loopbackProviderGuard())
+	p, err := NewOpenAICompatibleProvider(server.URL, "k", "m", 2, 5*time.Second, 0, loopbackProviderGuard())
 	require.NoError(t, err)
 
 	texts := make([]string, maxEmbeddingBatchSize)
@@ -248,7 +248,7 @@ func TestOpenAICompatibleProvider_ErrorCarriesTruncatedBody(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p, err := NewOpenAICompatibleProvider(server.URL, "k", "m", 2, time.Second, loopbackProviderGuard())
+	p, err := NewOpenAICompatibleProvider(server.URL, "k", "m", 2, time.Second, 0, loopbackProviderGuard())
 	require.NoError(t, err)
 
 	_, err = p.GenerateEmbeddings(context.Background(), []string{"x"})
@@ -272,7 +272,7 @@ func TestOpenAICompatibleProvider_ErrorBodyIsCapped(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p, err := NewOpenAICompatibleProvider(server.URL, "k", "m", 2, time.Second, loopbackProviderGuard())
+	p, err := NewOpenAICompatibleProvider(server.URL, "k", "m", 2, time.Second, 0, loopbackProviderGuard())
 	require.NoError(t, err)
 
 	_, err = p.GenerateEmbeddings(context.Background(), []string{"x"})

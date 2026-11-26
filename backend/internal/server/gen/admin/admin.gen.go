@@ -2331,10 +2331,13 @@ type AdminEmbeddingCoverageItem struct {
 type AdminEmbeddingProvider struct {
 	// BaseUrl The provider's base URL with any userinfo, query string and fragment
 	// removed. `null` when unset or not an absolute URL.
-	BaseUrl      *string `json:"base_url"`
-	ChunkOverlap int     `json:"chunk_overlap"`
-	ChunkSize    int     `json:"chunk_size"`
-	Concurrency  int     `json:"concurrency"`
+	BaseUrl *string `json:"base_url"`
+
+	// BatchSize Document chunks sent in one embeddings request.
+	BatchSize    int `json:"batch_size"`
+	ChunkOverlap int `json:"chunk_overlap"`
+	ChunkSize    int `json:"chunk_size"`
+	Concurrency  int `json:"concurrency"`
 
 	// ConfigurationKeys Sorted top-level key names of the provider's `configuration` object. The
 	// values are never returned. `[]` when the configuration is empty or not a
@@ -2351,7 +2354,10 @@ type AdminEmbeddingProvider struct {
 	Name         string             `json:"name"`
 	ProviderType string             `json:"provider_type"`
 	QueryPrefix  *string            `json:"query_prefix"`
-	UpdatedAt    time.Time          `json:"updated_at"`
+
+	// RequestTimeoutSeconds Timeout, in seconds, for one embeddings request.
+	RequestTimeoutSeconds int       `json:"request_timeout_seconds"`
+	UpdatedAt             time.Time `json:"updated_at"`
 }
 
 // AdminEntityBreakdown A GROUP BY over one status/type column of one entity table.

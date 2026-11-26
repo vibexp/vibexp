@@ -127,20 +127,22 @@ func copyParamsFromGen(
 	teamID, userID string, body *embeddingprovidersgen.CopyEmbeddingProviderRequest,
 ) services.CopyEmbeddingProviderParams {
 	return services.CopyEmbeddingProviderParams{
-		TeamID:           teamID,
-		SourceTeamID:     body.SourceTeamId.String(),
-		SourceProviderID: body.SourceProviderId.String(),
-		UserID:           userID,
-		Name:             body.Name,
-		ProviderType:     body.ProviderType,
-		Model:            body.Model,
-		BaseURL:          body.BaseUrl,
-		ChunkSize:        body.ChunkSize,
-		ChunkOverlap:     body.ChunkOverlap,
-		Concurrency:      body.Concurrency,
-		QueryPrefix:      body.QueryPrefix,
-		DocumentPrefix:   body.DocumentPrefix,
-		Configuration:    body.Configuration,
+		TeamID:                teamID,
+		SourceTeamID:          body.SourceTeamId.String(),
+		SourceProviderID:      body.SourceProviderId.String(),
+		UserID:                userID,
+		Name:                  body.Name,
+		ProviderType:          body.ProviderType,
+		Model:                 body.Model,
+		BaseURL:               body.BaseUrl,
+		ChunkSize:             body.ChunkSize,
+		ChunkOverlap:          body.ChunkOverlap,
+		Concurrency:           body.Concurrency,
+		BatchSize:             body.BatchSize,
+		RequestTimeoutSeconds: body.RequestTimeoutSeconds,
+		QueryPrefix:           body.QueryPrefix,
+		DocumentPrefix:        body.DocumentPrefix,
+		Configuration:         body.Configuration,
 	}
 }
 
@@ -188,8 +190,9 @@ func copyForbiddenError(err error) error {
 // "copy the source's value" — so only a sent one is examined, and the failure
 // reports through the same PROVIDER_VALIDATION_FAILED payload create uses.
 //
-// The prefixes are checked with appendPrefixLengthErrors, the same helper the
-// create and update handlers call, so a change to the cap cannot leave the copy
+// The prefixes are checked with appendPrefixLengthErrors and batch_size /
+// request_timeout_seconds with appendRequestLimitErrors, the same helpers the
+// create and update handlers call, so a change to a bound cannot leave the copy
 // path behind.
 func validateCopyEmbeddingProviderOverrides(body *embeddingprovidersgen.CopyEmbeddingProviderRequest) error {
 	var validationErrors []apierrors.ValidationError
@@ -208,6 +211,7 @@ func validateCopyEmbeddingProviderOverrides(body *embeddingprovidersgen.CopyEmbe
 	}
 
 	validationErrors = appendPrefixLengthErrors(validationErrors, body.QueryPrefix, body.DocumentPrefix)
+	validationErrors = appendRequestLimitErrors(validationErrors, body.BatchSize, body.RequestTimeoutSeconds)
 
 	if len(validationErrors) == 0 {
 		return nil

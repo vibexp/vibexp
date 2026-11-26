@@ -53,21 +53,23 @@ func sourceEmbeddingProviderRow() *models.EmbeddingProvider {
 	documentPrefix := "passage: "
 
 	return &models.EmbeddingProvider{
-		ID:              testEmbedCopyProviderID,
-		UserID:          "someone-else",
-		TeamID:          &sourceTeamID,
-		Name:            "mxbai on Ollama",
-		ProviderType:    ProviderTypeOpenAICompatible,
-		Model:           testEmbedCopySourceModel,
-		ChunkSize:       512,
-		ChunkOverlap:    64,
-		Concurrency:     4,
-		QueryPrefix:     &queryPrefix,
-		DocumentPrefix:  &documentPrefix,
-		IsDefault:       true,
-		BaseURL:         &baseURL,
-		APIKeyEncrypted: &ciphertext,
-		Configuration:   `{"timeout":30}`,
+		ID:                    testEmbedCopyProviderID,
+		UserID:                "someone-else",
+		TeamID:                &sourceTeamID,
+		Name:                  "mxbai on Ollama",
+		ProviderType:          ProviderTypeOpenAICompatible,
+		Model:                 testEmbedCopySourceModel,
+		ChunkSize:             512,
+		ChunkOverlap:          64,
+		Concurrency:           4,
+		BatchSize:             8,
+		RequestTimeoutSeconds: 120,
+		QueryPrefix:           &queryPrefix,
+		DocumentPrefix:        &documentPrefix,
+		IsDefault:             true,
+		BaseURL:               &baseURL,
+		APIKeyEncrypted:       &ciphertext,
+		Configuration:         `{"timeout":30}`,
 	}
 }
 
@@ -128,6 +130,8 @@ func TestEmbeddingProviderService_CopyFromTeam_CarriesCiphertextTuningAndLandsNo
 	assert.Equal(t, source.ChunkSize, copied.ChunkSize)
 	assert.Equal(t, source.ChunkOverlap, copied.ChunkOverlap)
 	assert.Equal(t, source.Concurrency, copied.Concurrency)
+	assert.Equal(t, source.BatchSize, copied.BatchSize)
+	assert.Equal(t, source.RequestTimeoutSeconds, copied.RequestTimeoutSeconds)
 	require.NotNil(t, copied.QueryPrefix)
 	assert.Equal(t, *source.QueryPrefix, *copied.QueryPrefix)
 	require.NotNil(t, copied.DocumentPrefix)
@@ -468,6 +472,8 @@ func TestEmbeddingProviderService_CopyFromTeam_AppliesOverrides(t *testing.T) {
 	params.ChunkSize = ptr(2048)
 	params.ChunkOverlap = ptr(0)
 	params.Concurrency = ptr(1)
+	params.BatchSize = ptr(2)
+	params.RequestTimeoutSeconds = ptr(300)
 	params.QueryPrefix = ptr("")    // explicit clear
 	params.DocumentPrefix = ptr("") // explicit clear
 	params.BaseURL = ptr("")        // explicit clear
@@ -482,6 +488,8 @@ func TestEmbeddingProviderService_CopyFromTeam_AppliesOverrides(t *testing.T) {
 	assert.Equal(t, 2048, copied.ChunkSize)
 	assert.Equal(t, 0, copied.ChunkOverlap)
 	assert.Equal(t, 1, copied.Concurrency)
+	assert.Equal(t, 2, copied.BatchSize)
+	assert.Equal(t, 300, copied.RequestTimeoutSeconds)
 	assert.Nil(t, copied.QueryPrefix, `an explicit "" clears the prefix rather than storing it`)
 	assert.Nil(t, copied.DocumentPrefix)
 	assert.Nil(t, copied.BaseURL)

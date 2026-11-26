@@ -957,12 +957,13 @@ api-v1-settings-embedding-providers-copy:
       same 403, so the response never reveals whether the source team exists.
 
       The copy is always written `is_default: false`, and its chunk sizing,
-      concurrency and instruction prefixes carry over from the source unless
-      overridden. It can nonetheless become the team's ACTIVE provider: the
-      active provider is "the default-flagged one, else the most recently
-      updated one", so a non-default copy takes over whenever the destination
-      has no default set. That verdict — and the model it displaces, with the
-      number of resources still embedded under it — is reported in
+      concurrency, request batch size and timeout, and instruction prefixes
+      carry over from the source unless overridden. It can nonetheless become
+      the team's ACTIVE provider: the active provider is "the default-flagged
+      one, else the most recently updated one", so a non-default copy takes
+      over whenever the destination has no default set. That verdict — and
+      the model it displaces, with the number of resources still embedded
+      under it — is reported in
       `activation`, because nothing else in the system reports it: mixing
       embedding models produces no error, only worse search results.
 

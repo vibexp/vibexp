@@ -624,13 +624,15 @@ func TestEmbeddingProviderUpdateCoverage_SuccessWithValidData(t *testing.T) {
 	providerID := "550e8400-e29b-41d4-a716-446655440000"
 
 	expectedProvider := &models.EmbeddingProvider{
-		ID:           providerID,
-		UserID:       "user-123",
-		Name:         "Updated Provider",
-		ProviderType: "openai",
-		IsDefault:    false,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		ID:                    providerID,
+		UserID:                "user-123",
+		Name:                  "Updated Provider",
+		ProviderType:          "openai",
+		BatchSize:             32,
+		RequestTimeoutSeconds: 30,
+		IsDefault:             false,
+		CreatedAt:             time.Now(),
+		UpdatedAt:             time.Now(),
 	}
 
 	container.embeddingProviderService.

@@ -116,21 +116,23 @@ func toGenAdminEmbeddingProvider(p *models.EmbeddingProviderResponse) (admingen.
 		return admingen.AdminEmbeddingProvider{}, err
 	}
 	return admingen.AdminEmbeddingProvider{
-		Id:                id,
-		Name:              p.Name,
-		ProviderType:      p.ProviderType,
-		Model:             p.Model,
-		ChunkSize:         p.ChunkSize,
-		ChunkOverlap:      p.ChunkOverlap,
-		Concurrency:       p.Concurrency,
-		QueryPrefix:       p.QueryPrefix,
-		DocumentPrefix:    p.DocumentPrefix,
-		BaseUrl:           redactBaseURL(p.BaseURL),
-		IsDefault:         p.IsDefault,
-		HasApiKey:         p.HasAPIKey,
-		ConfigurationKeys: configurationKeys(p.Configuration),
-		CreatedAt:         p.CreatedAt,
-		UpdatedAt:         p.UpdatedAt,
+		Id:                    id,
+		Name:                  p.Name,
+		ProviderType:          p.ProviderType,
+		Model:                 p.Model,
+		ChunkSize:             p.ChunkSize,
+		ChunkOverlap:          p.ChunkOverlap,
+		Concurrency:           p.Concurrency,
+		BatchSize:             p.BatchSize,
+		RequestTimeoutSeconds: p.RequestTimeoutSeconds,
+		QueryPrefix:           p.QueryPrefix,
+		DocumentPrefix:        p.DocumentPrefix,
+		BaseUrl:               redactBaseURL(p.BaseURL),
+		IsDefault:             p.IsDefault,
+		HasApiKey:             p.HasAPIKey,
+		ConfigurationKeys:     configurationKeys(p.Configuration),
+		CreatedAt:             p.CreatedAt,
+		UpdatedAt:             p.UpdatedAt,
 	}, nil
 }
 

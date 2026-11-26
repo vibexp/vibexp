@@ -67,7 +67,8 @@ var adminModelProviderPaths = []string{
 }
 
 var adminEmbeddingProviderPaths = append([]string{
-	"chunk_size", "chunk_overlap", "concurrency", "query_prefix", "document_prefix",
+	"chunk_size", "chunk_overlap", "concurrency", "batch_size", "request_timeout_seconds",
+	"query_prefix", "document_prefix",
 }, adminModelProviderPaths...)
 
 func arrayPaths(prefix string, keys []string) []string {
@@ -149,6 +150,7 @@ func TestGetAdminTeamEmbeddingProviders(t *testing.T) {
 			EmbeddingProvider: models.EmbeddingProvider{
 				ID: uuid.NewString(), UserID: uuid.NewString(), TeamID: &teamID, Name: "Voyage",
 				ProviderType: "openai", Model: "voyage-3", ChunkSize: 800, ChunkOverlap: 80, Concurrency: 4,
+				BatchSize: 8, RequestTimeoutSeconds: 120,
 				QueryPrefix: strRef("query: "), DocumentPrefix: strRef("passage: "), IsDefault: true,
 				BaseURL: sentinelBaseURL(), APIKeyEncrypted: strRef(providerKeySentinel),
 				Configuration: sentinelConfiguration(t), CreatedAt: now, UpdatedAt: now, Version: 3,
@@ -174,6 +176,8 @@ func TestGetAdminTeamEmbeddingProviders(t *testing.T) {
 	require.Len(t, resp.Providers, 1)
 	p := resp.Providers[0]
 	assert.Equal(t, 800, p.ChunkSize)
+	assert.Equal(t, 8, p.BatchSize)
+	assert.Equal(t, 120, p.RequestTimeoutSeconds)
 	assert.Equal(t, "query: ", *p.QueryPrefix)
 	assert.Equal(t, "https://llm.example.com/v1", *p.BaseUrl)
 	assert.Equal(t, []string{"api_key", "headers", "org_hint"}, p.ConfigurationKeys)
