@@ -55,9 +55,7 @@ EmbeddingProvider:
       maximum: 300
       description: >-
         Timeout, in seconds, for one embeddings request. Raise it for slow or
-        CPU-only providers. One entity's whole embedding, all requests and
-        retries included, is also bounded by a fixed 2-minute job timeout, which
-        this setting does not extend.
+        CPU-only providers.
       example: 30
     query_prefix:
       type: string
@@ -180,9 +178,7 @@ CreateEmbeddingProviderRequest:
       maximum: 300
       description: >-
         Optional timeout, in seconds, for one embeddings request; defaults to
-        30 when omitted. Raise it for slow or CPU-only providers. One entity's
-        whole embedding is also bounded by a fixed 2-minute job timeout, which
-        this setting does not extend.
+        30 when omitted. Raise it for slow or CPU-only providers.
       example: 30
     query_prefix:
       type: string

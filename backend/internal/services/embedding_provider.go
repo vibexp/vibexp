@@ -549,6 +549,8 @@ func (eps *EmbeddingProviderService) ResolveActiveProvider(
 		ChunkSize:      row.ChunkSize,
 		ChunkOverlap:   row.ChunkOverlap,
 		Concurrency:    row.Concurrency,
+		BatchSize:      effectiveBatchSize(row.BatchSize),
+		RequestTimeout: effectiveRequestTimeout(row.RequestTimeoutSeconds),
 		QueryPrefix:    derefString(row.QueryPrefix),
 		DocumentPrefix: derefString(row.DocumentPrefix),
 	}, nil

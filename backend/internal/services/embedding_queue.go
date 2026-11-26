@@ -18,7 +18,8 @@ const (
 	// defaultEmbeddingQueueLease is how long a claim is held before the job
 	// becomes claimable again. It has to comfortably exceed the worst-case time
 	// one claimed job spends in this process -- the wait for a free provider slot
-	// plus embeddingJobTimeout -- because a lease that expires while the job is
+	// plus its generate deadline (generateTimeout, at most
+	// maxEmbeddingGenerateTimeout) -- because a lease that expires while the job is
 	// still running is re-run by the next poll. That costs a duplicate embed,
 	// which is wasted work rather than wrong data (generation is
 	// delete-then-insert per entity), but it is worth not doing routinely.

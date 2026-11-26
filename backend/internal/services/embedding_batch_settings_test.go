@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -238,6 +240,8 @@ func TestEmbeddingProviderService_ResolveActiveProvider_PropagatesBatchSettings(
 	require.True(t, ok)
 	assert.Equal(t, 8, concrete.batchSize)
 	assert.Equal(t, 120*time.Second, concrete.httpClient.Timeout)
+	assert.Equal(t, 8, resolved.BatchSize, "the dispatcher sizes the generate deadline from these")
+	assert.Equal(t, 120*time.Second, resolved.RequestTimeout)
 }
 
 // The /validate probe runs with the submitted batch size and timeout, or the
@@ -262,4 +266,77 @@ func TestValidationProbeRow(t *testing.T) {
 	concrete, ok := p.(*OpenAICompatibleProvider)
 	require.True(t, ok)
 	assert.Equal(t, 5*time.Second, concrete.httpClient.Timeout, "the probe's client uses the submitted timeout")
+}
+
+// deadlineProvider records how long the context it was called with had left, so
+// a test can see the generate-stage deadline the dispatcher chose.
+type deadlineProvider struct {
+	countingProvider
+	remaining time.Duration
+}
+
+func (p *deadlineProvider) GenerateEmbeddings(ctx context.Context, texts []string) ([][]float32, error) {
+	if deadline, ok := ctx.Deadline(); ok {
+		p.remaining = time.Until(deadline)
+	}
+	return p.countingProvider.GenerateEmbeddings(ctx, texts)
+}
+
+// chunkedInput is an entity whose body chunks into exactly n chunks at chunk
+// size 100 with no overlap.
+func chunkedInput(n int) embeddingInput {
+	return embeddingInput{
+		entityType: "memory", entityID: "m-1", userID: "u-1",
+		body: strings.Repeat("a", 100*n),
+	}
+}
+
+func resolvedWith(batchSize int, timeout time.Duration) *ResolvedEmbeddingProvider {
+	return &ResolvedEmbeddingProvider{
+		ChunkSize: 100, ChunkOverlap: 0, Concurrency: 1, BatchSize: batchSize, RequestTimeout: timeout,
+	}
+}
+
+// The generate deadline fits one full attempt at the provider's pace, never
+// drops below the fixed job timeout, and is capped.
+func TestGenerateTimeout(t *testing.T) {
+	require.Len(t, NewTextChunker(100, 0).Chunk(chunkedInput(20).embedText()), 20, "fixture: 20 chunks")
+
+	cases := []struct {
+		name     string
+		input    embeddingInput
+		resolved *ResolvedEmbeddingProvider
+		want     time.Duration
+	}{
+		{"no provider", chunkedInput(1), nil, embeddingJobTimeout},
+		{"unset settings", chunkedInput(20), resolvedWith(0, 0), embeddingJobTimeout},
+		{"a small entity at the defaults", chunkedInput(20), resolvedWith(32, 30*time.Second), embeddingJobTimeout},
+		{"20 chunks, batch 8, 60 s each: 3 requests", chunkedInput(20), resolvedWith(8, time.Minute), 3 * time.Minute},
+		{"20 chunks, batch 1, 300 s each: capped", chunkedInput(20), resolvedWith(1, 300*time.Second),
+			maxEmbeddingGenerateTimeout},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, generateTimeout(tc.input, tc.resolved))
+		})
+	}
+	assert.Less(t, maxEmbeddingGenerateTimeout, defaultEmbeddingQueueLease,
+		"the queue lease must outlast the longest generate deadline")
+}
+
+// generate runs under that deadline, so a slow provider's multi-batch entity is
+// not cut off at the fixed 2 minutes.
+func TestEmbeddingDispatcher_GenerateUsesProviderPacedDeadline(t *testing.T) {
+	provider := &deadlineProvider{}
+	resolved := resolvedWith(8, time.Minute)
+	resolved.Provider = provider
+	svc := newRecordingEmbeddingService(func(string) string { return "team-1" })
+	d := newDispatcher(&perTeamResolver{}, svc, slog.New(slog.NewTextHandler(io.Discard, nil)),
+		EmbeddingRetryConfig{MaxRetries: 1})
+
+	outcome := d.generate(chunkedInput(20), "team-1", resolved)
+	require.NoError(t, outcome.err)
+	assert.Greater(t, provider.remaining, embeddingJobTimeout,
+		"20 chunks at batch 8 and 60 s per request need longer than the fixed job timeout")
+	assert.LessOrEqual(t, provider.remaining, 3*time.Minute)
 }

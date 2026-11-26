@@ -28877,7 +28877,7 @@
     "/api/v1/{team_id}/settings/embedding-providers/copy": {
       "post": {
         "summary": "Copy an embedding provider from another team",
-        "description": "Copies one embedding provider out of another team into this one (#831,\nepic #827). The destination is `{team_id}`; the source is named in the\nbody.\n\nThe stored API key moves as CIPHERTEXT: the source row's encrypted key is\nwritten straight to the new row and is never decrypted, never held in\nplaintext, and never appears in a request or response body. That is the\nreason this is a server-side operation at all — keys are write-only over\nthe API, so a client copying a provider by hand cannot bring one with it.\n\nAuthorization requires permission to manage provider settings in BOTH\nteams. The destination is evaluated first and either denial answers the\nsame 403, so the response never reveals whether the source team exists.\n\nThe copy is always written `is_default: false`, and its chunk sizing,\nconcurrency, request batch size and timeout, and instruction prefixes\ncarry over from the source unless overridden. It can nonetheless become the team's ACTIVE provider: the\nactive provider is \"the default-flagged one, else the most recently\nupdated one\", so a non-default copy takes over whenever the destination\nhas no default set. That verdict — and the model it displaces, with the\nnumber of resources still embedded under it — is reported in\n`activation`, because nothing else in the system reports it: mixing\nembedding models produces no error, only worse search results.\n\nNote the `version` caveat on `EmbeddingProvider`: like the create\nresponse, this one reports 0 for a row that persists at 1.\n",
+        "description": "Copies one embedding provider out of another team into this one (#831,\nepic #827). The destination is `{team_id}`; the source is named in the\nbody.\n\nThe stored API key moves as CIPHERTEXT: the source row's encrypted key is\nwritten straight to the new row and is never decrypted, never held in\nplaintext, and never appears in a request or response body. That is the\nreason this is a server-side operation at all — keys are write-only over\nthe API, so a client copying a provider by hand cannot bring one with it.\n\nAuthorization requires permission to manage provider settings in BOTH\nteams. The destination is evaluated first and either denial answers the\nsame 403, so the response never reveals whether the source team exists.\n\nThe copy is always written `is_default: false`, and its chunk sizing,\nconcurrency, request batch size and timeout, and instruction prefixes\ncarry over from the source unless overridden. It can nonetheless become\nthe team's ACTIVE provider: the active provider is \"the default-flagged\none, else the most recently updated one\", so a non-default copy takes\nover whenever the destination has no default set. That verdict — and the model it displaces, with the\nnumber of resources still embedded under it — is reported in\n`activation`, because nothing else in the system reports it: mixing\nembedding models produces no error, only worse search results.\n\nNote the `version` caveat on `EmbeddingProvider`: like the create\nresponse, this one reports 0 for a row that persists at 1.\n",
         "operationId": "copyEmbeddingProviderFromTeam",
         "security": [
           {
@@ -36035,7 +36035,7 @@
             "type": "integer",
             "minimum": 5,
             "maximum": 300,
-            "description": "Timeout, in seconds, for one embeddings request. Raise it for slow or CPU-only providers. One entity's whole embedding, all requests and retries included, is also bounded by a fixed 2-minute job timeout, which this setting does not extend.",
+            "description": "Timeout, in seconds, for one embeddings request. Raise it for slow or CPU-only providers.",
             "example": 30
           },
           "query_prefix": {
@@ -36171,7 +36171,7 @@
             "type": "integer",
             "minimum": 5,
             "maximum": 300,
-            "description": "Optional timeout, in seconds, for one embeddings request; defaults to 30 when omitted. Raise it for slow or CPU-only providers. One entity's whole embedding is also bounded by a fixed 2-minute job timeout, which this setting does not extend.",
+            "description": "Optional timeout, in seconds, for one embeddings request; defaults to 30 when omitted. Raise it for slow or CPU-only providers.",
             "example": 30
           },
           "query_prefix": {

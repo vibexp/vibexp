@@ -19,8 +19,17 @@ import (
 const (
 	// embeddingJobTimeout bounds one entity's full embed attempt sequence
 	// (all retries included). It is decoupled from the event's own context,
-	// which may already be cancelled by the time an enqueued job runs.
+	// which may already be cancelled by the time an enqueued job runs. For the
+	// generate stage it is a floor: generateTimeout raises it for a provider
+	// whose batches need longer (#1665).
 	embeddingJobTimeout = 2 * time.Minute
+
+	// maxEmbeddingGenerateTimeout caps the generate-stage deadline that
+	// generateTimeout derives from a provider's batch size and request timeout
+	// (#1665). It stays well below defaultEmbeddingQueueLease, which has to cover
+	// the wait for a provider slot plus this deadline, so a long job is never
+	// reclaimed and run twice.
+	maxEmbeddingGenerateTimeout = 20 * time.Minute
 
 	// maxEmbeddingRetryBackoff caps the base retry interval before jitter.
 	maxEmbeddingRetryBackoff = 30 * time.Second
@@ -365,7 +374,7 @@ func (d *EmbeddingDispatcher) entityLogger(input embeddingInput, teamID string) 
 func (d *EmbeddingDispatcher) generate(
 	input embeddingInput, teamID string, resolved *ResolvedEmbeddingProvider,
 ) generateOutcome {
-	ctx, cancel := context.WithTimeout(context.Background(), embeddingJobTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), generateTimeout(input, resolved))
 	defer cancel()
 
 	bo := d.newBackoff()
@@ -413,6 +422,23 @@ func (d *EmbeddingDispatcher) generate(
 	).Error(terminalFailureMessage(retryable))
 
 	return generateOutcome{err: lastErr, retryable: retryable}
+}
+
+// generateTimeout is the deadline for one entity's generate stage. It is
+// embeddingJobTimeout, raised to fit one full attempt at the provider's own pace
+// when that is longer: the entity's batches, sent one after another, each allowed
+// the provider's request timeout (#1665). Without it a slow provider configured
+// with a small batch and a long timeout would still hit the fixed 2-minute
+// deadline on a large entity, so the settings could never take effect. The
+// result is capped at maxEmbeddingGenerateTimeout.
+func generateTimeout(input embeddingInput, resolved *ResolvedEmbeddingProvider) time.Duration {
+	if resolved == nil || resolved.BatchSize < 1 || resolved.RequestTimeout <= 0 {
+		return embeddingJobTimeout
+	}
+	chunks := len(NewTextChunker(resolved.ChunkSize, resolved.ChunkOverlap).Chunk(input.embedText()))
+	batches := max((chunks+resolved.BatchSize-1)/resolved.BatchSize, 1)
+	attempt := time.Duration(batches) * resolved.RequestTimeout
+	return min(max(embeddingJobTimeout, attempt), maxEmbeddingGenerateTimeout)
 }
 
 // generateOutcome is one generate job's terminal result. A zero value means

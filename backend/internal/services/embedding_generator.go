@@ -107,6 +107,12 @@ type ResolvedEmbeddingProvider struct {
 	ChunkSize    int
 	ChunkOverlap int
 	Concurrency  int
+	// BatchSize and RequestTimeout are the provider's per-request settings
+	// (#1665), normalized to the defaults when unset. Provider already applies
+	// them; they are repeated here so the dispatcher can size an entity's
+	// generate deadline to fit the provider's pace.
+	BatchSize      int
+	RequestTimeout time.Duration
 	// QueryPrefix / DocumentPrefix are the stored provider instruction prefixes,
 	// applied only to the text sent to the provider: QueryPrefix is prepended to
 	// each search query, DocumentPrefix to each document chunk. Empty means no
@@ -170,17 +176,13 @@ func NewOpenAICompatibleProvider(
 	if timeout <= 0 {
 		timeout = generateEmbeddingsTimeout
 	}
-	if batchSize <= 0 {
-		batchSize = maxEmbeddingBatchSize
-	}
-	batchSize = min(batchSize, maxEmbeddingBatchSize)
 	return &OpenAICompatibleProvider{
 		httpClient: newProviderHTTPClient(guard, timeout),
 		baseURL:    strings.TrimSuffix(baseURL, "/"),
 		apiKey:     apiKey,
 		model:      model,
 		dimensions: dimensions,
-		batchSize:  batchSize,
+		batchSize:  effectiveBatchSize(batchSize),
 	}, nil
 }
 
@@ -333,6 +335,25 @@ func (p *OpenAICompatibleProvider) orderVectors(decoded openAIEmbeddingsResponse
 	return vectors, nil
 }
 
+// effectiveBatchSize is the batch size a provider actually sends: a
+// non-positive value means the default, and the result is capped at
+// maxEmbeddingBatchSize.
+func effectiveBatchSize(batchSize int) int {
+	if batchSize <= 0 {
+		return maxEmbeddingBatchSize
+	}
+	return min(batchSize, maxEmbeddingBatchSize)
+}
+
+// effectiveRequestTimeout is a provider's per-request timeout: a non-positive
+// stored value means the default.
+func effectiveRequestTimeout(seconds int) time.Duration {
+	if seconds <= 0 {
+		return generateEmbeddingsTimeout
+	}
+	return time.Duration(seconds) * time.Second
+}
+
 // NewGenerationProvider builds an EmbeddingProvider from a stored provider row.
 // It maps provider_type to a concrete implementation; future provider types are a
 // single additional case here plus their implementation. model is the provider's
@@ -353,8 +374,10 @@ func NewGenerationProvider(
 		if provider.BaseURL != nil {
 			baseURL = *provider.BaseURL
 		}
-		timeout := time.Duration(provider.RequestTimeoutSeconds) * time.Second
-		return NewOpenAICompatibleProvider(baseURL, apiKey, model, dimensions, timeout, provider.BatchSize, guard)
+		return NewOpenAICompatibleProvider(
+			baseURL, apiKey, model, dimensions,
+			effectiveRequestTimeout(provider.RequestTimeoutSeconds), provider.BatchSize, guard,
+		)
 	default:
 		return nil, fmt.Errorf("unsupported embedding provider type: %q", provider.ProviderType)
 	}

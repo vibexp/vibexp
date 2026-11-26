@@ -19730,10 +19730,10 @@ paths:
 
         The copy is always written `is_default: false`, and its chunk sizing,
         concurrency, request batch size and timeout, and instruction prefixes
-        carry over from the source unless overridden. It can nonetheless become the team's ACTIVE provider: the
-        active provider is "the default-flagged one, else the most recently
-        updated one", so a non-default copy takes over whenever the destination
-        has no default set. That verdict — and the model it displaces, with the
+        carry over from the source unless overridden. It can nonetheless become
+        the team's ACTIVE provider: the active provider is "the default-flagged
+        one, else the most recently updated one", so a non-default copy takes
+        over whenever the destination has no default set. That verdict — and the model it displaces, with the
         number of resources still embedded under it — is reported in
         `activation`, because nothing else in the system reports it: mixing
         embedding models produces no error, only worse search results.
@@ -24837,7 +24837,7 @@ components:
           type: integer
           minimum: 5
           maximum: 300
-          description: Timeout, in seconds, for one embeddings request. Raise it for slow or CPU-only providers. One entity's whole embedding, all requests and retries included, is also bounded by a fixed 2-minute job timeout, which this setting does not extend.
+          description: Timeout, in seconds, for one embeddings request. Raise it for slow or CPU-only providers.
           example: 30
         query_prefix:
           type: string
@@ -24943,7 +24943,7 @@ components:
           type: integer
           minimum: 5
           maximum: 300
-          description: Optional timeout, in seconds, for one embeddings request; defaults to 30 when omitted. Raise it for slow or CPU-only providers. One entity's whole embedding is also bounded by a fixed 2-minute job timeout, which this setting does not extend.
+          description: Optional timeout, in seconds, for one embeddings request; defaults to 30 when omitted. Raise it for slow or CPU-only providers.
           example: 30
         query_prefix:
           type: string

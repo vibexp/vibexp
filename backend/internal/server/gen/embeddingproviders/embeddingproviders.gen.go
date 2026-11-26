@@ -116,7 +116,7 @@ type CreateEmbeddingProviderRequest struct {
 	// QueryPrefix Optional instruction prefix prepended to search queries before embedding. Defaults to empty (no prefix) when omitted.
 	QueryPrefix *string `json:"query_prefix,omitempty"`
 
-	// RequestTimeoutSeconds Optional timeout, in seconds, for one embeddings request; defaults to 30 when omitted. Raise it for slow or CPU-only providers. One entity's whole embedding is also bounded by a fixed 2-minute job timeout, which this setting does not extend.
+	// RequestTimeoutSeconds Optional timeout, in seconds, for one embeddings request; defaults to 30 when omitted. Raise it for slow or CPU-only providers.
 	RequestTimeoutSeconds *int `json:"request_timeout_seconds,omitempty"`
 }
 
@@ -151,7 +151,7 @@ type EmbeddingProvider struct {
 	// QueryPrefix Instruction prefix prepended to search queries before they are embedded (only the text sent to the provider; nothing extra is stored). Asymmetric models require this — e.g. mxbai/BGE English expect "Represent this sentence for searching relevant passages: ", E5 expects "query: ". Empty/null means no prefix (default behaviour).
 	QueryPrefix *string `json:"query_prefix,omitempty"`
 
-	// RequestTimeoutSeconds Timeout, in seconds, for one embeddings request. Raise it for slow or CPU-only providers. One entity's whole embedding, all requests and retries included, is also bounded by a fixed 2-minute job timeout, which this setting does not extend.
+	// RequestTimeoutSeconds Timeout, in seconds, for one embeddings request. Raise it for slow or CPU-only providers.
 	RequestTimeoutSeconds int `json:"request_timeout_seconds"`
 
 	// TeamId Team that owns this provider.
@@ -222,7 +222,7 @@ type EmbeddingProviderResponse struct {
 	// QueryPrefix Instruction prefix prepended to search queries before they are embedded (only the text sent to the provider; nothing extra is stored). Asymmetric models require this — e.g. mxbai/BGE English expect "Represent this sentence for searching relevant passages: ", E5 expects "query: ". Empty/null means no prefix (default behaviour).
 	QueryPrefix *string `json:"query_prefix,omitempty"`
 
-	// RequestTimeoutSeconds Timeout, in seconds, for one embeddings request. Raise it for slow or CPU-only providers. One entity's whole embedding, all requests and retries included, is also bounded by a fixed 2-minute job timeout, which this setting does not extend.
+	// RequestTimeoutSeconds Timeout, in seconds, for one embeddings request. Raise it for slow or CPU-only providers.
 	RequestTimeoutSeconds int `json:"request_timeout_seconds"`
 
 	// TeamId Team that owns this provider.
