@@ -181,8 +181,7 @@ func (eps *EmbeddingProviderService) buildEmbeddingProvider(
 
 func (eps *EmbeddingProviderService) CreateEmbeddingProvider(
 	ctx context.Context,
-	teamID string,
-	userID string,
+	teamID, userID string,
 	req models.CreateEmbeddingProviderRequest,
 ) (*models.EmbeddingProvider, error) {
 	if eps == nil || eps.repo == nil {

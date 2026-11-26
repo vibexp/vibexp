@@ -176,8 +176,7 @@ func buildEmbeddingProviderCopy(
 func (eps *EmbeddingProviderService) resolveActivation(
 	ctx context.Context,
 	teamID string,
-	created *models.EmbeddingProvider,
-	displaced *models.EmbeddingProvider,
+	created, displaced *models.EmbeddingProvider,
 ) (CopyEmbeddingProviderActivation, error) {
 	nowActive, err := eps.activeProvider(ctx, teamID)
 	if err != nil {
