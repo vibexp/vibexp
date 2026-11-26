@@ -160,6 +160,8 @@ export const embeddingProvider = (
   chunk_size: 512,
   chunk_overlap: 64,
   concurrency: 4,
+  batch_size: 8,
+  request_timeout_seconds: 120,
   query_prefix: 'search_query: ',
   document_prefix: null,
   base_url: null,

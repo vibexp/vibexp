@@ -54,6 +54,12 @@ it('renders providers with chunking details and the coverage table', async () =>
   expect(await screen.findByText('Local embeddings')).toBeInTheDocument()
   expect(mockGet).toHaveBeenCalledWith('t1')
   expect(screen.getByText('512 / 64 overlap')).toBeInTheDocument()
+  expect(screen.getByText('Batch size').nextElementSibling).toHaveTextContent(
+    '8'
+  )
+  expect(
+    screen.getByText('Request timeout').nextElementSibling
+  ).toHaveTextContent('120s')
   expect(screen.getByText('search_query:')).toBeInTheDocument()
   expect(screen.getByText('dimensions')).toBeInTheDocument()
   expect(screen.getByText('Configured ✓')).toBeInTheDocument()

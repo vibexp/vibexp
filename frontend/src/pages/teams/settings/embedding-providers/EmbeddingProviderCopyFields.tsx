@@ -45,19 +45,28 @@ export function CopiedApiKeyField({
 }
 
 // Numeric form field with the string↔number coercion an <input type="number">
-// needs. Mirrors ConcurrencyField; used for the two copy-only chunk fields.
-function NumberField({
+// needs (it yields strings, but the schema wants a number). Shared by the
+// dialog's concurrency, batch size and request timeout fields and the two
+// copy-only chunk fields.
+export function NumberField({
   control,
   name,
   label,
   description,
   min,
+  max,
 }: Readonly<{
   control: Control<EmbeddingProviderFormValues>
-  name: 'chunk_size' | 'chunk_overlap'
+  name:
+    | 'chunk_size'
+    | 'chunk_overlap'
+    | 'concurrency'
+    | 'batch_size'
+    | 'request_timeout_seconds'
   label: string
   description: string
   min: number
+  max?: number
 }>) {
   return (
     <FormField
@@ -70,6 +79,7 @@ function NumberField({
             <Input
               type="number"
               min={min}
+              max={max}
               step={1}
               name={field.name}
               ref={field.ref}

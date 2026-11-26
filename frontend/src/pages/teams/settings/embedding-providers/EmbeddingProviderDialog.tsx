@@ -37,6 +37,7 @@ import { toast } from '@/lib/toast'
 import {
   CopiedApiKeyField,
   CopyOnlyFields,
+  NumberField,
 } from '@/pages/teams/settings/embedding-providers/EmbeddingProviderCopyFields'
 import type {
   CopySource,
@@ -44,9 +45,14 @@ import type {
   EmbeddingProviderFormValues,
 } from '@/pages/teams/settings/embedding-providers/embeddingProviderForm'
 import {
+  DEFAULT_BATCH_SIZE,
   DEFAULT_CHUNK_OVERLAP,
   DEFAULT_CHUNK_SIZE,
+  DEFAULT_REQUEST_TIMEOUT_SECONDS,
   identityChanged,
+  MAX_BATCH_SIZE,
+  MAX_REQUEST_TIMEOUT_SECONDS,
+  MIN_REQUEST_TIMEOUT_SECONDS,
   reembedWillTrigger,
   schema,
 } from '@/pages/teams/settings/embedding-providers/embeddingProviderForm'
@@ -60,43 +66,40 @@ import {
   embeddingProviderService,
 } from '@/services/embeddingProviderService'
 
-// Concurrency is the one numeric field, so it needs value/onChange coercion
-// (an <input type="number"> yields strings, but the schema wants a number).
-// Extracted to keep the dialog component under the max-lines-per-function cap.
-function ConcurrencyField({
+// RequestFields renders the per-request settings: how many requests run at once,
+// how many chunks each carries and how long each may take (#1665). Extracted to
+// keep the dialog component under the max-lines-per-function cap.
+function RequestFields({
   control,
 }: Readonly<{
   control: Control<EmbeddingProviderFormValues>
 }>) {
   return (
-    <FormField
-      control={control}
-      name="concurrency"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>Concurrency</FormLabel>
-          <FormControl>
-            <Input
-              type="number"
-              min={1}
-              step={1}
-              name={field.name}
-              ref={field.ref}
-              onBlur={field.onBlur}
-              value={Number.isNaN(field.value) ? '' : field.value}
-              onChange={event => {
-                field.onChange(event.target.valueAsNumber)
-              }}
-            />
-          </FormControl>
-          <FormDescription>
-            Max simultaneous embedding requests to this provider; keep at 1 for
-            single-threaded providers.
-          </FormDescription>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
+    <>
+      <NumberField
+        control={control}
+        name="concurrency"
+        label="Concurrency"
+        description="Max simultaneous embedding requests to this provider; keep at 1 for single-threaded providers."
+        min={1}
+      />
+      <NumberField
+        control={control}
+        name="batch_size"
+        label="Batch size"
+        description={`Chunks per embedding request (1–${String(MAX_BATCH_SIZE)}). Lower for slow or CPU-only providers.`}
+        min={1}
+        max={MAX_BATCH_SIZE}
+      />
+      <NumberField
+        control={control}
+        name="request_timeout_seconds"
+        label="Request timeout (seconds)"
+        description={`Time allowed per embedding request (${String(MIN_REQUEST_TIMEOUT_SECONDS)}–${String(MAX_REQUEST_TIMEOUT_SECONDS)}). Raise for slow or CPU-only providers.`}
+        min={MIN_REQUEST_TIMEOUT_SECONDS}
+        max={MAX_REQUEST_TIMEOUT_SECONDS}
+      />
+    </>
   )
 }
 
@@ -119,7 +122,7 @@ const PREFIX_PRESETS: {
 
 // PrefixFields renders the query/document instruction-prefix inputs plus the
 // per-family preset chips. Extracted to keep the dialog component under the
-// max-lines-per-function cap (mirrors ConcurrencyField). Preset chips are used
+// max-lines-per-function cap (mirrors RequestFields). Preset chips are used
 // instead of a Select because a Radix Select inside a Dialog crashes jsdom.
 function PrefixFields({
   form,
@@ -343,6 +346,8 @@ export function EmbeddingProviderDialog({
       base_url: '',
       api_key: '',
       concurrency: 1,
+      batch_size: DEFAULT_BATCH_SIZE,
+      request_timeout_seconds: DEFAULT_REQUEST_TIMEOUT_SECONDS,
       query_prefix: '',
       document_prefix: '',
       is_default: false,
@@ -370,6 +375,8 @@ export function EmbeddingProviderDialog({
         base_url: prefill.base_url ?? '',
         api_key: '',
         concurrency: prefill.concurrency,
+        batch_size: prefill.batch_size,
+        request_timeout_seconds: prefill.request_timeout_seconds,
         query_prefix: prefill.query_prefix ?? '',
         document_prefix: prefill.document_prefix ?? '',
         is_default: copySource ? false : prefill.is_default,
@@ -407,6 +414,8 @@ export function EmbeddingProviderDialog({
         chunk_size: values.chunk_size,
         chunk_overlap: values.chunk_overlap,
         concurrency: values.concurrency,
+        batch_size: values.batch_size,
+        request_timeout_seconds: values.request_timeout_seconds,
         query_prefix: values.query_prefix,
         document_prefix: values.document_prefix,
         reprocess: values.reprocess,
@@ -428,6 +437,10 @@ export function EmbeddingProviderDialog({
             provider_type: values.provider_type,
             model,
             base_url: baseUrl,
+            // The probe runs with the values being saved, so a slow provider
+            // validates with the longer timeout it needs.
+            batch_size: values.batch_size,
+            request_timeout_seconds: values.request_timeout_seconds,
             api_key: apiKey === '' ? undefined : apiKey,
           }
         )
@@ -452,6 +465,8 @@ export function EmbeddingProviderDialog({
       base_url: baseUrl,
       api_key: apiKey === '' ? undefined : apiKey,
       concurrency: values.concurrency,
+      batch_size: values.batch_size,
+      request_timeout_seconds: values.request_timeout_seconds,
       // Prefixes are sent verbatim (no trim — the trailing space is significant);
       // an empty string clears a previously-configured prefix on update.
       query_prefix: values.query_prefix,
@@ -555,7 +570,7 @@ export function EmbeddingProviderDialog({
                   on save to guarantee they return this width.
                 </p>
               </div>
-              <ConcurrencyField control={form.control} />
+              <RequestFields control={form.control} />
               <FormField
                 control={form.control}
                 name="base_url"

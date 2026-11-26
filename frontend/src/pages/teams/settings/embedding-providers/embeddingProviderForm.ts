@@ -8,16 +8,39 @@ import type { EmbeddingProviderResponse } from '@/services/embeddingProviderServ
 export const DEFAULT_CHUNK_SIZE = 1000
 export const DEFAULT_CHUNK_OVERLAP = 200
 
+// Per-request batch size and timeout (#1665): the server's defaults and the
+// bounds it enforces, mirrored so the form rejects what the API would.
+export const DEFAULT_BATCH_SIZE = 32
+export const MAX_BATCH_SIZE = 32
+export const DEFAULT_REQUEST_TIMEOUT_SECONDS = 30
+export const MIN_REQUEST_TIMEOUT_SECONDS = 5
+export const MAX_REQUEST_TIMEOUT_SECONDS = 300
+
+const WHOLE_NUMBER = 'Must be a whole number'
+
 export const schema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(255),
   provider_type: z.string().min(1, 'Provider type is required'),
   model: z.string().trim().min(1, 'Model is required').max(255),
   base_url: z.url('Must be a valid URL').trim(),
   api_key: z.string().optional(),
-  concurrency: z
-    .number()
-    .int('Must be a whole number')
-    .min(1, 'Must be at least 1'),
+  concurrency: z.number().int(WHOLE_NUMBER).min(1, 'Must be at least 1'),
+  batch_size: z
+    .number('Must be a number')
+    .int(WHOLE_NUMBER)
+    .min(1, 'Must be at least 1')
+    .max(MAX_BATCH_SIZE, `Must be at most ${String(MAX_BATCH_SIZE)}`),
+  request_timeout_seconds: z
+    .number('Must be a number')
+    .int(WHOLE_NUMBER)
+    .min(
+      MIN_REQUEST_TIMEOUT_SECONDS,
+      `Must be at least ${String(MIN_REQUEST_TIMEOUT_SECONDS)}`
+    )
+    .max(
+      MAX_REQUEST_TIMEOUT_SECONDS,
+      `Must be at most ${String(MAX_REQUEST_TIMEOUT_SECONDS)}`
+    ),
   // Prefixes are NOT trimmed — asymmetric models expect a trailing space (e.g.
   // "query: "), which trimming would strip. Capped at 256 to match the backend.
   query_prefix: z.string().max(256, 'Must be at most 256 characters'),
@@ -26,14 +49,8 @@ export const schema = z.object({
   // Chunk sizing is rendered (and sent) on the COPY path only — a copy carries
   // the source row's values across, and this is where they can be overridden.
   // Create/edit keep the server's defaults, as they always have.
-  chunk_size: z
-    .number()
-    .int('Must be a whole number')
-    .min(1, 'Must be at least 1'),
-  chunk_overlap: z
-    .number()
-    .int('Must be a whole number')
-    .min(0, 'Must be 0 or more'),
+  chunk_size: z.number().int(WHOLE_NUMBER).min(1, 'Must be at least 1'),
+  chunk_overlap: z.number().int(WHOLE_NUMBER).min(0, 'Must be 0 or more'),
   // Copy-only: opts the copy into a background re-embed of this team's content.
   reprocess: z.boolean(),
 })
@@ -63,6 +80,8 @@ export interface CopySubmitValues {
   chunk_size: number
   chunk_overlap: number
   concurrency: number
+  batch_size: number
+  request_timeout_seconds: number
   query_prefix: string
   document_prefix: string
   reprocess: boolean
