@@ -82,8 +82,7 @@ func NewTeamInvitationService(deps TeamInvitationServiceDeps) *TeamInvitationSer
 // InviteMembers invites multiple users to join a team
 func (s *TeamInvitationService) InviteMembers(
 	ctx context.Context,
-	userID string,
-	teamID string,
+	userID, teamID string,
 	emails []string,
 	role models.TeamMemberRole,
 ) ([]*models.TeamInvitation, error) {
@@ -486,8 +485,7 @@ func (s *TeamInvitationService) GetPendingInvitations(
 //nolint:funlen // Complex business logic with comprehensive security checks
 func (s *TeamInvitationService) AcceptInvitation(
 	ctx context.Context,
-	token string,
-	userID string,
+	token, userID string,
 ) (string, error) {
 	// Get invitation by token
 	invitation, err := s.invitationRepo.GetByToken(ctx, token)
@@ -563,7 +561,7 @@ func (s *TeamInvitationService) AcceptInvitation(
 }
 
 // RejectInvitation rejects a team invitation
-func (s *TeamInvitationService) RejectInvitation(ctx context.Context, token string, userID string) error {
+func (s *TeamInvitationService) RejectInvitation(ctx context.Context, token, userID string) error {
 	// Get invitation by token
 	invitation, err := s.invitationRepo.GetByToken(ctx, token)
 	if err != nil {
@@ -612,8 +610,7 @@ func (s *TeamInvitationService) RejectInvitation(ctx context.Context, token stri
 // RevokeInvitation revokes a team invitation
 func (s *TeamInvitationService) RevokeInvitation(
 	ctx context.Context,
-	userID string,
-	invitationID string,
+	userID, invitationID string,
 ) error {
 	// Get invitation
 	invitation, err := s.invitationRepo.GetByID(ctx, invitationID)
@@ -646,8 +643,7 @@ func (s *TeamInvitationService) RevokeInvitation(
 // GetTeamInvitations retrieves all invitations for a team
 func (s *TeamInvitationService) GetTeamInvitations(
 	ctx context.Context,
-	userID string,
-	teamID string,
+	userID, teamID string,
 ) ([]models.TeamInvitation, error) {
 	// Verify user has permission to view invitations
 	if err := s.canManageInvitations(ctx, userID, teamID); err != nil {

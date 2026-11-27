@@ -371,7 +371,7 @@ func TestImportProgress_NoLogBelow10Files(t *testing.T) {
 // removeMockCall removes all expected calls from a mock that match the given method
 // and one argument hint (matched by string containment). This is a test helper to
 // allow overriding a broadly-configured mock expectation.
-func removeMockCall(calls []*mock.Call, method string, argHint string) []*mock.Call {
+func removeMockCall(calls []*mock.Call, method, argHint string) []*mock.Call {
 	result := make([]*mock.Call, 0, len(calls))
 	for _, c := range calls {
 		if c.Method != method {

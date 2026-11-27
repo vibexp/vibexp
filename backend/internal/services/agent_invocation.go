@@ -302,8 +302,7 @@ func (s *AgentInvocationService) invokeAgentSync(
 func (s *AgentInvocationService) pollSyncTask(
 	ctx context.Context,
 	agent *models.Agent,
-	execution *models.AgentExecution,
-	initial *models.AgentExecution,
+	execution, initial *models.AgentExecution,
 ) (*models.AgentExecution, error) {
 	taskID := *initial.TaskID
 	s.persistTaskProgress(ctx, execution, initial)
@@ -431,8 +430,7 @@ func (s *AgentInvocationService) handleSyncInvocationError(
 func (s *AgentInvocationService) handleSyncInvocationSuccess(
 	ctx context.Context,
 	agent *models.Agent,
-	execution *models.AgentExecution,
-	result *models.AgentExecution,
+	execution, result *models.AgentExecution,
 ) (*models.AgentExecution, error) {
 	endedAt := time.Now()
 
