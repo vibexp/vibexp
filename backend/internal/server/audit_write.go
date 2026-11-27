@@ -95,7 +95,7 @@ type auditState struct {
 // Otherwise it is an update listing the names of the changed fields, plus the
 // old and new values of the status and the display name. A nil before (the
 // resource could not be read ahead of the update) records a bare update.
-func auditUpdate(resourceType string, before *auditState, after *auditState) (models.AuditOperation, map[string]any) {
+func auditUpdate(resourceType string, before, after *auditState) (models.AuditOperation, map[string]any) {
 	if before == nil || after == nil {
 		return auditResourceOp(resourceType, auditVerbUpdate), map[string]any{}
 	}

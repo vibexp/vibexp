@@ -457,8 +457,7 @@ func (s *Server) handleCallbackSuccess(
 	r *http.Request,
 	user *models.User,
 	tokens *idp.Tokens,
-	state string,
-	provider string,
+	state, provider string,
 	isNewUser bool,
 ) {
 	if s.rejectSuspendedSignIn(w, r, user, provider) {

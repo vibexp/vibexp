@@ -154,7 +154,7 @@ func (m *MockActivityServiceForAuthHandlers) GetActivityStats(
 }
 
 func (m *MockActivityServiceForAuthHandlers) GetActivityByID(
-	ctx context.Context, userID string, activityID string,
+	ctx context.Context, userID, activityID string,
 ) (*activities.Activity, error) {
 	args := m.Called(ctx, userID, activityID)
 	if args.Get(0) == nil {
@@ -174,15 +174,15 @@ func (m *MockActivityServiceForAuthHandlers) RecordActivity(
 }
 
 func (m *MockActivityServiceForAuthHandlers) RecordAuthActivity(
-	ctx context.Context, userID string, activityType string, sessionID *string,
-	metadata map[string]interface{}, sourceIP *string, userAgent *string,
+	ctx context.Context, userID, activityType string, sessionID *string,
+	metadata map[string]interface{}, sourceIP, userAgent *string,
 ) error {
 	args := m.Called(ctx, userID, activityType, sessionID, metadata, sourceIP, userAgent)
 	return args.Error(0)
 }
 
 func (m *MockActivityServiceForAuthHandlers) RecordResourceActivity(
-	ctx context.Context, userID string, activityType string, entityType string,
+	ctx context.Context, userID, activityType, entityType string,
 	entityID *string, description string, metadata map[string]interface{},
 ) error {
 	args := m.Called(ctx, userID, activityType, entityType, entityID, description, metadata)
