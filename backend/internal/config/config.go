@@ -456,7 +456,7 @@ type EnvInt int
 // EnvStringSlice type needs its own hook to get the same comma-split behavior as
 // a plain []string. A YAML list is already a slice and passes through untouched.
 func stringToEnvStringSliceHookFunc(sep string) mapstructure.DecodeHookFunc {
-	return func(f reflect.Type, t reflect.Type, data any) (any, error) {
+	return func(f, t reflect.Type, data any) (any, error) {
 		if f.Kind() != reflect.String || t != reflect.TypeFor[EnvStringSlice]() {
 			return data, nil
 		}

@@ -1400,8 +1400,7 @@ type SearchRepository interface {
 	// the total number of matching rows (ignoring page's limit/offset).
 	SearchKeyword(
 		ctx context.Context,
-		teamID string,
-		query string,
+		teamID, query string,
 		entityTypes []string,
 		projectID string,
 		page Page,

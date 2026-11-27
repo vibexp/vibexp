@@ -43,7 +43,7 @@ func commentFixtureRows() *sqlmock.Rows {
 
 // assertCommentError asserts the sentinel and/or message fragment a
 // comment-repo call must return; both zero values mean "no error expected".
-func assertCommentError(t *testing.T, err error, wantIs error, wantSub string) {
+func assertCommentError(t *testing.T, err, wantIs error, wantSub string) {
 	t.Helper()
 	if wantIs == nil && wantSub == "" {
 		require.NoError(t, err)

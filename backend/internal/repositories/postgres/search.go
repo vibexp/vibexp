@@ -311,8 +311,7 @@ func (r *SearchRepository) queryPage(
 
 func (r *SearchRepository) countSimilar(
 	ctx context.Context,
-	teamID string,
-	modelID string,
+	teamID, modelID string,
 	entityTypes []string,
 	projectArg interface{},
 ) (int, error) {
@@ -378,8 +377,7 @@ const (
 // typo (e.g. "widgte" -> "widget") still finds the target resource.
 func (r *SearchRepository) SearchKeyword(
 	ctx context.Context,
-	teamID string,
-	query string,
+	teamID, query string,
 	entityTypes []string,
 	projectID string,
 	page repositories.Page,
@@ -413,8 +411,7 @@ func (r *SearchRepository) SearchKeyword(
 // tsquery expression (strict vs relaxed) differs.
 func (r *SearchRepository) runKeywordPass(
 	ctx context.Context,
-	teamID string,
-	query string,
+	teamID, query string,
 	entityTypes []string,
 	projectArg interface{},
 	page repositories.Page,
@@ -590,8 +587,7 @@ func buildKeywordTrgmCountUnion(entityTypes []string) (string, error) {
 // the local threshold applies to both and never leaks onto the pooled connection.
 func (r *SearchRepository) runKeywordTrgmPass(
 	ctx context.Context,
-	teamID string,
-	query string,
+	teamID, query string,
 	entityTypes []string,
 	projectArg interface{},
 	page repositories.Page,
@@ -692,8 +688,7 @@ func queryKeywordTrgmPage(
 
 func (r *SearchRepository) queryKeywordPage(
 	ctx context.Context,
-	teamID string,
-	query string,
+	teamID, query string,
 	entityTypes []string,
 	projectArg interface{},
 	page repositories.Page,
@@ -762,8 +757,7 @@ func scanSearchRows(rows *sql.Rows, limit int) ([]models.SearchResultRow, error)
 
 func (r *SearchRepository) countKeyword(
 	ctx context.Context,
-	teamID string,
-	query string,
+	teamID, query string,
 	entityTypes []string,
 	projectArg interface{},
 	tsquery string,

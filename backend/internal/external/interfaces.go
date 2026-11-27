@@ -131,7 +131,7 @@ type GitHubAppClient interface {
 		ctx context.Context, installationID int64, page int,
 	) ([]models.GitHubRepository, int, error)
 	GetInstallation(ctx context.Context, installationID int64) (*GitHubInstallationInfo, error)
-	GetRepository(ctx context.Context, installationID int64, repoID int64) (*models.GitHubRepository, error)
+	GetRepository(ctx context.Context, installationID, repoID int64) (*models.GitHubRepository, error)
 	GetFileContent(
 		ctx context.Context, installationID int64, owner, repoName, path string,
 	) (*GitHubFile, error)

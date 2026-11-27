@@ -298,8 +298,7 @@ func (c *GitHubAppClient) GetInstallationRepositories(
 // GetRepository retrieves a single repository by ID
 func (c *GitHubAppClient) GetRepository(
 	ctx context.Context,
-	installationID int64,
-	repoID int64,
+	installationID, repoID int64,
 ) (*models.GitHubRepository, error) {
 	ctx, span := githubTracer.Start(ctx, "github.get_repository",
 		trace.WithAttributes(
