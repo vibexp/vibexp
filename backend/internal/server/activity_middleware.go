@@ -23,7 +23,7 @@ func NewActivityRecorder(activityService activities.ActivityService) *ActivityRe
 
 // RecordAuthActivity records authentication-related activities
 func (ar *ActivityRecorder) RecordAuthActivity(
-	ctx context.Context, userID string, activityType string, sessionID *string,
+	ctx context.Context, userID, activityType string, sessionID *string,
 	metadata map[string]interface{}, r *http.Request,
 ) {
 	// Skip activity recording if service is not available (e.g., during tests)
@@ -102,7 +102,7 @@ func (ar *ActivityRecorder) RecordResourceActivity(
 
 // RecordAPIKeyUsage records API key usage activities
 func (ar *ActivityRecorder) RecordAPIKeyUsage(
-	ctx context.Context, userID string, apiKeyID string, endpoint string, r *http.Request,
+	ctx context.Context, userID, apiKeyID, endpoint string, r *http.Request,
 ) {
 	metadata := map[string]interface{}{
 		"endpoint":   endpoint,
@@ -132,8 +132,8 @@ func (ar *ActivityRecorder) RecordAPIKeyUsage(
 // recordPromptActivity records prompt-related activities.
 // promptID is the UUID stored as entity_id; promptSlug is kept in metadata for debugging.
 func (s *Server) recordPromptActivity(
-	ctx context.Context, userID string, activityType string,
-	promptID string, promptSlug string, description string, r *http.Request,
+	ctx context.Context, userID, activityType,
+	promptID, promptSlug, description string, r *http.Request,
 ) {
 	ar := NewActivityRecorder(s.activityService)
 	ar.RecordResourceActivity(ctx, resourceActivityParams{
@@ -176,8 +176,8 @@ func (s *Server) recordArtifactActivity(ctx context.Context, p artifactActivityP
 
 // recordAPIKeyActivity records API key-related activities
 func (s *Server) recordAPIKeyActivity(
-	ctx context.Context, userID string, activityType string,
-	apiKeyID string, description string, r *http.Request,
+	ctx context.Context, userID, activityType,
+	apiKeyID, description string, r *http.Request,
 ) {
 	ar := NewActivityRecorder(s.activityService)
 	ar.RecordResourceActivity(ctx, resourceActivityParams{

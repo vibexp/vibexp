@@ -405,7 +405,7 @@ func validateSubAgentsMetadata(w http.ResponseWriter, metadata map[string]interf
 }
 
 // validateBlueprintSubtype validates blueprint subtype
-func (s *Server) validateBlueprintSubtype(w http.ResponseWriter, blueprintType *string, subtype *string,
+func (s *Server) validateBlueprintSubtype(w http.ResponseWriter, blueprintType, subtype *string,
 	metadata map[string]interface{}) bool {
 	// If no subtype provided, that's valid
 	if subtype == nil || *subtype == "" {

@@ -88,7 +88,7 @@ type routeEntry struct{ method, path string }
 func collectRESTRoutes(t *testing.T, srv *Server) []routeEntry {
 	t.Helper()
 	var routes []routeEntry
-	walk := func(method string, path string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+	walk := func(method, path string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
 		if _, ok := restVerbs[method]; !ok {
 			return nil
 		}

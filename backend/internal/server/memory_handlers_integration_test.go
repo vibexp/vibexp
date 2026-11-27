@@ -36,14 +36,14 @@ func (m *mockActivityService) RecordActivity(
 }
 
 func (m *mockActivityService) RecordAuthActivity(
-	ctx context.Context, userID string, activityType string, sessionID *string,
-	metadata map[string]interface{}, sourceIP *string, userAgent *string,
+	ctx context.Context, userID, activityType string, sessionID *string,
+	metadata map[string]interface{}, sourceIP, userAgent *string,
 ) error {
 	return nil
 }
 
 func (m *mockActivityService) RecordResourceActivity(
-	ctx context.Context, userID string, activityType string, entityType string,
+	ctx context.Context, userID, activityType, entityType string,
 	entityID *string, description string, metadata map[string]interface{},
 ) error {
 	return nil
@@ -56,7 +56,7 @@ func (m *mockActivityService) GetActivities(
 }
 
 func (m *mockActivityService) GetActivityByID(
-	ctx context.Context, userID string, activityID string,
+	ctx context.Context, userID, activityID string,
 ) (*activities.Activity, error) {
 	return nil, nil
 }
