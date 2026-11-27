@@ -179,7 +179,7 @@ func (s *Server) getArtifactResource(
 	}
 
 	if s.metrics != nil {
-		s.metrics.RecordMCPGetArtifact(context.Background())
+		s.metrics.RecordMCPGetArtifact(ctx)
 	}
 
 	s.recordMCPResourceAccess(ctx, teamID, userID, resourceTypeArtifact, artifact.ID)
