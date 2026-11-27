@@ -2168,7 +2168,7 @@ func TestPromptService_UpdatePrompt_PreservesTeamID(t *testing.T) {
 // #1098: placeholders_missing lists every template {{key}} the render left
 // unfilled, across the whole reference tree.
 func TestPromptService_RenderPrompt_PlaceholdersMissing(t *testing.T) {
-	render := func(t *testing.T, body string, refs map[string]string, placeholders map[string]string) *models.RenderPromptResponse {
+	render := func(t *testing.T, body string, refs, placeholders map[string]string) *models.RenderPromptResponse {
 		t.Helper()
 		mockRepo := mocks.NewMockPromptRepository(t)
 		service := createTestPromptService(mockRepo, nil)

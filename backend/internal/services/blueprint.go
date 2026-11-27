@@ -560,7 +560,7 @@ func (s *BlueprintService) snapshotBlueprintContent(
 func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 	ctx context.Context,
 	userID string, blueprint *models.Blueprint, req *models.UpdateBlueprintRequest,
-	actorType string, changeSummary *string, rawOverride *string,
+	actorType string, changeSummary, rawOverride *string,
 ) (*models.Blueprint, error) {
 	// Any member may update any blueprint, including another member's (epic #220
 	// decision D1). Gated in the shared helper so the entry point and version

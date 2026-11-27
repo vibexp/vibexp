@@ -11,13 +11,13 @@ type ActivityTracker interface {
 
 	// RecordAuthActivity records authentication-related activities
 	RecordAuthActivity(
-		ctx context.Context, userID string, activityType string, sessionID *string,
-		metadata map[string]interface{}, sourceIP *string, userAgent *string,
+		ctx context.Context, userID, activityType string, sessionID *string,
+		metadata map[string]interface{}, sourceIP, userAgent *string,
 	) error
 
 	// RecordResourceActivity records resource management activities
 	RecordResourceActivity(
-		ctx context.Context, userID string, activityType string, entityType string,
+		ctx context.Context, userID, activityType, entityType string,
 		entityID *string, description string, metadata map[string]interface{},
 	) error
 }
@@ -30,7 +30,7 @@ type ActivityService interface {
 	GetActivities(ctx context.Context, filters ActivityFilters) (*ActivityListResponse, error)
 
 	// GetActivityByID retrieves a specific activity by ID
-	GetActivityByID(ctx context.Context, userID string, activityID string) (*Activity, error)
+	GetActivityByID(ctx context.Context, userID, activityID string) (*Activity, error)
 
 	// GetActivityStats retrieves activity statistics
 	GetActivityStats(ctx context.Context, userID string) (*ActivityStatsResponse, error)

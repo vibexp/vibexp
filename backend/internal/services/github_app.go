@@ -239,8 +239,7 @@ func (s *GitHubAppService) RefreshInstallationToken(ctx context.Context, teamID 
 // another team's installation.
 func (s *GitHubAppService) HandleWebhookEvent(
 	ctx context.Context,
-	appConfigID string,
-	eventType string,
+	appConfigID, eventType string,
 	installationID int64,
 	action string,
 ) error {
@@ -302,8 +301,7 @@ func (s *GitHubAppService) handleInstallationEvent(
 // newInstallationRecord builds a GitHubInstallation model from GitHub API info.
 // Shared by HandleInstallationCallback.
 func newInstallationRecord(
-	teamID string,
-	appConfigID string,
+	teamID, appConfigID string,
 	installationID int64,
 	installationInfo *external.GitHubInstallationInfo,
 	encryptedToken string,

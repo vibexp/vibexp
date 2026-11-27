@@ -105,8 +105,8 @@ func (s *Service) RecordActivity(ctx context.Context, userID string, req CreateA
 
 // RecordAuthActivity records authentication-related activities
 func (s *Service) RecordAuthActivity(
-	ctx context.Context, userID string, activityType string, sessionID *string,
-	metadata map[string]interface{}, sourceIP *string, userAgent *string,
+	ctx context.Context, userID, activityType string, sessionID *string,
+	metadata map[string]interface{}, sourceIP, userAgent *string,
 ) error {
 	description := s.generateAuthActivityDescription(activityType, metadata)
 
@@ -127,7 +127,7 @@ func (s *Service) RecordAuthActivity(
 
 // RecordResourceActivity records resource management activities
 func (s *Service) RecordResourceActivity(
-	ctx context.Context, userID string, activityType string, entityType string,
+	ctx context.Context, userID, activityType, entityType string,
 	entityID *string, description string, metadata map[string]interface{},
 ) error {
 	req := CreateActivityRequest{
@@ -196,7 +196,7 @@ func (s *Service) GetActivities(ctx context.Context, filters ActivityFilters) (*
 }
 
 // GetActivityByID retrieves a specific activity by ID
-func (s *Service) GetActivityByID(ctx context.Context, userID string, activityID string) (*Activity, error) {
+func (s *Service) GetActivityByID(ctx context.Context, userID, activityID string) (*Activity, error) {
 	modelActivity, err := s.repo.GetByID(ctx, userID, activityID)
 	if err != nil {
 		return nil, err

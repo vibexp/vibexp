@@ -177,7 +177,7 @@ func (g *ssrfGuard) validateOutboundHost(ctx context.Context, rawURL string) err
 // control is a net.Dialer.Control hook that re-checks the IP the connection is
 // actually about to dial. This defeats DNS rebinding: even if a name passed an
 // earlier validation, the connect-time IP is verified again here.
-func (g *ssrfGuard) control(_ string, address string, _ syscall.RawConn) error {
+func (g *ssrfGuard) control(_, address string, _ syscall.RawConn) error {
 	host, _, err := net.SplitHostPort(address)
 	if err != nil {
 		return fmt.Errorf("invalid dial address: %w", err)

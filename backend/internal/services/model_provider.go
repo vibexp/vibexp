@@ -141,8 +141,7 @@ func (mps *ModelProviderService) buildModelProvider(
 
 func (mps *ModelProviderService) CreateModelProvider(
 	ctx context.Context,
-	teamID string,
-	userID string,
+	teamID, userID string,
 	req models.CreateModelProviderRequest,
 ) (*models.ModelProvider, error) {
 	if mps == nil || mps.repo == nil {

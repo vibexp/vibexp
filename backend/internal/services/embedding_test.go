@@ -816,8 +816,7 @@ func TestEmbeddingService_DeleteEmbeddingsByEntity(t *testing.T) {
 // adding nolint suppressions.
 func runBuiltinValidatorErrorWrapTest(
 	t *testing.T,
-	entityType string,
-	wantPrefix string,
+	entityType, wantPrefix string,
 	setup func(
 		*mocks.MockPromptRepository,
 		*mocks.MockArtifactRepository,

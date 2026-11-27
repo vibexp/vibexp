@@ -281,8 +281,7 @@ func (m *MockGitHubAppClient) GetInstallation(
 
 func (m *MockGitHubAppClient) GetRepository(
 	ctx context.Context,
-	installationID int64,
-	repoID int64,
+	installationID, repoID int64,
 ) (*models.GitHubRepository, error) {
 	args := m.Called(ctx, installationID, repoID)
 	if args.Get(0) == nil {
