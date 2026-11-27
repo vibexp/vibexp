@@ -145,7 +145,7 @@ func (s *Server) createArtifact(
 		auditRecord(teamID, resourceTypeArtifact, auditVerbCreate, artifact.ID, artifactAuditState(artifact)))
 
 	if s.metrics != nil {
-		s.metrics.RecordMCPCreateArtifact(context.Background())
+		s.metrics.RecordMCPCreateArtifact(ctx)
 	}
 
 	result := &artifactWriteResponse{
@@ -271,7 +271,7 @@ func (s *Server) updateArtifact(
 		s.auditUpdatedWrite(userID, teamID, resourceTypeArtifact, artifact.ID, before, artifactAuditState(artifact)))
 
 	if s.metrics != nil {
-		s.metrics.RecordMCPUpdateArtifact(context.Background())
+		s.metrics.RecordMCPUpdateArtifact(ctx)
 	}
 
 	result := &artifactWriteResponse{

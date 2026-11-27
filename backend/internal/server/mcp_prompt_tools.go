@@ -130,7 +130,7 @@ func (s *Server) createPrompt(
 		auditRecord(teamID, resourceTypePrompt, auditVerbCreate, prompt.ID, promptAuditState(prompt)))
 
 	if s.metrics != nil {
-		s.metrics.RecordMCPCreatePrompt(context.Background())
+		s.metrics.RecordMCPCreatePrompt(ctx)
 	}
 
 	return marshalPromptWriteResult(s.config.Frontend.BaseURL, prompt)
@@ -198,7 +198,7 @@ func (s *Server) updatePrompt(
 		s.auditUpdatedWrite(userID, teamID, resourceTypePrompt, prompt.ID, before, promptAuditState(prompt)))
 
 	if s.metrics != nil {
-		s.metrics.RecordMCPUpdatePrompt(context.Background())
+		s.metrics.RecordMCPUpdatePrompt(ctx)
 	}
 
 	return marshalPromptWriteResult(s.config.Frontend.BaseURL, prompt)

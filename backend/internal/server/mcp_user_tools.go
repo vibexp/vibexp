@@ -41,7 +41,7 @@ func (s *Server) getUserWithUser(
 	}
 
 	if s.metrics != nil {
-		s.metrics.RecordMCPGetUser(context.Background())
+		s.metrics.RecordMCPGetUser(ctx)
 	}
 
 	return &mcp.CallToolResult{

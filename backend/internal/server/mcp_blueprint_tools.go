@@ -125,7 +125,7 @@ func (s *Server) createBlueprint(
 		auditRecord(teamID, resourceTypeBlueprint, auditVerbCreate, blueprint.ID, blueprintAuditState(blueprint)))
 
 	if s.metrics != nil {
-		s.metrics.RecordMCPCreateBlueprint(context.Background())
+		s.metrics.RecordMCPCreateBlueprint(ctx)
 	}
 
 	return marshalBlueprintWriteResult(s.config.Frontend.BaseURL, blueprint)
@@ -213,7 +213,7 @@ func (s *Server) updateBlueprint(
 	s.recordAuditWrite(ctx, s.auditBlueprintUpdated(userID, teamID, before, blueprint))
 
 	if s.metrics != nil {
-		s.metrics.RecordMCPUpdateBlueprint(context.Background())
+		s.metrics.RecordMCPUpdateBlueprint(ctx)
 	}
 
 	return marshalBlueprintWriteResult(s.config.Frontend.BaseURL, blueprint)
