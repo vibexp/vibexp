@@ -138,7 +138,7 @@ func AssertSliceEqual(t TestingT, expected, actual interface{}) {
 }
 
 // AssertSliceContains asserts that a slice contains an element
-func AssertSliceContains(t TestingT, slice interface{}, element interface{}) {
+func AssertSliceContains(t TestingT, slice, element interface{}) {
 	t.Helper()
 
 	v := reflect.ValueOf(slice)

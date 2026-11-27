@@ -52,7 +52,7 @@ func promptShareInactiveExpiredRows() *sqlmock.Rows {
 
 // assertPromptShareError asserts the sentinel and/or message fragment a
 // prompt-share call must return; both zero values mean "no error expected".
-func assertPromptShareError(t *testing.T, err error, wantIs error, wantSub string) {
+func assertPromptShareError(t *testing.T, err, wantIs error, wantSub string) {
 	t.Helper()
 	if wantIs == nil && wantSub == "" {
 		require.NoError(t, err)

@@ -44,7 +44,7 @@ func typeSystemRows() *sqlmock.Rows {
 
 // assertTypeError asserts the sentinel and/or message fragment a type-repo
 // call must return; both zero values mean "no error expected".
-func assertTypeError(t *testing.T, err error, wantIs error, wantSub string) {
+func assertTypeError(t *testing.T, err, wantIs error, wantSub string) {
 	t.Helper()
 	if wantIs == nil && wantSub == "" {
 		require.NoError(t, err)

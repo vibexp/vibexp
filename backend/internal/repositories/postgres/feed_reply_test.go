@@ -37,7 +37,7 @@ func registerMockDBClose(t *testing.T, mockDB *sql.DB) {
 // assertWantRepoErr asserts a repository call outcome: success when neither
 // expectation is set, otherwise sentinel identity (errors.Is) and/or message
 // substring.
-func assertWantRepoErr(t *testing.T, err error, wantIs error, wantSub string) {
+func assertWantRepoErr(t *testing.T, err, wantIs error, wantSub string) {
 	t.Helper()
 	if wantIs == nil && wantSub == "" {
 		require.NoError(t, err)

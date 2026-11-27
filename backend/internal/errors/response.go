@@ -131,7 +131,7 @@ func WriteJSONError(w http.ResponseWriter, r *http.Request, apiErr *APIError) {
 }
 
 // NewAPIError creates a new APIError with required fields
-func NewAPIError(code string, title string, detail string, status int) *APIError {
+func NewAPIError(code, title, detail string, status int) *APIError {
 	return &APIError{
 		Type:      typeURI(code),
 		Title:     title,
